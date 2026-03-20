@@ -2,9 +2,10 @@
 
 > 方案：`../docs/OpenClaw-顶层界面-开发方案.md`（v1.5）  
 > 步骤：`../docs/lclaw-ui-开发步骤.md`  
-> 协议笔记：`../docs/gateway-client-protocol-notes.md`
+> 协议笔记：`../docs/gateway-client-protocol-notes.md`  
+> 内网部署与冒烟：`../docs/lclaw-ui-内网部署.md`
 
-**Vue 3 + TypeScript + Vite + Pinia**。已实现：**阶段 A～D**（右栏 **Markdown + DOMPurify + highlight.js**；围栏 **`echarts-json`** + Zod + ECharts 按需引入；**外链白名单** `VITE_LINK_ALLOWLIST`；**工具/事件时间线** + 节流合并）。下一阶段见 `../docs/lclaw-ui-开发步骤.md` **阶段 E**。
+**Vue 3 + TypeScript + Vite + Pinia**。已实现：**阶段 A～E（交付项）**——核心 RPC / `chat` 事件 **Zod**、网关错误中文说明、**复制诊断信息**（脱敏）、**内网部署与冒烟文档**（`../docs/lclaw-ui-内网部署.md`）。可选项（BFF、无障碍、i18n、错误上报 SDK）见开发步骤阶段 E。
 
 ## 常用命令
 

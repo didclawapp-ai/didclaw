@@ -1,3 +1,6 @@
+import { sessionsListResponseSchema } from "@/features/gateway/schemas";
+import { describeGatewayError } from "@/lib/gateway-errors";
+import { formatZodIssues } from "@/lib/zod-format";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useGatewayStore } from "./gateway";
@@ -25,11 +28,17 @@ export const useSessionStore = defineStore("session", () => {
     loading.value = true;
     error.value = null;
     try {
-      const res = await c.request<{ sessions?: SessionRow[] }>("sessions.list", {
+      const res = await c.request<unknown>("sessions.list", {
         includeGlobal: true,
         includeUnknown: true,
       });
-      const list = Array.isArray(res.sessions) ? res.sessions : [];
+      const parsed = sessionsListResponseSchema.safeParse(res);
+      if (!parsed.success) {
+        error.value = `会话列表格式异常：${formatZodIssues(parsed.error)}`;
+        sessions.value = [];
+        return;
+      }
+      const list = parsed.data.sessions ?? [];
       sessions.value = list.filter((s) => typeof s.key === "string");
       if (sessions.value.length > 0 && !activeSessionKey.value) {
         activeSessionKey.value = sessions.value[0]?.key ?? null;
@@ -40,7 +49,7 @@ export const useSessionStore = defineStore("session", () => {
         await useChatStore().loadHistory();
       }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
+      error.value = describeGatewayError(e);
     } finally {
       loading.value = false;
     }

@@ -1,18 +1,13 @@
 import type { GatewayEventFrame } from "@/features/gateway/gateway-types";
+import { chatEventPayloadSchema, chatHistoryResponseSchema } from "@/features/gateway/schemas";
+import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractDisplayText } from "@/lib/message-display";
+import { formatZodIssues } from "@/lib/zod-format";
 import { generateUUID } from "@/lib/uuid";
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useGatewayStore } from "./gateway";
 import { useSessionStore } from "./session";
-
-export type ChatEventPayload = {
-  runId: string;
-  sessionKey: string;
-  state: "delta" | "final" | "aborted" | "error";
-  message?: unknown;
-  errorMessage?: string;
-};
 
 export const useChatStore = defineStore("chat", () => {
   const messages = ref<unknown[]>([]);
@@ -35,15 +30,22 @@ export const useChatStore = defineStore("chat", () => {
     historyLoading.value = true;
     lastError.value = null;
     try {
-      const res = await c.request<{ messages?: unknown[] }>("chat.history", {
+      const res = await c.request<unknown>("chat.history", {
         sessionKey: key,
         limit: 200,
       });
-      messages.value = Array.isArray(res.messages) ? res.messages : [];
+      const parsed = chatHistoryResponseSchema.safeParse(res);
+      if (!parsed.success) {
+        lastError.value = `历史消息格式异常：${formatZodIssues(parsed.error)}`;
+        messages.value = [];
+        return;
+      }
+      const msgs = parsed.data.messages;
+      messages.value = Array.isArray(msgs) ? msgs : [];
       streamText.value = null;
       runId.value = null;
     } catch (e) {
-      lastError.value = e instanceof Error ? e.message : String(e);
+      lastError.value = describeGatewayError(e);
     } finally {
       historyLoading.value = false;
     }
@@ -74,7 +76,7 @@ export const useChatStore = defineStore("chat", () => {
     } catch (e) {
       runId.value = null;
       streamText.value = null;
-      lastError.value = e instanceof Error ? e.message : String(e);
+      lastError.value = describeGatewayError(e);
     } finally {
       sending.value = false;
     }
@@ -101,10 +103,14 @@ export const useChatStore = defineStore("chat", () => {
     if (evt.event !== "chat") {
       return;
     }
-    const payload = evt.payload as ChatEventPayload | undefined;
-    if (!payload) {
+    const parsed = chatEventPayloadSchema.safeParse(evt.payload);
+    if (!parsed.success) {
+      if (import.meta.env.DEV) {
+        console.warn("[lclaw-ui] chat event payload invalid:", formatZodIssues(parsed.error));
+      }
       return;
     }
+    const payload = parsed.data;
     const session = useSessionStore();
     if (payload.sessionKey !== session.activeSessionKey) {
       return;
@@ -129,7 +135,7 @@ export const useChatStore = defineStore("chat", () => {
     } else if (payload.state === "error") {
       streamText.value = null;
       runId.value = null;
-      lastError.value = payload.errorMessage ?? "chat error";
+      lastError.value = payload.errorMessage?.trim() || "对话出错（网关返回 error 状态）";
     }
   }
 

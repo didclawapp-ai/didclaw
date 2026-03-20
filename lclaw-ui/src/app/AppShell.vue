@@ -2,12 +2,13 @@
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
 import { messageToChatLine } from "@/lib/chat-line";
+import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { usePreviewStore } from "@/stores/preview";
 import { useSessionStore } from "@/stores/session";
 import { storeToRefs } from "pinia";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 const gw = useGatewayStore();
 const session = useSessionStore();
@@ -25,6 +26,38 @@ const {
   draft,
   lastError: chatError,
 } = storeToRefs(chat);
+
+const copiedDiag = ref(false);
+let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function copyDiagnostics(): Promise<void> {
+  const snapshot = buildDiagnosticsSnapshot({
+    version: __APP_VERSION__,
+    gatewayWsUrl: url.value,
+    connectionStatus: status.value,
+    helloInfo: helloInfo.value,
+    gatewayLastError: lastError.value,
+    sessionListError: sessionsError.value,
+    activeSessionKey: activeSessionKey.value,
+    sessionCount: sessions.value.length,
+    chatLastError: chatError.value,
+    messageCount: messages.value.length,
+  });
+  const text = diagnosticsToPrettyJson(snapshot);
+  try {
+    await navigator.clipboard.writeText(text);
+    copiedDiag.value = true;
+    if (copyTimer !== null) {
+      clearTimeout(copyTimer);
+    }
+    copyTimer = window.setTimeout(() => {
+      copiedDiag.value = false;
+      copyTimer = null;
+    }, 2000);
+  } catch {
+    window.alert("复制失败：请在 https 或 localhost 下打开，并允许浏览器剪贴板权限。");
+  }
+}
 
 const displayLines = computed(() => {
   const base = messages.value.map((m) => messageToChatLine(m));
@@ -57,6 +90,10 @@ function onSelectMessage(index: number) {
         <button v-if="status === 'connected'" type="button" class="ghost" @click="gw.disconnect()">
           断开
         </button>
+        <button type="button" class="ghost diag" title="复制脱敏 JSON，便于贴到工单/聊天排查" @click="copyDiagnostics">
+          复制诊断信息
+        </button>
+        <span v-if="copiedDiag" class="copied">已复制</span>
       </div>
       <p v-if="helloInfo" class="meta">{{ helloInfo }}</p>
       <p v-if="lastError" class="err">{{ lastError }}</p>
@@ -264,5 +301,12 @@ button.ghost {
   color: #888;
   padding: 8px 12px;
   font-size: 13px;
+}
+.diag {
+  font-size: 12px;
+}
+.copied {
+  font-size: 12px;
+  color: #2e7d32;
 }
 </style>

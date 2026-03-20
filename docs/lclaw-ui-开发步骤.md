@@ -108,12 +108,12 @@
 
 对应方案 **§7 阶段 E**。
 
-- [ ] **Zod/TypeBox** 覆盖核心 RPC 响应与关键下行事件；异常路径有用户可见说明（方案 §3.5）。
-- [ ] **同步 `gateway-client-protocol-notes.md`**：方法表、事件表、版本、与官方差异。
-- [ ] **可观测性**：脱敏错误上报、连接诊断（复制诊断信息）、常见错误码中文对照（方案 §6.1）。
-- [ ] **回归**：锁定一组 OpenClaw 版本，升级小版本后跑冒烟（方案 §8）。
-- [ ] **构建**：`pnpm build`，在 **Nginx/Caddy/IIS** 验证 SPA **History fallback**（方案 §5.2）。
-- [ ] **文档**：内网部署步骤、环境变量说明、Gateway 前置条件。
+- [x] **Zod** 覆盖核心 RPC 响应（`sessions.list`、`chat.history`）与下行 **`chat`** 事件；校验失败有中文说明（`formatZodIssues`）；RPC 异常走 `describeGatewayError`（`lib/gateway-errors.ts`）。
+- [x] **同步 `gateway-client-protocol-notes.md`**：方法表、事件表、schema 索引、版本字段。
+- [x] **可观测性**：顶栏 **复制诊断信息**（脱敏 JSON，无 token/密码明文）；常见 JSON-RPC 码中文对照（`gateway-errors.ts`）。*（错误上报 SDK 未接，按需再加。）*
+- [x] **回归**：版本锁定与升级后冒烟步骤写入 **`docs/lclaw-ui-内网部署.md`** §联调冒烟清单。
+- [x] **构建**：`pnpm typecheck` + `pnpm build`；SPA fallback 配置示例见 **`docs/lclaw-ui-内网部署.md`**（Nginx/Caddy/IIS）。
+- [x] **文档**：**`docs/lclaw-ui-内网部署.md`**（环境变量、前置条件、部署命令）。
 - [ ] （按需）**BFF / SSO / 审计**（方案 §2、§6）。
 - [ ] （按需）**无障碍**、**i18n** 文案外置（方案 §7 阶段 E）。
 

@@ -1,5 +1,6 @@
 import { GatewayClient } from "@/features/gateway/gateway-client";
 import { gatewayHelloOkSchema } from "@/features/gateway/schemas";
+import { describeGatewayError } from "@/lib/gateway-errors";
 import { defineStore } from "pinia";
 import { computed, ref, shallowRef } from "vue";
 
@@ -70,9 +71,9 @@ export const useGatewayStore = defineStore("gateway", () => {
       onClose: ({ code, reason, error }) => {
         client.value = null;
         status.value = "error";
-        const detail = error?.message ?? reason;
-        lastError.value = detail ? `Disconnected (${code}): ${detail}` : `Disconnected (${code})`;
-        if (detail.toLowerCase().includes("pairing")) {
+        const detailText = error ? describeGatewayError(error) : String(reason ?? "").trim();
+        lastError.value = detailText ? `已断开（${code}）：${detailText}` : `已断开（${code}）`;
+        if (detailText.toLowerCase().includes("pairing")) {
           lastError.value += " — 请在网关主机执行: openclaw devices list / openclaw devices approve <id>";
         }
       },
