@@ -15,6 +15,25 @@ function compactObjectHint(o: Record<string, unknown>): string {
   return head ? `字段: ${head}${keys.length > 6 ? "…" : ""}` : "无常用文本字段";
 }
 
+/** assistant 仅有 api/provider/model 等、无文本 part 时的可读一行 */
+function assistantStructuredSummary(o: Record<string, unknown>): string | null {
+  const model = o.model;
+  const api = o.api;
+  const provider = o.provider;
+  if (typeof model !== "string" && typeof api !== "string" && typeof provider !== "string") {
+    return null;
+  }
+  const parts = [
+    typeof provider === "string" ? `provider=${provider}` : null,
+    typeof api === "string" ? `api=${api}` : null,
+    typeof model === "string" ? `model=${model}` : null,
+  ].filter(Boolean);
+  if (parts.length === 0) {
+    return null;
+  }
+  return `[助手·仅元数据] ${parts.join("，")}（无文本正文）`;
+}
+
 function extractBody(o: Record<string, unknown>): string {
   if (typeof o.text === "string") {
     return o.text;
@@ -42,7 +61,15 @@ export function messageToChatLine(m: unknown): ChatLine {
 
   let text = extractBody(o);
   if (!text.trim()) {
-    text = `[系统] 无文本正文（${compactObjectHint(o)}）`;
+    if (role === "assistant") {
+      const structured = assistantStructuredSummary(o);
+      if (structured) {
+        text = structured;
+      }
+    }
+    if (!text.trim()) {
+      text = `[系统] 无文本正文（${compactObjectHint(o)}）`;
+    }
   }
 
   return {

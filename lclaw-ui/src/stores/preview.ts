@@ -6,6 +6,8 @@ export const usePreviewStore = defineStore("preview", () => {
   const followLatest = ref(true);
   /** 在 followLatest=false 时生效；为 null 则回退到最后一行 */
   const explicitIndex = ref<number | null>(null);
+  /** 关闭时隐藏冗长 system / 工具型 assistant / 部分自动 user 输出，减轻历史刷屏 */
+  const showDiagnosticMessages = ref(false);
 
   function getSelectedIndex(lineCount: number): number | null {
     if (lineCount <= 0) {
@@ -38,12 +40,18 @@ export const usePreviewStore = defineStore("preview", () => {
     explicitIndex.value = null;
   }
 
+  function setShowDiagnosticMessages(value: boolean): void {
+    showDiagnosticMessages.value = value;
+  }
+
   return {
     followLatest,
     explicitIndex,
+    showDiagnosticMessages,
     getSelectedIndex,
     selectLine,
     setFollowLatest,
+    setShowDiagnosticMessages,
     resetForNewSession,
   };
 });

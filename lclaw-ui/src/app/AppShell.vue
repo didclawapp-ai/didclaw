@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
-import { buildListPreview } from "@/lib/chat-message-format";
+import { buildListPreview, shouldHideDiagnosticChatLine } from "@/lib/chat-message-format";
 import { messageToChatLine } from "@/lib/chat-line";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { useChatStore } from "@/stores/chat";
@@ -16,6 +16,7 @@ const session = useSessionStore();
 const chat = useChatStore();
 const preview = usePreviewStore();
 
+const { showDiagnosticMessages } = storeToRefs(preview);
 const { status, lastError, helloInfo, url } = storeToRefs(gw);
 const { sessions, loading: sessionsLoading, error: sessionsError, activeSessionKey } =
   storeToRefs(session);
@@ -62,9 +63,10 @@ async function copyDiagnostics(): Promise<void> {
 
 const displayLines = computed(() => {
   const base = messages.value.map((m) => messageToChatLine(m));
+  let list = base;
   if (streamText.value?.trim()) {
     const t = streamText.value;
-    return [
+    list = [
       ...base,
       {
         role: "assistant" as const,
@@ -74,7 +76,10 @@ const displayLines = computed(() => {
       },
     ];
   }
-  return base;
+  if (showDiagnosticMessages.value) {
+    return list;
+  }
+  return list.filter((line) => !shouldHideDiagnosticChatLine(line.role, line.text));
 });
 
 const selectedIndex = computed(() => preview.getSelectedIndex(displayLines.value.length));
@@ -124,14 +129,34 @@ function onSelectMessage(index: number) {
           </li>
         </ul>
 
-        <div class="panel-title">消息</div>
+        <div class="panel-title row-title">
+          <span>消息</span>
+          <label v-if="!historyLoading" class="msg-filter">
+            <input
+              type="checkbox"
+              :checked="showDiagnosticMessages"
+              @change="
+                preview.setShowDiagnosticMessages(($event.target as HTMLInputElement).checked)
+              "
+            >
+            显示诊断/配置
+          </label>
+        </div>
         <div v-if="historyLoading" class="muted">加载历史…</div>
+        <p
+          v-else-if="displayLines.length === 0 && messages.length > 0 && !showDiagnosticMessages"
+          class="muted filter-hint"
+        >
+          本会话消息已按规则隐藏（审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
+        </p>
         <ChatMessageList
-          v-else
+          v-else-if="!historyLoading && displayLines.length > 0"
           :lines="displayLines"
           :selected-index="selectedIndex"
           @select="onSelectMessage"
         />
+        <p v-else-if="!historyLoading && messages.length === 0" class="muted">暂无消息</p>
+        <p v-else-if="!historyLoading" class="muted filter-hint">暂无可显示消息。</p>
 
         <div class="composer">
           <textarea v-model="draft" rows="3" placeholder="输入消息…" :disabled="sending || status !== 'connected'" />
@@ -263,6 +288,28 @@ button.ghost {
   background: #f5f5f5;
   border-bottom: 1px solid #eee;
   flex-shrink: 0;
+}
+.panel-title.row-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.msg-filter {
+  font-size: 11px;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+  padding: 8px 12px;
 }
 .sess {
   list-style: none;
