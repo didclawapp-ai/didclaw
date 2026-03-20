@@ -16,6 +16,29 @@ function isOpenClawMergedConfigJson(j: Record<string, unknown>): boolean {
   return m.mode === "merge" && typeof m.providers === "object" && m.providers !== null;
 }
 
+/** ASCII 表格顶栏，如 +----------+---------+ */
+function looksLikeAsciiTableDivider(t: string): boolean {
+  return /\+-{3,}\+/.test(t);
+}
+
+/** 多行 .openclaw 路径清单（含 ANSI 着色） */
+function looksLikeOpenClawPathDump(t: string): boolean {
+  const lines = t.split("\n").filter((l) => l.includes(".openclaw"));
+  if (lines.length >= 4) {
+    return true;
+  }
+  return /\[?\d+;?\d*m.*FullName/i.test(t) && /\.openclaw[\\/]/i.test(t) && lines.length >= 2;
+}
+
+/** 短小的「命令退出」提示，任意 role 都可能出现 */
+function isShortCommandExitLine(t: string): boolean {
+  const s = t.trim();
+  if (s.length > 420) {
+    return false;
+  }
+  return /^\(?\s*command\s+exited\s+with\s+code/i.test(s) || /\(Command\s+exited\s+with\s+code/i.test(s);
+}
+
 /**
  * 识别网关/Agent 常见的大块 JSON（如模型目录），在**左侧列表**用一行说明代替全文。
  */
@@ -60,11 +83,14 @@ export function buildListPreview(fullText: string): string {
  */
 export function shouldHideDiagnosticChatLine(role: "user" | "assistant" | "system", text: string): boolean {
   const t = text;
+  const trim = t.trim();
+
+  if (isShortCommandExitLine(t)) {
+    return true;
+  }
+
   if (role === "system") {
-    if (/command exited with code/i.test(t)) {
-      return true;
-    }
-    if (t.length <= 280) {
+    if (trim.length <= 280) {
       return false;
     }
     if (t.includes("openclaw security audit")) {
@@ -73,13 +99,13 @@ export function shouldHideDiagnosticChatLine(role: "user" | "assistant" | "syste
     if (t.includes("gateway.nodes.denyCommands")) {
       return true;
     }
-    if (t.includes("the Control UI local-only") && t.includes("WARN")) {
+    if (/control\s+ui\s+local-only/i.test(t) && /\bWARN\b/i.test(t)) {
       return true;
     }
-    if (t.includes("Channels") && (t.includes("+---+") || t.includes("| Channel"))) {
+    if (t.includes("Channels") && (looksLikeAsciiTableDivider(t) || /\|\s*Channel\b/i.test(t))) {
       return true;
     }
-    if (/C:\\Users\\[^\\\n]+\\.openclaw\\/i.test(t) && t.split("\n").length >= 6) {
+    if (looksLikeOpenClawPathDump(t)) {
       return true;
     }
     if (t.startsWith("{")) {
@@ -96,28 +122,38 @@ export function shouldHideDiagnosticChatLine(role: "user" | "assistant" | "syste
       }
     }
   }
+
   if (role === "assistant") {
-    if (t.startsWith("[助手·仅元数据]")) {
+    if (trim.startsWith("[助手·仅元数据]")) {
       return true;
     }
-    if (t.startsWith("[系统] 无文本正文")) {
+    if (trim.startsWith("[系统] 无文本正文")) {
       return true;
     }
     if (
-      t.length > 400 &&
-      (t.includes("Gateway 连接信息") || t.includes("**WebSocket URL:**")) &&
-      (t.includes("VITE_GATEWAY_TOKEN") || t.includes("VITE_GATEWAY_URL"))
+      t.length > 320 &&
+      (t.includes("Gateway 连接信息") ||
+        t.includes("开发 Control UI 需要的关键配置") ||
+        t.includes("**WebSocket URL:**") ||
+        t.includes("WebSocket URL:")) &&
+      (t.includes("VITE_GATEWAY_TOKEN") || t.includes("VITE_GATEWAY_URL") || /\*\*Token:\*\*/i.test(t))
     ) {
       return true;
     }
   }
+
   if (role === "user") {
-    if (t.length > 500 && /^System:\s+\[/m.test(t) && t.includes("Exec failed")) {
+    if (t.includes("Exec failed") && (t.includes("FAQ:") || t.includes("docs.openclaw"))) {
       return true;
     }
-    if (t.length > 600 && t.includes("FAQ: https://docs.openclaw")) {
+    if (t.length > 400 && /^System:\s+\[/m.test(t) && t.includes("Exec failed")) {
       return true;
     }
   }
+
+  if (role !== "system" && looksLikeOpenClawPathDump(t) && t.length > 400) {
+    return true;
+  }
+
   return false;
 }
