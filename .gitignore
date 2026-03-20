@@ -1,0 +1,23 @@
+# OpenClaw 上游克隆体积大且可独立更新；若需纳入仓库，删除本行
+/openclaw-src/
+
+# lclaw-ui 构建与依赖
+lclaw-ui/node_modules/
+lclaw-ui/dist/
+lclaw-ui/.env
+lclaw-ui/.env.development
+lclaw-ui/.env.production
+
+# 日志与缓存
+*.log
+.npm-cache/
+
+# 编辑器与本地
+.cursor/
+.idea/
+.vscode/
+*.suo
+
+# 系统文件
+Thumbs.db
+.DS_Store
