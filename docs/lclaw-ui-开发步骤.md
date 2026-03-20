@@ -82,7 +82,7 @@
 对应方案 **§7 阶段 C**。
 
 - [x] 在 `features/preview` 实现 **Markdown 渲染**（**markdown-it** + **DOMPurify**，`lib/markdown-render.ts`）。
-- [ ] **表格、代码块**：表格已随 Markdown；**代码高亮**（**Shiki** / **highlight.js**）待做。
+- [x] **表格、代码块**：表格已随 Markdown；**代码高亮**（**highlight.js** + `github` 主题，`markdown-render.ts` / `PreviewPane.vue`）。
 - [x] **与左栏联动**：点击消息 + **「跟随最新」**（`stores/preview.ts`）。
 - [x] 右栏**独立滚动**（`PreviewPane` + 布局 `overflow`）；左栏列表自有滚动容器。
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChatLine } from "@/lib/chat-line";
 import { renderMarkdownToSafeHtml } from "@/lib/markdown-render";
+import "highlight.js/styles/github.css";
 import { usePreviewStore } from "@/stores/preview";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
