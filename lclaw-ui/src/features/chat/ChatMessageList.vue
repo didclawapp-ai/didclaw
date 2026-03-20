@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { ChatLine } from "@/lib/chat-line";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { measureElement, useVirtualizer } from "@tanstack/vue-virtual";
 import { computed, nextTick, ref, watch } from "vue";
+import type { ComponentPublicInstance } from "vue";
 
 const props = defineProps<{
   lines: ChatLine[];
@@ -17,11 +18,22 @@ const parentRef = ref<HTMLElement | null>(null);
 const virtualizerOptions = computed(() => ({
   count: props.lines.length,
   getScrollElement: () => parentRef.value,
-  estimateSize: () => 88,
-  overscan: 8,
+  /** 初值仅作占位，真实高度由 measureElement + ResizeObserver 写入 */
+  estimateSize: (index: number) => {
+    const t = props.lines[index]?.listText ?? props.lines[index]?.text ?? "";
+    const lines = 1 + (t.match(/\n/g)?.length ?? 0);
+    return Math.min(32 + lines * 18, 400);
+  },
+  overscan: 6,
+  measureElement,
 }));
 
 const virtualizer = useVirtualizer(virtualizerOptions);
+
+function rowRef(el: Element | ComponentPublicInstance | null): void {
+  const node = el instanceof HTMLElement ? el : null;
+  virtualizer.value.measureElement(node);
+}
 
 /** 跟随最新：新消息时滚到底 */
 watch(
@@ -64,7 +76,9 @@ function onRowClick(index: number) {
       <div
         v-for="item in virtualizer.getVirtualItems()"
         :key="String(item.key)"
+        :ref="rowRef"
         class="row"
+        :data-index="item.index"
         :class="{
           selected: selectedIndex === item.index,
           stream: lines[item.index]?.streaming,
@@ -74,13 +88,13 @@ function onRowClick(index: number) {
           top: 0,
           left: 0,
           width: '100%',
-          minHeight: `${item.size}px`,
+          height: `${item.size}px`,
           transform: `translateY(${item.start}px)`,
         }"
         @click="onRowClick(item.index)"
       >
         <span class="tag">{{ lines[item.index]?.role ?? '?' }}</span>
-        <pre class="txt">{{ lines[item.index]?.text ?? '' }}</pre>
+        <pre class="txt">{{ lines[item.index]?.listText ?? lines[item.index]?.text ?? '' }}</pre>
       </div>
     </div>
   </div>
@@ -95,7 +109,7 @@ function onRowClick(index: number) {
 }
 .row {
   padding: 8px;
-  margin-bottom: 2px;
+  padding-bottom: 10px;
   border-radius: 8px;
   border: 1px solid transparent;
   cursor: pointer;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
+import { buildListPreview } from "@/lib/chat-message-format";
 import { messageToChatLine } from "@/lib/chat-line";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { useChatStore } from "@/stores/chat";
@@ -62,9 +63,15 @@ async function copyDiagnostics(): Promise<void> {
 const displayLines = computed(() => {
   const base = messages.value.map((m) => messageToChatLine(m));
   if (streamText.value?.trim()) {
+    const t = streamText.value;
     return [
       ...base,
-      { role: "assistant" as const, text: streamText.value, streaming: true as const },
+      {
+        role: "assistant" as const,
+        text: t,
+        listText: buildListPreview(t),
+        streaming: true as const,
+      },
     ];
   }
   return base;
