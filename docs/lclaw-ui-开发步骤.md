@@ -94,11 +94,11 @@
 
 对应方案 **§7 阶段 D**。
 
-- [ ] **ECharts**：约定 fenced 块或工具 JSON schema；**parse 前 Zod 校验**，失败时右栏友好错误占位（方案 §4.2、§10）。
-- [ ] **ECharts 按需引入**（`echarts/core`），避免整包过大。
-- [ ] **工具调用时间线**：用阶段 B 已订阅的事件驱动 UI；敏感字段脱敏。
-- [ ] **下载链接**：`src/lib` 实现 **URL 白名单**；统一「在新标签打开 / 下载」入口；**首期不做 Office 内嵌预览**（方案 §4.2）。
-- [ ] 高频工具输出：**节流/合并** 更新，避免卡顿（方案 §6.1）。
+- [x] **ECharts**：约定围栏语言 **`echarts-json`**；**Zod** 校验（`lib/echarts-option-schema.ts`），失败时右栏 `<pre class="lclaw-chart-error">` 占位。
+- [x] **ECharts 按需引入**（`echarts/core` + charts/components/renderers，`composables/usePreviewEcharts.ts`）。
+- [x] **工具调用时间线**：`stores/toolTimeline.ts` + `PreviewPane` 底部列表；载荷摘要脱敏；切换会话时清空。
+- [x] **外链白名单**：`lib/url-allowlist.ts` + DOMPurify 钩子；`VITE_LINK_ALLOWLIST`；允许的 `http(s)` 链接统一 `target=_blank` + `rel=noopener noreferrer`（方案 §4.2）。
+- [x] 高频工具输出：**120ms 节流 + 同事件同摘要合并计数**（`toolTimeline` ingest，方案 §6.1）。
 
 **阶段 D 完成标准**：图表、工具线、安全下载流程可用；右栏性能在长对话下可接受。
 

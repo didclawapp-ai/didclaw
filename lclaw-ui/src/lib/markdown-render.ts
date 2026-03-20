@@ -1,4 +1,6 @@
 import DOMPurify from "dompurify";
+import { echartsJsonSchema } from "@/lib/echarts-option-schema";
+import { isLinkHrefAllowed } from "@/lib/url-allowlist";
 import hljs from "highlight.js/lib/core";
 import bash from "highlight.js/lib/languages/bash";
 import css from "highlight.js/lib/languages/css";
@@ -29,6 +31,15 @@ hljs.registerLanguage("xml", xml);
 hljs.registerLanguage("vue", xml);
 hljs.registerLanguage("yaml", yaml);
 hljs.registerLanguage("yml", yaml);
+
+function utf8ToBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) {
+    bin += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(bin);
+}
 
 const md = new MarkdownIt({
   html: false,
@@ -66,6 +77,28 @@ const fenceRule: RenderRule = (tokens, idx, options) => {
   }
   const hlLang = langName.trim().toLowerCase();
   const safeClassLang = langName.replace(/[^a-zA-Z0-9_-]/g, "");
+
+  if (hlLang === "echarts-json") {
+    const raw = token.content.trim();
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(raw);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return `<pre class="lclaw-chart-error">${md.utils.escapeHtml(`JSON 无效：${msg}`)}</pre>\n`;
+    }
+    const zr = echartsJsonSchema.safeParse(parsedJson);
+    if (!zr.success) {
+      const detail = zr.error.issues.map((i) => i.message).join("; ");
+      return `<pre class="lclaw-chart-error">${md.utils.escapeHtml(`图表配置未通过校验：${detail}`)}</pre>\n`;
+    }
+    const payload = utf8ToBase64(JSON.stringify(zr.data));
+    if (payload.length > 180_000) {
+      return `<pre class="lclaw-chart-error">${md.utils.escapeHtml("图表数据过大")}</pre>\n`;
+    }
+    return `<div class="lclaw-chart" data-lclaw-chart="${payload}" role="img" aria-label="图表"></div>\n`;
+  }
+
   const highlighted =
     options.highlight?.(token.content, hlLang, langAttrs) || md.utils.escapeHtml(token.content);
   const cls = ["hljs", safeClassLang ? `language-${safeClassLang}` : ""].filter(Boolean).join(" ");
@@ -101,15 +134,51 @@ const SAFE_TAGS = [
   "th",
   "td",
   "hr",
+  "div",
 ];
+
+const g = globalThis as { __lclawDomPurifyHooks?: boolean };
+if (!g.__lclawDomPurifyHooks) {
+  g.__lclawDomPurifyHooks = true;
+  DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
+    if (data.attrName === "href" && String(node.nodeName).toLowerCase() === "a") {
+      if (!isLinkHrefAllowed(String(data.attrValue ?? ""))) {
+        data.keepAttr = false;
+      }
+    }
+    if (data.attrName === "data-lclaw-chart" && String(node.nodeName).toLowerCase() === "div") {
+      const v = String(data.attrValue ?? "");
+      if (!/^[A-Za-z0-9+/=]+$/.test(v) || v.length > 200_000) {
+        data.keepAttr = false;
+      }
+    }
+  });
+}
+
+function applyExternalLinkTargets(html: string): string {
+  if (typeof document === "undefined") {
+    return html;
+  }
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  tpl.content.querySelectorAll("a[href]").forEach((a) => {
+    const href = a.getAttribute("href");
+    if (href && /^https?:\/\//i.test(href)) {
+      a.setAttribute("target", "_blank");
+      a.setAttribute("rel", "noopener noreferrer");
+    }
+  });
+  return tpl.innerHTML;
+}
 
 /**
  * Markdown → HTML，经 DOMPurify 白名单消毒（禁用原始 HTML 注入）。
  */
 export function renderMarkdownToSafeHtml(source: string): string {
   const raw = md.render(source);
-  return DOMPurify.sanitize(raw, {
+  const sanitized = DOMPurify.sanitize(raw, {
     ALLOWED_TAGS: SAFE_TAGS,
-    ALLOWED_ATTR: ["href", "target", "rel", "class"],
+    ALLOWED_ATTR: ["href", "target", "rel", "class", "data-lclaw-chart", "role", "aria-label"],
   });
+  return applyExternalLinkTargets(sanitized);
 }

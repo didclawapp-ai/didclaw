@@ -39,7 +39,7 @@
 |------------------|------|----------------|------------------------------|
 | `chat` | 会话流式与终态 | `sessionKey`, `runId`, `state`: `delta` \| `final` \| `aborted` \| `error`；`message` / `errorMessage` | `lclaw-ui`：`chat` store 按当前 `activeSessionKey` 更新流式文本或 `loadHistory` |
 | `connect.challenge` | 握手 nonce | `payload.nonce` | `GatewayClient` 内消费，不暴露 UI |
-| `agent` / 其他 | 工具流、节点等 | （待补充） | **开发环境** `console.debug('[lclaw-ui][gateway event]', …)` |
+| `agent` / 其他 | 工具流、节点等 | （待补充） | **开发环境** `console.debug`；**右栏底部** `toolTimeline`：非 `chat` / `connect.challenge` 事件经节流合并展示（按 `sessionKey` 过滤当前会话） |
 
 （建议从官方 `openclaw-src/ui` 或浏览器 DevTools WS 帧对照填写。）
 
@@ -54,6 +54,7 @@
 | 载荷 | 代码路径（lclaw-ui 内） | 备注 |
 |------|-------------------------|------|
 | 例：`ChatHistoryResponse` | `src/...` | |
+| 右栏 `echarts-json` 图表 option 子集 | `lclaw-ui/src/lib/echarts-option-schema.ts` | `z.strict()`，通过后再 `setOption` |
 
 （实现校验层后把路径补全，便于 Code Review。）
 

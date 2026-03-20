@@ -52,8 +52,10 @@ export const useSessionStore = defineStore("session", () => {
     }
     const { useChatStore } = await import("./chat");
     const { usePreviewStore } = await import("./preview");
+    const { useToolTimelineStore } = await import("./toolTimeline");
     const chat = useChatStore();
     const preview = usePreviewStore();
+    useToolTimelineStore().clear();
     await chat.abortIfStreaming();
     preview.resetForNewSession();
     activeSessionKey.value = key;

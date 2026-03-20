@@ -63,6 +63,9 @@ export const useGatewayStore = defineStore("gateway", () => {
         void import("./chat").then(({ useChatStore }) => {
           useChatStore().handleGatewayEvent(evt);
         });
+        void import("./toolTimeline").then(({ useToolTimelineStore }) => {
+          useToolTimelineStore().ingest(evt);
+        });
       },
       onClose: ({ code, reason, error }) => {
         client.value = null;

@@ -4,7 +4,7 @@
 > 步骤：`../docs/lclaw-ui-开发步骤.md`  
 > 协议笔记：`../docs/gateway-client-protocol-notes.md`
 
-**Vue 3 + TypeScript + Vite + Pinia**。已实现：**阶段 A**、**阶段 B 大部**（含 `@tanstack/vue-virtual` 消息列表、DEV 下非 `chat` 事件日志）、**阶段 C 大部**（右栏 **Markdown + DOMPurify**、消息选中 / 跟随最新）。**代码块语法高亮**与 **ECharts** 等见后续步骤。
+**Vue 3 + TypeScript + Vite + Pinia**。已实现：**阶段 A～D**（右栏 **Markdown + DOMPurify + highlight.js**；围栏 **`echarts-json`** + Zod + ECharts 按需引入；**外链白名单** `VITE_LINK_ALLOWLIST`；**工具/事件时间线** + 节流合并）。下一阶段见 `../docs/lclaw-ui-开发步骤.md` **阶段 E**。
 
 ## 常用命令
 
@@ -12,6 +12,7 @@
 pnpm install
 pnpm dev
 pnpm build
+pnpm typecheck
 pnpm lint
 ```
 
@@ -21,6 +22,7 @@ pnpm lint
 
 - `VITE_GATEWAY_URL`：默认 `ws://127.0.0.1:18789`
 - `VITE_GATEWAY_TOKEN` 或 `VITE_GATEWAY_PASSWORD`：与网关配置一致
+- `VITE_LINK_ALLOWLIST`（可选）：Markdown 外链白名单，见 `.env.example`
 
 **勿将含密钥的 `.env*` 提交仓库**（已写入 `.gitignore`）。
 
@@ -37,7 +39,7 @@ pnpm lint
 src/
 ├── app/              # AppShell 布局
 ├── features/gateway/ # WebSocket 客户端
-├── stores/           # Pinia：gateway / session / chat
+├── stores/           # Pinia：gateway / session / chat / preview / toolTimeline
 ├── lib/              # 工具、设备身份
 ├── components/
 └── ...
