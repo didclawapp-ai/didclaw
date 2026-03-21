@@ -7,6 +7,8 @@ export const CHAT_OPTIMISTIC_KEY = "_lclawOptimistic" as const;
 export type OptimisticUserMessage = {
   role: "user";
   text: string;
+  /** 与官方 Control UI 一致，便于列表时间与排序（`Date.now()` 毫秒） */
+  timestamp?: number;
   [CHAT_OPTIMISTIC_KEY]: string;
 };
 

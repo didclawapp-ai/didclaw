@@ -8,6 +8,7 @@ import {
   type UiChatMessage,
   isOptimisticUserMessage,
 } from "@/lib/chat-messages";
+import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
@@ -50,19 +51,48 @@ function lastUserDisplayTextInIncoming(incoming: GatewayChatMessage[]): string |
   return null;
 }
 
+/** 正文达到该长度时，与 incoming 内任意 user 比对（避免只比对「最后一条 user」漏掉较早重复） */
+const OPTIMISTIC_DEDUP_ANY_USER_MIN_CHARS = 32;
+
+function incomingHasUserWithNormalizedText(
+  incoming: GatewayChatMessage[],
+  normalized: string,
+): boolean {
+  if (normalized.length === 0) {
+    return false;
+  }
+  for (let i = 0; i < incoming.length; i++) {
+    const line = messageToChatLine(incoming[i]);
+    if (line.role === "user" && normalizeUserText(line.text) === normalized) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * 当 incoming 已包含与乐观消息同文的 user 时不再追加（否则会出现「用户话重复两次」，
  * 常见于服务端已落库 user 但条数仍短于本地含乐观项时的合并分支）。
+ * 短句仍只与「最后一条 user」比对，降低用户连发相同短句时被误删的概率。
  */
 function filterRedundantOptimistics(
   incoming: GatewayChatMessage[],
   opts: OptimisticUserMessage[],
 ): OptimisticUserMessage[] {
   const lastUser = lastUserDisplayTextInIncoming(incoming);
-  if (lastUser == null) {
-    return opts;
-  }
-  return opts.filter((o) => normalizeUserText(o.text) !== lastUser);
+  return opts.filter((o) => {
+    const nt = normalizeUserText(o.text);
+    if (nt.length === 0) {
+      return true;
+    }
+    if (nt.length >= OPTIMISTIC_DEDUP_ANY_USER_MIN_CHARS) {
+      return !incomingHasUserWithNormalizedText(incoming, nt);
+    }
+    if (lastUser == null) {
+      return true;
+    }
+    return nt !== lastUser;
+  });
 }
 
 /** 服务端快照往往比本地少一条刚发的 user（尚未落库）；此时应保留乐观消息，避免只剩「正在生成」一行 */
@@ -203,7 +233,8 @@ export const useChatStore = defineStore("chat", () => {
         return;
       }
       const msgs = parsed.data.messages;
-      const incoming = (Array.isArray(msgs) ? msgs : []) as GatewayChatMessage[];
+      const raw = (Array.isArray(msgs) ? msgs : []) as GatewayChatMessage[];
+      const incoming = sortHistoryMessagesOldestFirst(raw);
       const previous = messages.value;
       messages.value = mergeIncomingHistoryWithOptimistics(incoming, previous);
       streamText.value = null;
@@ -289,6 +320,7 @@ export const useChatStore = defineStore("chat", () => {
     const optimistic: OptimisticUserMessage = {
       role: "user",
       text: optimisticText,
+      timestamp: t0,
       [CHAT_OPTIMISTIC_KEY]: idem,
     };
     messages.value = [...messages.value, optimistic];

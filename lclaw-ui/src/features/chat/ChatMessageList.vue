@@ -155,7 +155,12 @@ onMounted(() => {
         }"
         @click="onRowClick(item.index)"
       >
-        <span class="tag">{{ lines[item.index]?.role ?? '?' }}</span>
+        <div class="row-head">
+          <span class="tag">{{ lines[item.index]?.role ?? "?" }}</span>
+          <span v-if="lines[item.index]?.timeLabel" class="time">{{
+            lines[item.index]?.timeLabel
+          }}</span>
+        </div>
         <ChatLineBody class="txt" :text="lines[item.index]?.listText ?? lines[item.index]?.text ?? ''" />
       </div>
     </div>
@@ -168,6 +173,19 @@ onMounted(() => {
   min-height: 120px;
   overflow: auto;
   padding: 8px 10px 12px;
+}
+.row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+.time {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--lc-text-dim);
+  font-family: var(--lc-mono);
+  letter-spacing: 0.02em;
 }
 .row {
   display: flex;

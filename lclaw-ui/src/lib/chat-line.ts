@@ -1,3 +1,5 @@
+import type { GatewayChatMessage } from "@/lib/chat-messages";
+import { extractMessageTimeMs } from "@/lib/chat-history-sort";
 import { buildListPreview } from "@/lib/chat-message-format";
 
 export type ChatLine = {
@@ -7,7 +9,15 @@ export type ChatLine = {
   /** 左侧消息列表展示（可摘要/截断，避免大块 JSON 刷屏） */
   listText: string;
   streaming?: boolean;
+  /** 本地时 HH:mm，来自网关 `timestamp`（与官方 Web UI 一致） */
+  timeLabel?: string;
 };
+
+/** 消息列表行角标时间（与官方 Control UI 常见展示一致） */
+export function formatMessageListTime(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 function compactObjectHint(o: Record<string, unknown>): string {
   const keys = Object.keys(o).filter((k) => k !== "content" && k !== "role");
@@ -72,9 +82,13 @@ export function messageToChatLine(m: unknown): ChatLine {
     }
   }
 
+  const timeMs = extractMessageTimeMs(o as GatewayChatMessage);
+  const timeLabel = timeMs != null ? formatMessageListTime(timeMs) : undefined;
+
   return {
     role,
     text,
     listText: buildListPreview(text),
+    ...(timeLabel ? { timeLabel } : {}),
   };
 }

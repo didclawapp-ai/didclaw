@@ -28,11 +28,24 @@
 |------|------|------------------|----------|----------|
 | （隐式）`connect` | 握手 hello | 由 `GatewayClient` 组装 auth、client、device 等 | `hello-ok` 等 | `gatewayHelloOkSchema`（`schemas.ts`） |
 | `sessions.list` | 会话列表 | `includeGlobal`, `includeUnknown` | `sessions[]`：`key` 必填 | `sessionsListResponseSchema` |
-| `chat.history` | 历史消息 | `sessionKey`, `limit` | `messages[]` | `chatHistoryResponseSchema` |
+| `chat.history` | 历史消息 | `sessionKey`, `limit` | `messages[]`：见下「与官方 Control UI」 | `chatHistoryResponseSchema` |
 | `chat.send` | 发送并触发 Agent | `sessionKey`, `message`, `deliver`, `idempotencyKey`，可选 **`attachments`**：`{ mimeType, fileName, content }`（`content` 为 **base64**）；网关 `parseMessageWithAttachments` 当前主要保留 **image/** | 依网关版本而定 | 未强校验（仅用 `request` 成功/失败） |
 | `chat.abort` | 中断生成 | `sessionKey`，可选 `runId` | 依网关版本而定 | 未强校验 |
 
 未实现：`chat.inject` 等，需要时在表中增行并补 Zod。
+
+### `chat.history` 与官方 Control UI（排序与时间）
+
+上游 OpenClaw（参考 `ui/src/ui/controllers/chat.ts`）：
+
+- **`loadChatHistory`**：将 `chat.history` 返回的 `messages` **原样**赋给界面（仅过滤静默助手回复），**不做客户端重排**。
+- **本地追加**：用户发送、流式兜底等会带 **`timestamp: Date.now()`**（毫秒）。
+
+网关侧（参考 `src/gateway/server-methods/chat.ts`）：
+
+- 从会话 transcript 读出消息后 **`slice(-limit)`** 截最近 N 条，再经裁剪/脱敏后返回；条目中 **`timestamp` 一般为 number（毫秒）**。
+
+**lclaw-ui**：在 `loadHistory` 内对 `messages` 调用 `sortHistoryMessagesOldestFirst`（`lib/chat-history-sort.ts`）：若每条都能解析时间则按 `timestamp` 升序；否则仅在「首尾时间倒置」时整体 `reverse`，以兼容异常顺序。列表行在 `messageToChatLine` 中展示与官方类似的 **本地 `HH:mm`**（来自 `timestamp`）。
 
 ## 下行事件（Gateway → 客户端）
 
