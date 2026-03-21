@@ -5,7 +5,7 @@ import pluginVue from "eslint-plugin-vue";
 import vueParser from "vue-eslint-parser";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules"] },
+  { ignores: ["dist", "dist-electron", "release", "node_modules"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   ...pluginVue.configs["flat/recommended"],
@@ -18,6 +18,14 @@ export default tseslint.config(
         extraFileExtensions: [".vue"],
         ecmaVersion: "latest",
         sourceType: "module",
+      },
+    },
+  },
+  {
+    files: ["electron/**/*.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
       },
     },
   },

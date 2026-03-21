@@ -12,7 +12,7 @@ const segments = computed(() => segmentTextWithLinks(props.text));
 
 function onLink(url: string, label: string, ev: MouseEvent): void {
   ev.stopPropagation();
-  filePreview.openUrl(url, label);
+  void filePreview.openUrl(url, label);
 }
 </script>
 

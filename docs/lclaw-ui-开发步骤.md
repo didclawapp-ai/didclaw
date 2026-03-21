@@ -1,7 +1,8 @@
 # lclaw-ui 开发步骤
 
 > 依据 [`OpenClaw-顶层界面-开发方案.md`](./OpenClaw-顶层界面-开发方案.md) 整理的**执行顺序**；勾选 `[ ]` 跟踪进度。  
-> 协议细节随时记入 [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md)。
+> 协议细节随时记入 [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md)。  
+> **桌面壳（Electron）与本机文件预览**：见 [`lclaw-ui-electron-local-preview.md`](./lclaw-ui-electron-local-preview.md)。
 
 ---
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isLclawElectron } from "@/lib/electron-bridge";
 import { isHttpsUrl, officeOnlineEmbedUrl } from "@/lib/preview-kind";
 import { useFilePreviewStore } from "@/stores/filePreview";
 import { useToolTimelineStore } from "@/stores/toolTimeline";
@@ -6,7 +7,7 @@ import { storeToRefs } from "pinia";
 import { computed } from "vue";
 
 const filePreview = useFilePreviewStore();
-const { target } = storeToRefs(filePreview);
+const { target, localLoading, localError } = storeToRefs(filePreview);
 
 const toolTimeline = useToolTimelineStore();
 const { entries: toolEntries } = storeToRefs(toolTimeline);
@@ -22,10 +23,26 @@ const officeEmbed = computed(() => {
   return officeOnlineEmbedUrl(t.url);
 });
 
+const canOpenExternal = computed(() => {
+  const u = target.value?.url ?? "";
+  return /^https?:\/\//i.test(u) || u.startsWith("file:");
+});
+
 function openExternal(): void {
   const u = target.value?.url;
   if (u) {
     window.open(u, "_blank", "noopener,noreferrer");
+  }
+}
+
+async function pickLocalFile(): Promise<void> {
+  const api = window.lclawElectron;
+  if (!api) {
+    return;
+  }
+  const href = await api.pickLocalFile();
+  if (href) {
+    void filePreview.openUrl(href);
   }
 }
 </script>
@@ -36,18 +53,30 @@ function openExternal(): void {
       <template v-if="target">
         <span class="title" :title="target.url">{{ target.label }}</span>
         <span class="pill">{{ target.kind }}</span>
-        <button type="button" @click="openExternal">新窗口打开</button>
+        <button v-if="canOpenExternal" type="button" @click="openExternal">新窗口打开</button>
         <button type="button" class="ghost" @click="filePreview.clear">关闭预览</button>
       </template>
-      <p v-else class="hint muted">点击左侧消息里的 <strong>蓝色链接按钮</strong>，在此预览 PDF / 图片；Office 文档见下方说明。</p>
+      <template v-else>
+        <p class="hint muted">
+          点击左侧消息里的 <strong>蓝色链接按钮</strong>，在此预览 PDF / 图片；Office 文档见下方说明。
+        </p>
+        <button v-if="isLclawElectron()" type="button" class="toolbar-pick" @click="pickLocalFile">
+          选择本地文件…
+        </button>
+      </template>
     </div>
 
     <div
       class="viewport"
-      :class="{ 'is-image': target?.kind === 'image', 'is-empty': !target }"
+      :class="{
+        'is-image': target?.kind === 'image',
+        'is-empty': !target && !localLoading && !localError,
+      }"
     >
+      <div v-if="localLoading" class="card state-card">正在加载本地预览…</div>
+      <div v-else-if="localError && !target" class="card state-card err">{{ localError }}</div>
       <img
-        v-if="target?.kind === 'image'"
+        v-else-if="target?.kind === 'image'"
         class="fill-img"
         :src="target.url"
         :alt="target.label"
@@ -99,11 +128,29 @@ function openExternal(): void {
   min-height: 0;
   height: 100%;
 }
+.toolbar-pick {
+  margin-left: auto;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #222;
+  color: #fff;
+  font-size: 12px;
+}
+.state-card {
+  margin: auto;
+  max-width: 420px;
+}
+.state-card.err {
+  color: #b71c1c;
+}
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding-bottom: 10px;
   margin-bottom: 8px;
   border-bottom: 1px solid #eee;
@@ -113,6 +160,8 @@ function openExternal(): void {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
+  flex: 1;
+  min-width: 0;
 }
 .title {
   font-weight: 600;
