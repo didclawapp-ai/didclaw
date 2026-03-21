@@ -58,6 +58,7 @@
 
 ### 3.3 发送与基础展示
 
+- [x] **附件**：输入区拖拽 / 选择文件，`chat.send.attachments` 传 **base64 图片**（与网关 `chat-attachments` 一致）；非图片写入消息说明并支持 **blob 预览**。
 - [x] 输入框 + **`chat.send`**；**流式**：`extractChatDeltaText` / `mergeAssistantStreamDelta`；助手占位行；**乐观**用户消息 + `loadHistory` 与快照**条数合并**避免未落库时冲掉用户行；消息数组类型为 **`UiChatMessage`**（`src/lib/chat-messages.ts`）。
 - [x] 连接状态展示：已连接 / 重连中 / 错误（方案 §4.1）。
 

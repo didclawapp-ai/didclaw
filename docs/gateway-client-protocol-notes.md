@@ -29,7 +29,7 @@
 | （隐式）`connect` | 握手 hello | 由 `GatewayClient` 组装 auth、client、device 等 | `hello-ok` 等 | `gatewayHelloOkSchema`（`schemas.ts`） |
 | `sessions.list` | 会话列表 | `includeGlobal`, `includeUnknown` | `sessions[]`：`key` 必填 | `sessionsListResponseSchema` |
 | `chat.history` | 历史消息 | `sessionKey`, `limit` | `messages[]` | `chatHistoryResponseSchema` |
-| `chat.send` | 发送并触发 Agent | `sessionKey`, `message`, `deliver`, `idempotencyKey` | 依网关版本而定 | 未强校验（仅用 `request` 成功/失败） |
+| `chat.send` | 发送并触发 Agent | `sessionKey`, `message`, `deliver`, `idempotencyKey`，可选 **`attachments`**：`{ mimeType, fileName, content }`（`content` 为 **base64**）；网关 `parseMessageWithAttachments` 当前主要保留 **image/** | 依网关版本而定 | 未强校验（仅用 `request` 成功/失败） |
 | `chat.abort` | 中断生成 | `sessionKey`，可选 `runId` | 依网关版本而定 | 未强校验 |
 
 未实现：`chat.inject` 等，需要时在表中增行并补 Zod。

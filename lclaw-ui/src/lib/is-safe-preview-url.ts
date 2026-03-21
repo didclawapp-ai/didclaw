@@ -8,7 +8,12 @@ export function isSafePreviewUrl(href: string): boolean {
   }
   try {
     const u = new URL(h);
-    return u.protocol === "http:" || u.protocol === "https:" || u.protocol === "file:";
+    return (
+      u.protocol === "http:" ||
+      u.protocol === "https:" ||
+      u.protocol === "file:" ||
+      u.protocol === "blob:"
+    );
   } catch {
     return false;
   }

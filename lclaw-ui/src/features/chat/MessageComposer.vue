@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import ComposerAttachments from "@/features/chat/ComposerAttachments.vue";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { storeToRefs } from "pinia";
 
 const chat = useChatStore();
 const gw = useGatewayStore();
-const { draft, sending, lastError: chatError } = storeToRefs(chat);
+const { draft, sending, lastError: chatError, pendingComposerFiles } = storeToRefs(chat);
 const { status } = storeToRefs(gw);
 
 function onComposerEnter(ev: KeyboardEvent): void {
@@ -13,12 +14,16 @@ function onComposerEnter(ev: KeyboardEvent): void {
     return;
   }
   ev.preventDefault();
+  if (!draft.value.trim() && pendingComposerFiles.value.length === 0) {
+    return;
+  }
   void chat.sendMessage();
 }
 </script>
 
 <template>
   <div class="composer">
+    <ComposerAttachments />
     <textarea
       v-model="draft"
       rows="3"
@@ -31,7 +36,9 @@ function onComposerEnter(ev: KeyboardEvent): void {
       <button
         type="button"
         class="lc-btn"
-        :disabled="sending || status !== 'connected'"
+        :disabled="
+          sending || status !== 'connected' || (!draft.trim() && pendingComposerFiles.length === 0)
+        "
         @click="chat.sendMessage()"
       >
         发送
