@@ -6,7 +6,7 @@
 > 内网部署与冒烟：`../docs/lclaw-ui-内网部署.md`  
 > Electron 与本机预览：`../docs/lclaw-ui-electron-local-preview.md`
 
-**Vue 3 + TypeScript + Vite + Pinia**。布局：**左侧实时聊天**（消息内 `http(s)` / `file://` 与 Markdown 链接渲染为可点击按钮）；**右侧文件预览**（仅在被点击后加载：PDF / 图片内嵌；Office 在公网 HTTPS 时尝试 Office Online 嵌入）。**桌面版（`pnpm dev` + Electron）**下，本地 `file://` 由主进程读盘，Office 可经 **LibreOffice** 转 PDF 后在右侧预览；纯浏览器打开网页时，本地 Office 仍受浏览器限制。
+**Vue 3 + TypeScript + Vite + Pinia**。布局：**左侧实时聊天**（消息内 `http(s)` / `file://` 与 Markdown 链接渲染为可点击按钮）；**右侧文件预览**（点击后加载：PDF / 图片；**Markdown / `.txt` 等** 用 `markdown-it` + 净化后渲染或等宽纯文本；Office 在公网 HTTPS 时尝试 Office Online 嵌入）。**桌面版（`pnpm dev` + Electron）**下，本地 `file://` 由主进程读盘，Office 经 **LibreOffice** 转 PDF；纯浏览器打开时远程文本受 **CORS** 限制可能需本机文件。
 
 ## Electron 桌面壳（可选）
 
@@ -15,7 +15,7 @@
 - `pnpm dist:win:portable`：**便携版**单个 exe（约百 MB，输出 `release/LCLAW UI 0.1.0.exe`，无需安装）。
 - `pnpm dist:win:setup`：NSIS **安装包**（`release/` 下安装向导）。
 - `pnpm dist:win`：与 `package.json` 里 `build.win.target` 一致（当前为 NSIS 安装包；要便携版请用上一行）。
-- 本机 Office 预览依赖本机安装 **LibreOffice**，或设置环境变量 **`LIBREOFFICE_PATH`** 指向 `soffice.exe`。详见 `../docs/lclaw-ui-electron-local-preview.md`。
+- 本机 Office **内嵌**预览：需 **LibreOffice**（或 **`LIBREOFFICE_PATH`** 指向 `soffice.exe`）转 PDF。未检测到时右侧提供 **安装说明对话框 / 官网链接 / 重新检测并预览**；也可 **「用系统应用打开」**（Word / WPS 等）。详见 `../docs/lclaw-ui-electron-local-preview.md`。
 
 ## 常用命令
 

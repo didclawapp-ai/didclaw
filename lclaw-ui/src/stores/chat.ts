@@ -1,13 +1,36 @@
 import type { GatewayEventFrame } from "@/features/gateway/gateway-types";
 import { chatEventPayloadSchema, chatHistoryResponseSchema } from "@/features/gateway/schemas";
 import { describeGatewayError } from "@/lib/gateway-errors";
-import { extractDisplayText } from "@/lib/message-display";
+import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
 import { formatZodIssues } from "@/lib/zod-format";
 import { generateUUID } from "@/lib/uuid";
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import { useGatewayStore } from "./gateway";
+import { usePreviewStore } from "./preview";
 import { useSessionStore } from "./session";
+
+const OPTIMISTIC_KEY = "_lclawOptimistic";
+
+function isOptimisticMessage(m: unknown): boolean {
+  return Boolean(m && typeof m === "object" && OPTIMISTIC_KEY in (m as Record<string, unknown>));
+}
+
+function collectOptimistics(msgs: unknown[]): unknown[] {
+  return msgs.filter(isOptimisticMessage);
+}
+
+/** 服务端快照往往比本地少一条刚发的 user（尚未落库）；此时应保留乐观消息，避免只剩「正在生成」一行 */
+function mergeIncomingHistoryWithOptimistics(incoming: unknown[], previous: unknown[]): unknown[] {
+  const opts = collectOptimistics(previous);
+  if (opts.length === 0) {
+    return [...incoming];
+  }
+  if (incoming.length < previous.length) {
+    return [...incoming, ...opts];
+  }
+  return [...incoming];
+}
 
 export const useChatStore = defineStore("chat", () => {
   const messages = ref<unknown[]>([]);
@@ -18,8 +41,6 @@ export const useChatStore = defineStore("chat", () => {
   const draft = ref("");
   const lastError = ref<string | null>(null);
 
-  const OPTIMISTIC_KEY = "_lclawOptimistic";
-
   async function loadHistory(opts?: { silent?: boolean }): Promise<void> {
     const silent = opts?.silent === true;
     const gw = useGatewayStore();
@@ -28,6 +49,8 @@ export const useChatStore = defineStore("chat", () => {
     const key = session.activeSessionKey;
     if (!c?.connected || !key) {
       messages.value = [];
+      streamText.value = null;
+      runId.value = null;
       return;
     }
     if (!silent) {
@@ -43,10 +66,14 @@ export const useChatStore = defineStore("chat", () => {
       if (!parsed.success) {
         lastError.value = `历史消息格式异常：${formatZodIssues(parsed.error)}`;
         messages.value = [];
+        streamText.value = null;
+        runId.value = null;
         return;
       }
       const msgs = parsed.data.messages;
-      messages.value = Array.isArray(msgs) ? msgs : [];
+      const incoming = Array.isArray(msgs) ? msgs : [];
+      const previous = messages.value;
+      messages.value = mergeIncomingHistoryWithOptimistics(incoming, previous);
       streamText.value = null;
       runId.value = null;
     } catch (e) {
@@ -71,10 +98,12 @@ export const useChatStore = defineStore("chat", () => {
     lastError.value = null;
     const idem = generateUUID();
     runId.value = idem;
-    streamText.value = "";
+    streamText.value = null;
     draft.value = "";
     const optimistic = { role: "user" as const, text, [OPTIMISTIC_KEY]: idem };
     messages.value = [...messages.value, optimistic];
+    usePreviewStore().setFollowLatest(true);
+    await nextTick();
     try {
       await c.request("chat.send", {
         sessionKey: key,
@@ -133,21 +162,17 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     if (payload.state === "delta") {
-      const next = extractDisplayText(payload.message);
-      if (next) {
-        const current = streamText.value ?? "";
-        if (!current || next.length >= current.length) {
-          streamText.value = next;
-        }
+      if (payload.runId) {
+        runId.value = payload.runId;
+      }
+      const chunk = extractChatDeltaText(payload as Record<string, unknown>);
+      if (chunk) {
+        streamText.value = mergeAssistantStreamDelta(streamText.value, chunk);
       }
     } else if (payload.state === "final") {
       void loadHistory({ silent: true });
-      streamText.value = null;
-      runId.value = null;
     } else if (payload.state === "aborted") {
       void loadHistory({ silent: true });
-      streamText.value = null;
-      runId.value = null;
     } else if (payload.state === "error") {
       streamText.value = null;
       runId.value = null;

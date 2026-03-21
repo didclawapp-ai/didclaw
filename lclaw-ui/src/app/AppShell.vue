@@ -11,16 +11,21 @@ import { messageToChatLine } from "@/lib/chat-line";
 import { isLclawElectron } from "@/lib/electron-bridge";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { useChatStore } from "@/stores/chat";
+import { useFilePreviewStore } from "@/stores/filePreview";
 import { useGatewayStore } from "@/stores/gateway";
 import { usePreviewStore } from "@/stores/preview";
 import { useSessionStore } from "@/stores/session";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 
+/** 与参考「流式占位」一致：首包 delta 到达前也显示助手行 */
+const STREAMING_PENDING_LABEL = "正在生成回复…";
+
 const gw = useGatewayStore();
 const session = useSessionStore();
 const chat = useChatStore();
 const preview = usePreviewStore();
+const filePreview = useFilePreviewStore();
 
 const { followLatest, showDiagnosticMessages } = storeToRefs(preview);
 const { status, lastError, helloInfo, url } = storeToRefs(gw);
@@ -31,9 +36,18 @@ const {
   historyLoading,
   sending,
   streamText,
+  runId,
   draft,
   lastError: chatError,
 } = storeToRefs(chat);
+const { target: fpTarget, localLoading: fpLocalLoading, localError: fpLocalError } =
+  storeToRefs(filePreview);
+
+/** 无预览内容时隐藏右栏；点击链接/本地文件触发 openUrl 后自动展开 */
+const isPreviewPaneOpen = computed(
+  () =>
+    fpTarget.value != null || fpLocalLoading.value === true || fpLocalError.value != null,
+);
 
 const copiedDiag = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -88,14 +102,17 @@ async function copyDiagnostics(): Promise<void> {
 const displayLines = computed(() => {
   const base = messages.value.map((m) => messageToChatLine(m));
   let list = base;
-  if (streamText.value?.trim()) {
-    const t = streamText.value;
+  /** runId 存在即视为本轮生成中，与「先占位、再流式追加」一致 */
+  if (runId.value != null) {
+    const raw = streamText.value ?? "";
+    const hasBody = raw.trim().length > 0;
+    const t = hasBody ? raw : STREAMING_PENDING_LABEL;
     list = [
       ...base,
       {
         role: "assistant" as const,
         text: t,
-        listText: buildListPreview(t),
+        listText: hasBody ? buildListPreview(raw) : STREAMING_PENDING_LABEL,
         streaming: true as const,
       },
     ];
@@ -104,7 +121,10 @@ const displayLines = computed(() => {
   if (showDiagnosticMessages.value) {
     return list;
   }
-  return list.filter((line) => !shouldHideDiagnosticChatLine(line.role, line.text));
+  /** 默认不展示 system（工具输出、代码块等）；勾选「显示诊断/配置」后可见 */
+  return list.filter(
+    (line) => line.role !== "system" && !shouldHideDiagnosticChatLine(line.role, line.text),
+  );
 });
 
 const selectedIndex = computed(() => preview.getSelectedIndex(displayLines.value.length));
@@ -119,6 +139,18 @@ function onComposerEnter(ev: KeyboardEvent): void {
   }
   ev.preventDefault();
   void chat.sendMessage();
+}
+
+/** 右栏收起时仍可从左侧打开本地文件（与 PreviewPane 内按钮一致） */
+async function pickLocalFileForPreview(): Promise<void> {
+  const api = window.lclawElectron;
+  if (!api) {
+    return;
+  }
+  const href = await api.pickLocalFile();
+  if (href) {
+    await filePreview.openUrl(href);
+  }
 }
 </script>
 
@@ -155,7 +187,7 @@ function onComposerEnter(ev: KeyboardEvent): void {
 
     <GatewayLocalDialog v-model="showGatewayLocal" />
 
-    <div class="main">
+    <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
       <aside class="left">
         <div class="panel-title">会话</div>
         <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
@@ -194,6 +226,15 @@ function onComposerEnter(ev: KeyboardEvent): void {
               >
               显示诊断/配置
             </label>
+            <button
+              v-if="isLclawElectron() && !isPreviewPaneOpen"
+              type="button"
+              class="ghost toolbar-mini"
+              title="打开本地文件并在右侧预览（PDF / 图片 / Office / Markdown / 文本）"
+              @click="pickLocalFileForPreview"
+            >
+              本地文件…
+            </button>
           </div>
         </div>
         <div v-if="historyLoading" class="muted">加载历史…</div>
@@ -201,7 +242,7 @@ function onComposerEnter(ev: KeyboardEvent): void {
           v-else-if="displayLines.length === 0 && messages.length > 0 && !showDiagnosticMessages"
           class="muted filter-hint"
         >
-          本会话消息已按规则隐藏（审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
+          本会话消息已按规则隐藏（含全部 <strong>system</strong> 行、审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
         </p>
         <ChatMessageList
           v-else-if="!historyLoading && displayLines.length > 0"
@@ -234,7 +275,7 @@ function onComposerEnter(ev: KeyboardEvent): void {
         </div>
       </aside>
 
-      <section class="right">
+      <section v-if="isPreviewPaneOpen" class="right" aria-label="文件预览">
         <div class="panel-title">文件预览</div>
         <div class="preview-wrap">
           <PreviewPane />
@@ -328,6 +369,9 @@ button.ghost {
   flex-direction: column;
   min-height: 0;
 }
+.main:not(.preview-pane-open) .left {
+  border-right: none;
+}
 .right {
   flex: 1;
   min-width: 260px;
@@ -372,6 +416,11 @@ button.ghost {
   gap: 4px;
   cursor: pointer;
   white-space: nowrap;
+}
+.toolbar-mini {
+  font-size: 11px;
+  padding: 4px 8px;
+  margin-left: 4px;
 }
 .filter-hint {
   font-size: 12px;

@@ -1,4 +1,4 @@
-import { BrowserWindow, app, dialog, ipcMain } from "electron";
+import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
 import type { Server } from "node:http";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -70,9 +70,13 @@ app.on("window-all-closed", () => {
   }
 });
 
+const LIBREOFFICE_DOWNLOAD_PAGE = "https://www.libreoffice.org/download/download-libreoffice/";
+
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
 const PDF_EXT = /\.pdf$/i;
 const OFFICE_EXT = /\.(docx?|xlsx?|pptx?)$/i;
+const TEXT_PREVIEW_EXT = /\.(txt|text|log|csv|md|markdown|mdown|mkd)$/i;
+const MAX_TEXT_PREVIEW_BYTES = 2 * 1024 * 1024;
 
 const MIME: Record<string, string> = {
   ".png": "image/png",
@@ -85,6 +89,10 @@ const MIME: Record<string, string> = {
   ".ico": "image/x-icon",
   ".pdf": "application/pdf",
 };
+
+function textDisplayKindForPath(lower: string): "markdown" | "text" {
+  return /\.(md|markdown|mdown|mkd)$/i.test(lower) ? "markdown" : "text";
+}
 
 async function resolveExistingFilePath(fileUrl: string): Promise<string> {
   let u: URL;
@@ -177,7 +185,7 @@ type OpenOk = {
   ok: true;
   mimeType: string;
   base64: string;
-  displayKind: "image" | "pdf";
+  displayKind: "image" | "pdf" | "markdown" | "text";
 };
 
 type OpenFail = { ok: false; error: string };
@@ -201,6 +209,23 @@ ipcMain.handle("preview:openLocal", async (_event, fileUrl: unknown): Promise<Op
         displayKind,
       };
     }
+    if (TEXT_PREVIEW_EXT.test(lower)) {
+      const st = await fs.stat(p);
+      if (st.size > MAX_TEXT_PREVIEW_BYTES) {
+        return {
+          ok: false,
+          error: `文本文件过大（>${Math.round(MAX_TEXT_PREVIEW_BYTES / 1024 / 1024)}MB），请使用外部编辑器打开`,
+        };
+      }
+      const buf = await fs.readFile(p);
+      const dk = textDisplayKindForPath(lower);
+      return {
+        ok: true,
+        mimeType: dk === "markdown" ? "text/markdown;charset=utf-8" : "text/plain;charset=utf-8",
+        base64: buf.toString("base64"),
+        displayKind: dk,
+      };
+    }
     if (OFFICE_EXT.test(lower)) {
       const pdfBuf = await convertOfficeToPdfBuffer(p);
       return {
@@ -210,12 +235,65 @@ ipcMain.handle("preview:openLocal", async (_event, fileUrl: unknown): Promise<Op
         displayKind: "pdf",
       };
     }
-    return { ok: false, error: "不支持的文件类型（仅图片、PDF、Office）" };
+    return { ok: false, error: "不支持的文件类型（图片、PDF、Office、Markdown、纯文本）" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: msg };
   }
 });
+
+ipcMain.handle("preview:libreOfficeStatus", async (): Promise<{ available: boolean }> => {
+  const p = await findSofficeExecutable();
+  return { available: p !== null };
+});
+
+ipcMain.handle("preview:openLibreOfficeDownloadPage", async (): Promise<void> => {
+  await shell.openExternal(LIBREOFFICE_DOWNLOAD_PAGE);
+});
+
+ipcMain.handle(
+  "preview:showLibreOfficeInstallDialog",
+  async (): Promise<{ openedDownload: boolean }> => {
+    const win = mainWindow ?? BrowserWindow.getFocusedWindow();
+    const opts = {
+      type: "info" as const,
+      title: "需要 LibreOffice",
+      message: "在应用内预览 Word / Excel / PowerPoint 需本机安装 LibreOffice（免费开源）。",
+      detail:
+        "点击「打开下载页」将在浏览器中打开官网。安装后若仍无法预览，请重启本应用或设置环境变量 LIBREOFFICE_PATH 指向 soffice.exe。\n\n若已安装 Microsoft Office 或 WPS，可使用「用系统应用打开」，无需 LibreOffice。",
+      buttons: ["打开下载页", "稍后"],
+      defaultId: 0,
+      cancelId: 1,
+    };
+    const result = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    if (result.response === 0) {
+      await shell.openExternal(LIBREOFFICE_DOWNLOAD_PAGE);
+      return { openedDownload: true };
+    }
+    return { openedDownload: false };
+  },
+);
+
+/** 用操作系统默认应用打开本地文件（可用已安装的 Microsoft Office，无需 LibreOffice） */
+ipcMain.handle(
+  "shell:openFileUrl",
+  async (_event, fileUrl: unknown): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (typeof fileUrl !== "string") {
+      return { ok: false, error: "参数错误" };
+    }
+    try {
+      const p = await resolveExistingFilePath(fileUrl);
+      const errMsg = await shell.openPath(p);
+      if (errMsg) {
+        return { ok: false, error: errMsg };
+      }
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+  },
+);
 
 ipcMain.handle("dialog:openFile", async (): Promise<string | null> => {
   const win = mainWindow ?? BrowserWindow.getFocusedWindow();
@@ -223,6 +301,7 @@ ipcMain.handle("dialog:openFile", async (): Promise<string | null> => {
     properties: ["openFile" as const],
     filters: [
       { name: "Office", extensions: ["ppt", "pptx", "xls", "xlsx", "doc", "docx"] },
+      { name: "Markdown / 文本", extensions: ["md", "markdown", "txt", "log", "csv"] },
       { name: "PDF", extensions: ["pdf"] },
       { name: "图片", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg"] },
       { name: "全部", extensions: ["*"] },

@@ -49,7 +49,8 @@
 | `sessionKey` | string | 必填 |
 | `state` | `delta` \| `final` \| `aborted` \| `error` | 必填 |
 | `runId` | string | 可选 |
-| `message` | unknown | `delta` 时取展示文本 |
+| `message` | unknown | `delta` 时取展示文本；亦可能仅在顶层带 `text` / `textDelta` / `content` 等（passthrough） |
+| （实现说明） | — | 流式：`mergeAssistantStreamDelta` 区分全文快照与增量追加。历史：`chat.history` 若早于 user 落库则条数少于本地，`incoming.length < previous.length` 时拼回 `_lclawOptimistic` user，避免只剩「正在生成」占位 |
 | `errorMessage` | string | `error` 时展示 |
 
 ## 与官方文档差异

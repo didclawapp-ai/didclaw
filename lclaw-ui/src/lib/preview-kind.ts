@@ -1,4 +1,4 @@
-export type PreviewKind = "pdf" | "image" | "office" | "other";
+export type PreviewKind = "pdf" | "image" | "office" | "markdown" | "text" | "other";
 
 export function previewKindFromUrl(url: string): PreviewKind {
   let pathPart = url;
@@ -17,6 +17,12 @@ export function previewKindFromUrl(url: string): PreviewKind {
   }
   if (/\.(docx?|xlsx?|pptx?)$/i.test(lower)) {
     return "office";
+  }
+  if (/\.(md|markdown|mdown|mkd)$/i.test(lower)) {
+    return "markdown";
+  }
+  if (/\.(txt|text|log|csv)$/i.test(lower)) {
+    return "text";
   }
   return "other";
 }

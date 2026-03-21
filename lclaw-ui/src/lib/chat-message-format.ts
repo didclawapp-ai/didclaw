@@ -210,6 +210,54 @@ function isOpenClawSkillFileDump(t: string): boolean {
   );
 }
 
+/** PowerShell 错误记录（工具 stderr 常作为 system 注入聊天；中文环境乱码时仍可能保留英文关键字） */
+function looksLikePowerShellErrorRecord(t: string): boolean {
+  if (/\bFullyQualifiedErrorId\s*:/i.test(t) && /\bCategoryInfo\b/i.test(t)) {
+    return true;
+  }
+  if (
+    /SetValueInvocationException|ExceptionWhenSetting|ParentContainsErrorRecordException/i.test(t) &&
+    (/\bFullyQualifiedErrorId\b/i.test(t) || /\+\s+~{3,}/m.test(t) || /\+\s+\$/m.test(t))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 终端表格/列表在 ESC 丢失后残留的 `[32;1mName[0m` 一类片段，或纯文本 Name/---- 表头。
+ * 与 `Get-ChildItem | Format-Table`、简单目录清单一致。
+ */
+function looksLikeStrippedAnsiTableOrDirListing(t: string): boolean {
+  if (/\[\d+(?:;\d+)*mName\[0m/i.test(t) && /\[\d+(?:;\d+)*m----\[0m/i.test(t)) {
+    return true;
+  }
+  if (/\[\d+(?:;\d+)*mVersion\s*:\s*\[0m/i.test(t) && t.length < 200) {
+    return true;
+  }
+  const lines = t
+    .trim()
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length >= 3 && lines.length <= 28 && /^Name$/i.test(lines[0] ?? "") && /^-+$/.test(lines[1] ?? "")) {
+    const rest = lines.slice(2);
+    const pathish = (l: string) =>
+      l.length <= 120 && /^[A-Za-z0-9_.-]+$/.test(l) && !/[。！？]{2,}/.test(l);
+    const ok = rest.filter(pathish).length;
+    if (ok >= Math.max(1, Math.ceil(rest.length * 0.65))) {
+      return true;
+    }
+  }
+  const ansiish = /\[\d+(?:;\d+)*m/.test(t);
+  if (ansiish && t.length < 3500 && (/\b(Scripts|Lib)\b/.test(t) || /\breadme\.rst\b/i.test(t))) {
+    if (lines.length <= 24) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** wttr.in / curl 等着色终端天气块（含剥离 ESC 后残留的 `[38;5;226m`） */
 function isAnsiWeatherOrToolTerminalDump(t: string): boolean {
   if (t.length < 80) {
@@ -238,6 +286,9 @@ export function shouldAlwaysHideFromChatList(
   text: string,
 ): boolean {
   const trim = text.trim();
+  if (looksLikePowerShellErrorRecord(text)) {
+    return true;
+  }
   if (role === "user" || role === "system") {
     if (isOpenClawSessionBootstrapInjection(text)) {
       return true;
@@ -250,6 +301,12 @@ export function shouldAlwaysHideFromChatList(
     return true;
   }
   if (role === "system") {
+    if (looksLikeStrippedAnsiTableOrDirListing(text)) {
+      return true;
+    }
+    if (/^Version\s*:\s*\d+(\.\d+)*\s*$/i.test(trim) && trim.length < 48) {
+      return true;
+    }
     if (isOpenClawToolErrorJson(trim)) {
       return true;
     }

@@ -19,9 +19,19 @@ interface LclawElectronApi {
   openLocalPreview(
     fileUrl: string,
   ): Promise<
-    | { ok: true; mimeType: string; base64: string; displayKind: "image" | "pdf" }
+    | {
+        ok: true;
+        mimeType: string;
+        base64: string;
+        displayKind: "image" | "pdf" | "markdown" | "text";
+      }
     | { ok: false; error: string }
   >;
+  /** 用系统默认程序打开本地 file://（如已装 Word，无需 LibreOffice） */
+  openFileUrlInSystem(fileUrl: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  getLibreOfficeStatus(): Promise<{ available: boolean }>;
+  openLibreOfficeDownloadPage(): Promise<void>;
+  showLibreOfficeInstallDialog(): Promise<{ openedDownload: boolean }>;
   pickLocalFile(): Promise<string | null>;
   readGatewayLocalConfig(): Promise<{
     url?: string;

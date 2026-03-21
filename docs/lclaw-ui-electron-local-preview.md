@@ -82,8 +82,9 @@ gateway:
 2. 渲染进程调用 `lclawElectron.openLocalPreview(fileUrl)`。
 3. 主进程：`fileURLToPath` → `fs.realpath` / `stat` 校验为普通文件。
 4. **图片 / PDF**：读入 Buffer → base64 → 渲染进程转 **Blob URL** → `target.kind` 为 `image` | `pdf`。
-5. **Office（doc/xls/ppt 等）**：复制到临时目录（避免同名冲突）→ 调用 **LibreOffice headless** 转 PDF → 读 PDF → base64 → 渲染进程以 **pdf** 展示。
-6. `filePreview.clear()` / 切换预览时 **revoke** 旧 Blob URL，避免内存泄漏。
+5. **Markdown / 纯文本**（`.md` / `.txt` / `.log` / `.csv` 等）：读入文件（≤2MB）→ base64 → 渲染进程 UTF-8 解码 → `previewTextBody` + `target.kind` 为 `markdown` | `text`；Markdown 经 `markdown-it` + **DOMPurify** 后 `v-html`。
+6. **Office（doc/xls/ppt 等）**：复制到临时目录（避免同名冲突）→ 调用 **LibreOffice headless** 转 PDF → 读 PDF → base64 → 渲染进程以 **pdf** 展示。
+7. `filePreview.clear()` / 切换预览时 **revoke** 旧 Blob URL，避免内存泄漏。
 
 ### 4.1 大文件与后续优化
 
@@ -100,6 +101,20 @@ gateway:
 - 主进程按顺序探测：`LIBREOFFICE_PATH` → Windows 常见路径 → `soffice` / `libreoffice`（`execFile`）。
 
 未安装或转换失败时，IPC 返回错误文案，右侧展示失败原因（可提示安装 LibreOffice）。
+
+### 5.1 不装 LibreOffice 的替代（系统默认程序）
+
+内嵌预览（右侧 iframe）仍依赖 LibreOffice 转 PDF。若不想安装，可使用 **`shell.openPath`** 降级：预览失败时界面提供 **「用系统应用打开此文件」**，由操作系统用已安装的 **Microsoft Office**、**WPS** 等打开；**无需**在本应用内再绑一套 Office 运行时。
+
+IPC：`shell:openFileUrl`（preload：`openFileUrlInSystem`）。
+
+### 5.2 检测与安装引导（桌面版）
+
+- `preview:libreOfficeStatus` → `{ available: boolean }`（与 `findSofficeExecutable` 一致：含 `LIBREOFFICE_PATH`、Windows 常见路径、`PATH` 中的 `soffice`/`libreoffice`）。
+- `preview:openLibreOfficeDownloadPage`：浏览器打开官网下载页。
+- `preview:showLibreOfficeInstallDialog`：原生对话框说明 + 确认后打开下载页。
+
+渲染进程通过 `window.lclawElectron` 对应方法调用；Office 预览失败且错误文案匹配 LibreOffice 缺失时，右侧展示「安装说明与下载页 / 直接打开官网 / 重新检测并预览」。
 
 ## 6. 安全（主进程）
 
