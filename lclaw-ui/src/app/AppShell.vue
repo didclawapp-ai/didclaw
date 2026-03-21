@@ -20,7 +20,7 @@ const session = useSessionStore();
 const chat = useChatStore();
 const preview = usePreviewStore();
 
-const { showDiagnosticMessages } = storeToRefs(preview);
+const { followLatest, showDiagnosticMessages } = storeToRefs(preview);
 const { status, lastError, helloInfo, url } = storeToRefs(gw);
 const { sessions, loading: sessionsLoading, error: sessionsError, activeSessionKey } =
   storeToRefs(session);
@@ -136,16 +136,26 @@ function onSelectMessage(index: number) {
 
         <div class="panel-title row-title">
           <span>消息</span>
-          <label v-if="!historyLoading" class="msg-filter">
-            <input
-              type="checkbox"
-              :checked="showDiagnosticMessages"
-              @change="
-                preview.setShowDiagnosticMessages(($event.target as HTMLInputElement).checked)
-              "
-            >
-            显示诊断/配置
-          </label>
+          <div v-if="!historyLoading" class="msg-toolbar">
+            <label class="msg-filter">
+              <input
+                type="checkbox"
+                :checked="followLatest"
+                @change="preview.setFollowLatest(($event.target as HTMLInputElement).checked)"
+              >
+              跟随最新
+            </label>
+            <label class="msg-filter">
+              <input
+                type="checkbox"
+                :checked="showDiagnosticMessages"
+                @change="
+                  preview.setShowDiagnosticMessages(($event.target as HTMLInputElement).checked)
+                "
+              >
+              显示诊断/配置
+            </label>
+          </div>
         </div>
         <div v-if="historyLoading" class="muted">加载历史…</div>
         <p
@@ -178,9 +188,9 @@ function onSelectMessage(index: number) {
       </aside>
 
       <section class="right">
-        <div class="panel-title">预览</div>
+        <div class="panel-title">文件预览</div>
         <div class="preview-wrap">
-          <PreviewPane :lines="displayLines" />
+          <PreviewPane />
         </div>
       </section>
     </div>
@@ -300,6 +310,12 @@ button.ghost {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+}
+.msg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 .msg-filter {
   font-size: 11px;

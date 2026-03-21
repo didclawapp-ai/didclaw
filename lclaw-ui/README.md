@@ -5,7 +5,7 @@
 > 协议笔记：`../docs/gateway-client-protocol-notes.md`  
 > 内网部署与冒烟：`../docs/lclaw-ui-内网部署.md`
 
-**Vue 3 + TypeScript + Vite + Pinia**。已实现：**阶段 A～E（交付项）**——核心 RPC / `chat` 事件 **Zod**、网关错误中文说明、**复制诊断信息**（脱敏）、**内网部署与冒烟文档**（`../docs/lclaw-ui-内网部署.md`）。可选项（BFF、无障碍、i18n、错误上报 SDK）见开发步骤阶段 E。
+**Vue 3 + TypeScript + Vite + Pinia**。布局：**左侧实时聊天**（消息内 `http(s)` / `file://` 与 Markdown 链接渲染为可点击按钮）；**右侧文件预览**（仅在被点击后加载：PDF / 图片内嵌；Office 在公网 HTTPS 时尝试 Office Online 嵌入，本地 `file://` 需新窗口或本机打开）。另含网关联调、消息过滤、工具时间线等，见仓库内文档。
 
 ## 常用命令
 

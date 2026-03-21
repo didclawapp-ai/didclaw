@@ -1,69 +1,82 @@
 <script setup lang="ts">
-import { usePreviewEcharts } from "@/composables/usePreviewEcharts";
-import type { ChatLine } from "@/lib/chat-line";
-import { renderMarkdownToSafeHtml } from "@/lib/markdown-render";
-import { usePreviewStore } from "@/stores/preview";
+import { isHttpsUrl, officeOnlineEmbedUrl } from "@/lib/preview-kind";
+import { useFilePreviewStore } from "@/stores/filePreview";
 import { useToolTimelineStore } from "@/stores/toolTimeline";
-import "highlight.js/styles/github.css";
 import { storeToRefs } from "pinia";
-import { computed, ref } from "vue";
+import { computed } from "vue";
 
-const props = defineProps<{
-  lines: ChatLine[];
-}>();
-
-const preview = usePreviewStore();
-const { followLatest } = storeToRefs(preview);
+const filePreview = useFilePreviewStore();
+const { target } = storeToRefs(filePreview);
 
 const toolTimeline = useToolTimelineStore();
 const { entries: toolEntries } = storeToRefs(toolTimeline);
 
-const selectedIndex = computed(() => preview.getSelectedIndex(props.lines.length));
-
-const selectedLine = computed(() => {
-  const i = selectedIndex.value;
-  if (i === null) {
-    return null;
-  }
-  return props.lines[i] ?? null;
-});
-
-const html = computed(() => {
-  const line = selectedLine.value;
-  if (!line?.text?.trim()) {
+const officeEmbed = computed(() => {
+  const t = target.value;
+  if (!t || t.kind !== "office") {
     return "";
   }
-  return renderMarkdownToSafeHtml(line.text);
+  if (!isHttpsUrl(t.url)) {
+    return "";
+  }
+  return officeOnlineEmbedUrl(t.url);
 });
 
-const isAssistantOrUser = computed(() => {
-  const r = selectedLine.value?.role;
-  return r === "assistant" || r === "user";
-});
-
-const mdRoot = ref<HTMLElement | null>(null);
-usePreviewEcharts(mdRoot, html);
+function openExternal(): void {
+  const u = target.value?.url;
+  if (u) {
+    window.open(u, "_blank", "noopener,noreferrer");
+  }
+}
 </script>
 
 <template>
   <div class="preview-root">
     <div class="toolbar">
-      <label class="chk">
-        <input
-          type="checkbox"
-          :checked="followLatest"
-          @change="preview.setFollowLatest(($event.target as HTMLInputElement).checked)"
-        >
-        跟随最新
-      </label>
-      <span v-if="selectedLine" class="meta"> #{{ (selectedIndex ?? 0) + 1 }} · {{ selectedLine.role }} </span>
+      <template v-if="target">
+        <span class="title" :title="target.url">{{ target.label }}</span>
+        <span class="pill">{{ target.kind }}</span>
+        <button type="button" @click="openExternal">新窗口打开</button>
+        <button type="button" class="ghost" @click="filePreview.clear">关闭预览</button>
+      </template>
+      <p v-else class="hint muted">点击左侧消息里的 <strong>蓝色链接按钮</strong>，在此预览 PDF / 图片；Office 文档见下方说明。</p>
     </div>
 
-    <div v-if="!selectedLine" class="empty muted">选择左侧一条消息查看 Markdown 预览。</div>
-    <!-- 已通过 DOMPurify 消毒，仅渲染 Markdown 输出 -->
-    <!-- eslint-disable-next-line vue/no-v-html -->
-    <div v-else-if="isAssistantOrUser && html" ref="mdRoot" class="md preview-md" v-html="html" />
-    <pre v-else class="plain">{{ selectedLine.text }}</pre>
+    <div
+      class="viewport"
+      :class="{ 'is-image': target?.kind === 'image', 'is-empty': !target }"
+    >
+      <img
+        v-if="target?.kind === 'image'"
+        class="fill-img"
+        :src="target.url"
+        :alt="target.label"
+      >
+      <iframe
+        v-else-if="target && target.kind === 'pdf'"
+        class="fill-frame"
+        title="PDF"
+        :src="target.url"
+      />
+      <iframe
+        v-else-if="target && target.kind === 'office' && officeEmbed"
+        class="fill-frame"
+        title="Office"
+        :src="officeEmbed"
+      />
+      <div v-else-if="target && target.kind === 'office'" class="card">
+        <p><strong>本地或 HTTP 的 Office 文件</strong>在浏览器里无法像桌面一样直接打开。</p>
+        <ul>
+          <li>若为 <strong>https</strong> 且公网可访问，已尝试用 Microsoft 在线预览（上方嵌入）。</li>
+          <li><strong>file://</strong> 或内网地址：请用「新窗口打开」或在本机资源管理器中打开路径。</li>
+        </ul>
+        <button type="button" @click="openExternal">仍要尝试打开</button>
+      </div>
+      <div v-else-if="target" class="card">
+        <p>此链接不是内置预览类型（PDF / 图片 / Office）。</p>
+        <button type="button" @click="openExternal">在新窗口打开</button>
+      </div>
+    </div>
 
     <div class="timeline">
       <div class="timeline-title">工具 / 事件（非 chat）</div>
@@ -88,48 +101,93 @@ usePreviewEcharts(mdRoot, html);
 }
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding-bottom: 10px;
   margin-bottom: 8px;
   border-bottom: 1px solid #eee;
   flex-shrink: 0;
 }
-.chk {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.meta {
-  font-size: 12px;
-  color: #666;
-}
-.empty {
-  padding: 12px;
-}
-.plain {
+.hint {
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
   font-size: 13px;
+  line-height: 1.45;
+}
+.title {
+  font-weight: 600;
+  font-size: 13px;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pill {
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e8eaf6;
+  color: #3949ab;
+}
+.viewport {
   flex: 1;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+.viewport.is-empty {
+  min-height: 120px;
+  border-style: dashed;
+  background: #fff;
+}
+.viewport.is-image {
+  align-items: center;
+  justify-content: center;
+}
+.fill-img {
+  max-width: 100%;
+  max-height: min(70vh, 100%);
+  object-fit: contain;
+}
+.fill-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 320px;
+  border: 0;
+  background: #fff;
+}
+.card {
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.5;
   overflow: auto;
 }
-.md {
-  flex: 1;
-  min-height: 120px;
-  overflow: auto;
-  font-size: 14px;
-  line-height: 1.55;
+.card ul {
+  padding-left: 1.2em;
+}
+button {
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #222;
+  color: #fff;
+}
+button.ghost {
+  background: #fff;
+  color: #222;
 }
 .timeline {
   flex-shrink: 0;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid #eee;
-  max-height: 200px;
+  max-height: 180px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -172,64 +230,5 @@ usePreviewEcharts(mdRoot, html);
 }
 .muted {
   color: #888;
-}
-</style>
-
-<style>
-/* v-html 注入内容：样式限在 .preview-md 下 */
-.preview-md h1,
-.preview-md h2,
-.preview-md h3 {
-  margin: 0.6em 0 0.35em;
-  font-weight: 600;
-}
-.preview-md p {
-  margin: 0.4em 0;
-}
-.preview-md ul,
-.preview-md ol {
-  margin: 0.4em 0;
-  padding-left: 1.4em;
-}
-.preview-md pre {
-  padding: 10px;
-  background: #f4f4f4;
-  border-radius: 6px;
-  overflow: auto;
-  font-size: 12px;
-}
-.preview-md pre.lclaw-chart-error {
-  background: #ffebee;
-  color: #b71c1c;
-  border: 1px solid #ffcdd2;
-}
-.preview-md code {
-  font-family: ui-monospace, monospace;
-  font-size: 0.92em;
-}
-.preview-md pre code {
-  font-size: inherit;
-}
-.preview-md .lclaw-chart {
-  width: 100%;
-  height: 260px;
-  margin: 0.75em 0;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  background: #fafafa;
-}
-.preview-md table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 0.5em 0;
-  font-size: 13px;
-}
-.preview-md th,
-.preview-md td {
-  border: 1px solid #ddd;
-  padding: 6px 8px;
-}
-.preview-md a {
-  color: #1565c0;
 }
 </style>

@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import { useFilePreviewStore } from "./filePreview";
 
 /** 右栏预览：选中行 + 「跟随最新」 */
 export const usePreviewStore = defineStore("preview", () => {
@@ -38,6 +39,7 @@ export const usePreviewStore = defineStore("preview", () => {
   function resetForNewSession(): void {
     followLatest.value = true;
     explicitIndex.value = null;
+    useFilePreviewStore().clear();
   }
 
   function setShowDiagnosticMessages(value: boolean): void {

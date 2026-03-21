@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ChatLineBody from "@/features/chat/ChatLineBody.vue";
 import type { ChatLine } from "@/lib/chat-line";
 import { measureElement, useVirtualizer } from "@tanstack/vue-virtual";
 import { computed, nextTick, ref, watch } from "vue";
@@ -94,7 +95,7 @@ function onRowClick(index: number) {
         @click="onRowClick(item.index)"
       >
         <span class="tag">{{ lines[item.index]?.role ?? '?' }}</span>
-        <pre class="txt">{{ lines[item.index]?.listText ?? lines[item.index]?.text ?? '' }}</pre>
+        <ChatLineBody class="txt" :text="lines[item.index]?.listText ?? lines[item.index]?.text ?? ''" />
       </div>
     </div>
   </div>
@@ -132,10 +133,7 @@ function onRowClick(index: number) {
   color: #666;
 }
 .txt {
-  margin: 4px 0 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: inherit;
-  font-size: 13px;
+  margin: 0;
+  min-width: 0;
 }
 </style>
