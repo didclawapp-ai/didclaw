@@ -29,6 +29,17 @@ interface LclawElectronApi {
   >;
   /** 用系统默认程序打开本地 file://（如已装 Word，无需 LibreOffice） */
   openFileUrlInSystem(fileUrl: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** 本地文件另存为（复制到新路径） */
+  saveLocalFileCopyAs(
+    fileUrl: string,
+  ): Promise<{ ok: true; saved: boolean } | { ok: false; error: string }>;
+  /** 在文件夹中显示并复制路径，便于作为邮件附件 */
+  prepareEmailWithLocalFile(fileUrl: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** 复制文件名、路径与 file URL 到剪贴板 */
+  copyLocalFileForShare(
+    fileUrl: string,
+    label?: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }>;
   getLibreOfficeStatus(): Promise<{ available: boolean }>;
   openLibreOfficeDownloadPage(): Promise<void>;
   showLibreOfficeInstallDialog(): Promise<{ openedDownload: boolean }>;

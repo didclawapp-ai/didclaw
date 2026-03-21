@@ -1,4 +1,4 @@
-import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
+import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
 import type { Server } from "node:http";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -287,6 +287,79 @@ ipcMain.handle(
       if (errMsg) {
         return { ok: false, error: errMsg };
       }
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+  },
+);
+
+/** 将本地文件复制到用户选择的路径（另存为） */
+ipcMain.handle(
+  "file:saveCopyAs",
+  async (_event, fileUrl: unknown): Promise<
+    { ok: true; saved: boolean } | { ok: false; error: string }
+  > => {
+    if (typeof fileUrl !== "string") {
+      return { ok: false, error: "参数错误" };
+    }
+    try {
+      const src = await resolveExistingFilePath(fileUrl);
+      const base = path.basename(src);
+      const win = mainWindow ?? BrowserWindow.getFocusedWindow();
+      const r = win
+        ? await dialog.showSaveDialog(win, { defaultPath: base })
+        : await dialog.showSaveDialog({ defaultPath: base });
+      if (r.canceled || !r.filePath) {
+        return { ok: true, saved: false };
+      }
+      await fs.copyFile(src, r.filePath);
+      return { ok: true, saved: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+  },
+);
+
+/** 在资源管理器中定位并复制路径，便于拖入邮件客户端或「发送到邮件收件人」 */
+ipcMain.handle(
+  "shell:prepareEmailWithLocalFile",
+  async (_event, fileUrl: unknown): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (typeof fileUrl !== "string") {
+      return { ok: false, error: "参数错误" };
+    }
+    try {
+      const p = await resolveExistingFilePath(fileUrl);
+      shell.showItemInFolder(p);
+      clipboard.writeText(p);
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+  },
+);
+
+/** 复制文件名、本地路径与 file URL，便于粘贴到 IM / 协作工具 */
+ipcMain.handle(
+  "shell:copyLocalFileForShare",
+  async (_event, payload: unknown): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+      return { ok: false, error: "参数错误" };
+    }
+    const o = payload as Record<string, unknown>;
+    const fileUrl = typeof o.fileUrl === "string" ? o.fileUrl : "";
+    const label = typeof o.label === "string" ? o.label.trim() : "";
+    if (!fileUrl) {
+      return { ok: false, error: "参数错误" };
+    }
+    try {
+      const p = await resolveExistingFilePath(fileUrl);
+      const name = label || path.basename(p);
+      const href = pathToFileURL(p).href;
+      clipboard.writeText(`${name}\n路径：${p}\n${href}`);
       return { ok: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

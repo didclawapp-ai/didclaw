@@ -16,6 +16,18 @@ contextBridge.exposeInMainWorld("lclawElectron", {
     ipcRenderer.invoke("shell:openFileUrl", fileUrl) as Promise<
       { ok: true } | { ok: false; error: string }
     >,
+  saveLocalFileCopyAs: (fileUrl: string) =>
+    ipcRenderer.invoke("file:saveCopyAs", fileUrl) as Promise<
+      { ok: true; saved: boolean } | { ok: false; error: string }
+    >,
+  prepareEmailWithLocalFile: (fileUrl: string) =>
+    ipcRenderer.invoke("shell:prepareEmailWithLocalFile", fileUrl) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+  copyLocalFileForShare: (fileUrl: string, label?: string) =>
+    ipcRenderer.invoke("shell:copyLocalFileForShare", { fileUrl, label }) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
   getLibreOfficeStatus: () =>
     ipcRenderer.invoke("preview:libreOfficeStatus") as Promise<{ available: boolean }>,
   openLibreOfficeDownloadPage: () => ipcRenderer.invoke("preview:openLibreOfficeDownloadPage"),

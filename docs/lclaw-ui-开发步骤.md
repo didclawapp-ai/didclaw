@@ -1,6 +1,7 @@
 # lclaw-ui 开发步骤
 
-> 依据 [`OpenClaw-顶层界面-开发方案.md`](./OpenClaw-顶层界面-开发方案.md) 整理的**执行顺序**；勾选 `[ ]` 跟踪进度。  
+> 依据 [`OpenClaw-顶层界面-开发方案.md`](./OpenClaw-顶层界面-开发方案.md)（**方案 v1.6**）整理的**执行顺序**；勾选 `[ ]` 跟踪进度。  
+> **当前包版本**：`lclaw-ui/package.json` → **0.2.0**（发版时与 Git tag / 方案 § 头同步更新）。  
 > 协议细节随时记入 [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md)。  
 > **桌面壳（Electron）与本机文件预览**：见 [`lclaw-ui-electron-local-preview.md`](./lclaw-ui-electron-local-preview.md)。
 
@@ -31,7 +32,7 @@
 
 ## 2. 应用壳与全局布局
 
-- [x] 在 `src/app` 实现**左右分栏**布局：左侧预留聊天区、右侧预留预览区；右栏宽度可后续加分栏拖拽（方案 §4.2）。
+- [x] 在 `src/app` 实现**左右分栏**布局：左侧聊天、右侧预览；**无文件预览时右栏默认隐藏**，有预览（含加载/错误）时自动展开；右栏**分栏拖拽**仍为可选增强。
 - [x] 挂载 **Pinia**，规划 store 划分（建议至少：`useGatewayStore`、`useSessionStore` 或等价模块）。
 - [ ] （可选）设置页路由：连接参数、主题、语言占位，对应阶段 E 的 i18n 扩展点。
 
@@ -56,10 +57,10 @@
 
 ### 3.3 发送与基础展示
 
-- [x] 输入框 + **`chat.send`**；展示返回/流式中的助手内容（先做**非流式或最小流式**即可）。
+- [x] 输入框 + **`chat.send`**；**流式**：`extractChatDeltaText` / `mergeAssistantStreamDelta`；助手占位行；**乐观**用户消息 + `loadHistory` 与快照**条数合并**避免未落库时冲掉用户行。
 - [x] 连接状态展示：已连接 / 重连中 / 错误（方案 §4.1）。
 
-**阶段 A 完成标准**：跨端口（如 5173 → 18789）可连上 Gateway，能选会话、看历史、发一条消息并看到回复。
+**阶段 A 完成标准**：跨端口（如 5173 → 18789）可连上 Gateway，能选会话、看历史、发消息并**流式**看到助手回复。
 
 ---
 
@@ -70,8 +71,9 @@
 - [x] **`chat.abort`**：发送中/生成中可中断；中断后 UI 状态与官方行为一致（如保留部分输出，参见 [WebChat](https://docs.openclaw.ai/web/webchat)）。
 - [x] **发送中禁用/排队**：避免同会话状态机混乱（方案 §4.1）。
 - [x] **历史刷新策略**：发送成功后刷新或增量合并；大会话考虑分页或「加载更多」（与 `chat.history` 能力对齐）。
-- [x] **下行事件**：非 `chat` 事件在 **DEV** 下 `console.debug`；工具/Agent 气泡 UI 仍待绑定。
+- [x] **下行事件**：非 `chat` 事件在 **DEV** 下 `console.debug`；**工具时间线**已在阶段 D 接入 `PreviewPane`。
 - [x] **长列表**：已接入 **`@tanstack/vue-virtual`**（`ChatMessageList.vue`）。
+- [x] **列表过滤**：默认**不展示 `system` 行**（勾选「显示诊断/配置」后展示）；`chat-message-format.ts` 折叠 PowerShell/ANSI 目录表等工具噪音（与「诊断」开关独立部分规则见代码）。
 - [x] 更新 **`gateway-client-protocol-notes.md`**：已记 `chat` / `connect.challenge` 等（余事件待补）。
 
 **阶段 B 完成标准**：左栏交互完整，会话切换无串台，abort 与连发策略符合 §4.1。
@@ -82,12 +84,13 @@
 
 对应方案 **§7 阶段 C**。
 
-- [x] 在 `features/preview` 实现 **Markdown 渲染**（**markdown-it** + **DOMPurify**，`lib/markdown-render.ts`）。
+- [x] 在 `features/preview` 实现**选中消息**的 **Markdown 渲染**（**markdown-it** + **DOMPurify**，`lib/markdown-render.ts`）。
 - [x] **表格、代码块**：表格已随 Markdown；**代码高亮**（**highlight.js** + `github` 主题，`markdown-render.ts` / `PreviewPane.vue`）。
 - [x] **与左栏联动**：点击消息 + **「跟随最新」**（`stores/preview.ts`）。
 - [x] 右栏**独立滚动**（`PreviewPane` + 布局 `overflow`）；左栏列表自有滚动容器。
+- [x] **文件类 Markdown/纯文本**（`.md`/`.txt` 等）：`lib/render-markdown-preview.ts` + `stores/filePreview.ts` + `preview-kind.ts`（与消息内 Markdown 渲染共用安全策略思路）。
 
-**阶段 C 完成标准**：右栏稳定渲染 Markdown/表格/代码，无裸 XSS 测试用例失败。
+**阶段 C 完成标准**：右栏稳定渲染 Markdown/表格/代码；**文件链接**可预览 md/txt（本地 Electron 或受 CORS 允许的 http）。
 
 ---
 
@@ -100,8 +103,10 @@
 - [x] **工具调用时间线**：`stores/toolTimeline.ts` + `PreviewPane` 底部列表；载荷摘要脱敏；切换会话时清空。
 - [x] **外链白名单**：`lib/url-allowlist.ts` + DOMPurify 钩子；`VITE_LINK_ALLOWLIST`；允许的 `http(s)` 链接统一 `target=_blank` + `rel=noopener noreferrer`（方案 §4.2）。
 - [x] 高频工具输出：**120ms 节流 + 同事件同摘要合并计数**（`toolTimeline` ingest，方案 §6.1）。
+- [x] **PDF / 图片 / Office**：`electron/main.ts` 本地读盘；Office → **LibreOffice** 转 PDF；**IPC** 安装引导（`preview:libreOfficeStatus`、下载页、对话框）与 **`shell.openPath`** 系统打开降级；HTTPS Office **Office Online** 嵌入。
+- [x] **聊天内可点击链接** → `filePreview.openUrl`（`ChatLineBody.vue`）；Electron **选文件**对话框含 Markdown/文本类型。
 
-**阶段 D 完成标准**：图表、工具线、安全下载流程可用；右栏性能在长对话下可接受。
+**阶段 D 完成标准**：图表、工具线、安全链接与**文件预览**（含 Office 本地链路）可用；右栏性能在长对话下可接受。
 
 ---
 
@@ -122,13 +127,14 @@
 
 ---
 
-## 8. （可选）桌面安装包
+## 8. 桌面安装包（Electron）
 
-方案 §5.2、§1.4：在 Web 稳定后再做。
+方案 §5.2、§1.4；细节见 **`docs/lclaw-ui-electron-local-preview.md`**。
 
-- [ ] 选定 **Electron + Vite** 或 **Tauri 2 + Vite**。
-- [ ] 加载同一套 `dist` 或 dev URL；处理 **Token 安全存储**（方案 §6、§10）。
-- [ ] Windows **代码签名**与更新策略按法务/运维要求排期。
+- [x] 采用 **Electron + Vite**（`vite-plugin-electron`）；开发态 `pnpm dev` 联调；生产态 **127.0.0.1 静态服务** 避免 `file://` Origin 被拒。
+- [x] **网关本地配置**：`gateway-local.json` + 界面「网关本地设置」（打包后无 `.env` 时使用）。
+- [x] **本机文件预览**：主进程 IPC（`preview:openLocal` 等）；文本上限、LibreOffice 路径探测见 electron 文档。
+- [ ] Windows **代码签名**与 **electron-updater** 自动更新按法务/运维排期。
 
 ---
 
@@ -150,6 +156,7 @@
 | [OpenClaw-顶层界面-开发方案.md](./OpenClaw-顶层界面-开发方案.md) | 架构、契约、安全、复审约定 |
 | [gateway-client-protocol-notes.md](./gateway-client-protocol-notes.md) | 版本化协议笔记 |
 | [../lclaw-ui/README.md](../lclaw-ui/README.md) | 技术栈摘要与初始化命令 |
+| [lclaw-ui-electron-local-preview.md](./lclaw-ui-electron-local-preview.md) | Electron、LibreOffice、本地预览 IPC |
 
 ---
 
