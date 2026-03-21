@@ -112,6 +112,14 @@ const selectedIndex = computed(() => preview.getSelectedIndex(displayLines.value
 function onSelectMessage(index: number) {
   preview.selectLine(index, displayLines.value.length);
 }
+
+function onComposerEnter(ev: KeyboardEvent): void {
+  if (ev.shiftKey) {
+    return;
+  }
+  ev.preventDefault();
+  void chat.sendMessage();
+}
 </script>
 
 <template>
@@ -205,7 +213,14 @@ function onSelectMessage(index: number) {
         <p v-else-if="!historyLoading" class="muted filter-hint">暂无可显示消息。</p>
 
         <div class="composer">
-          <textarea v-model="draft" rows="3" placeholder="输入消息…" :disabled="sending || status !== 'connected'" />
+          <textarea
+            v-model="draft"
+            rows="3"
+            placeholder="输入消息…"
+            :disabled="sending || status !== 'connected'"
+            @keydown.enter="onComposerEnter"
+          />
+          <p class="composer-hint">Enter 发送，Shift+Enter 换行</p>
           <div class="row">
             <button type="button" :disabled="sending || status !== 'connected'" @click="chat.sendMessage()">
               发送
@@ -397,7 +412,14 @@ button.ghost {
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+.composer-hint {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #888;
 }
 .row {
   display: flex;
