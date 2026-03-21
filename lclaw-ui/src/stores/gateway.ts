@@ -2,7 +2,6 @@ import { GatewayClient } from "@/features/gateway/gateway-client";
 import { gatewayHelloOkSchema } from "@/features/gateway/schemas";
 import { isLclawElectron } from "@/lib/electron-bridge";
 import { describeGatewayError } from "@/lib/gateway-errors";
-import { readWebGatewayStored } from "@/lib/gateway-web-storage";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
@@ -46,19 +45,6 @@ async function loadGatewayConnectOptions(): Promise<ConnectOpts> {
     }
   }
 
-  if (!isLclawElectron()) {
-    const web = readWebGatewayStored();
-    if (typeof web.url === "string" && web.url.trim()) {
-      finalUrl = web.url.trim();
-    }
-    if (typeof web.token === "string" && web.token.trim()) {
-      token = web.token.trim();
-    }
-    if (typeof web.password === "string" && web.password.trim()) {
-      password = web.password.trim();
-    }
-  }
-
   return { url: finalUrl, token, password };
 }
 
@@ -77,7 +63,7 @@ export const useGatewayStore = defineStore("gateway", () => {
     status.value = "disconnected";
   }
 
-  /** 按当前环境变量 / Electron 本地文件 / 浏览器 localStorage 刷新顶栏展示的 WS 地址（不自动重连） */
+  /** 按当前环境变量 / Electron 本地文件刷新顶栏展示的 WS 地址（不自动重连） */
   async function refreshResolvedUrl(): Promise<void> {
     const o = await loadGatewayConnectOptions();
     url.value = o.url;
@@ -119,6 +105,9 @@ export const useGatewayStore = defineStore("gateway", () => {
           status.value = "connected";
           void import("./session").then(({ useSessionStore }) => {
             void useSessionStore().refresh();
+          });
+          void import("./chat").then(({ useChatStore }) => {
+            void useChatStore().refreshOpenClawModelPicker();
           });
         },
         onEvent: (evt) => {

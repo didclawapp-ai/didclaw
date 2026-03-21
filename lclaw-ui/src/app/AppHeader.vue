@@ -4,6 +4,7 @@ import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnos
 import { isLclawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
+import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useSessionStore } from "@/stores/session";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
@@ -18,7 +19,15 @@ const { messages, lastError: chatError } = storeToRefs(chat);
 
 const copiedDiag = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
-const showGatewayLocal = ref(false);
+const localSettings = useLocalSettingsStore();
+const showGatewayLocal = computed({
+  get: () => localSettings.visible,
+  set: (v: boolean) => {
+    if (!v) {
+      localSettings.close();
+    }
+  },
+});
 
 const connSwitchOn = computed(
   () => status.value === "connected" || status.value === "connecting",
@@ -143,13 +152,6 @@ async function copyDiagnostics(): Promise<void> {
       </div>
       <div class="brand-actions">
         <p class="brand-tagline">Gateway 会话 · 预览 · 诊断</p>
-        <RouterLink
-          v-if="!isLclawElectron()"
-          to="/settings"
-          class="lc-btn lc-btn-ghost lc-btn-sm about-link"
-        >
-          连接设置
-        </RouterLink>
         <RouterLink to="/about" class="lc-btn lc-btn-ghost lc-btn-sm about-link">关于</RouterLink>
       </div>
     </div>
@@ -187,8 +189,8 @@ async function copyDiagnostics(): Promise<void> {
           v-if="isLclawElectron()"
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
-          title="将 Token 等保存到本机（打包版无 .env 时使用）"
-          @click="showGatewayLocal = true"
+          title="网关连接与 openclaw.json 模型（本机设置）"
+          @click="localSettings.open('gateway')"
         >
           本机
         </button>

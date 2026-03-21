@@ -9,6 +9,8 @@ export type SessionRow = {
   key: string;
   label?: string;
   lastActiveAt?: number;
+  /** 当前会话的模型覆盖（sessions.patch 设置，null = 使用网关默认） */
+  model?: string | null;
 };
 
 export const useSessionStore = defineStore("session", () => {
@@ -55,6 +57,33 @@ export const useSessionStore = defineStore("session", () => {
     }
   }
 
+  /**
+   * 通过 sessions.patch 设置当前会话的模型覆盖。
+   * model 为 null 时清除覆盖，回到网关默认。
+   */
+  async function patchSessionModel(model: string | null): Promise<void> {
+    const gw = useGatewayStore();
+    const c = gw.client;
+    const key = activeSessionKey.value;
+    if (!c?.connected || !key) {
+      return;
+    }
+    try {
+      await c.request("sessions.patch", {
+        key,
+        ...(model != null ? { model } : { model: null }),
+      });
+      // 更新本地 session row 的 model 字段
+      const row = sessions.value.find((s) => s.key === key);
+      if (row) {
+        row.model = model;
+      }
+    } catch (e) {
+      const { useChatStore } = await import("./chat");
+      useChatStore().lastError = `切换模型失败：${describeGatewayError(e)}`;
+    }
+  }
+
   async function selectSession(key: string): Promise<void> {
     if (key === activeSessionKey.value) {
       return;
@@ -79,5 +108,6 @@ export const useSessionStore = defineStore("session", () => {
     activeSession,
     refresh,
     selectSession,
+    patchSessionModel,
   };
 });

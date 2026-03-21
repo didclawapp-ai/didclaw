@@ -47,7 +47,7 @@ pnpm lint
 3. 若提示配对：在网关主机执行 `openclaw devices list` / `openclaw devices approve <id>`。
 4. 本客户端使用与官方 Control UI 相同的客户端标识（`openclaw-control-ui`）与 `connect` 协议；需 **HTTPS 或 localhost 安全上下文** 以使用 `crypto.subtle` 完成设备签名。若仅在 HTTP 局域网 IP 访问页面，可能连接失败，请用 `127.0.0.1` 或配置网关 `gateway.controlUi.allowInsecureAuth`（见官方文档）。
 5. **Electron 安装包 / 便携版**：界面由本机 **`http://127.0.0.1:34127`**（默认，占用时顺延）加载，**不是** `file://`。若提示 **origin not allowed (1008)**，在网关 `gateway.controlUi.allowedOrigins` 中加入该地址（或你通过 `LCLAW_UI_STATIC_PORT` 指定的端口）。详见 `../docs/lclaw-ui-electron-local-preview.md` §1.1。
-6. **网关 Token**：生产包默认**不含**开发环境的 `.env.development`。桌面版请在应用内点 **「网关本地设置」** 填写 Token/密码（写入本机 `gateway-local.json`），或使用 `.env.production` 后重新 `pnpm build` 再打 exe。见 `../docs/lclaw-ui-electron-local-preview.md` §1.2。
+6. **网关与模型**：生产包默认**不含**开发环境的 `.env.development`。桌面版请在顶栏点 **「本机」**：**网关连接**（URL / Token / 密码 → `gateway-local.json`）、**模型**（读写 `~/.openclaw/openclaw.json` 的 `agents.defaults`，保存前自动备份、可恢复最新备份）。或使用 `.env.production` 后重新 `pnpm build` 再打 exe。见 `../docs/lclaw-ui-electron-local-preview.md` §1.2 与 `../docs/lclaw-ui-桌面端专属-实现方案.md`。
 
 ## 目录结构（持续演进）
 

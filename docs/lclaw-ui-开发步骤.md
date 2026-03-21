@@ -35,7 +35,7 @@
 - [x] 在 `src/app` 实现**左右分栏**布局：左侧聊天、右侧预览；**无文件预览时右栏默认隐藏**，有预览（含加载/错误）时自动展开；右栏**分栏拖拽**仍为可选增强。
 - [x] **壳层拆分**：顶栏 `AppHeader.vue`、输入区 `MessageComposer.vue`，`AppShell` 负责分栏与消息列表编排；主按钮样式为全局 `.lc-btn` / `.lc-btn-ghost`（`style.css`）。
 - [x] 挂载 **Pinia**，规划 store 划分（建议至少：`useGatewayStore`、`useSessionStore` 或等价模块）。
-- [x] （可选）**设置页路由**：`/settings` Web 连接参数（localStorage + 安全提示）；主题 / i18n 仍见阶段 E。
+- [x] **本机设置**：Electron 顶栏「本机」对话框（网关 + `openclaw.json` 模型）；已移除独立 `/settings` 与 localStorage 网关覆盖；主题 / i18n 仍见阶段 E。
 
 ---
 

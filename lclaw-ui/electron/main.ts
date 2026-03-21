@@ -6,6 +6,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import {
+  type OpenClawModelWritePayload,
+  type OpenClawProvidersPatchPayload,
+  readOpenClawModelConfig,
+  readOpenClawProviders,
+  restoreOpenClawConfigToLatestBackup,
+  writeOpenClawModelConfig,
+  writeOpenClawProvidersPatch,
+} from "./openclaw-config";
 import { startProdStaticServer } from "./static-server";
 
 const execFileAsync = promisify(execFile);
@@ -440,5 +449,60 @@ ipcMain.handle(
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
+  },
+);
+
+ipcMain.handle("openclaw:readModelConfig", async (): Promise<
+  | { ok: true; model: Record<string, unknown>; models: Record<string, unknown> }
+  | { ok: false; error: string }
+> => {
+  return readOpenClawModelConfig();
+});
+
+ipcMain.handle(
+  "openclaw:writeModelConfig",
+  async (_e, payload: unknown): Promise<
+    | { ok: true; backupPath?: string }
+    | { ok: false; error: string; backupPath?: string }
+  > => {
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+      return { ok: false, error: "参数无效" };
+    }
+    return writeOpenClawModelConfig(payload as OpenClawModelWritePayload);
+  },
+);
+
+ipcMain.handle(
+  "openclaw:restoreLatestBackup",
+  async (): Promise<
+    { ok: true; backupUsed: string } | { ok: false; error: string; backupPath?: string }
+  > => {
+    return restoreOpenClawConfigToLatestBackup();
+  },
+);
+
+ipcMain.handle(
+  "openclaw:readProviders",
+  async (): Promise<
+    { ok: true; providers: Record<string, unknown> } | { ok: false; error: string }
+  > => {
+    return readOpenClawProviders();
+  },
+);
+
+ipcMain.handle(
+  "openclaw:writeProvidersPatch",
+  async (_e, payload: unknown): Promise<
+    | { ok: true; backupPath?: string }
+    | { ok: false; error: string; backupPath?: string }
+  > => {
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+      return { ok: false, error: "参数无效" };
+    }
+    const p = payload as { patch?: unknown };
+    if (!p.patch || typeof p.patch !== "object" || Array.isArray(p.patch)) {
+      return { ok: false, error: "patch 缺失或无效" };
+    }
+    return writeOpenClawProvidersPatch({ patch: p.patch as OpenClawProvidersPatchPayload["patch"] });
   },
 );

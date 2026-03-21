@@ -7,8 +7,6 @@ interface ImportMetaEnv {
   readonly VITE_GATEWAY_TOKEN?: string;
   readonly VITE_GATEWAY_PASSWORD?: string;
   readonly VITE_LINK_ALLOWLIST?: string;
-  /** 逗号分隔的模型标识，用于会话栏「模型」下拉（需与网关 chat.send 的 model 字段一致） */
-  readonly VITE_CHAT_MODEL_OPTIONS?: string;
 }
 
 interface ImportMeta {
@@ -56,6 +54,30 @@ interface LclawElectronApi {
     token?: string;
     password?: string;
   }): Promise<{ ok: true } | { ok: false; error: string }>;
+  readOpenClawModelConfig(): Promise<
+    | { ok: true; model: Record<string, unknown>; models: Record<string, unknown> }
+    | { ok: false; error: string }
+  >;
+  writeOpenClawModelConfig(payload: {
+    model?: Record<string, unknown>;
+    models?: Record<string, Record<string, unknown>>;
+  }): Promise<
+    | { ok: true; backupPath?: string }
+    | { ok: false; error: string; backupPath?: string }
+  >;
+  restoreOpenClawConfigToLatestBackup(): Promise<
+    | { ok: true; backupUsed: string }
+    | { ok: false; error: string; backupPath?: string }
+  >;
+  readOpenClawProviders(): Promise<
+    { ok: true; providers: Record<string, unknown> } | { ok: false; error: string }
+  >;
+  writeOpenClawProvidersPatch(payload: {
+    patch: Record<string, Record<string, unknown> | null>;
+  }): Promise<
+    | { ok: true; backupPath?: string }
+    | { ok: false; error: string; backupPath?: string }
+  >;
 }
 
 interface Window {

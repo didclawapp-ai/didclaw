@@ -13,28 +13,36 @@ import {
 import { messageToChatLine } from "@/lib/chat-line";
 import { isLclawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
+import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useFilePreviewStore } from "@/stores/filePreview";
-import { useGatewayStore } from "@/stores/gateway";
 import { usePreviewStore } from "@/stores/preview";
 import { useSessionStore } from "@/stores/session";
 import { storeToRefs } from "pinia";
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 
 /** 与参考「流式占位」一致：首包 delta 到达前也显示助手行 */
 const STREAMING_PENDING_LABEL = "正在生成回复…";
 
 const session = useSessionStore();
 const chat = useChatStore();
-const gw = useGatewayStore();
+const localSettings = useLocalSettingsStore();
 const preview = usePreviewStore();
 const filePreview = useFilePreviewStore();
 
 const { followLatest, showDiagnosticMessages } = storeToRefs(preview);
-const { status: gwStatus } = storeToRefs(gw);
 const { sessions, loading: sessionsLoading, error: sessionsError, activeSessionKey, activeSession } =
   storeToRefs(session);
-const { messages, historyLoading, streamText, runId, composerModelKey, composerModelOptions } =
-  storeToRefs(chat);
+const {
+  messages,
+  historyLoading,
+  streamText,
+  runId,
+  openClawPrimaryModel,
+  openClawModelPickerRows,
+  openClawPrimaryBusy,
+  openClawPrimaryPickerError,
+  openClawConfigHint,
+} = storeToRefs(chat);
 const {
   target: fpTarget,
   localLoading: fpLocalLoading,
@@ -70,11 +78,18 @@ const otherSessions = computed(() => {
   return sessions.value.filter((s) => s.key !== cur);
 });
 
-/** 无环境变量选项且未保存自定义模型时隐藏下拉，避免只剩「默认模型」的鸡肋控件；有历史选择时仍显示以便改回默认 */
-const showComposerModelSelect = computed(
+/** 有注册表行或已有 primary 时显示下拉（纯空配置仅保留「管理模型」） */
+const showOpenClawModelSelect = computed(
   () =>
-    composerModelOptions.value.length > 0 || Boolean(composerModelKey.value?.trim()),
+    isLclawElectron() &&
+    (openClawModelPickerRows.value.length > 0 || Boolean(openClawPrimaryModel.value?.trim())),
 );
+
+onMounted(() => {
+  if (isLclawElectron()) {
+    void chat.refreshOpenClawModelPicker();
+  }
+});
 
 const displayLines = computed(() => {
   const base = messages.value.map((m) => messageToChatLine(m));
@@ -143,24 +158,45 @@ async function pickLocalFileForPreview(): Promise<void> {
             :class="{ 'session-active-chip--empty': !activeSessionKey }"
             :title="activeSessionKey ?? '当前会话'"
           >{{ activeSessionLabel || "—" }}</span>
-          <select
-            v-if="showComposerModelSelect"
-            class="session-model-select"
-            :value="composerModelKey"
-            :disabled="gwStatus !== 'connected'"
-            title="留空为网关默认。非空时在 chat.send 附带 model（需网关支持）。选项来自 VITE_CHAT_MODEL_OPTIONS（逗号分隔）"
-            @change="chat.setComposerModelKey(($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">默认模型</option>
-            <option
-              v-if="composerModelKey && !composerModelOptions.includes(composerModelKey)"
-              :value="composerModelKey"
+          <div v-if="isLclawElectron()" class="session-model-tools">
+            <select
+              v-if="showOpenClawModelSelect"
+              class="session-model-select"
+              :value="openClawPrimaryModel"
+              :disabled="openClawPrimaryBusy"
+              :title="
+                openClawPrimaryPickerError ??
+                  '切换默认主模型：写入 openclaw.json 的 agents.defaults.model.primary（写前自动备份）。不会向 chat.send 发送 model。'
+              "
+              @change="
+                void chat.setOpenClawPrimaryModel(($event.target as HTMLSelectElement).value)
+              "
             >
-              {{ composerModelKey }}
-            </option>
-            <option v-for="m in composerModelOptions" :key="m" :value="m">{{ m }}</option>
-          </select>
+              <option v-if="!openClawPrimaryModel" value="" disabled>请选择默认模型…</option>
+              <option
+                v-for="row in openClawModelPickerRows"
+                :key="row.value"
+                :value="row.value"
+              >
+                {{ row.label }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="lc-btn lc-btn-ghost lc-btn-xs session-model-manage"
+              title="本机 openclaw：agents 模型 + 供应商（providers）+ 恢复备份"
+              @click="localSettings.open('model')"
+            >
+              管理模型
+            </button>
+          </div>
         </div>
+        <p v-if="isLclawElectron() && openClawPrimaryPickerError" class="err small session-model-err">
+          {{ openClawPrimaryPickerError }}
+        </p>
+        <p v-if="isLclawElectron() && openClawConfigHint" class="muted small session-config-hint">
+          {{ openClawConfigHint }}
+        </p>
         <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
         <div v-if="sessionsLoading" class="muted">加载中…</div>
         <ul v-else-if="otherSessions.length > 0" class="sess">
@@ -331,10 +367,17 @@ async function pickLocalFileForPreview(): Promise<void> {
   background: var(--lc-bg-raised);
   color: var(--lc-text-muted);
 }
+.session-model-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 0;
+}
 .session-model-select {
-  flex: 0 1 140px;
+  flex: 0 1 160px;
   min-width: 72px;
-  max-width: min(42%, 200px);
+  max-width: min(48%, 220px);
   font-size: 11px;
   font-family: inherit;
   padding: 4px 6px;
@@ -345,8 +388,24 @@ async function pickLocalFileForPreview(): Promise<void> {
   cursor: pointer;
 }
 .session-model-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  opacity: 0.55;
+  cursor: wait;
+}
+.session-model-manage {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding-inline: 8px;
+}
+.session-model-err {
+  margin: -4px 0 6px;
+  padding: 0 14px;
+}
+.session-config-hint {
+  margin: -2px 0 8px;
+  padding: 0 14px;
+  line-height: 1.45;
+  font-size: 11px;
+  color: var(--lc-text-muted);
 }
 .panel-title.row-title {
   display: flex;

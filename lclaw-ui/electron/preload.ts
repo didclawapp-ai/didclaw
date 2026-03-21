@@ -46,4 +46,33 @@ contextBridge.exposeInMainWorld("lclawElectron", {
     ipcRenderer.invoke("gateway:writeLocalConfig", payload) as Promise<
       { ok: true } | { ok: false; error: string }
     >,
+  readOpenClawModelConfig: () =>
+    ipcRenderer.invoke("openclaw:readModelConfig") as Promise<
+      | { ok: true; model: Record<string, unknown>; models: Record<string, unknown> }
+      | { ok: false; error: string }
+    >,
+  writeOpenClawModelConfig: (payload: {
+    model?: Record<string, unknown>;
+    models?: Record<string, Record<string, unknown>>;
+  }) =>
+    ipcRenderer.invoke("openclaw:writeModelConfig", payload) as Promise<
+      | { ok: true; backupPath?: string }
+      | { ok: false; error: string; backupPath?: string }
+    >,
+  restoreOpenClawConfigToLatestBackup: () =>
+    ipcRenderer.invoke("openclaw:restoreLatestBackup") as Promise<
+      | { ok: true; backupUsed: string }
+      | { ok: false; error: string; backupPath?: string }
+    >,
+  readOpenClawProviders: () =>
+    ipcRenderer.invoke("openclaw:readProviders") as Promise<
+      { ok: true; providers: Record<string, unknown> } | { ok: false; error: string }
+    >,
+  writeOpenClawProvidersPatch: (payload: {
+    patch: Record<string, Record<string, unknown> | null>;
+  }) =>
+    ipcRenderer.invoke("openclaw:writeProvidersPatch", payload) as Promise<
+      | { ok: true; backupPath?: string }
+      | { ok: false; error: string; backupPath?: string }
+    >,
 });

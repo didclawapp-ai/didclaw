@@ -10,6 +10,8 @@ import {
 } from "@/lib/chat-messages";
 import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
+import { OPENCLAW_AFTER_WRITE_HINT } from "@/lib/openclaw-config-hint";
+import { isLclawElectron } from "@/lib/electron-bridge";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
 import { formatZodIssues } from "@/lib/zod-format";
@@ -22,28 +24,6 @@ import { useSessionStore } from "./session";
 
 /** 单文件体积上限（含待预览的 PDF 等）；图片传入网关另有约 4.5MB 限制 */
 const MAX_COMPOSER_FILE_BYTES = 50 * 1024 * 1024;
-
-const COMPOSER_MODEL_STORAGE_KEY = "lclaw-ui.composerModel";
-
-function readComposerModelFromStorage(): string {
-  try {
-    return localStorage.getItem(COMPOSER_MODEL_STORAGE_KEY)?.trim() ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function writeComposerModelToStorage(value: string): void {
-  try {
-    if (value) {
-      localStorage.setItem(COMPOSER_MODEL_STORAGE_KEY, value);
-    } else {
-      localStorage.removeItem(COMPOSER_MODEL_STORAGE_KEY);
-    }
-  } catch {
-    /* 忽略隐私模式等 */
-  }
-}
 
 export type PendingComposerFile = {
   id: string;
@@ -149,27 +129,30 @@ export const useChatStore = defineStore("chat", () => {
   const lastCompletedRunDurationMs = ref<number | null>(null);
   const lastCompletedRunAtMs = ref<number | null>(null);
 
-  /** 非空时随 `chat.send` 附带 `model`（网关需支持该字段，否则可能返回参数错误） */
-  const composerModelKey = ref(readComposerModelFromStorage());
-
-  const composerModelOptions = computed(() => {
-    const raw = import.meta.env.VITE_CHAT_MODEL_OPTIONS;
-    if (typeof raw !== "string" || !raw.trim()) {
-      return [] as string[];
-    }
-    return raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  });
-
-  function setComposerModelKey(next: string): void {
-    const v = next.trim();
-    composerModelKey.value = v;
-    writeComposerModelToStorage(v);
-  }
+  /**
+   * 会话栏模型下拉：与 ~/.openclaw/openclaw.json 同步，切换即写 **primary**（写前备份）。
+   * 不向 `chat.send` 附带 `model`（网关 schema 不接受根级该字段）。
+   */
+  const openClawPrimaryModel = ref("");
+  const openClawModelPickerRows = ref<Array<{ value: string; label: string }>>([]);
+  const openClawPrimaryBusy = ref(false);
+  const openClawPrimaryPickerError = ref<string | null>(null);
+  /** 写入 openclaw.json 后的短提示（约 12s 消失） */
+  const openClawConfigHint = ref<string | null>(null);
+  let openClawConfigHintTimer: ReturnType<typeof setTimeout> | null = null;
 
   const agentBusy = computed(() => sending.value || runId.value != null);
+
+  function flashOpenClawConfigHint(message: string = OPENCLAW_AFTER_WRITE_HINT): void {
+    openClawConfigHint.value = message;
+    if (openClawConfigHintTimer != null) {
+      clearTimeout(openClawConfigHintTimer);
+    }
+    openClawConfigHintTimer = window.setTimeout(() => {
+      openClawConfigHint.value = null;
+      openClawConfigHintTimer = null;
+    }, 14000);
+  }
 
   /** 发送中或助手流式进行中时禁止再发（避免与网关并发 run 打架） */
   const composerPhase = computed(() => {
@@ -185,6 +168,84 @@ export const useChatStore = defineStore("chat", () => {
     }
     return "waiting" as const;
   });
+
+  async function refreshOpenClawModelPicker(): Promise<void> {
+    openClawPrimaryPickerError.value = null;
+    if (!isLclawElectron() || !window.lclawElectron?.readOpenClawModelConfig) {
+      openClawPrimaryModel.value = "";
+      openClawModelPickerRows.value = [];
+      return;
+    }
+    try {
+      const r = await window.lclawElectron.readOpenClawModelConfig();
+      if (!r.ok) {
+        openClawPrimaryModel.value = "";
+        openClawModelPickerRows.value = [];
+        openClawPrimaryPickerError.value = r.error;
+        return;
+      }
+      const primary =
+        r.model && typeof r.model.primary === "string" ? r.model.primary.trim() : "";
+      openClawPrimaryModel.value = primary;
+      const models = r.models as Record<string, unknown>;
+      const keys = Object.keys(models).sort();
+      const rows = keys.map((k) => {
+        const v = models[k];
+        let alias = "";
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          const a = (v as { alias?: unknown }).alias;
+          if (typeof a === "string" && a.trim()) {
+            alias = a.trim();
+          }
+        }
+        return { value: k, label: alias ? `${k}（${alias}）` : k };
+      });
+      if (primary && !rows.some((x) => x.value === primary)) {
+        rows.push({ value: primary, label: `${primary}（当前 primary）` });
+      }
+      rows.sort((a, b) => a.value.localeCompare(b.value));
+      openClawModelPickerRows.value = rows;
+    } catch (e) {
+      openClawPrimaryModel.value = "";
+      openClawModelPickerRows.value = [];
+      openClawPrimaryPickerError.value = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async function setOpenClawPrimaryModel(nextRaw: string): Promise<void> {
+    const next = nextRaw.trim();
+    if (!next) {
+      return;
+    }
+    if (next === openClawPrimaryModel.value.trim()) {
+      return;
+    }
+    const api = window.lclawElectron;
+    if (!api?.writeOpenClawModelConfig) {
+      openClawPrimaryPickerError.value = "无法写入 openclaw.json";
+      return;
+    }
+    openClawPrimaryBusy.value = true;
+    openClawPrimaryPickerError.value = null;
+    try {
+      const r = await api.writeOpenClawModelConfig({
+        model: { primary: next },
+      });
+      if (!r.ok) {
+        openClawPrimaryPickerError.value = r.backupPath
+          ? `${r.error}（备份：${r.backupPath}）`
+          : r.error;
+        return;
+      }
+      openClawPrimaryModel.value = next;
+      await refreshOpenClawModelPicker();
+      flashOpenClawConfigHint();
+    } catch (e) {
+      openClawPrimaryPickerError.value = e instanceof Error ? e.message : String(e);
+    } finally {
+      openClawPrimaryBusy.value = false;
+    }
+  }
 
   function addPendingComposerFiles(files: File[]): void {
     for (const file of files) {
@@ -375,7 +436,6 @@ export const useChatStore = defineStore("chat", () => {
         deliver: false,
         idempotencyKey: idem,
         ...(attachmentsPayload.length > 0 ? { attachments: attachmentsPayload } : {}),
-        ...(composerModelKey.value ? { model: composerModelKey.value } : {}),
       });
       removeIncludedPendingFiles();
     } catch (e) {
@@ -481,9 +541,6 @@ export const useChatStore = defineStore("chat", () => {
     lastCompletedRunAtMs,
     agentBusy,
     composerPhase,
-    composerModelKey,
-    composerModelOptions,
-    setComposerModelKey,
     draft,
     lastError,
     pendingComposerFiles,
@@ -495,5 +552,13 @@ export const useChatStore = defineStore("chat", () => {
     sendMessage,
     abortIfStreaming,
     handleGatewayEvent,
+    openClawPrimaryModel,
+    openClawModelPickerRows,
+    openClawPrimaryBusy,
+    openClawPrimaryPickerError,
+    refreshOpenClawModelPicker,
+    setOpenClawPrimaryModel,
+    openClawConfigHint,
+    flashOpenClawConfigHint,
   };
 });

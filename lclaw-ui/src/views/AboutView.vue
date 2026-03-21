@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { isLclawElectron } from "@/lib/electron-bridge";
 import { RouterLink } from "vue-router";
 
 const appVersion = __APP_VERSION__;
@@ -17,11 +16,14 @@ const appVersion = __APP_VERSION__;
         本客户端用于连接 <strong>OpenClaw Gateway</strong>：会话列表、聊天、本地/链接预览与诊断信息。
       </p>
       <p class="muted">
-        环境变量说明见仓库根目录 <code>.env.example</code>（网关地址、Token、Markdown 外链白名单等）。
+        正式使用形态为 <strong>Electron 桌面版</strong>：网关地址、Token 与 <code>openclaw.json</code> 模型相关设置请通过顶栏
+        <strong>「本机」</strong> 完成。
       </p>
-      <p v-if="!isLclawElectron()" class="muted">
-        <RouterLink to="/settings" class="inline-link">连接设置</RouterLink>
-        （浏览器 localStorage）可覆盖 Gateway URL / 凭据，无需重建前端。
+      <p class="muted">
+        开发联调可用 <code>pnpm dev:web</code> 仅起 Vite，此时通过环境变量 <code>VITE_GATEWAY_URL</code> 等连接网关；无「本机」对话框。
+      </p>
+      <p class="muted">
+        外链白名单等见仓库 <code>.env.example</code> 说明。
       </p>
     </div>
   </div>
@@ -81,13 +83,5 @@ const appVersion = __APP_VERSION__;
   background: var(--lc-bg-elevated);
   padding: 2px 6px;
   border-radius: 4px;
-}
-.inline-link {
-  color: var(--lc-accent);
-  font-weight: 600;
-  text-decoration: none;
-}
-.inline-link:hover {
-  text-decoration: underline;
 }
 </style>

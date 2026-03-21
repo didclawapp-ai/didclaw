@@ -29,7 +29,7 @@
 | （隐式）`connect` | 握手 hello | 由 `GatewayClient` 组装 auth、client、device 等 | `hello-ok` 等 | `gatewayHelloOkSchema`（`schemas.ts`） |
 | `sessions.list` | 会话列表 | `includeGlobal`, `includeUnknown` | `sessions[]`：`key` 必填 | `sessionsListResponseSchema` |
 | `chat.history` | 历史消息 | `sessionKey`, `limit` | `messages[]`：见下「与官方 Control UI」 | `chatHistoryResponseSchema` |
-| `chat.send` | 发送并触发 Agent | `sessionKey`, `message`, `deliver`, `idempotencyKey`，可选 **`attachments`**：`{ mimeType, fileName, content }`（`content` 为 **base64**）；网关 `parseMessageWithAttachments` 当前主要保留 **image/** | 依网关版本而定 | 未强校验（仅用 `request` 成功/失败） |
+| `chat.send` | 发送并触发 Agent | `sessionKey`, `message`, `deliver`, `idempotencyKey`，可选 **`attachments`**、**`thinking`**、**`timeoutMs`** 等（以网关 `validateChatSendParams` / TypeBox 为准）；**根级无 `model`**（模型由网关按 `openclaw.json` / 会话解析） | 依网关版本而定 | 未强校验（仅用 `request` 成功/失败） |
 | `chat.abort` | 中断生成 | `sessionKey`，可选 `runId` | 依网关版本而定 | 未强校验 |
 
 未实现：`chat.inject` 等，需要时在表中增行并补 Zod。
@@ -87,6 +87,8 @@
 | 日期 | OpenClaw 版本 | 变更摘要 |
 |------|-----------------|----------|
 | 2026-03-20 | 参考 2026.3.14 | 阶段 E：核心 RPC/事件 Zod、错误中文映射、诊断复制、部署文档 |
+| 2026-03-21 | openclaw `main` `chat.ts` | 确认 `chat.send` 无根级 `model`；lclaw-ui 不再随请求附带 `model` |
+| 2026-03-21 | [Configuration / hot reload](https://docs.openclaw.ai/gateway/configuration#config-hot-reload) | Gateway 监视 `openclaw.json`；`agents`/`models` 表列为可热更新；`gateway.reload.mode: off` 时需手动重启；UI 保存后提示用户 |
 
 ---
 

@@ -37,7 +37,7 @@
 
 | 优先级 | 状态 | 项 | 说明 |
 |:------:|:----:|----|------|
-| P1 | [x] | **Web 端连接设置页** | 路由 `/settings`（非 Electron）：Gateway URL / Token / 密码写入 `localStorage`，保存后 `reloadConnection`；含安全提示；桌面版仍用「网关本地设置」。 |
+| P1 | [x] | **本机设置（Electron）** | 已移除独立 `/settings` Web 页；网关与 `openclaw.json` 模型在顶栏「本机」对话框（Tab：网关连接 / 模型）。纯浏览器联调依赖 `.env` 的 `VITE_GATEWAY_*`。 |
 | P1 | [ ] | **一键打开官方 Control UI** | 文档默认 [http://127.0.0.1:18789/](http://127.0.0.1:18789/)：顶栏或关于页提供外链，与自研 UI 并存。 |
 | P1 | [ ] | **设备配对帮助卡片** | 失败时固定展示 `openclaw devices list` / `approve` 等可复制命令（与官方 onboarding 一致）。 |
 | P2 | [ ] | **Gateway 版本/能力展示** | 若 hello 或 RPC 可拿到版本字符串，在关于或诊断区展示，便于对照升级说明。 |
