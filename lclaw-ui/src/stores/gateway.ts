@@ -106,12 +106,22 @@ export const useGatewayStore = defineStore("gateway", () => {
           });
         },
         onClose: ({ code, reason, error }) => {
-          client.value = null;
-          status.value = "error";
-          const detailText = error ? describeGatewayError(error) : String(reason ?? "").trim();
-          lastError.value = detailText ? `已断开（${code}）：${detailText}` : `已断开（${code}）`;
-          if (detailText.toLowerCase().includes("pairing")) {
-            lastError.value += " — 请在网关主机执行: openclaw devices list / openclaw devices approve <id>";
+          /**
+           * GatewayClient 在 socket close 后会 scheduleReconnect。
+           * 若此处仅把 client 置空而不 stop 当前实例，会出现「孤儿」重连：store 已无引用，
+           * 但旧实例仍在后台建连，易与后续手动连接打架并触发 1008 等异常。
+           */
+          gc.stop();
+          const stillCurrent = client.value === gc;
+          if (stillCurrent) {
+            client.value = null;
+            status.value = "error";
+            helloInfo.value = null;
+            const detailText = error ? describeGatewayError(error) : String(reason ?? "").trim();
+            lastError.value = detailText ? `已断开（${code}）：${detailText}` : `已断开（${code}）`;
+            if (detailText.toLowerCase().includes("pairing")) {
+              lastError.value += " — 请在网关主机执行: openclaw devices list / openclaw devices approve <id>";
+            }
           }
         },
       });
