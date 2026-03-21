@@ -157,3 +157,36 @@ export function shouldHideDiagnosticChatLine(role: "user" | "assistant" | "syste
 
   return false;
 }
+
+/**
+ * 与「显示诊断/配置」无关：对话列表里仍应折叠的噪音。
+ * 完整工具链输出可看右下事件区或浏览器 WS 帧。
+ */
+export function shouldAlwaysHideFromChatList(
+  role: "user" | "assistant" | "system",
+  text: string,
+): boolean {
+  const trim = text.trim();
+  if (role === "assistant" && trim.startsWith("[助手·仅元数据]")) {
+    return true;
+  }
+  if (role === "system") {
+    if (/^\(no output\)$/i.test(trim) || /^no output$/i.test(trim)) {
+      return true;
+    }
+    if (!trim.includes("\n") && /^v\d+\.\d+(\.\d+)?([a-z0-9.-]*)?$/i.test(trim)) {
+      return true;
+    }
+    if (
+      trim.includes("workspace@") &&
+      (trim.includes("`--") || /├──|│--|└--/.test(trim) || trim.includes("|--"))
+    ) {
+      return true;
+    }
+    if (/^Successfully wrote \d+ bytes to\b/im.test(trim)) {
+      return true;
+    }
+  }
+  return false;
+}
+

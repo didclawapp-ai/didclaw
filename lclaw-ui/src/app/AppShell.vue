@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
-import { buildListPreview, shouldHideDiagnosticChatLine } from "@/lib/chat-message-format";
+import {
+  buildListPreview,
+  shouldAlwaysHideFromChatList,
+  shouldHideDiagnosticChatLine,
+} from "@/lib/chat-message-format";
 import { messageToChatLine } from "@/lib/chat-line";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { useChatStore } from "@/stores/chat";
@@ -76,6 +80,7 @@ const displayLines = computed(() => {
       },
     ];
   }
+  list = list.filter((line) => !shouldAlwaysHideFromChatList(line.role, line.text));
   if (showDiagnosticMessages.value) {
     return list;
   }
