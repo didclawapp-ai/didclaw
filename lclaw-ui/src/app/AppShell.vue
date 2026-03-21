@@ -166,7 +166,7 @@ async function pickLocalFileForPreview(): Promise<void> {
               :disabled="openClawPrimaryBusy"
               :title="
                 openClawPrimaryPickerError ??
-                  '切换默认主模型：写入 openclaw.json 的 agents.defaults.model.primary（写前自动备份）。不会向 chat.send 发送 model。'
+                  '在这里切换「默认用哪个 AI 模型」。选好后会保存到本机；新对话一般会按这个来。'
               "
               @change="
                 void chat.setOpenClawPrimaryModel(($event.target as HTMLSelectElement).value)
@@ -184,10 +184,10 @@ async function pickLocalFileForPreview(): Promise<void> {
             <button
               type="button"
               class="lc-btn lc-btn-ghost lc-btn-xs session-model-manage"
-              title="本机 openclaw：agents 模型 + 供应商（providers）+ 恢复备份"
+              title="打开本机设置，可改密钥、接口地址或恢复备份"
               @click="localSettings.open('model')"
             >
-              管理模型
+              更多设置
             </button>
           </div>
         </div>

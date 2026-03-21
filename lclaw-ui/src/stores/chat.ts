@@ -201,7 +201,7 @@ export const useChatStore = defineStore("chat", () => {
         return { value: k, label: alias ? `${k}（${alias}）` : k };
       });
       if (primary && !rows.some((x) => x.value === primary)) {
-        rows.push({ value: primary, label: `${primary}（当前 primary）` });
+        rows.push({ value: primary, label: `${primary}（当前默认）` });
       }
       rows.sort((a, b) => a.value.localeCompare(b.value));
       openClawModelPickerRows.value = rows;
@@ -222,7 +222,7 @@ export const useChatStore = defineStore("chat", () => {
     }
     const api = window.lclawElectron;
     if (!api?.writeOpenClawModelConfig) {
-      openClawPrimaryPickerError.value = "无法写入 openclaw.json";
+      openClawPrimaryPickerError.value = "当前无法保存：请使用桌面版，并确认本机已按教程装好助手。";
       return;
     }
     openClawPrimaryBusy.value = true;

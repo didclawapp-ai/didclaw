@@ -16,11 +16,11 @@ const appVersion = __APP_VERSION__;
         本客户端用于连接 <strong>OpenClaw Gateway</strong>：会话列表、聊天、本地/链接预览与诊断信息。
       </p>
       <p class="muted">
-        正式使用形态为 <strong>Electron 桌面版</strong>：网关地址、Token 与 <code>openclaw.json</code> 模型相关设置请通过顶栏
-        <strong>「本机」</strong> 完成。
+        正式使用请用 <strong>Electron 桌面版</strong>：连接助手、填写 AI 密钥、选默认模型等，点顶栏
+        <strong>「设置」</strong> 即可，一般不必自己改配置文件。
       </p>
       <p class="muted">
-        开发联调可用 <code>pnpm dev:web</code> 仅起 Vite，此时通过环境变量 <code>VITE_GATEWAY_URL</code> 等连接网关；无「本机」对话框。
+        开发联调可用 <code>pnpm dev:web</code> 仅起 Vite，此时通过环境变量 <code>VITE_GATEWAY_URL</code> 等连接网关；无顶栏「设置」对话框。
       </p>
       <p class="muted">
         外链白名单等见仓库 <code>.env.example</code> 说明。

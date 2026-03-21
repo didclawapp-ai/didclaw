@@ -3,7 +3,7 @@ import { ref } from "vue";
 
 export type LocalSettingsTab = "gateway" | "model" | "providers";
 
-/** 顶栏「本机」对话框：可从多处打开并指定初始 Tab */
+/** 顶栏「设置」对话框：可从多处打开并指定初始 Tab */
 export const useLocalSettingsStore = defineStore("localSettings", () => {
   const visible = ref(false);
   const initialTab = ref<LocalSettingsTab>("gateway");

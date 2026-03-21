@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import {
   type OpenClawModelWritePayload,
   type OpenClawProvidersPatchPayload,
+  type OpenClawProvidersWriteResult,
   readOpenClawModelConfig,
   readOpenClawProviders,
   restoreOpenClawConfigToLatestBackup,
@@ -492,10 +493,7 @@ ipcMain.handle(
 
 ipcMain.handle(
   "openclaw:writeProvidersPatch",
-  async (_e, payload: unknown): Promise<
-    | { ok: true; backupPath?: string }
-    | { ok: false; error: string; backupPath?: string }
-  > => {
+  async (_e, payload: unknown): Promise<OpenClawProvidersWriteResult> => {
     if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
       return { ok: false, error: "参数无效" };
     }

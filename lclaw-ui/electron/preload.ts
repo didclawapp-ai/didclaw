@@ -66,13 +66,26 @@ contextBridge.exposeInMainWorld("lclawElectron", {
     >,
   readOpenClawProviders: () =>
     ipcRenderer.invoke("openclaw:readProviders") as Promise<
-      { ok: true; providers: Record<string, unknown> } | { ok: false; error: string }
+      | { ok: true; providers: Record<string, unknown>; defaultAgentId: string }
+      | { ok: false; error: string }
     >,
   writeOpenClawProvidersPatch: (payload: {
     patch: Record<string, Record<string, unknown> | null>;
   }) =>
     ipcRenderer.invoke("openclaw:writeProvidersPatch", payload) as Promise<
-      | { ok: true; backupPath?: string }
-      | { ok: false; error: string; backupPath?: string }
+      | {
+          ok: true;
+          backupPath?: string;
+          agentModelsBackupPath?: string;
+          authProfilesBackupPath?: string;
+          defaultAgentId: string;
+        }
+      | {
+          ok: false;
+          error: string;
+          backupPath?: string;
+          agentModelsBackupPath?: string;
+          authProfilesBackupPath?: string;
+        }
     >,
 });

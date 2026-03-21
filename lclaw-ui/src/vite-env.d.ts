@@ -70,13 +70,26 @@ interface LclawElectronApi {
     | { ok: false; error: string; backupPath?: string }
   >;
   readOpenClawProviders(): Promise<
-    { ok: true; providers: Record<string, unknown> } | { ok: false; error: string }
+    | { ok: true; providers: Record<string, unknown>; defaultAgentId: string }
+    | { ok: false; error: string }
   >;
   writeOpenClawProvidersPatch(payload: {
     patch: Record<string, Record<string, unknown> | null>;
   }): Promise<
-    | { ok: true; backupPath?: string }
-    | { ok: false; error: string; backupPath?: string }
+    | {
+        ok: true;
+        backupPath?: string;
+        agentModelsBackupPath?: string;
+        authProfilesBackupPath?: string;
+        defaultAgentId: string;
+      }
+    | {
+        ok: false;
+        error: string;
+        backupPath?: string;
+        agentModelsBackupPath?: string;
+        authProfilesBackupPath?: string;
+      }
   >;
 }
 

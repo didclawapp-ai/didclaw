@@ -2,6 +2,6 @@
 export const OPENCLAW_HOT_RELOAD_DOC =
   "https://docs.openclaw.ai/gateway/configuration#config-hot-reload";
 
-/** 保存 openclaw.json 后给用户的一次性提示（勿过长） */
+/** 保存本机模型相关配置后，给普通用户的一次性提示（勿过长、少术语） */
 export const OPENCLAW_AFTER_WRITE_HINT =
-  "已写入配置。官方说明 Gateway 会监视 openclaw.json，agents / models 类变更通常可热更新（默认 hybrid）。若仍不生效：检查 gateway.reload.mode 是否为 off；或执行 openclaw gateway restart。当前会话若曾用 /model 等切换过模型，可能仍与会话绑定，与 primary 不同。";
+  "已保存到本机。一般会马上生效；若对话仍异常，可先关掉再打开本软件，或在安装 OpenClaw 的终端里执行「网关重启」（以您看的教程为准）。";

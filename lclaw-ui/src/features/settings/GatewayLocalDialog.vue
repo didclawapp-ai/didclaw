@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { isLclawElectron } from "@/lib/electron-bridge";
+import {
+  PRIMARY_MODEL_QUICK_PICKS,
+  PROVIDER_SETUP_PRESETS,
+  type ProviderSetupPreset,
+} from "@/lib/openclaw-presets";
 import { OPENCLAW_PROVIDER_ID_RE } from "@/lib/openclaw-provider-id";
 import { gatewayUrlFromEnv, useGatewayStore } from "@/stores/gateway";
 import { useChatStore } from "@/stores/chat";
@@ -47,7 +52,14 @@ const provError = ref<string | null>(null);
 const provToast = ref<string | null>(null);
 const provBusy = ref(false);
 
+/** 与 api、authHeader 等一并写入 provider（模板或从已有配置带出） */
+const pvProviderExtras = ref<Record<string, unknown>>({});
+
 const providerKeyList = computed(() => Object.keys(providerSnapshots.value).sort());
+const providerPresetsCn = computed(() => PROVIDER_SETUP_PRESETS.filter((p) => p.bucket === "cn"));
+const providerPresetsIntl = computed(() => PROVIDER_SETUP_PRESETS.filter((p) => p.bucket === "intl"));
+const primaryModelQuickPicksCn = computed(() => PRIMARY_MODEL_QUICK_PICKS.filter((p) => p.bucket === "cn"));
+const primaryModelQuickPicksIntl = computed(() => PRIMARY_MODEL_QUICK_PICKS.filter((p) => p.bucket === "intl"));
 
 const open = computed({
   get: () => props.modelValue,
@@ -156,23 +168,123 @@ function readProviderApiKey(s: Record<string, unknown>): string {
   return typeof k === "string" ? k : "";
 }
 
+function modelIdsFromProviderModels(m: unknown): string[] {
+  if (Array.isArray(m)) {
+    const ids: string[] = [];
+    for (const x of m) {
+      if (x && typeof x === "object" && !Array.isArray(x)) {
+        const id = (x as { id?: unknown }).id;
+        if (typeof id === "string" && id.trim()) {
+          ids.push(id.trim());
+        }
+      }
+    }
+    return [...new Set(ids)].sort();
+  }
+  if (m && typeof m === "object" && !Array.isArray(m)) {
+    return Object.keys(m as Record<string, unknown>).sort();
+  }
+  return [];
+}
+
+function extractProviderExtras(s: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!s) {
+    return {};
+  }
+  const out: Record<string, unknown> = {};
+  if (typeof s.api === "string" && s.api.trim()) {
+    out.api = s.api.trim();
+  }
+  if (s.authHeader === true) {
+    out.authHeader = true;
+  }
+  return out;
+}
+
 function syncProviderFormFromSelection(): void {
   const k = selectedProviderKey.value;
   if (!k || !providerSnapshots.value[k]) {
     pvBaseUrl.value = "";
     pvApiKey.value = "";
     pvModelRows.value = [];
+    pvProviderExtras.value = {};
     return;
   }
   const s = providerSnapshots.value[k];
   pvBaseUrl.value = readProviderBaseUrl(s);
   pvApiKey.value = readProviderApiKey(s);
-  const m = s.models;
-  const ids =
-    m && typeof m === "object" && !Array.isArray(m)
-      ? Object.keys(m as Record<string, unknown>).sort()
-      : [];
-  pvModelRows.value = ids.map((id) => ({ id }));
+  pvModelRows.value = modelIdsFromProviderModels(s.models).map((id) => ({ id }));
+  pvProviderExtras.value = extractProviderExtras(s);
+}
+
+function applyProviderPreset(preset: ProviderSetupPreset): void {
+  provError.value = null;
+  tab.value = "providers";
+  const exists = Boolean(providerSnapshots.value[preset.id]);
+  if (exists) {
+    creatingNewProvider.value = false;
+    selectedProviderKey.value = preset.id;
+    syncProviderFormFromSelection();
+  } else {
+    creatingNewProvider.value = true;
+    selectedProviderKey.value = "";
+    newProviderKeyDraft.value = preset.id;
+    pvApiKey.value = "";
+  }
+  pvBaseUrl.value = preset.baseUrl;
+  pvModelRows.value =
+    preset.modelIds.length > 0 ? preset.modelIds.map((id) => ({ id })) : [{ id: "" }];
+  pvProviderExtras.value = { ...preset.extras };
+  provToast.value = exists
+    ? `已套用「${preset.label}」到表单（密钥未改），满意请点「保存」。`
+    : `已填入「${preset.label}」：请粘贴密钥后点「保存」。`;
+}
+
+function applyPrimaryModelQuickPick(ref: string): void {
+  primaryModel.value = ref;
+  modelError.value = null;
+}
+
+function resetPresetSelectTarget(target: EventTarget | null): void {
+  if (target instanceof HTMLSelectElement) {
+    target.selectedIndex = 0;
+  }
+}
+
+function onProviderPresetSelect(bucket: "cn" | "intl", e: Event): void {
+  const sel = e.target as HTMLSelectElement;
+  const raw = sel.value;
+  resetPresetSelectTarget(sel);
+  if (raw === "") {
+    return;
+  }
+  const idx = Number.parseInt(raw, 10);
+  if (Number.isNaN(idx)) {
+    return;
+  }
+  const list = bucket === "cn" ? providerPresetsCn.value : providerPresetsIntl.value;
+  const preset = list[idx];
+  if (preset) {
+    applyProviderPreset(preset);
+  }
+}
+
+function onModelPresetSelect(bucket: "cn" | "intl", e: Event): void {
+  const sel = e.target as HTMLSelectElement;
+  const raw = sel.value;
+  resetPresetSelectTarget(sel);
+  if (raw === "") {
+    return;
+  }
+  const idx = Number.parseInt(raw, 10);
+  if (Number.isNaN(idx)) {
+    return;
+  }
+  const list = bucket === "cn" ? primaryModelQuickPicksCn.value : primaryModelQuickPicksIntl.value;
+  const row = list[idx];
+  if (row) {
+    applyPrimaryModelQuickPick(row.ref);
+  }
 }
 
 async function loadProvidersForm(): Promise<void> {
@@ -226,6 +338,7 @@ function startNewProvider(): void {
   pvBaseUrl.value = "";
   pvApiKey.value = "";
   pvModelRows.value = [{ id: "" }];
+  pvProviderExtras.value = {};
   provError.value = null;
   provToast.value = null;
 }
@@ -240,18 +353,57 @@ function removePvModelRow(i: number): void {
   pvModelRows.value = next;
 }
 
+function formatProvidersWriteError(
+  r: {
+    error: string;
+    backupPath?: string;
+    agentModelsBackupPath?: string;
+    authProfilesBackupPath?: string;
+  },
+): string {
+  const bits = [r.error];
+  if (r.agentModelsBackupPath) {
+    bits.push(`配置备份（模型）：${r.agentModelsBackupPath}`);
+  }
+  if (r.authProfilesBackupPath) {
+    bits.push(`配置备份（登录信息）：${r.authProfilesBackupPath}`);
+  }
+  if (r.backupPath) {
+    bits.push(`总配置备份：${r.backupPath}`);
+  }
+  bits.push("若看不懂，可把整段文字复制给客服。");
+  return bits.join(" — ");
+}
+
+function formatProviderSaveToast(
+  id: string,
+  r: {
+    backupPath?: string;
+    agentModelsBackupPath?: string;
+    authProfilesBackupPath?: string;
+    defaultAgentId: string;
+  },
+): string {
+  const head = `「${id}」已保存。若对话仍提示无密钥或连不上，可先重启助手网关再试。`;
+  const tails: string[] = [];
+  if (r.agentModelsBackupPath || r.authProfilesBackupPath || r.backupPath) {
+    tails.push("原配置已自动备份到同文件夹（文件名含「备份」）");
+  }
+  return tails.length > 0 ? `${head} ${tails.join("。")}。` : head;
+}
+
 async function onSaveProvider(): Promise<void> {
   provError.value = null;
   provToast.value = null;
   const api = window.lclawElectron;
   if (!api?.writeOpenClawProvidersPatch) {
-    provError.value = "非 Electron 环境";
+    provError.value = "请使用桌面版打开本设置。";
     return;
   }
   const id = creatingNewProvider.value ? newProviderKeyDraft.value.trim() : selectedProviderKey.value;
   if (!OPENCLAW_PROVIDER_ID_RE.test(id)) {
     provError.value =
-      "供应商 ID 须为小写字母、数字与连字符（如 deepseek、xiaomi），不能以连字符开头或结尾";
+      "服务代号只能用小写英文、数字和短横线（例如 minimax、moonshot），不要用中文或空格。";
     return;
   }
   const snap = providerSnapshots.value[id];
@@ -266,6 +418,11 @@ async function onSaveProvider(): Promise<void> {
     if (!mid) {
       continue;
     }
+    if (mid.includes("/")) {
+      provError.value =
+        "「模型 ID」里不要写斜杠 /。下面每一行只填模型名字（如 MiniMax-M2.7）；斜杠前面的服务代号在左侧列表里已经选好了。";
+      return;
+    }
     const pe = prevModels[mid];
     models[mid] =
       pe && typeof pe === "object" && !Array.isArray(pe)
@@ -275,6 +432,7 @@ async function onSaveProvider(): Promise<void> {
   const body: Record<string, unknown> = {
     apiKey: pvApiKey.value.trim(),
     models,
+    ...pvProviderExtras.value,
   };
   body[urlK] = pvBaseUrl.value.trim();
 
@@ -282,12 +440,10 @@ async function onSaveProvider(): Promise<void> {
   try {
     const r = await api.writeOpenClawProvidersPatch({ patch: { [id]: body } });
     if (!r.ok) {
-      provError.value = r.backupPath ? `${r.error}（备份：${r.backupPath}）` : r.error;
+      provError.value = formatProvidersWriteError(r);
       return;
     }
-    provToast.value = r.backupPath
-      ? `已保存供应商「${id}」。已备份：${r.backupPath}`
-      : `已保存供应商「${id}」`;
+    provToast.value = formatProviderSaveToast(id, r);
     creatingNewProvider.value = false;
     selectedProviderKey.value = id;
     await loadProvidersForm();
@@ -305,24 +461,28 @@ async function onDeleteProvider(): Promise<void> {
   if (!id || creatingNewProvider.value) {
     return;
   }
-  if (!window.confirm(`确定删除供应商「${id}」？将写回 openclaw.json（保存前自动备份）。`)) {
+  if (
+    !window.confirm(
+      `确定删除「${id}」这项 AI 服务配置？删除后无法用该线路的模型，除非重新添加。已自动备份原配置。`,
+    )
+  ) {
     return;
   }
   provError.value = null;
   provToast.value = null;
   const api = window.lclawElectron;
   if (!api?.writeOpenClawProvidersPatch) {
-    provError.value = "非 Electron 环境";
+    provError.value = "请使用桌面版打开本设置。";
     return;
   }
   provBusy.value = true;
   try {
     const r = await api.writeOpenClawProvidersPatch({ patch: { [id]: null } });
     if (!r.ok) {
-      provError.value = r.backupPath ? `${r.error}（备份：${r.backupPath}）` : r.error;
+      provError.value = formatProvidersWriteError(r);
       return;
     }
-    provToast.value = `已删除供应商「${id}」`;
+    provToast.value = `已删除「${id}」。若列表没更新，可稍等或重启助手后再看。`;
     selectedProviderKey.value = "";
     await loadProvidersForm();
     await chat.refreshOpenClawModelPicker();
@@ -355,7 +515,7 @@ async function onSaveGateway(): Promise<void> {
   saveError.value = null;
   const api = window.lclawElectron;
   if (!api?.writeGatewayLocalConfig) {
-    saveError.value = "非 Electron 环境";
+    saveError.value = "请使用桌面版保存连接设置。";
     return;
   }
   saving.value = true;
@@ -394,12 +554,12 @@ async function onSaveModel(): Promise<void> {
   modelToast.value = null;
   const api = window.lclawElectron;
   if (!api?.writeOpenClawModelConfig) {
-    modelError.value = "非 Electron 环境";
+    modelError.value = "请使用桌面版保存模型设置。";
     return;
   }
   const p = primaryModel.value.trim();
   if (!p) {
-    modelError.value = "请填写默认主模型（model ref，如 deepseek/deepseek-reasoner）";
+    modelError.value = "请先填写「默认使用的模型」那一栏。";
     return;
   }
   const models: Record<string, Record<string, unknown>> = {};
@@ -424,8 +584,8 @@ async function onSaveModel(): Promise<void> {
       return;
     }
     modelToast.value = r.backupPath
-      ? `已保存。已备份原文件：${r.backupPath}。网关将按官方说明监视配置。`
-      : "已保存（新建配置文件）。网关将按官方说明监视配置。";
+      ? "已保存。上一份配置已自动备份（文件名含「备份」）。"
+      : "已保存。";
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
   } catch (e) {
@@ -440,7 +600,7 @@ async function onRestoreModel(): Promise<void> {
   modelToast.value = null;
   const api = window.lclawElectron;
   if (!api?.restoreOpenClawConfigToLatestBackup) {
-    modelError.value = "非 Electron 环境";
+    modelError.value = "请使用桌面版恢复备份。";
     return;
   }
   modelBusy.value = true;
@@ -475,6 +635,15 @@ async function onRestoreModel(): Promise<void> {
         aria-labelledby="local-settings-title"
       >
         <h2 id="local-settings-title">本机设置</h2>
+        <p class="dialog-lead muted small">
+          按 ①→②→③ 完成连接与账号。
+          <span
+            class="help-tip"
+            title="① 连接本机助手；② 填写各 AI 的接口与密钥；③ 选择默认对话模型。保存在本机，无需手写配置文件。"
+            tabindex="0"
+            role="note"
+          >?</span>
+        </p>
 
         <div class="tabs" role="tablist">
           <button
@@ -485,17 +654,7 @@ async function onRestoreModel(): Promise<void> {
             :aria-selected="tab === 'gateway'"
             @click="tab = 'gateway'"
           >
-            网关连接
-          </button>
-          <button
-            type="button"
-            role="tab"
-            class="tab"
-            :class="{ active: tab === 'model' }"
-            :aria-selected="tab === 'model'"
-            @click="tab = 'model'"
-          >
-            模型（agents）
+            ① 连助手
           </button>
           <button
             type="button"
@@ -505,21 +664,43 @@ async function onRestoreModel(): Promise<void> {
             :aria-selected="tab === 'providers'"
             @click="tab = 'providers'"
           >
-            供应商
+            ② AI 账号
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            :class="{ active: tab === 'model' }"
+            :aria-selected="tab === 'model'"
+            @click="tab = 'model'"
+          >
+            ③ 选模型
           </button>
         </div>
 
         <div v-show="tab === 'gateway'" class="tab-panel">
-          <p class="hint">
-            保存到本机 <code>gateway-local.json</code>（明文，勿分享）。打包 exe 不含开发机 <code>.env</code> 时请在此填写。
+          <p class="help-intro muted small">
+            一般无需修改。
+            <span
+              class="help-tip"
+              title="装好助手后地址与口令通常已正确；仅当教程或客服要求时再改。"
+              tabindex="0"
+              role="note"
+            >?</span>
           </p>
           <label class="field">
-            <span>WebSocket URL</span>
+            <span class="field-label-row">
+              连接地址
+              <span class="help-tip" title="WebSocket 地址，多为 ws://127.0.0.1:端口" tabindex="0" role="note">?</span>
+            </span>
             <input v-model="wsUrl" type="text" autocomplete="off" placeholder="ws://127.0.0.1:18789">
           </label>
           <label class="field">
-            <span>Token</span>
-            <input v-model="token" type="password" autocomplete="off" placeholder="可选，与密码二选一">
+            <span class="field-label-row">
+              口令（Token）
+              <span class="help-tip" title="与下方密码二选一，按安装教程填写" tabindex="0" role="note">?</span>
+            </span>
+            <input v-model="token" type="password" autocomplete="off" placeholder="可选">
           </label>
           <label class="field">
             <span>密码</span>
@@ -529,99 +710,179 @@ async function onRestoreModel(): Promise<void> {
           <div class="actions">
             <button type="button" class="ghost" @click="open = false">关闭</button>
             <button type="button" :disabled="saving" @click="onSaveGateway">
-              {{ saving ? "保存中…" : "保存并重连" }}
+              {{ saving ? "保存中…" : "保存并重新连接" }}
             </button>
           </div>
         </div>
 
         <div v-show="tab === 'model'" class="tab-panel">
-          <div class="model-scope-note">
-            <p class="hint tight">
-              本页<strong>只</strong>改 OpenClaw 配置里的两层（与官方结构一致）：
-            </p>
-            <ul class="scope-list">
-              <li>
-                <strong>①</strong> <code>agents.defaults.model.primary</code>：默认用哪条模型 ref。
-              </li>
-              <li>
-                <strong>②</strong> <code>agents.defaults.models</code>：给已有 ref 起<strong>展示别名</strong>，方便会话栏下拉识别；<strong>不是</strong>填写 API 地址或密钥。
-              </li>
-              <li>
-                <strong>③</strong> <code>models.providers</code>（API 地址、API Key、各 provider 下 <code>models</code>）请在上方 <strong>「供应商」</strong> Tab
-                增删改；复杂字段仍可手改 JSON 或使用官方 CLI。
-              </li>
-            </ul>
-            <p class="hint tight bottom">
-              <a
-                href="https://docs.openclaw.ai/gateway/configuration"
-                target="_blank"
-                rel="noopener noreferrer"
-              >官方 Gateway 配置</a>
-              ·
-              <a
-                href="https://docs.openclaw.ai/concepts/model-providers"
-                target="_blank"
-                rel="noopener noreferrer"
-              >Model providers 概念</a>
-            </p>
+          <p class="help-intro muted small">
+            选好默认模型后点保存。
+            <span
+              class="help-tip"
+              title="格式为「服务名/模型名」，须与②中已添加的服务一致，例如 minimax/MiniMax-M2.5。"
+              tabindex="0"
+              role="note"
+            >?</span>
+          </p>
+          <div class="preset-dropdown-row">
+            <label class="field preset-field">
+              <span class="field-label-row">
+                国内快捷
+                <span
+                  class="help-tip"
+                  title="选一项填入下方「默认模型」，再点保存。"
+                  tabindex="0"
+                  role="note"
+                >?</span>
+              </span>
+              <select aria-label="国内默认模型模板" @change="onModelPresetSelect('cn', $event)">
+                <option value="">选择…</option>
+                <option
+                  v-for="(p, i) in primaryModelQuickPicksCn"
+                  :key="p.ref"
+                  :value="String(i)"
+                >
+                  {{ p.label }}
+                </option>
+              </select>
+            </label>
+            <label class="field preset-field">
+              <span class="field-label-row">
+                国外快捷
+                <span
+                  class="help-tip"
+                  title="与 OpenClaw 常见默认 ref 一致；选后填入下方并保存。"
+                  tabindex="0"
+                  role="note"
+                >?</span>
+              </span>
+              <select aria-label="国外默认模型模板" @change="onModelPresetSelect('intl', $event)">
+                <option value="">选择…</option>
+                <option
+                  v-for="(p, i) in primaryModelQuickPicksIntl"
+                  :key="p.ref"
+                  :value="String(i)"
+                >
+                  {{ p.label }}
+                </option>
+              </select>
+            </label>
           </div>
           <label class="field">
-            <span>默认主模型 primary</span>
+            <span class="field-label-row">
+              默认模型
+              <span
+                class="help-tip"
+                title="须与② 左侧列表中的服务名对应，中间为英文斜杠 /。"
+                tabindex="0"
+                role="note"
+              >?</span>
+            </span>
             <input
               v-model="primaryModel"
               type="text"
               autocomplete="off"
-              placeholder="如 deepseek/deepseek-reasoner"
+              placeholder="如 minimax/MiniMax-M2.5"
             >
           </label>
 
-          <p class="subhead">别名表：provider/model-id → 展示名（②）</p>
-          <p class="hint small">
-            每行左侧填<strong>已在 ③ 里配置好的</strong> <code>provider/model-id</code>（例如文档里的 <code>xiaomi/mimo-v2-pro</code>）；右侧别名仅用于界面展示。会话栏切换的是 <code>primary</code>；<code>chat.send</code> 不带根级 <code>model</code>。
+          <p class="subhead field-label-row">
+            显示别名（可选）
+            <span
+              class="help-tip"
+              title="在会话侧下拉框里显示更好记的名称；不填则显示完整模型名。"
+              tabindex="0"
+              role="note"
+            >?</span>
           </p>
           <div class="alias-toolbar">
-            <button type="button" class="add-model-btn" @click="addAliasRow">
-              ＋ 添加一行（ref，非 API 密钥）
-            </button>
+            <button type="button" class="add-model-btn" @click="addAliasRow">添加一行</button>
           </div>
           <div class="alias-list">
             <div v-for="(row, i) in aliasRows" :key="i" class="alias-row">
-              <input v-model="row.ref" type="text" placeholder="provider/model-id" class="mono">
-              <input v-model="row.alias" type="text" placeholder="别名（可选）">
+              <input
+                v-model="row.ref"
+                type="text"
+                placeholder="与上面格式相同，如 minimax/MiniMax-M2.5"
+                class="mono"
+              >
+              <input v-model="row.alias" type="text" placeholder="例如：我的 MiniMax">
               <button type="button" class="ghost sm" @click="removeAliasRow(i)">删</button>
             </div>
           </div>
-          <p v-if="aliasRows.length === 0" class="hint small empty-models">
-            当前无别名行；可只改上方 <code>primary</code> 保存，或添加行以扩展 <code>models</code> 注册表。
-          </p>
 
           <p v-if="modelError" class="err">{{ modelError }}</p>
           <p v-if="modelToast" class="toast">{{ modelToast }}</p>
 
           <div class="actions wrap">
             <button type="button" class="ghost" :disabled="modelBusy" @click="onRestoreModel">
-              恢复上次备份
+              用备份还原模型设置
             </button>
             <button type="button" :disabled="modelBusy" @click="onSaveModel">
-              {{ modelBusy ? "处理中…" : "保存模型配置" }}
+              {{ modelBusy ? "处理中…" : "保存" }}
             </button>
           </div>
-          <p class="hint small">
-            保存前会自动备份当前 <code>openclaw.json</code>；备份文件名为
-            <code>openclaw.json.lclaw-backup-时间戳.json</code>，与配置文件同目录。
-          </p>
         </div>
 
         <div v-show="tab === 'providers'" class="tab-panel providers-tab">
-          <p class="hint small providers-intro">
-            编辑 <code>models.providers</code>。保存时<strong>合并</strong>写入（不整文件覆盖），写前自动备份。供应商 ID 建议与 ref 前缀一致（如
-            <code>deepseek</code> 对应 <code>deepseek/…</code>）。API Key 保存在本机 JSON 为<strong>明文</strong>，请勿分享备份文件。
+          <p class="help-intro muted small">
+            填密钥后保存。
+            <span
+              class="help-tip"
+              title="可从下方下拉选模板，自动填写接口地址与模型列表；密钥需在服务商网站获取。保存后写入本机。"
+              tabindex="0"
+              role="note"
+            >?</span>
           </p>
-
+          <div class="preset-dropdown-row">
+            <label class="field preset-field">
+              <span class="field-label-row">
+                国内模板
+                <span
+                  class="help-tip"
+                  title="自动填写国内节点地址与常用模型；已有同名服务时会保留原密钥，只更新地址与模型行。"
+                  tabindex="0"
+                  role="note"
+                >?</span>
+              </span>
+              <select aria-label="国内服务商模板" @change="onProviderPresetSelect('cn', $event)">
+                <option value="">选择…</option>
+                <option
+                  v-for="(preset, i) in providerPresetsCn"
+                  :key="preset.label"
+                  :value="String(i)"
+                >
+                  {{ preset.label }}
+                </option>
+              </select>
+            </label>
+            <label class="field preset-field">
+              <span class="field-label-row">
+                国外模板
+                <span
+                  class="help-tip"
+                  title="与 OpenClaw 安装向导中的国际节点配置一致。"
+                  tabindex="0"
+                  role="note"
+                >?</span>
+              </span>
+              <select aria-label="国外服务商模板" @change="onProviderPresetSelect('intl', $event)">
+                <option value="">选择…</option>
+                <option
+                  v-for="(preset, i) in providerPresetsIntl"
+                  :key="preset.label"
+                  :value="String(i)"
+                >
+                  {{ preset.label }}
+                </option>
+              </select>
+            </label>
+          </div>
           <div class="providers-split">
             <aside class="providers-list-col">
               <div class="providers-list-head">
-                <span class="subhead tight">供应商</span>
+                <span class="subhead tight">已添加的服务</span>
                 <button type="button" class="ghost sm" :disabled="provBusy" @click="startNewProvider">
                   ＋ 新建
                 </button>
@@ -638,18 +899,26 @@ async function onRestoreModel(): Promise<void> {
                   </button>
                 </li>
               </ul>
-              <p v-if="providerKeyList.length === 0" class="hint small muted">暂无供应商，点击「新建」。</p>
+              <p v-if="providerKeyList.length === 0" class="hint small muted">还没有，点「新建」按教程加一个。</p>
             </aside>
 
             <div class="providers-editor">
               <template v-if="creatingNewProvider">
                 <label class="field">
-                  <span>新供应商 ID（小写、数字、连字符）</span>
+                  <span class="field-label-row">
+                    服务代号
+                    <span
+                      class="help-tip"
+                      title="英文小写与数字、短横线，与教程一致，如 minimax、moonshot。"
+                      tabindex="0"
+                      role="note"
+                    >?</span>
+                  </span>
                   <input
                     v-model="newProviderKeyDraft"
                     type="text"
                     autocomplete="off"
-                    placeholder="如 deepseek、xiaomi"
+                    placeholder="如 minimax"
                     class="mono"
                   >
                 </label>
@@ -658,27 +927,43 @@ async function onRestoreModel(): Promise<void> {
                 <p class="subhead tight">编辑：{{ selectedProviderKey }}</p>
               </template>
               <template v-else>
-                <p class="hint small">请从左侧选择供应商，或新建。</p>
+                <p class="hint small">左侧选择服务，或「新建」。</p>
               </template>
 
               <template v-if="creatingNewProvider || selectedProviderKey">
                 <label class="field">
-                  <span>API 地址（baseUrl / baseURL）</span>
+                  <span class="field-label-row">
+                    接口地址
+                    <span
+                      class="help-tip"
+                      title="服务商提供的 API 根地址，按官网或教程复制。"
+                      tabindex="0"
+                      role="note"
+                    >?</span>
+                  </span>
                   <input
                     v-model="pvBaseUrl"
                     type="text"
                     autocomplete="off"
-                    placeholder="https://api.example.com/v1"
+                    placeholder="https://…"
                   >
                 </label>
                 <label class="field api-key-field">
-                  <span>API Key</span>
+                  <span class="field-label-row">
+                    密钥
+                    <span
+                      class="help-tip"
+                      title="在服务商控制台创建 API Key 后粘贴；高级用法可填环境变量引用。"
+                      tabindex="0"
+                      role="note"
+                    >?</span>
+                  </span>
                   <div class="api-key-row">
                     <input
                       v-model="pvApiKey"
                       :type="showPvApiKey ? 'text' : 'password'"
                       autocomplete="off"
-                      placeholder="sk-… 或环境变量名（依网关配置）"
+                      placeholder="粘贴 API Key"
                     >
                     <button type="button" class="ghost sm" @click="showPvApiKey = !showPvApiKey">
                       {{ showPvApiKey ? "隐藏" : "显示" }}
@@ -686,17 +971,22 @@ async function onRestoreModel(): Promise<void> {
                   </div>
                 </label>
 
-                <p class="subhead tight">模型 ID 列表（写入该 provider 下 <code>models</code> 的键）</p>
-                <p class="hint small">
-                  每行一个模型 id（与 <code>provider/model-id</code> 中斜杠后一段一致）。删除行即删除该模型条目；其它 JSON 字段会尽量保留。
+                <p class="subhead tight field-label-row">
+                  模型 ID（每行一个）
+                  <span
+                    class="help-tip"
+                    title="只填模型名，不要带斜杠 /，例如 MiniMax-M2.5。"
+                    tabindex="0"
+                    role="note"
+                  >?</span>
                 </p>
                 <div class="pv-models">
                   <div v-for="(row, i) in pvModelRows" :key="i" class="pv-model-row">
-                    <input v-model="row.id" type="text" class="mono" placeholder="如 deepseek-reasoner">
+                    <input v-model="row.id" type="text" class="mono" placeholder="如 MiniMax-M2.5">
                     <button type="button" class="ghost sm" @click="removePvModelRow(i)">删</button>
                   </div>
                 </div>
-                <button type="button" class="ghost add-row-inline" @click="addPvModelRow">＋ 添加模型 ID</button>
+                <button type="button" class="ghost add-row-inline" @click="addPvModelRow">＋ 再加一个模型</button>
 
                 <p v-if="provError" class="err">{{ provError }}</p>
                 <p v-if="provToast" class="toast">{{ provToast }}</p>
@@ -708,19 +998,15 @@ async function onRestoreModel(): Promise<void> {
                     :disabled="provBusy || creatingNewProvider || !selectedProviderKey"
                     @click="onDeleteProvider"
                   >
-                    删除此供应商
+                    删除这项服务
                   </button>
                   <button type="button" :disabled="provBusy" @click="onSaveProvider">
-                    {{ provBusy ? "保存中…" : "保存供应商" }}
+                    {{ provBusy ? "保存中…" : "保存" }}
                   </button>
                 </div>
               </template>
             </div>
           </div>
-
-          <p class="hint small">
-            与「模型（agents）」页共用同一套备份文件；也可用该页的「恢复上次备份」回滚整份配置。
-          </p>
         </div>
       </div>
     </div>
@@ -756,8 +1042,67 @@ async function onRestoreModel(): Promise<void> {
 .panel--wide {
   width: min(760px, 100%);
 }
-.providers-intro {
-  margin-bottom: 12px;
+.dialog-lead {
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+.help-intro {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.field-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.help-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 999px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-elevated);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--lc-text-muted);
+  cursor: help;
+  flex-shrink: 0;
+  user-select: none;
+}
+.help-tip:focus-visible {
+  outline: 2px solid var(--lc-accent);
+  outline-offset: 2px;
+}
+.preset-dropdown-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+@media (max-width: 560px) {
+  .preset-dropdown-row {
+    grid-template-columns: 1fr;
+  }
+}
+.preset-field {
+  margin-bottom: 0;
+}
+.field select {
+  padding: 10px 12px;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--lc-bg-deep);
+  color: var(--lc-text);
+  cursor: pointer;
+}
+.field select:focus {
+  outline: none;
+  border-color: var(--lc-border-strong);
 }
 .providers-split {
   display: grid;
@@ -902,33 +1247,6 @@ h2 {
 .tab-panel {
   min-height: 120px;
 }
-.model-scope-note {
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-border);
-  border-left: 3px solid var(--lc-accent);
-  background: var(--lc-bg-elevated);
-}
-.scope-list {
-  margin: 0 0 0 1.1rem;
-  padding: 0;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--lc-text-muted);
-}
-.scope-list li {
-  margin-bottom: 8px;
-}
-.scope-list li:last-child {
-  margin-bottom: 0;
-}
-.hint.tight {
-  margin: 0 0 8px;
-}
-.hint.tight.bottom {
-  margin: 10px 0 0;
-}
 .hint {
   margin: 0 0 14px;
   font-size: 12px;
@@ -1012,10 +1330,6 @@ h2 {
 .add-model-btn:hover {
   border-style: solid;
   background: var(--lc-bg-raised);
-}
-.empty-models {
-  margin-top: 8px;
-  margin-bottom: 0;
 }
 .err {
   color: var(--lc-error);

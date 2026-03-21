@@ -189,10 +189,10 @@ async function copyDiagnostics(): Promise<void> {
           v-if="isLclawElectron()"
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
-          title="网关连接与 openclaw.json 模型（本机设置）"
+          title="本机设置：连接助手、填写 AI 账号与密钥、选择默认模型"
           @click="localSettings.open('gateway')"
         >
-          本机
+          设置
         </button>
         <span v-if="copiedDiag" class="copied">已复制</span>
       </div>
