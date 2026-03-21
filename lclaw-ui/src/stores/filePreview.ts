@@ -11,6 +11,13 @@ export type FilePreviewTarget = {
   kind: PreviewKind;
 };
 
+/** 点击左侧消息行：列表摘要与全文不一致时在右侧展示完整正文 */
+export type ChatMessagePreviewState = {
+  title: string;
+  body: string;
+  role: "user" | "assistant";
+};
+
 function labelFromUrl(url: string, label?: string): string {
   const short =
     label?.trim() ||
@@ -54,6 +61,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   const previewTextBody = ref<string | null>(null);
   const previewTextError = ref<string | null>(null);
   const previewTextLoading = ref(false);
+  const chatMessagePreview = ref<ChatMessagePreviewState | null>(null);
 
   function revokeBlobIfNeeded(): void {
     if (internalBlobUrl.value) {
@@ -68,12 +76,54 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     previewTextLoading.value = false;
   }
 
+  function clearChatMessagePreview(): void {
+    chatMessagePreview.value = null;
+  }
+
+  /**
+   * 当 `listText`（左侧列表）与 `text`（完整正文）不一致时展开右栏显示全文，
+   * 与 `buildListPreview` 中「点选本行可在右侧预览查看全文」一致。
+   */
+  function showChatMessageFullText(line: {
+    role: string;
+    text: string;
+    listText: string;
+  }): void {
+    if (line.role !== "user" && line.role !== "assistant") {
+      clearChatMessagePreview();
+      return;
+    }
+    const full = line.text ?? "";
+    const list = line.listText ?? "";
+    if (!full.trim()) {
+      clearChatMessagePreview();
+      return;
+    }
+    if (list === full) {
+      clearChatMessagePreview();
+      return;
+    }
+    revokeBlobIfNeeded();
+    clearTextPreview();
+    target.value = null;
+    pendingLocalFileUrl.value = null;
+    pendingLocalLabel.value = null;
+    localError.value = null;
+    localLoading.value = false;
+    chatMessagePreview.value = {
+      title: line.role === "assistant" ? "助手消息（全文）" : "用户消息（全文）",
+      body: full,
+      role: line.role as "user" | "assistant",
+    };
+  }
+
   async function openUrl(url: string, label?: string): Promise<void> {
     const u = url.trim();
     if (!isSafePreviewUrl(u)) {
       return;
     }
     const short = labelFromUrl(u, label);
+    clearChatMessagePreview();
 
     if (isLclawElectron() && u.startsWith("file:")) {
       revokeBlobIfNeeded();
@@ -192,6 +242,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   function clear(): void {
     revokeBlobIfNeeded();
     clearTextPreview();
+    clearChatMessagePreview();
     target.value = null;
     localError.value = null;
     pendingLocalFileUrl.value = null;
@@ -203,6 +254,9 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     target,
     openUrl,
     clear,
+    chatMessagePreview,
+    showChatMessageFullText,
+    clearChatMessagePreview,
     localLoading,
     localError,
     pendingLocalFileUrl,

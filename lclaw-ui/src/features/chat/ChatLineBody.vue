@@ -155,65 +155,65 @@ async function ctxCopyLink(): Promise<void> {
         {{ seg.label }}
       </button>
     </template>
-  </div>
 
-  <Teleport to="body">
-    <template v-if="ctxMenu">
-      <div
-        class="link-ctx-scrim"
-        aria-hidden="true"
-        @pointerdown="closeCtxMenu"
-        @contextmenu.prevent="closeCtxMenu"
-      />
-      <ul
-        class="link-ctx-menu"
-        role="menu"
-        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
-        @pointerdown.stop
-      >
-        <template v-if="canElectronLocalOps(ctxMenu.url)">
+    <Teleport to="body">
+      <template v-if="ctxMenu">
+        <div
+          class="link-ctx-scrim"
+          aria-hidden="true"
+          @pointerdown="closeCtxMenu"
+          @contextmenu.prevent="closeCtxMenu"
+        />
+        <ul
+          class="link-ctx-menu"
+          role="menu"
+          :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+          @pointerdown.stop
+        >
+          <template v-if="canElectronLocalOps(ctxMenu.url)">
+            <li role="none">
+              <button type="button" role="menuitem" class="link-ctx-item" @click="ctxSaveAs">
+                另存为…
+              </button>
+            </li>
+            <li role="none">
+              <button type="button" role="menuitem" class="link-ctx-item" @click="ctxOpenSystem">
+                用系统应用打开
+              </button>
+            </li>
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                class="link-ctx-item"
+                title="在文件夹中显示该文件，并复制路径到剪贴板"
+                @click="ctxEmail"
+              >
+                邮件
+              </button>
+            </li>
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                class="link-ctx-item"
+                title="复制文件名、路径与 file 链接"
+                @click="ctxShare"
+              >
+                分享
+              </button>
+            </li>
+            <li class="link-ctx-sep" role="separator" aria-hidden="true" />
+          </template>
           <li role="none">
-            <button type="button" role="menuitem" class="link-ctx-item" @click="ctxSaveAs">
-              另存为…
+            <button type="button" role="menuitem" class="link-ctx-item" @click="ctxCopyLink">
+              复制链接
             </button>
           </li>
-          <li role="none">
-            <button type="button" role="menuitem" class="link-ctx-item" @click="ctxOpenSystem">
-              用系统应用打开
-            </button>
-          </li>
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              class="link-ctx-item"
-              title="在文件夹中显示该文件，并复制路径到剪贴板"
-              @click="ctxEmail"
-            >
-              邮件
-            </button>
-          </li>
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              class="link-ctx-item"
-              title="复制文件名、路径与 file 链接"
-              @click="ctxShare"
-            >
-              分享
-            </button>
-          </li>
-          <li class="link-ctx-sep" role="separator" aria-hidden="true" />
-        </template>
-        <li role="none">
-          <button type="button" role="menuitem" class="link-ctx-item" @click="ctxCopyLink">
-            复制链接
-          </button>
-        </li>
-      </ul>
-    </template>
-  </Teleport>
+        </ul>
+      </template>
+    </Teleport>
+  </div>
 </template>
 
 <style scoped>

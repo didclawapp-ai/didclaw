@@ -1,5 +1,12 @@
 import type { GatewayEventFrame } from "@/features/gateway/gateway-types";
 import { chatEventPayloadSchema, chatHistoryResponseSchema } from "@/features/gateway/schemas";
+import {
+  CHAT_OPTIMISTIC_KEY,
+  type GatewayChatMessage,
+  type OptimisticUserMessage,
+  type UiChatMessage,
+  isOptimisticUserMessage,
+} from "@/lib/chat-messages";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
 import { formatZodIssues } from "@/lib/zod-format";
@@ -10,18 +17,15 @@ import { useGatewayStore } from "./gateway";
 import { usePreviewStore } from "./preview";
 import { useSessionStore } from "./session";
 
-const OPTIMISTIC_KEY = "_lclawOptimistic";
-
-function isOptimisticMessage(m: unknown): boolean {
-  return Boolean(m && typeof m === "object" && OPTIMISTIC_KEY in (m as Record<string, unknown>));
-}
-
-function collectOptimistics(msgs: unknown[]): unknown[] {
-  return msgs.filter(isOptimisticMessage);
+function collectOptimistics(msgs: UiChatMessage[]): OptimisticUserMessage[] {
+  return msgs.filter(isOptimisticUserMessage);
 }
 
 /** 服务端快照往往比本地少一条刚发的 user（尚未落库）；此时应保留乐观消息，避免只剩「正在生成」一行 */
-function mergeIncomingHistoryWithOptimistics(incoming: unknown[], previous: unknown[]): unknown[] {
+function mergeIncomingHistoryWithOptimistics(
+  incoming: GatewayChatMessage[],
+  previous: UiChatMessage[],
+): UiChatMessage[] {
   const opts = collectOptimistics(previous);
   if (opts.length === 0) {
     return [...incoming];
@@ -33,7 +37,7 @@ function mergeIncomingHistoryWithOptimistics(incoming: unknown[], previous: unkn
 }
 
 export const useChatStore = defineStore("chat", () => {
-  const messages = ref<unknown[]>([]);
+  const messages = ref<UiChatMessage[]>([]);
   const historyLoading = ref(false);
   const sending = ref(false);
   const streamText = ref<string | null>(null);
@@ -71,7 +75,7 @@ export const useChatStore = defineStore("chat", () => {
         return;
       }
       const msgs = parsed.data.messages;
-      const incoming = Array.isArray(msgs) ? msgs : [];
+      const incoming = (Array.isArray(msgs) ? msgs : []) as GatewayChatMessage[];
       const previous = messages.value;
       messages.value = mergeIncomingHistoryWithOptimistics(incoming, previous);
       streamText.value = null;
@@ -100,7 +104,7 @@ export const useChatStore = defineStore("chat", () => {
     runId.value = idem;
     streamText.value = null;
     draft.value = "";
-    const optimistic = { role: "user" as const, text, [OPTIMISTIC_KEY]: idem };
+    const optimistic: OptimisticUserMessage = { role: "user", text, [CHAT_OPTIMISTIC_KEY]: idem };
     messages.value = [...messages.value, optimistic];
     usePreviewStore().setFollowLatest(true);
     await nextTick();
@@ -112,13 +116,9 @@ export const useChatStore = defineStore("chat", () => {
         idempotencyKey: idem,
       });
     } catch (e) {
-      messages.value = messages.value.filter((m) => {
-        if (!m || typeof m !== "object") {
-          return true;
-        }
-        const o = m as Record<string, unknown>;
-        return o[OPTIMISTIC_KEY] !== idem;
-      });
+      messages.value = messages.value.filter(
+        (m) => !isOptimisticUserMessage(m) || m[CHAT_OPTIMISTIC_KEY] !== idem,
+      );
       runId.value = null;
       streamText.value = null;
       lastError.value = describeGatewayError(e);

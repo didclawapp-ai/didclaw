@@ -19,7 +19,16 @@ const {
   previewTextBody,
   previewTextError,
   previewTextLoading,
+  chatMessagePreview,
 } = storeToRefs(filePreview);
+
+const chatMessageMarkdownHtml = computed(() => {
+  const c = chatMessagePreview.value;
+  if (!c || c.role !== "assistant") {
+    return "";
+  }
+  return renderMarkdownPreviewToHtml(c.body);
+});
 
 const markdownHtml = computed(() => {
   const body = previewTextBody.value;
@@ -86,16 +95,24 @@ async function onLibreOfficeRetry(): Promise<void> {
 <template>
   <div class="preview-root">
     <div class="toolbar">
-      <template v-if="target">
-        <span class="title" :title="target.url">{{ target.label }}</span>
-        <span class="pill">{{ target.kind }}</span>
-        <button v-if="canOpenExternal" type="button" @click="openExternal">新窗口打开</button>
+      <template v-if="target || chatMessagePreview">
+        <span class="title" :title="target?.url ?? ''">{{
+          chatMessagePreview?.title ?? target?.label
+        }}</span>
+        <span class="pill">{{
+          chatMessagePreview
+            ? chatMessagePreview.role === "assistant"
+              ? "chat-md"
+              : "chat-txt"
+            : target?.kind
+        }}</span>
+        <button v-if="target && canOpenExternal" type="button" @click="openExternal">新窗口打开</button>
         <button type="button" class="ghost" @click="filePreview.clear">关闭预览</button>
       </template>
       <template v-else>
         <p class="hint muted">
-          点击左侧消息里的 <strong>高亮链接</strong>，可预览 PDF / 图片 / <strong>Markdown</strong> /
-          <strong>纯文本</strong>；Office 需桌面版或在线嵌入。
+          点击左侧消息里的 <strong>高亮链接</strong> 可预览文件；若某行提示「列表截断」，<strong>点该行</strong>可在右侧查看全文。
+          支持 PDF / 图片 / <strong>Markdown</strong> / <strong>纯文本</strong>；Office 需桌面版或在线嵌入。
         </p>
         <button v-if="isLclawElectron()" type="button" class="toolbar-pick" @click="pickLocalFile">
           选择本地文件…
@@ -107,10 +124,19 @@ async function onLibreOfficeRetry(): Promise<void> {
       class="viewport"
       :class="{
         'is-image': target?.kind === 'image',
-        'is-empty': !target && !localLoading && !localError,
+        'is-empty': !target && !chatMessagePreview && !localLoading && !localError,
       }"
     >
       <div v-if="localLoading" class="card state-card">正在加载本地预览…</div>
+      <div
+        v-else-if="chatMessagePreview && chatMessagePreview.role === 'assistant'"
+        class="text-preview md-render chat-msg-full"
+        v-html="chatMessageMarkdownHtml"
+      />
+      <pre
+        v-else-if="chatMessagePreview"
+        class="text-preview plain-pre chat-msg-full"
+      >{{ chatMessagePreview.body }}</pre>
       <div v-else-if="target && previewTextLoading" class="card state-card">正在加载文本…</div>
       <div
         v-else-if="

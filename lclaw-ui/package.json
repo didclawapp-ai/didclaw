@@ -23,7 +23,7 @@
     },
     "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
     "win": {
-      "target": ["nsis"]
+      "target": ["nsis", "portable"]
     }
   },
   "dependencies": {

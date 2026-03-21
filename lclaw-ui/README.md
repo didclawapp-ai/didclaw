@@ -14,7 +14,7 @@
 - `pnpm dev:web`：仅 Vite，用于浏览器调试（与以前一致）。
 - `pnpm dist:win:portable`：**便携版**单个 exe（约百 MB，输出 `release/LCLAW UI 0.1.0.exe`，无需安装）。
 - `pnpm dist:win:setup`：NSIS **安装包**（`release/` 下安装向导）。
-- `pnpm dist:win`：与 `package.json` 里 `build.win.target` 一致（当前为 NSIS 安装包；要便携版请用上一行）。
+- `pnpm dist:win`：与 `package.json` 里 `build.win.target` 一致（当前为 **NSIS + portable** 双产物；若只要其一可用下面带后缀脚本）。
 - 本机 Office **内嵌**预览：需 **LibreOffice**（或 **`LIBREOFFICE_PATH`** 指向 `soffice.exe`）转 PDF。未检测到时右侧提供 **安装说明对话框 / 官网链接 / 重新检测并预览**；也可 **「用系统应用打开」**（Word / WPS 等）。详见 `../docs/lclaw-ui-electron-local-preview.md`。
 
 ## 常用命令

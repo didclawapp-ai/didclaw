@@ -3,11 +3,20 @@ import hljs from "highlight.js";
 import "highlight.js/styles/github.min.css";
 import MarkdownIt from "markdown-it";
 
-const md = new MarkdownIt({
+/** 与 markdown-it 默认 escape 对齐，避免 highlight 回调里引用 `md` 造成 TS 循环推断 */
+function escapeHtml(src: string): string {
+  return src
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const md: MarkdownIt = new MarkdownIt({
   html: false,
   linkify: true,
   breaks: true,
-  highlight(src, lang) {
+  highlight(src, lang): string {
     if (lang && hljs.getLanguage(lang)) {
       try {
         return `<pre><code class="hljs">${hljs.highlight(src, { language: lang, ignoreIllegals: true }).value}</code></pre>`;
@@ -15,7 +24,7 @@ const md = new MarkdownIt({
         /* fall through */
       }
     }
-    return `<pre><code class="hljs">${md.utils.escapeHtml(src)}</code></pre>`;
+    return `<pre><code class="hljs">${escapeHtml(src)}</code></pre>`;
   },
 });
 

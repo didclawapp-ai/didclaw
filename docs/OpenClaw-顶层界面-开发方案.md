@@ -1,6 +1,6 @@
 # OpenClaw 顶层界面 — 开发方案
 
-> **版本**：1.6  
+> **版本**：1.7  
 > **前提**：OpenClaw 作为底层黑盒服务运行，**不修改**其源码；上层自研「左聊天 + 右预览」客户端。  
 > **参考文档**：[OpenClaw Control UI](https://docs.openclaw.ai/web/control-ui) · [WebChat](https://docs.openclaw.ai/web/webchat)  
 > **技术选型**：`lclaw-ui` 以 **Vue 3 + TypeScript + Vite** 为主（团队熟悉 Vue）。  
@@ -10,6 +10,7 @@
 
 | 版本 | 说明 |
 |------|------|
+| 1.7 | §9 增加 **`lclaw-ui-功能补全清单.md`** 引用（对照官方文档的增量排期） |
 | 1.6 | 对齐 `lclaw-ui` **v0.2.0**：§1.3/§4.1/§4.2 补充流式、乐观消息、system 默认隐藏、终端噪音过滤、右栏文件预览（PDF/图/Office/Markdown/文本）、Electron 与 LibreOffice；§7 阶段说明与实现状态脚注 |
 | 1.5 | 新增 `lclaw-ui-开发步骤.md`；§9 与 `lclaw-ui/README` 增加引用 |
 | 1.4 | 复审完善：§3.4/3.5 联调与协议类型化；§4.1/4.2 会话切换与 Office 预期；§6.1 可观测性；阶段 E 与 §11 复审补充；新增 `gateway-client-protocol-notes.md` 模板 |
@@ -359,7 +360,7 @@ LCLAW/
 
 ## 9. 文档与仓库建议
 
-- 在本工作区维护：`docs/OpenClaw-顶层界面-开发方案.md`（本文）、**`docs/lclaw-ui-开发步骤.md`**（按阶段可勾选的开发顺序）、**`docs/gateway-client-protocol-notes.md`**（**必填维护**：按 Gateway 版本记录方法名、示例 JSON、与官方行为差异；见该文件头模板）。
+- 在本工作区维护：`docs/OpenClaw-顶层界面-开发方案.md`（本文）、**`docs/lclaw-ui-开发步骤.md`**（按阶段可勾选的开发顺序）、**`docs/lclaw-ui-功能补全清单.md`**（对照 [OpenClaw 文档](https://docs.openclaw.ai/) 的增量功能排期）、**`docs/gateway-client-protocol-notes.md`**（**必填维护**：按 Gateway 版本记录方法名、示例 JSON、与官方行为差异；见该文件头模板）。
 - 自研客户端代码根目录：`lclaw-ui/`（见 §1.4）。
 - OpenClaw 本体：`openclaw-src/` 仅作**只读参考**与本地启动 Gateway，不作为魔改主战场。
 

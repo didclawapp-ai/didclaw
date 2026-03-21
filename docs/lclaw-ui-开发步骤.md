@@ -1,6 +1,6 @@
 # lclaw-ui 开发步骤
 
-> 依据 [`OpenClaw-顶层界面-开发方案.md`](./OpenClaw-顶层界面-开发方案.md)（**方案 v1.6**）整理的**执行顺序**；勾选 `[ ]` 跟踪进度。  
+> 依据 [`OpenClaw-顶层界面-开发方案.md`](./OpenClaw-顶层界面-开发方案.md)（**方案 v1.7**）整理的**执行顺序**；勾选 `[ ]` 跟踪进度。增量排期另见 [`lclaw-ui-功能补全清单.md`](./lclaw-ui-功能补全清单.md)。  
 > **当前包版本**：`lclaw-ui/package.json` → **0.2.0**（发版时与 Git tag / 方案 § 头同步更新）。  
 > 协议细节随时记入 [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md)。  
 > **桌面壳（Electron）与本机文件预览**：见 [`lclaw-ui-electron-local-preview.md`](./lclaw-ui-electron-local-preview.md)。
@@ -21,7 +21,7 @@
 在 `LCLAW/lclaw-ui/` 下初始化（若目录已有内容则跳过重复步骤）。
 
 - [x] 使用 Vite 创建 **Vue + TypeScript** 工程（参见 `lclaw-ui/README.md` 中的 `create vite` 命令）。
-- [x] 安装 **Pinia**、**Vue Router**（路由可先只配默认页）。
+- [x] 安装 **Pinia**、**Vue Router**（`/` → `HomeView`/`AppShell`，`/about` 关于页）。
 - [x] 建立方案 §1.4 建议的目录：`src/app/`、`src/features/chat`、`preview`、`gateway`、`src/components`、`src/lib`。
 - [x] 配置 **路径别名**（如 `@/`），统一 import 风格。
 - [x] 添加 **ESLint**（含 `eslint-plugin-vue`）+ **Prettier**，或 **Biome**（二选一）。
@@ -33,8 +33,9 @@
 ## 2. 应用壳与全局布局
 
 - [x] 在 `src/app` 实现**左右分栏**布局：左侧聊天、右侧预览；**无文件预览时右栏默认隐藏**，有预览（含加载/错误）时自动展开；右栏**分栏拖拽**仍为可选增强。
+- [x] **壳层拆分**：顶栏 `AppHeader.vue`、输入区 `MessageComposer.vue`，`AppShell` 负责分栏与消息列表编排；主按钮样式为全局 `.lc-btn` / `.lc-btn-ghost`（`style.css`）。
 - [x] 挂载 **Pinia**，规划 store 划分（建议至少：`useGatewayStore`、`useSessionStore` 或等价模块）。
-- [ ] （可选）设置页路由：连接参数、主题、语言占位，对应阶段 E 的 i18n 扩展点。
+- [ ] （可选）**设置页路由**：连接参数、主题、语言占位（`/about` 已占位；i18n 见阶段 E）。
 
 ---
 
@@ -57,7 +58,7 @@
 
 ### 3.3 发送与基础展示
 
-- [x] 输入框 + **`chat.send`**；**流式**：`extractChatDeltaText` / `mergeAssistantStreamDelta`；助手占位行；**乐观**用户消息 + `loadHistory` 与快照**条数合并**避免未落库时冲掉用户行。
+- [x] 输入框 + **`chat.send`**；**流式**：`extractChatDeltaText` / `mergeAssistantStreamDelta`；助手占位行；**乐观**用户消息 + `loadHistory` 与快照**条数合并**避免未落库时冲掉用户行；消息数组类型为 **`UiChatMessage`**（`src/lib/chat-messages.ts`）。
 - [x] 连接状态展示：已连接 / 重连中 / 错误（方案 §4.1）。
 
 **阶段 A 完成标准**：跨端口（如 5173 → 18789）可连上 Gateway，能选会话、看历史、发消息并**流式**看到助手回复。
@@ -157,6 +158,7 @@
 | [gateway-client-protocol-notes.md](./gateway-client-protocol-notes.md) | 版本化协议笔记 |
 | [../lclaw-ui/README.md](../lclaw-ui/README.md) | 技术栈摘要与初始化命令 |
 | [lclaw-ui-electron-local-preview.md](./lclaw-ui-electron-local-preview.md) | Electron、LibreOffice、本地预览 IPC |
+| [lclaw-ui-功能补全清单.md](./lclaw-ui-功能补全清单.md) | 对照官方文档的增量功能与设置排期 |
 
 ---
 
