@@ -94,7 +94,7 @@ async function onLibreOfficeRetry(): Promise<void> {
       </template>
       <template v-else>
         <p class="hint muted">
-          点击左侧消息里的 <strong>蓝色链接按钮</strong>，可预览 PDF / 图片 / <strong>Markdown</strong> /
+          点击左侧消息里的 <strong>高亮链接</strong>，可预览 PDF / 图片 / <strong>Markdown</strong> /
           <strong>纯文本</strong>；Office 需桌面版或在线嵌入。
         </p>
         <button v-if="isLclawElectron()" type="button" class="toolbar-pick" @click="pickLocalFile">
@@ -214,27 +214,41 @@ async function onLibreOfficeRetry(): Promise<void> {
   flex-direction: column;
   min-height: 0;
   height: 100%;
+  color: var(--lc-text);
 }
 .toolbar-pick {
   margin-left: auto;
   cursor: pointer;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #333;
-  background: #222;
-  color: #fff;
+  padding: 7px 14px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid rgba(6, 182, 212, 0.45);
+  background: linear-gradient(165deg, #0e7490 0%, #0891b2 48%, #6366f1 160%);
+  color: #f8fafc;
   font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 2px 12px rgba(6, 182, 212, 0.18);
+}
+.toolbar-pick:hover {
+  border-color: #06b6d4;
+  box-shadow: 0 4px 18px var(--lc-accent-glow);
 }
 .state-card {
   margin: auto;
   max-width: 420px;
+  padding: 20px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text-muted);
 }
 .state-card.err {
-  color: #b71c1c;
+  color: var(--lc-error);
+  border-color: rgba(248, 113, 113, 0.35);
+  background: var(--lc-error-bg);
 }
 .state-card.err .fallback-hint {
   margin-top: 12px;
-  color: #444;
+  color: var(--lc-text-muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -250,29 +264,45 @@ async function onLibreOfficeRetry(): Promise<void> {
 .lo-actions .primary,
 .lo-actions .secondary {
   font-size: 12px;
-  padding: 6px 12px;
+  padding: 7px 12px;
+  border-radius: var(--lc-radius-sm);
+  cursor: pointer;
+}
+.lo-actions .primary {
+  border: 1px solid rgba(6, 182, 212, 0.45);
+  background: linear-gradient(165deg, #0e7490 0%, #0891b2 50%, #6366f1 160%);
+  color: #f8fafc;
 }
 .lo-actions .secondary {
-  background: #fff;
-  color: #222;
+  background: transparent;
+  border: 1px solid var(--lc-border);
+  color: var(--lc-text-muted);
+}
+.lo-actions .secondary:hover {
+  border-color: var(--lc-border-strong);
+  color: var(--lc-text);
 }
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding-bottom: 10px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #eee;
+  padding-bottom: 12px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--lc-border);
   flex-shrink: 0;
 }
 .hint {
   margin: 0;
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
   flex: 1;
   min-width: 0;
+}
+.hint strong {
+  color: var(--lc-accent);
+  font-weight: 600;
 }
 .title {
   font-weight: 600;
@@ -281,14 +311,18 @@ async function onLibreOfficeRetry(): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--lc-text);
 }
 .pill {
   font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #e8eaf6;
-  color: #3949ab;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  background: var(--lc-violet-soft);
+  color: #6d28d9;
 }
 .viewport {
   flex: 1;
@@ -296,14 +330,16 @@ async function onLibreOfficeRetry(): Promise<void> {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background: #fafafa;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-raised);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 .viewport.is-empty {
   min-height: 120px;
   border-style: dashed;
-  background: #fff;
+  border-color: rgba(6, 182, 212, 0.28);
+  background: var(--lc-bg-elevated);
 }
 .viewport.is-image {
   align-items: center;
@@ -313,50 +349,70 @@ async function onLibreOfficeRetry(): Promise<void> {
   max-width: 100%;
   max-height: min(70vh, 100%);
   object-fit: contain;
+  border-radius: 4px;
 }
 .fill-frame {
   flex: 1;
   width: 100%;
   min-height: 320px;
   border: 0;
-  background: #fff;
+  background: #f8fafc;
 }
 .card {
   padding: 16px;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.55;
   overflow: auto;
+  color: var(--lc-text-muted);
 }
 .card ul {
   padding-left: 1.2em;
 }
+.card strong {
+  color: var(--lc-text);
+}
 button {
   cursor: pointer;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #333;
-  background: #222;
-  color: #fff;
+  padding: 7px 14px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid rgba(6, 182, 212, 0.45);
+  background: linear-gradient(165deg, #0e7490 0%, #0891b2 48%, #6366f1 160%);
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 500;
+}
+button:hover {
+  border-color: #06b6d4;
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.2);
 }
 button.ghost {
-  background: #fff;
-  color: #222;
+  background: transparent;
+  border-color: var(--lc-border);
+  color: var(--lc-text-muted);
+  box-shadow: none;
+}
+button.ghost:hover {
+  border-color: var(--lc-border-strong);
+  color: var(--lc-text);
+  box-shadow: none;
 }
 .timeline {
   flex-shrink: 0;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #eee;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lc-border);
   max-height: 180px;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 .timeline-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #444;
-  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lc-text-dim);
+  margin-bottom: 8px;
 }
 .timeline-list {
   list-style: none;
@@ -366,21 +422,22 @@ button.ghost {
   font-size: 12px;
 }
 .timeline-item {
-  padding: 6px 0;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--lc-border);
 }
 .ev {
-  font-family: ui-monospace, monospace;
-  color: #1565c0;
+  font-family: var(--lc-mono);
+  color: var(--lc-accent);
+  font-size: 11px;
 }
 .cnt {
   margin-left: 6px;
-  color: #888;
+  color: var(--lc-text-dim);
   font-size: 11px;
 }
 .sum {
   margin-top: 4px;
-  color: #555;
+  color: var(--lc-text-muted);
   word-break: break-word;
   white-space: pre-wrap;
 }
@@ -389,27 +446,28 @@ button.ghost {
   margin: 0;
 }
 .muted {
-  color: #888;
+  color: var(--lc-text-muted);
 }
 .text-preview {
   flex: 1;
   min-height: 200px;
   margin: 0;
-  padding: 12px 16px;
+  padding: 14px 18px;
   overflow: auto;
   text-align: left;
-  background: #fff;
-  border-radius: 0 0 8px 8px;
+  background: var(--lc-bg-raised);
+  border-radius: 0 0 var(--lc-radius-sm) var(--lc-radius-sm);
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.6;
   box-sizing: border-box;
+  color: var(--lc-text);
 }
 .plain-pre {
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-family: var(--lc-mono);
   font-size: 13px;
-  color: #1a1a1a;
+  color: var(--lc-text);
 }
 .md-render :deep(h1),
 .md-render :deep(h2),
@@ -417,40 +475,47 @@ button.ghost {
   margin: 0.75em 0 0.4em;
   font-weight: 600;
   line-height: 1.3;
+  color: var(--lc-text);
 }
 .md-render :deep(h1) {
   font-size: 1.35em;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--lc-border);
   padding-bottom: 0.25em;
 }
 .md-render :deep(p) {
   margin: 0.5em 0;
+  color: var(--lc-text-muted);
 }
 .md-render :deep(ul),
 .md-render :deep(ol) {
   margin: 0.5em 0;
   padding-left: 1.4em;
+  color: var(--lc-text-muted);
 }
 .md-render :deep(pre) {
   margin: 0.75em 0;
-  padding: 10px 12px;
+  padding: 12px 14px;
   overflow: auto;
-  background: #f6f8fa;
-  border-radius: 6px;
+  background: #f1f5f9;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
   font-size: 12px;
+  color: #1e293b;
 }
 .md-render :deep(code) {
-  font-family: ui-monospace, monospace;
+  font-family: var(--lc-mono);
   font-size: 0.92em;
 }
 .md-render :deep(p code),
 .md-render :deep(li code) {
-  background: #f0f0f0;
-  padding: 0.1em 0.35em;
+  background: #f1f5f9;
+  border: 1px solid var(--lc-border);
+  padding: 0.12em 0.4em;
   border-radius: 4px;
+  color: #0e7490;
 }
 .md-render :deep(a) {
-  color: #1565c0;
+  color: var(--lc-accent);
 }
 .md-render :deep(table) {
   border-collapse: collapse;
@@ -459,13 +524,18 @@ button.ghost {
 }
 .md-render :deep(th),
 .md-render :deep(td) {
-  border: 1px solid #ddd;
+  border: 1px solid var(--lc-border);
   padding: 6px 10px;
+  color: var(--lc-text-muted);
+}
+.md-render :deep(th) {
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text);
 }
 .md-render :deep(blockquote) {
   margin: 0.6em 0;
   padding-left: 12px;
-  border-left: 4px solid #90caf9;
-  color: #555;
+  border-left: 3px solid var(--lc-accent);
+  color: var(--lc-text-muted);
 }
 </style>

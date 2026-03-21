@@ -224,6 +224,7 @@ async function ctxCopyLink(): Promise<void> {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.45;
+  color: var(--lc-text);
 }
 .txt-plain {
   white-space: pre-wrap;
@@ -231,63 +232,76 @@ async function ctxCopyLink(): Promise<void> {
 .link-chip {
   display: inline-block;
   margin: 2px 4px 2px 0;
-  padding: 2px 8px;
+  padding: 3px 10px;
   max-width: 100%;
-  font-size: 12px;
-  font-family: ui-monospace, monospace;
-  color: #0d47a1;
-  background: #e3f2fd;
-  border: 1px solid #90caf9;
-  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--lc-mono);
+  font-weight: 600;
+  color: #0e7490;
+  background: linear-gradient(145deg, rgba(6, 182, 212, 0.14), rgba(99, 102, 241, 0.08));
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-radius: 999px;
   cursor: pointer;
   vertical-align: baseline;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
 }
 .link-chip:hover {
-  background: #bbdefb;
+  border-color: var(--lc-accent);
+  background: linear-gradient(145deg, rgba(6, 182, 212, 0.22), rgba(99, 102, 241, 0.12));
+  box-shadow: 0 2px 10px rgba(6, 182, 212, 0.15);
 }
 .link-ctx-scrim {
   position: fixed;
   inset: 0;
   z-index: 9998;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(3px);
 }
 .link-ctx-menu {
   position: fixed;
   z-index: 9999;
   margin: 0;
-  padding: 4px 0;
-  min-width: 200px;
+  padding: 6px 0;
+  min-width: 208px;
   list-style: none;
   font-size: 13px;
   line-height: 1.35;
-  color: #1a1a1a;
-  background: #fff;
-  border: 1px solid #c5c5c5;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  color: var(--lc-text);
+  background: var(--lc-bg-raised);
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  box-shadow: var(--lc-shadow-md);
+  backdrop-filter: blur(12px);
 }
 .link-ctx-item {
   display: block;
   width: 100%;
   margin: 0;
-  padding: 8px 14px;
+  padding: 9px 16px;
   border: none;
   background: transparent;
   font: inherit;
   text-align: left;
   color: inherit;
   cursor: pointer;
+  transition: background 0.12s ease;
 }
 .link-ctx-item:hover {
-  background: #e8f4fc;
+  background: var(--lc-accent-soft);
+  color: var(--lc-text);
 }
 .link-ctx-sep {
   height: 1px;
-  margin: 4px 8px;
+  margin: 6px 10px;
   padding: 0;
-  background: #e0e0e0;
+  background: var(--lc-border);
   list-style: none;
 }
 </style>

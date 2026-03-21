@@ -139,10 +139,13 @@ onMounted(() => {
         :ref="rowRef"
         class="row"
         :data-index="item.index"
-        :class="{
-          selected: selectedIndex === item.index,
-          stream: lines[item.index]?.streaming,
-        }"
+        :class="[
+          'role-' + (lines[item.index]?.role ?? 'unknown'),
+          {
+            selected: selectedIndex === item.index,
+            stream: lines[item.index]?.streaming,
+          },
+        ]"
         :style="{
           position: 'absolute',
           top: 0,
@@ -164,38 +167,73 @@ onMounted(() => {
   flex: 1;
   min-height: 120px;
   overflow: auto;
-  padding: 4px;
+  padding: 8px 10px 12px;
 }
 .row {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 4px;
-  padding: 8px;
-  padding-bottom: 10px;
-  border-radius: 8px;
-  border: 1px solid transparent;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  margin-bottom: 6px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
   cursor: pointer;
   box-sizing: border-box;
+  background: var(--lc-bg-raised);
+  box-shadow: var(--lc-shadow-sm);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .row:hover {
-  background: #f5f5f5;
+  background: var(--lc-bg-elevated);
+  border-color: var(--lc-border);
 }
 .row.selected {
-  border-color: #1976d2;
-  background: #e3f2fd;
+  border-color: var(--lc-border-strong);
+  background: var(--lc-accent-soft);
+  box-shadow:
+    0 0 0 1px rgba(6, 182, 212, 0.2),
+    0 6px 20px rgba(15, 23, 42, 0.06);
 }
 .row.stream {
   border-style: dashed;
-  border-color: #90caf9;
+  border-color: rgba(6, 182, 212, 0.45);
+  animation: lc-stream-pulse 2s ease-in-out infinite;
+}
+@keyframes lc-stream-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.06);
+  }
+  50% {
+    box-shadow: 0 0 16px 2px rgba(6, 182, 212, 0.08);
+  }
+}
+.row.role-assistant .tag {
+  color: var(--lc-accent);
+}
+.row.role-user .tag {
+  color: var(--lc-violet);
+}
+.row.role-system .tag {
+  color: var(--lc-text-dim);
+}
+.row.role-tool .tag {
+  color: var(--lc-warning);
 }
 .tag {
   font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #666;
+  color: var(--lc-text-muted);
 }
 .txt {
   margin: 0;
   min-width: 0;
+  color: var(--lc-text);
 }
 </style>
