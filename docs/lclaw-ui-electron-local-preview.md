@@ -64,7 +64,7 @@ gateway:
 | `pnpm build` | `vue-tsc` + Vite（含 `dist` 与 `dist-electron`） |
 | `pnpm dist:win` | `build` + `electron-builder --win` |
 
-**注意（pnpm）**：若安装 electron 时跳过了 postinstall，需执行 `pnpm approve-builds` 并允许 `electron` 的构建脚本，否则本机可能缺少 `electron` 二进制。
+**注意（pnpm）**：`lclaw-ui/package.json` 已配置 `pnpm.onlyBuiltDependencies`（含 `electron`、`electron-winstaller`），安装时会执行 postinstall 并下载 Electron 二进制。若仍报错 `Electron failed to install correctly`，在项目根执行 `pnpm install`；或执行 `pnpm approve-builds` 后删除 `node_modules` 再装。
 
 ## 3. 目录与入口
 
