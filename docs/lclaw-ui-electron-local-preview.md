@@ -23,6 +23,24 @@
 - **Gateway WebSocket**：仍由渲染进程直连（与纯浏览器版一致）；主进程不参与转发（后续若需统一代理再演进）。
 - **与纯 Web 共存**：未注入 `window.lclawElectron` 时，行为与当前网页版一致（Office 本地仍提示说明卡片）。
 
+### 1.1 生产包与 Gateway「origin not allowed」（1008）
+
+打包后若用 `loadFile` 打开 `dist/index.html`，页面源为 **`file://`**，OpenClaw Gateway 会在 WebSocket 握手时校验 **`Origin`**，常见报错：`1008 origin not allowed`。
+
+**当前实现**：生产态由主进程在 **`127.0.0.1`** 上启动仅本机可访问的静态 HTTP 服务（默认端口 **`34127`**，环境变量 **`LCLAW_UI_STATIC_PORT`** 可改），再 `loadURL(http://127.0.0.1:34127/index.html)`，使 `Origin` 与浏览器访问 `http://127.0.0.1` 一致。
+
+若网关仍拒绝，请在 Gateway 配置里为 Control UI 增加允许的源，例如（以你实际端口为准）：
+
+```yaml
+gateway:
+  controlUi:
+    allowedOrigins:
+      - "http://127.0.0.1:34127"
+      - "http://localhost:5173"
+```
+
+端口被占用时，应用会自动尝试 `34128、34129…`；若你固定了白名单端口，请同时设置 **`LCLAW_UI_STATIC_PORT`** 与网关列表一致。
+
 ## 2. 依赖与脚本
 
 | 依赖 | 作用 |

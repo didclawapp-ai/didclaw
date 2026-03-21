@@ -1,10 +1,12 @@
 import { BrowserWindow, app, dialog, ipcMain } from "electron";
+import type { Server } from "node:http";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { startProdStaticServer } from "./static-server";
 
 const execFileAsync = promisify(execFile);
 
@@ -12,6 +14,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
+/** 生产态用 http://127.0.0.1 提供 dist，避免 file:// 触发 Gateway origin 拒绝 */
+let prodStaticServer: Server | null = null;
+let prodStaticOrigin: string | null = null;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -28,6 +33,8 @@ function createWindow(): void {
   if (process.env.VITE_DEV_SERVER_URL) {
     void mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools({ mode: "detach" });
+  } else if (prodStaticOrigin) {
+    void mainWindow.loadURL(`${prodStaticOrigin}/index.html`);
   } else {
     void mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
   }
@@ -37,13 +44,24 @@ function createWindow(): void {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (!process.env.VITE_DEV_SERVER_URL) {
+    const distDir = path.join(__dirname, "..", "dist");
+    const { server, origin } = await startProdStaticServer(distDir);
+    prodStaticServer = server;
+    prodStaticOrigin = origin;
+  }
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
+});
+
+app.on("will-quit", () => {
+  prodStaticServer?.close();
+  prodStaticServer = null;
 });
 
 app.on("window-all-closed", () => {

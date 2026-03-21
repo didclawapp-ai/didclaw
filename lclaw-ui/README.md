@@ -46,6 +46,7 @@ pnpm lint
 2. 浏览器打开 Vite 地址（如 `http://127.0.0.1:5173`），点击 **连接**。
 3. 若提示配对：在网关主机执行 `openclaw devices list` / `openclaw devices approve <id>`。
 4. 本客户端使用与官方 Control UI 相同的客户端标识（`openclaw-control-ui`）与 `connect` 协议；需 **HTTPS 或 localhost 安全上下文** 以使用 `crypto.subtle` 完成设备签名。若仅在 HTTP 局域网 IP 访问页面，可能连接失败，请用 `127.0.0.1` 或配置网关 `gateway.controlUi.allowInsecureAuth`（见官方文档）。
+5. **Electron 安装包 / 便携版**：界面由本机 **`http://127.0.0.1:34127`**（默认，占用时顺延）加载，**不是** `file://`。若提示 **origin not allowed (1008)**，在网关 `gateway.controlUi.allowedOrigins` 中加入该地址（或你通过 `LCLAW_UI_STATIC_PORT` 指定的端口）。详见 `../docs/lclaw-ui-electron-local-preview.md` §1.1。
 
 ## 目录结构（持续演进）
 
