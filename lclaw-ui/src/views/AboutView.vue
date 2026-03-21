@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isLclawElectron } from "@/lib/electron-bridge";
 import { RouterLink } from "vue-router";
 
 const appVersion = __APP_VERSION__;
@@ -17,6 +18,10 @@ const appVersion = __APP_VERSION__;
       </p>
       <p class="muted">
         环境变量说明见仓库根目录 <code>.env.example</code>（网关地址、Token、Markdown 外链白名单等）。
+      </p>
+      <p v-if="!isLclawElectron()" class="muted">
+        <RouterLink to="/settings" class="inline-link">连接设置</RouterLink>
+        （浏览器 localStorage）可覆盖 Gateway URL / 凭据，无需重建前端。
       </p>
     </div>
   </div>
@@ -76,5 +81,13 @@ const appVersion = __APP_VERSION__;
   background: var(--lc-bg-elevated);
   padding: 2px 6px;
   border-radius: 4px;
+}
+.inline-link {
+  color: var(--lc-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.inline-link:hover {
+  text-decoration: underline;
 }
 </style>

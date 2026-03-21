@@ -76,6 +76,13 @@ async function copyDiagnostics(): Promise<void> {
       </div>
       <div class="brand-actions">
         <p class="brand-tagline">Gateway 会话 · 预览 · 诊断</p>
+        <RouterLink
+          v-if="!isLclawElectron()"
+          to="/settings"
+          class="lc-btn lc-btn-ghost lc-btn-sm about-link"
+        >
+          连接设置
+        </RouterLink>
         <RouterLink to="/about" class="lc-btn lc-btn-ghost lc-btn-sm about-link">关于</RouterLink>
       </div>
     </div>
