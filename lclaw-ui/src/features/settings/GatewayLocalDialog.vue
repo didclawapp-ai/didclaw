@@ -97,15 +97,15 @@ async function onSave(): Promise<void> {
       </p>
       <label class="field">
         <span>WebSocket URL</span>
-        <input v-model="wsUrl" type="text" autocomplete="off" placeholder="ws://127.0.0.1:18789" >
+        <input v-model="wsUrl" type="text" autocomplete="off" placeholder="ws://127.0.0.1:18789">
       </label>
       <label class="field">
         <span>Token（与网关 dashboard / openclaw 配置一致）</span>
-        <input v-model="token" type="password" autocomplete="off" placeholder="可选，与密码二选一" >
+        <input v-model="token" type="password" autocomplete="off" placeholder="可选，与密码二选一">
       </label>
       <label class="field">
         <span>密码</span>
-        <input v-model="password" type="password" autocomplete="off" placeholder="可选" >
+        <input v-model="password" type="password" autocomplete="off" placeholder="可选">
       </label>
       <p v-if="saveError" class="err">{{ saveError }}</p>
       <div class="actions">
