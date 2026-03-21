@@ -369,14 +369,13 @@ export const useChatStore = defineStore("chat", () => {
     usePreviewStore().setFollowLatest(true);
     await nextTick();
     try {
-      const model = composerModelKey.value.trim();
       await c.request("chat.send", {
         sessionKey: key,
         message,
         deliver: false,
         idempotencyKey: idem,
         ...(attachmentsPayload.length > 0 ? { attachments: attachmentsPayload } : {}),
-        ...(model ? { model } : {}),
+        ...(composerModelKey.value ? { model: composerModelKey.value } : {}),
       });
       removeIncludedPendingFiles();
     } catch (e) {

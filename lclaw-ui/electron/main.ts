@@ -22,8 +22,8 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
-    /** Windows/Linux：默认隐藏菜单栏，按 Alt 显示，省出一行垂直空间 */
-    autoHideMenuBar: true,
+    /** 仅 Windows/Linux：窗口内菜单栏可自动隐藏（按 Alt 显示）。macOS 为系统顶栏菜单，此项无意义故关闭。 */
+    autoHideMenuBar: process.platform === "win32" || process.platform === "linux",
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,

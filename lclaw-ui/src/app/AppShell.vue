@@ -70,6 +70,12 @@ const otherSessions = computed(() => {
   return sessions.value.filter((s) => s.key !== cur);
 });
 
+/** 无环境变量选项且未保存自定义模型时隐藏下拉，避免只剩「默认模型」的鸡肋控件；有历史选择时仍显示以便改回默认 */
+const showComposerModelSelect = computed(
+  () =>
+    composerModelOptions.value.length > 0 || Boolean(composerModelKey.value?.trim()),
+);
+
 const displayLines = computed(() => {
   const base = messages.value.map((m) => messageToChatLine(m));
   let list = base;
@@ -138,6 +144,7 @@ async function pickLocalFileForPreview(): Promise<void> {
             :title="activeSessionKey ?? '当前会话'"
           >{{ activeSessionLabel || "—" }}</span>
           <select
+            v-if="showComposerModelSelect"
             class="session-model-select"
             :value="composerModelKey"
             :disabled="gwStatus !== 'connected'"
