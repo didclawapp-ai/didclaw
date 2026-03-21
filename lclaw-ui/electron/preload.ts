@@ -41,10 +41,24 @@ contextBridge.exposeInMainWorld("lclawElectron", {
       url?: string;
       token?: string;
       password?: string;
+      autoStartOpenClaw?: boolean;
+      stopManagedGatewayOnQuit?: boolean;
+      openclawExecutable?: string;
     }>,
-  writeGatewayLocalConfig: (payload: { url?: string; token?: string; password?: string }) =>
+  writeGatewayLocalConfig: (payload: {
+    url?: string;
+    token?: string;
+    password?: string;
+    autoStartOpenClaw?: boolean;
+    stopManagedGatewayOnQuit?: boolean;
+    openclawExecutable?: string;
+  }) =>
     ipcRenderer.invoke("gateway:writeLocalConfig", payload) as Promise<
       { ok: true } | { ok: false; error: string }
+    >,
+  ensureOpenClawGateway: (payload: { wsUrl: string }) =>
+    ipcRenderer.invoke("gateway:ensureOpenClawGateway", payload) as Promise<
+      { ok: true; started: boolean } | { ok: false; error: string }
     >,
   readOpenClawModelConfig: () =>
     ipcRenderer.invoke("openclaw:readModelConfig") as Promise<

@@ -48,12 +48,22 @@ interface LclawElectronApi {
     url?: string;
     token?: string;
     password?: string;
+    autoStartOpenClaw?: boolean;
+    stopManagedGatewayOnQuit?: boolean;
+    openclawExecutable?: string;
   }>;
   writeGatewayLocalConfig(payload: {
     url?: string;
     token?: string;
     password?: string;
+    autoStartOpenClaw?: boolean;
+    stopManagedGatewayOnQuit?: boolean;
+    openclawExecutable?: string;
   }): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** 本机环回地址且端口未监听时，无窗口启动 openclaw gateway（由主进程 spawn，windowsHide） */
+  ensureOpenClawGateway(payload: { wsUrl: string }): Promise<
+    { ok: true; started: boolean } | { ok: false; error: string }
+  >;
   readOpenClawModelConfig(): Promise<
     | { ok: true; model: Record<string, unknown>; models: Record<string, unknown> }
     | { ok: false; error: string }

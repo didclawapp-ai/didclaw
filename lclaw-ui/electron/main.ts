@@ -16,6 +16,10 @@ import {
   writeOpenClawModelConfig,
   writeOpenClawProvidersPatch,
 } from "./openclaw-config";
+import {
+  disposeManagedOpenClawGateway,
+  ensureOpenClawGatewayRunning,
+} from "./openclaw-gateway-process";
 import { startProdStaticServer } from "./static-server";
 
 const execFileAsync = promisify(execFile);
@@ -27,6 +31,10 @@ let mainWindow: BrowserWindow | null = null;
 /** 生产态用 http://127.0.0.1 提供 dist，避免 file:// 触发 Gateway origin 拒绝 */
 let prodStaticServer: Server | null = null;
 let prodStaticOrigin: string | null = null;
+
+function gatewayLocalConfigPath(): string {
+  return path.join(app.getPath("userData"), "gateway-local.json");
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -69,6 +77,10 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
+});
+
+app.on("before-quit", () => {
+  disposeManagedOpenClawGateway(gatewayLocalConfigPath());
 });
 
 app.on("will-quit", () => {
@@ -399,24 +411,39 @@ ipcMain.handle("dialog:openFile", async (): Promise<string | null> => {
   return pathToFileURL(r.filePaths[0]).href;
 });
 
-function gatewayLocalConfigPath(): string {
-  return path.join(app.getPath("userData"), "gateway-local.json");
-}
+type LocalGatewayFile = {
+  url?: string;
+  token?: string;
+  password?: string;
+  autoStartOpenClaw?: boolean;
+  stopManagedGatewayOnQuit?: boolean;
+  openclawExecutable?: string;
+};
 
-type LocalGatewayFile = { url?: string; token?: string; password?: string };
-
-ipcMain.handle("gateway:readLocalConfig", async (): Promise<LocalGatewayFile> => {
+async function readGatewayLocalMerged(): Promise<Record<string, unknown>> {
   try {
     const raw = await fs.readFile(gatewayLocalConfigPath(), "utf8");
-    const j = JSON.parse(raw) as Record<string, unknown>;
-    return {
-      url: typeof j.url === "string" ? j.url : undefined,
-      token: typeof j.token === "string" ? j.token : undefined,
-      password: typeof j.password === "string" ? j.password : undefined,
-    };
+    const j = JSON.parse(raw) as unknown;
+    if (j && typeof j === "object" && !Array.isArray(j)) {
+      return { ...(j as Record<string, unknown>) };
+    }
   } catch {
-    return {};
+    /* 无文件或损坏 */
   }
+  return {};
+}
+
+ipcMain.handle("gateway:readLocalConfig", async (): Promise<LocalGatewayFile> => {
+  const j = await readGatewayLocalMerged();
+  return {
+    url: typeof j.url === "string" ? j.url : undefined,
+    token: typeof j.token === "string" ? j.token : undefined,
+    password: typeof j.password === "string" ? j.password : undefined,
+    autoStartOpenClaw: j.autoStartOpenClaw === false ? false : j.autoStartOpenClaw === true ? true : undefined,
+    stopManagedGatewayOnQuit:
+      j.stopManagedGatewayOnQuit === true ? true : j.stopManagedGatewayOnQuit === false ? false : undefined,
+    openclawExecutable: typeof j.openclawExecutable === "string" ? j.openclawExecutable : undefined,
+  };
 });
 
 ipcMain.handle(
@@ -426,30 +453,95 @@ ipcMain.handle(
       return { ok: false, error: "参数无效" };
     }
     const o = data as Record<string, unknown>;
-    const out: Record<string, string> = {};
-    if (typeof o.url === "string" && o.url.trim()) {
-      out.url = o.url.trim();
+    const merged = await readGatewayLocalMerged();
+
+    if (typeof o.url === "string") {
+      const t = o.url.trim();
+      if (t) {
+        merged.url = t;
+      } else {
+        delete merged.url;
+      }
     }
-    if (typeof o.token === "string" && o.token.trim()) {
-      out.token = o.token.trim();
+    if (typeof o.token === "string") {
+      const t = o.token.trim();
+      if (t) {
+        merged.token = t;
+      } else {
+        delete merged.token;
+      }
     }
-    if (typeof o.password === "string" && o.password.trim()) {
-      out.password = o.password.trim();
+    if (typeof o.password === "string") {
+      const t = o.password.trim();
+      if (t) {
+        merged.password = t;
+      } else {
+        delete merged.password;
+      }
     }
+    if ("autoStartOpenClaw" in o) {
+      merged.autoStartOpenClaw = o.autoStartOpenClaw === true;
+    }
+    if ("stopManagedGatewayOnQuit" in o) {
+      merged.stopManagedGatewayOnQuit = o.stopManagedGatewayOnQuit === true;
+    }
+    if ("openclawExecutable" in o) {
+      const t = typeof o.openclawExecutable === "string" ? o.openclawExecutable.trim() : "";
+      if (t) {
+        merged.openclawExecutable = t;
+      } else {
+        delete merged.openclawExecutable;
+      }
+    }
+
     try {
       const p = gatewayLocalConfigPath();
       await fs.mkdir(path.dirname(p), { recursive: true });
-      if (Object.keys(out).length === 0) {
+      const keys = Object.keys(merged).filter((k) => merged[k] !== undefined && merged[k] !== null);
+      if (keys.length === 0) {
         await fs.rm(p, { force: true }).catch(() => {
           /* 文件不存在等 */
         });
         return { ok: true };
+      }
+      const out: Record<string, unknown> = {};
+      for (const k of keys) {
+        out[k] = merged[k];
       }
       await fs.writeFile(p, `${JSON.stringify(out, null, 2)}\n`, "utf8");
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
+  },
+);
+
+ipcMain.handle(
+  "gateway:ensureOpenClawGateway",
+  async (_e, payload: unknown): Promise<
+    { ok: true; started: boolean } | { ok: false; error: string }
+  > => {
+    const wsUrl =
+      payload !== null &&
+      typeof payload === "object" &&
+      !Array.isArray(payload) &&
+      typeof (payload as { wsUrl?: unknown }).wsUrl === "string"
+        ? (payload as { wsUrl: string }).wsUrl
+        : "";
+    if (!wsUrl.trim()) {
+      return { ok: false, error: "缺少连接地址" };
+    }
+    const j = await readGatewayLocalMerged();
+    const autoStart = j.autoStartOpenClaw !== false;
+    const openclawExecutable =
+      typeof j.openclawExecutable === "string" && j.openclawExecutable.trim()
+        ? j.openclawExecutable.trim()
+        : undefined;
+    return ensureOpenClawGatewayRunning({
+      wsUrl,
+      autoStart,
+      openclawExecutable,
+    });
   },
 );
 

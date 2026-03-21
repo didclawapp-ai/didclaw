@@ -85,11 +85,23 @@ export const useGatewayStore = defineStore("gateway", () => {
     status.value = "connecting";
 
     const req = connectRequestId;
-    void loadGatewayConnectOptions().then((opts) => {
+    void loadGatewayConnectOptions().then(async (opts) => {
       if (req !== connectRequestId) {
         return;
       }
       url.value = opts.url;
+
+      if (isLclawElectron() && window.lclawElectron?.ensureOpenClawGateway) {
+        const ensured = await window.lclawElectron.ensureOpenClawGateway({ wsUrl: opts.url });
+        if (req !== connectRequestId) {
+          return;
+        }
+        if (!ensured.ok) {
+          lastError.value = ensured.error;
+          status.value = "error";
+          return;
+        }
+      }
 
       const gc = new GatewayClient({
         url: opts.url,

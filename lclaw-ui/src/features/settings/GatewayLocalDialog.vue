@@ -29,6 +29,11 @@ const tab = ref<TabId>("gateway");
 const wsUrl = ref("");
 const token = ref("");
 const password = ref("");
+/** 默认 true：连接开关打开时由主进程无窗口启动本机 openclaw gateway */
+const autoStartOpenClaw = ref(true);
+/** 为 true 时退出 LCLaw 会结束由本应用 spawn 的网关子进程 */
+const stopManagedGatewayOnQuit = ref(false);
+const openclawExecutable = ref("");
 const saveError = ref<string | null>(null);
 const saving = ref(false);
 
@@ -86,6 +91,10 @@ async function loadGatewayForm(): Promise<void> {
     if (c.password != null) {
       password.value = c.password;
     }
+    autoStartOpenClaw.value = c.autoStartOpenClaw !== false;
+    stopManagedGatewayOnQuit.value = c.stopManagedGatewayOnQuit === true;
+    openclawExecutable.value =
+      typeof c.openclawExecutable === "string" ? c.openclawExecutable : "";
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : String(e);
   }
@@ -521,9 +530,12 @@ async function onSaveGateway(): Promise<void> {
   saving.value = true;
   try {
     const r = await api.writeGatewayLocalConfig({
-      url: wsUrl.value.trim() || undefined,
-      token: token.value.trim() || undefined,
-      password: password.value.trim() || undefined,
+      url: wsUrl.value.trim(),
+      token: token.value.trim(),
+      password: password.value.trim(),
+      autoStartOpenClaw: autoStartOpenClaw.value,
+      stopManagedGatewayOnQuit: stopManagedGatewayOnQuit.value,
+      openclawExecutable: openclawExecutable.value.trim(),
     });
     if (!r.ok) {
       saveError.value = r.error;
@@ -705,6 +717,35 @@ async function onRestoreModel(): Promise<void> {
           <label class="field">
             <span>密码</span>
             <input v-model="password" type="password" autocomplete="off" placeholder="可选">
+          </label>
+          <label class="field field--checkbox-row">
+            <input v-model="autoStartOpenClaw" type="checkbox">
+            <span>连接时自动在后台启动本机 OpenClaw 网关（无黑窗）</span>
+          </label>
+          <p class="hint small muted gateway-auto-hint">
+            仅当地址为 127.0.0.1 / localhost 且对应端口尚未监听时，由本应用代为执行
+            <code>openclaw gateway</code>。远程网关不受影响。
+          </p>
+          <label class="field field--checkbox-row">
+            <input v-model="stopManagedGatewayOnQuit" type="checkbox">
+            <span>退出本应用时，结束由本应用启动的网关进程</span>
+          </label>
+          <label class="field">
+            <span class="field-label-row">
+              openclaw 可执行文件
+              <span
+                class="help-tip"
+                title="一般留空即可。若终端能运行 openclaw 但此处找不到，可填 npm 全局目录下的 openclaw.cmd 完整路径。"
+                tabindex="0"
+                role="note"
+              >?</span>
+            </span>
+            <input
+              v-model="openclawExecutable"
+              type="text"
+              autocomplete="off"
+              placeholder="留空则从 PATH 查找（Windows 可用 where openclaw 看路径）"
+            >
           </label>
           <p v-if="saveError" class="err">{{ saveError }}</p>
           <div class="actions">
@@ -1265,6 +1306,23 @@ h2 {
   font-size: 12px;
   font-weight: 600;
   color: var(--lc-text-muted);
+}
+.field--checkbox-row {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+.field--checkbox-row input[type="checkbox"] {
+  width: auto;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.field--checkbox-row span {
+  font-weight: 500;
+  line-height: 1.45;
+}
+.gateway-auto-hint {
+  margin: -6px 0 14px;
 }
 .field {
   display: flex;
