@@ -2,12 +2,14 @@
 import ChatLineBody from "@/features/chat/ChatLineBody.vue";
 import type { ChatLine } from "@/lib/chat-line";
 import { measureElement, useVirtualizer } from "@tanstack/vue-virtual";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { ComponentPublicInstance } from "vue";
 
 const props = defineProps<{
   lines: ChatLine[];
   selectedIndex: number | null;
+  /** 为 true 时滚到底部并对齐最后一行末尾，避免 align:auto 把视图顶到最上 */
+  followLatest?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -36,14 +38,40 @@ function rowRef(el: Element | ComponentPublicInstance | null): void {
   virtualizer.value.measureElement(node);
 }
 
-/** 跟随最新：新消息时滚到底 */
+function atListEnd(): boolean {
+  const n = props.lines.length;
+  if (n === 0) {
+    return false;
+  }
+  return props.selectedIndex === n - 1;
+}
+
+/** 最后一行在视口底部对齐（跟随最新 / 流式增高） */
+function scrollLastToEnd(): void {
+  if (!parentRef.value || props.lines.length === 0 || !atListEnd()) {
+    return;
+  }
+  const last = props.lines.length - 1;
+  const run = (): void => {
+    virtualizer.value.scrollToIndex(last, { align: "end" });
+  };
+  void nextTick(() => {
+    run();
+    requestAnimationFrame(() => {
+      run();
+    });
+  });
+}
+
+/** 跟随最新：新增一行时滚到底 */
 watch(
   () => props.lines.length,
   (n, prev) => {
-    if (n > prev && props.selectedIndex === n - 1) {
-      void nextTick(() => {
-        virtualizer.value.scrollToIndex(n - 1, { align: "end" });
-      });
+    if (!props.followLatest) {
+      return;
+    }
+    if (n > prev && atListEnd()) {
+      scrollLastToEnd();
     }
   },
 );
@@ -51,17 +79,48 @@ watch(
 watch(
   () => props.selectedIndex,
   (idx) => {
-    if (idx !== null && idx >= 0 && parentRef.value) {
-      void nextTick(() => {
-        virtualizer.value.scrollToIndex(idx, { align: "auto" });
-      });
+    if (idx === null || idx < 0 || !parentRef.value) {
+      return;
     }
+    void nextTick(() => {
+      const useEnd = props.followLatest && idx === props.lines.length - 1;
+      virtualizer.value.scrollToIndex(idx, { align: useEnd ? "end" : "auto" });
+      if (useEnd) {
+        requestAnimationFrame(() => {
+          virtualizer.value.scrollToIndex(idx, { align: "end" });
+        });
+      }
+    });
+  },
+);
+
+/** 流式输出：行数不变但末尾行变长，仍需贴底 */
+watch(
+  () => {
+    const last = props.lines.at(-1);
+    if (!last) {
+      return "";
+    }
+    const t = last.listText ?? last.text ?? "";
+    return `${last.streaming ? "1" : "0"}:${t.length}:${t.slice(0, 64)}`;
+  },
+  () => {
+    if (!props.followLatest || !atListEnd()) {
+      return;
+    }
+    scrollLastToEnd();
   },
 );
 
 function onRowClick(index: number) {
   emit("select", index);
 }
+
+onMounted(() => {
+  if (props.followLatest && props.lines.length > 0 && atListEnd()) {
+    scrollLastToEnd();
+  }
+});
 </script>
 
 <template>

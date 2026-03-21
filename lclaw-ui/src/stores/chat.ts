@@ -18,7 +18,10 @@ export const useChatStore = defineStore("chat", () => {
   const draft = ref("");
   const lastError = ref<string | null>(null);
 
-  async function loadHistory(): Promise<void> {
+  const OPTIMISTIC_KEY = "_lclawOptimistic";
+
+  async function loadHistory(opts?: { silent?: boolean }): Promise<void> {
+    const silent = opts?.silent === true;
     const gw = useGatewayStore();
     const c = gw.client;
     const session = useSessionStore();
@@ -27,7 +30,9 @@ export const useChatStore = defineStore("chat", () => {
       messages.value = [];
       return;
     }
-    historyLoading.value = true;
+    if (!silent) {
+      historyLoading.value = true;
+    }
     lastError.value = null;
     try {
       const res = await c.request<unknown>("chat.history", {
@@ -47,7 +52,9 @@ export const useChatStore = defineStore("chat", () => {
     } catch (e) {
       lastError.value = describeGatewayError(e);
     } finally {
-      historyLoading.value = false;
+      if (!silent) {
+        historyLoading.value = false;
+      }
     }
   }
 
@@ -66,6 +73,8 @@ export const useChatStore = defineStore("chat", () => {
     runId.value = idem;
     streamText.value = "";
     draft.value = "";
+    const optimistic = { role: "user" as const, text, [OPTIMISTIC_KEY]: idem };
+    messages.value = [...messages.value, optimistic];
     try {
       await c.request("chat.send", {
         sessionKey: key,
@@ -74,6 +83,13 @@ export const useChatStore = defineStore("chat", () => {
         idempotencyKey: idem,
       });
     } catch (e) {
+      messages.value = messages.value.filter((m) => {
+        if (!m || typeof m !== "object") {
+          return true;
+        }
+        const o = m as Record<string, unknown>;
+        return o[OPTIMISTIC_KEY] !== idem;
+      });
       runId.value = null;
       streamText.value = null;
       lastError.value = describeGatewayError(e);
@@ -125,11 +141,11 @@ export const useChatStore = defineStore("chat", () => {
         }
       }
     } else if (payload.state === "final") {
-      void loadHistory();
+      void loadHistory({ silent: true });
       streamText.value = null;
       runId.value = null;
     } else if (payload.state === "aborted") {
-      void loadHistory();
+      void loadHistory({ silent: true });
       streamText.value = null;
       runId.value = null;
     } else if (payload.state === "error") {

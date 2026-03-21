@@ -207,6 +207,7 @@ function onComposerEnter(ev: KeyboardEvent): void {
           v-else-if="!historyLoading && displayLines.length > 0"
           :lines="displayLines"
           :selected-index="selectedIndex"
+          :follow-latest="followLatest"
           @select="onSelectMessage"
         />
         <p v-else-if="!historyLoading && messages.length === 0" class="muted">暂无消息</p>
