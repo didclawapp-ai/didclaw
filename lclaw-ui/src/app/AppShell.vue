@@ -14,6 +14,7 @@ import { messageToChatLine } from "@/lib/chat-line";
 import { isLclawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useFilePreviewStore } from "@/stores/filePreview";
+import { useGatewayStore } from "@/stores/gateway";
 import { usePreviewStore } from "@/stores/preview";
 import { useSessionStore } from "@/stores/session";
 import { storeToRefs } from "pinia";
@@ -24,13 +25,16 @@ const STREAMING_PENDING_LABEL = "正在生成回复…";
 
 const session = useSessionStore();
 const chat = useChatStore();
+const gw = useGatewayStore();
 const preview = usePreviewStore();
 const filePreview = useFilePreviewStore();
 
 const { followLatest, showDiagnosticMessages } = storeToRefs(preview);
-const { sessions, loading: sessionsLoading, error: sessionsError, activeSessionKey } =
+const { status: gwStatus } = storeToRefs(gw);
+const { sessions, loading: sessionsLoading, error: sessionsError, activeSessionKey, activeSession } =
   storeToRefs(session);
-const { messages, historyLoading, streamText, runId } = storeToRefs(chat);
+const { messages, historyLoading, streamText, runId, composerModelKey, composerModelOptions } =
+  storeToRefs(chat);
 const {
   target: fpTarget,
   localLoading: fpLocalLoading,
@@ -45,6 +49,26 @@ const isPreviewPaneOpen = computed(
     fpLocalError.value != null ||
     fpChatMessagePreview.value != null,
 );
+
+const activeSessionLabel = computed(() => {
+  const row = activeSession.value;
+  if (row?.label?.trim()) {
+    return row.label.trim();
+  }
+  if (activeSessionKey.value) {
+    return activeSessionKey.value;
+  }
+  return "";
+});
+
+/** 标题栏已展示当前会话，下列表只列「可切换到的其他会话」，避免重复大块高亮 */
+const otherSessions = computed(() => {
+  const cur = activeSessionKey.value;
+  if (!cur) {
+    return sessions.value;
+  }
+  return sessions.value.filter((s) => s.key !== cur);
+});
 
 const displayLines = computed(() => {
   const base = messages.value.map((m) => messageToChatLine(m));
@@ -106,17 +130,35 @@ async function pickLocalFileForPreview(): Promise<void> {
 
     <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
       <aside class="left">
-        <div class="panel-title">会话</div>
+        <div class="panel-title session-panel-head">
+          <span class="session-head-label">会话</span>
+          <span
+            class="session-active-chip"
+            :class="{ 'session-active-chip--empty': !activeSessionKey }"
+            :title="activeSessionKey ?? '当前会话'"
+          >{{ activeSessionLabel || "—" }}</span>
+          <select
+            class="session-model-select"
+            :value="composerModelKey"
+            :disabled="gwStatus !== 'connected'"
+            title="留空为网关默认。非空时在 chat.send 附带 model（需网关支持）。选项来自 VITE_CHAT_MODEL_OPTIONS（逗号分隔）"
+            @change="chat.setComposerModelKey(($event.target as HTMLSelectElement).value)"
+          >
+            <option value="">默认模型</option>
+            <option
+              v-if="composerModelKey && !composerModelOptions.includes(composerModelKey)"
+              :value="composerModelKey"
+            >
+              {{ composerModelKey }}
+            </option>
+            <option v-for="m in composerModelOptions" :key="m" :value="m">{{ m }}</option>
+          </select>
+        </div>
         <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
         <div v-if="sessionsLoading" class="muted">加载中…</div>
-        <ul v-else class="sess">
-          <li v-for="s in sessions" :key="s.key">
-            <button
-              type="button"
-              class="sess-btn"
-              :class="{ active: s.key === activeSessionKey }"
-              @click="session.selectSession(s.key)"
-            >
+        <ul v-else-if="otherSessions.length > 0" class="sess">
+          <li v-for="s in otherSessions" :key="s.key">
+            <button type="button" class="sess-btn" @click="session.selectSession(s.key)">
               {{ s.label || s.key }}
             </button>
           </li>
@@ -243,6 +285,62 @@ async function pickLocalFileForPreview(): Promise<void> {
   border-bottom: 1px solid var(--lc-border);
   flex-shrink: 0;
 }
+.panel-title.session-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 12px;
+}
+.session-head-label {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lc-text-muted);
+}
+.session-active-chip {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--lc-mono);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  padding: 4px 8px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-accent);
+  background: var(--lc-accent-soft);
+  color: #0c4a6e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-active-chip--empty {
+  opacity: 0.55;
+  border-color: var(--lc-border);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text-muted);
+}
+.session-model-select {
+  flex: 0 1 140px;
+  min-width: 72px;
+  max-width: min(42%, 200px);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 4px 6px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  cursor: pointer;
+}
+.session-model-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .panel-title.row-title {
   display: flex;
   align-items: center;
@@ -319,12 +417,6 @@ async function pickLocalFileForPreview(): Promise<void> {
 .sess-btn:hover {
   border-color: var(--lc-border-strong);
   background: var(--lc-bg-elevated);
-}
-.sess-btn.active {
-  border-color: var(--lc-accent);
-  background: var(--lc-accent-soft);
-  box-shadow: 0 2px 14px rgba(6, 182, 212, 0.15);
-  color: #0c4a6e;
 }
 .err {
   color: var(--lc-error);

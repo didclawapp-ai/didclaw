@@ -23,6 +23,28 @@ import { useSessionStore } from "./session";
 /** 单文件体积上限（含待预览的 PDF 等）；图片传入网关另有约 4.5MB 限制 */
 const MAX_COMPOSER_FILE_BYTES = 50 * 1024 * 1024;
 
+const COMPOSER_MODEL_STORAGE_KEY = "lclaw-ui.composerModel";
+
+function readComposerModelFromStorage(): string {
+  try {
+    return localStorage.getItem(COMPOSER_MODEL_STORAGE_KEY)?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeComposerModelToStorage(value: string): void {
+  try {
+    if (value) {
+      localStorage.setItem(COMPOSER_MODEL_STORAGE_KEY, value);
+    } else {
+      localStorage.removeItem(COMPOSER_MODEL_STORAGE_KEY);
+    }
+  } catch {
+    /* 忽略隐私模式等 */
+  }
+}
+
 export type PendingComposerFile = {
   id: string;
   file: File;
@@ -126,6 +148,26 @@ export const useChatStore = defineStore("chat", () => {
   const lastDeltaAtMs = ref<number | null>(null);
   const lastCompletedRunDurationMs = ref<number | null>(null);
   const lastCompletedRunAtMs = ref<number | null>(null);
+
+  /** 非空时随 `chat.send` 附带 `model`（网关需支持该字段，否则可能返回参数错误） */
+  const composerModelKey = ref(readComposerModelFromStorage());
+
+  const composerModelOptions = computed(() => {
+    const raw = import.meta.env.VITE_CHAT_MODEL_OPTIONS;
+    if (typeof raw !== "string" || !raw.trim()) {
+      return [] as string[];
+    }
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  });
+
+  function setComposerModelKey(next: string): void {
+    const v = next.trim();
+    composerModelKey.value = v;
+    writeComposerModelToStorage(v);
+  }
 
   const agentBusy = computed(() => sending.value || runId.value != null);
 
@@ -327,12 +369,14 @@ export const useChatStore = defineStore("chat", () => {
     usePreviewStore().setFollowLatest(true);
     await nextTick();
     try {
+      const model = composerModelKey.value.trim();
       await c.request("chat.send", {
         sessionKey: key,
         message,
         deliver: false,
         idempotencyKey: idem,
         ...(attachmentsPayload.length > 0 ? { attachments: attachmentsPayload } : {}),
+        ...(model ? { model } : {}),
       });
       removeIncludedPendingFiles();
     } catch (e) {
@@ -438,6 +482,9 @@ export const useChatStore = defineStore("chat", () => {
     lastCompletedRunAtMs,
     agentBusy,
     composerPhase,
+    composerModelKey,
+    composerModelOptions,
+    setComposerModelKey,
     draft,
     lastError,
     pendingComposerFiles,

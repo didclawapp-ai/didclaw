@@ -6,7 +6,7 @@ import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
 import { storeToRefs } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
 
 const gw = useGatewayStore();
@@ -19,6 +19,73 @@ const { messages, lastError: chatError } = storeToRefs(chat);
 const copiedDiag = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 const showGatewayLocal = ref(false);
+
+const connSwitchOn = computed(
+  () => status.value === "connected" || status.value === "connecting",
+);
+
+const connSwitchLabel = computed(() => {
+  switch (status.value) {
+    case "connected":
+      return "已连接网关，点击断开";
+    case "connecting":
+      return "正在连接，点击取消";
+    case "error":
+      return "连接异常，点击重连";
+    default:
+      return "未连接，点击连接";
+  }
+});
+
+function onConnSwitchClick(): void {
+  if (status.value === "connected" || status.value === "connecting") {
+    gw.disconnect();
+  } else {
+    gw.connect();
+  }
+}
+
+const connLedTitle = computed(() => {
+  const lines: string[] = [url.value];
+  switch (status.value) {
+    case "connected":
+      lines.push("状态：已连接");
+      break;
+    case "connecting":
+      lines.push("状态：正在连接…");
+      break;
+    case "error":
+      lines.push("状态：连接异常");
+      break;
+    default:
+      lines.push("状态：未连接");
+  }
+  return lines.join("\n");
+});
+
+const connLedClass = computed(() => {
+  switch (status.value) {
+    case "connected":
+      return "conn-led--ok";
+    case "connecting":
+      return "conn-led--pending";
+    default:
+      return "conn-led--bad";
+  }
+});
+
+const connLedAriaLabel = computed(() => {
+  switch (status.value) {
+    case "connected":
+      return `网关已连接，${url.value}`;
+    case "connecting":
+      return `正在连接网关，${url.value}`;
+    case "error":
+      return `网关连接异常，${url.value}`;
+    default:
+      return `网关未连接，${url.value}`;
+  }
+});
 
 async function copyDiagnostics(): Promise<void> {
   let tokenConfigured = !!import.meta.env.VITE_GATEWAY_TOKEN?.trim();
@@ -87,39 +154,48 @@ async function copyDiagnostics(): Promise<void> {
       </div>
     </div>
     <div class="conn">
-      <code class="url">{{ url }}</code>
-      <span class="pill" :data-s="status">{{ status }}</span>
-      <button
-        v-if="status === 'disconnected' || status === 'error'"
-        type="button"
-        class="lc-btn"
-        @click="gw.connect()"
-      >
-        连接
-      </button>
-      <button v-if="status === 'connected'" type="button" class="lc-btn lc-btn-ghost" @click="gw.disconnect()">
-        断开
-      </button>
       <button
         type="button"
-        class="lc-btn lc-btn-ghost diag"
-        title="复制脱敏 JSON，便于贴到工单/聊天排查"
-        @click="copyDiagnostics"
-      >
-        复制诊断信息
-      </button>
-      <button
-        v-if="isLclawElectron()"
-        type="button"
-        class="lc-btn lc-btn-ghost"
-        title="将 Token 等保存到本机（打包版无 .env 时使用）"
-        @click="showGatewayLocal = true"
-      >
-        网关本地设置
-      </button>
-      <span v-if="copiedDiag" class="copied">已复制</span>
+        class="conn-led"
+        :class="connLedClass"
+        :title="connLedTitle"
+        :aria-label="connLedAriaLabel"
+      ></button>
+      <div class="conn-toolbar">
+        <button
+          type="button"
+          class="conn-switch"
+          :class="{ 'conn-switch--on': connSwitchOn, 'conn-switch--busy': status === 'connecting' }"
+          role="switch"
+          :aria-checked="connSwitchOn"
+          :aria-label="connSwitchLabel"
+          @click="onConnSwitchClick"
+        >
+          <span class="conn-switch-track" aria-hidden="true">
+            <span class="conn-switch-thumb" />
+          </span>
+        </button>
+        <button
+          type="button"
+          class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
+          title="复制脱敏 JSON，便于贴到工单/聊天排查"
+          @click="copyDiagnostics"
+        >
+          诊断
+        </button>
+        <button
+          v-if="isLclawElectron()"
+          type="button"
+          class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
+          title="将 Token 等保存到本机（打包版无 .env 时使用）"
+          @click="showGatewayLocal = true"
+        >
+          本机
+        </button>
+        <span v-if="copiedDiag" class="copied">已复制</span>
+      </div>
+      <span v-if="helloInfo" class="conn-version">{{ helloInfo }}</span>
     </div>
-    <p v-if="helloInfo" class="meta">{{ helloInfo }}</p>
     <p v-if="lastError" class="err">{{ lastError }}</p>
 
     <GatewayLocalDialog v-model="showGatewayLocal" />
@@ -201,64 +277,147 @@ async function copyDiagnostics(): Promise<void> {
 }
 .conn {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
 }
-.url {
-  font-family: var(--lc-mono);
+.conn-led {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  cursor: default;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.conn-led:focus-visible {
+  outline: 2px solid var(--lc-accent);
+  outline-offset: 2px;
+}
+.conn-led--ok {
+  background: var(--lc-success);
+  border-color: rgba(5, 150, 105, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 10px rgba(5, 150, 105, 0.35);
+}
+.conn-led--bad {
+  background: var(--lc-error);
+  border-color: rgba(220, 38, 38, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 8px rgba(220, 38, 38, 0.25);
+}
+.conn-led--pending {
+  background: var(--lc-warning);
+  border-color: rgba(217, 119, 6, 0.55);
+  animation: conn-led-pulse 1s ease-in-out infinite;
+}
+@keyframes conn-led-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.88;
+    filter: brightness(1.08);
+  }
+}
+.conn-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+.conn-version {
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 11px;
-  background: var(--lc-bg-elevated);
-  padding: 5px 10px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-border);
-  color: var(--lc-accent);
-  max-width: min(520px, 100%);
+  line-height: 22px;
+  color: var(--lc-text-muted);
+  text-align: right;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.pill {
-  text-transform: uppercase;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  padding: 4px 10px;
+.conn-tool-btn {
+  padding-inline: 8px;
+}
+.conn-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.conn-switch:focus-visible {
+  outline: 2px solid var(--lc-accent);
+  outline-offset: 2px;
   border-radius: 999px;
-  border: 1px solid var(--lc-border);
+}
+.conn-switch-track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
   background: var(--lc-bg-raised);
-  color: var(--lc-text-muted);
+  border: 1px solid var(--lc-border);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
 }
-.pill[data-s="connected"] {
-  border-color: rgba(5, 150, 105, 0.35);
-  background: var(--lc-success-bg);
-  color: var(--lc-success);
-  box-shadow: none;
+.conn-switch--on .conn-switch-track {
+  background: rgba(5, 150, 105, 0.22);
+  border-color: rgba(5, 150, 105, 0.45);
 }
-.pill[data-s="error"] {
-  border-color: rgba(248, 113, 113, 0.5);
-  background: var(--lc-error-bg);
-  color: var(--lc-error);
+.conn-switch--busy .conn-switch-track {
+  animation: conn-switch-pulse 1.1s ease-in-out infinite;
 }
-.pill[data-s="disconnected"] {
-  color: var(--lc-warning);
-  border-color: rgba(251, 191, 36, 0.35);
-  background: var(--lc-warning-bg);
+.conn-switch-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--lc-text-muted);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease;
 }
-.meta {
-  margin: 8px 0 0;
-  color: var(--lc-text-muted);
-  font-size: 12px;
+.conn-switch--on .conn-switch-thumb {
+  transform: translateX(16px);
+  background: var(--lc-success);
+}
+@keyframes conn-switch-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
 }
 .err {
   color: var(--lc-error);
-  margin: 8px 0 0;
-}
-.diag {
+  margin: 6px 0 0;
   font-size: 12px;
+  line-height: 1.4;
 }
 .copied {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--lc-success);
   font-weight: 500;
   animation: lc-fade-in 0.25s ease;

@@ -22,6 +22,8 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
+    /** Windows/Linux：默认隐藏菜单栏，按 Alt 显示，省出一行垂直空间 */
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,

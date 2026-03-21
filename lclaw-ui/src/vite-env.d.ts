@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_GATEWAY_TOKEN?: string;
   readonly VITE_GATEWAY_PASSWORD?: string;
   readonly VITE_LINK_ALLOWLIST?: string;
+  /** 逗号分隔的模型标识，用于会话栏「模型」下拉（需与网关 chat.send 的 model 字段一致） */
+  readonly VITE_CHAT_MODEL_OPTIONS?: string;
 }
 
 interface ImportMeta {
