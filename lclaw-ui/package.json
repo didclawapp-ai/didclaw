@@ -9,6 +9,8 @@
     "dev:web": "vite",
     "build": "vue-tsc -b && vite build",
     "dist:win": "pnpm run build && electron-builder --win",
+    "dist:win:portable": "pnpm run build && electron-builder --win portable --x64",
+    "dist:win:setup": "pnpm run build && electron-builder --win nsis --x64",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "vue-tsc -b --noEmit"

@@ -12,7 +12,9 @@
 
 - `pnpm dev`：Vite 开发服务器 + **自动启动 Electron**（注入 `window.lclawElectron`）。
 - `pnpm dev:web`：仅 Vite，用于浏览器调试（与以前一致）。
-- `pnpm dist:win`：构建前端与主进程后打 Windows 安装包（输出 `release/`，需已允许 `electron` 的 pnpm 构建脚本）。
+- `pnpm dist:win:portable`：**便携版**单个 exe（约百 MB，输出 `release/LCLAW UI 0.1.0.exe`，无需安装）。
+- `pnpm dist:win:setup`：NSIS **安装包**（与 `dist:win` 同类目标时可二选一）。
+- `pnpm dist:win`：按 `package.json` 的 `build.win.target` 打包（当前默认可改为与上面一致）。
 - 本机 Office 预览依赖本机安装 **LibreOffice**，或设置环境变量 **`LIBREOFFICE_PATH`** 指向 `soffice.exe`。详见 `../docs/lclaw-ui-electron-local-preview.md`。
 
 ## 常用命令
