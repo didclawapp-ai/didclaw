@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
+import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import {
   buildListPreview,
   shouldAlwaysHideFromChatList,
   shouldHideDiagnosticChatLine,
 } from "@/lib/chat-message-format";
 import { messageToChatLine } from "@/lib/chat-line";
+import { isLclawElectron } from "@/lib/electron-bridge";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
@@ -35,8 +37,24 @@ const {
 
 const copiedDiag = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
+const showGatewayLocal = ref(false);
 
 async function copyDiagnostics(): Promise<void> {
+  let tokenConfigured = !!import.meta.env.VITE_GATEWAY_TOKEN?.trim();
+  let passwordConfigured = !!import.meta.env.VITE_GATEWAY_PASSWORD?.trim();
+  if (isLclawElectron() && window.lclawElectron?.readGatewayLocalConfig) {
+    try {
+      const c = await window.lclawElectron.readGatewayLocalConfig();
+      if (c.token?.trim()) {
+        tokenConfigured = true;
+      }
+      if (c.password?.trim()) {
+        passwordConfigured = true;
+      }
+    } catch {
+      /* 忽略 */
+    }
+  }
   const snapshot = buildDiagnosticsSnapshot({
     version: __APP_VERSION__,
     gatewayWsUrl: url.value,
@@ -48,6 +66,8 @@ async function copyDiagnostics(): Promise<void> {
     sessionCount: sessions.value.length,
     chatLastError: chatError.value,
     messageCount: messages.value.length,
+    gatewayTokenConfigured: tokenConfigured,
+    gatewayPasswordConfigured: passwordConfigured,
   });
   const text = diagnosticsToPrettyJson(snapshot);
   try {
@@ -110,11 +130,22 @@ function onSelectMessage(index: number) {
         <button type="button" class="ghost diag" title="复制脱敏 JSON，便于贴到工单/聊天排查" @click="copyDiagnostics">
           复制诊断信息
         </button>
+        <button
+          v-if="isLclawElectron()"
+          type="button"
+          class="ghost"
+          title="将 Token 等保存到本机（打包版无 .env 时使用）"
+          @click="showGatewayLocal = true"
+        >
+          网关本地设置
+        </button>
         <span v-if="copiedDiag" class="copied">已复制</span>
       </div>
       <p v-if="helloInfo" class="meta">{{ helloInfo }}</p>
       <p v-if="lastError" class="err">{{ lastError }}</p>
     </header>
+
+    <GatewayLocalDialog v-model="showGatewayLocal" />
 
     <div class="main">
       <aside class="left">

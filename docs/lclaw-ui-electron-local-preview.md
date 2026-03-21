@@ -41,6 +41,14 @@ gateway:
 
 端口被占用时，应用会自动尝试 `34128、34129…`；若你固定了白名单端口，请同时设置 **`LCLAW_UI_STATIC_PORT`** 与网关列表一致。
 
+### 1.2 网关 Token / 密码（打包后 `tokenConfigured: false`）
+
+`VITE_GATEWAY_*` 在 **`pnpm build` 时**由 Vite 写入前端；**`.env.development` 不会参与生产构建**。便携 exe 若未使用 `.env.production` 打包，会出现 **`gateway token missing`**。
+
+**推荐（桌面版）**：在界面顶部点 **「网关本地设置」**，将 WebSocket URL、Token 或密码保存到用户数据目录下的 **`gateway-local.json`**（明文），保存后会自动重连。
+
+**备选**：在项目根配置 `.env.production`（可参考 `.env.production.example`）后重新执行 `pnpm build` 再打 exe。
+
 ## 2. 依赖与脚本
 
 | 依赖 | 作用 |

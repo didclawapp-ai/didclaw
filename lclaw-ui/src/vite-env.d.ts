@@ -23,6 +23,16 @@ interface LclawElectronApi {
     | { ok: false; error: string }
   >;
   pickLocalFile(): Promise<string | null>;
+  readGatewayLocalConfig(): Promise<{
+    url?: string;
+    token?: string;
+    password?: string;
+  }>;
+  writeGatewayLocalConfig(payload: {
+    url?: string;
+    token?: string;
+    password?: string;
+  }): Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
 interface Window {

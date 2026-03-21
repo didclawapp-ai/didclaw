@@ -1,0 +1,200 @@
+<script setup lang="ts">
+import { isLclawElectron } from "@/lib/electron-bridge";
+import { gatewayUrlFromEnv, useGatewayStore } from "@/stores/gateway";
+import { computed, ref, watch } from "vue";
+
+const props = defineProps<{
+  modelValue: boolean;
+}>();
+
+const emit = defineEmits<{
+  "update:modelValue": [v: boolean];
+}>();
+
+const gw = useGatewayStore();
+
+const wsUrl = ref("");
+const token = ref("");
+const password = ref("");
+const saveError = ref<string | null>(null);
+const saving = ref(false);
+
+const open = computed({
+  get: () => props.modelValue,
+  set: (v: boolean) => emit("update:modelValue", v),
+});
+
+async function loadForm(): Promise<void> {
+  saveError.value = null;
+  wsUrl.value = gatewayUrlFromEnv();
+  token.value = "";
+  password.value = "";
+  const api = window.lclawElectron;
+  if (!api?.readGatewayLocalConfig) {
+    return;
+  }
+  try {
+    const c = await api.readGatewayLocalConfig();
+    if (c.url?.trim()) {
+      wsUrl.value = c.url.trim();
+    }
+    if (c.token != null) {
+      token.value = c.token;
+    }
+    if (c.password != null) {
+      password.value = c.password;
+    }
+  } catch (e) {
+    saveError.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
+watch(
+  () => props.modelValue,
+  (v) => {
+    if (v && isLclawElectron()) {
+      void loadForm();
+    }
+  },
+);
+
+async function onSave(): Promise<void> {
+  saveError.value = null;
+  const api = window.lclawElectron;
+  if (!api?.writeGatewayLocalConfig) {
+    saveError.value = "非 Electron 环境";
+    return;
+  }
+  saving.value = true;
+  try {
+    const r = await api.writeGatewayLocalConfig({
+      url: wsUrl.value.trim() || undefined,
+      token: token.value.trim() || undefined,
+      password: password.value.trim() || undefined,
+    });
+    if (!r.ok) {
+      saveError.value = r.error;
+      return;
+    }
+    open.value = false;
+    gw.disconnect();
+    gw.connect();
+  } catch (e) {
+    saveError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    saving.value = false;
+  }
+}
+</script>
+
+<template>
+  <div v-if="open" class="backdrop" @click.self="open = false">
+    <div class="panel" role="dialog" aria-labelledby="gw-local-title">
+      <h2 id="gw-local-title">网关本地设置（桌面版）</h2>
+      <p class="hint">
+        保存到本机用户目录下的 <code>gateway-local.json</code>（明文存储，勿分享）。打包后的 exe 不会自动带上开发机
+        <code>.env</code>，请在此填写 token 或密码。
+      </p>
+      <label class="field">
+        <span>WebSocket URL</span>
+        <input v-model="wsUrl" type="text" autocomplete="off" placeholder="ws://127.0.0.1:18789" >
+      </label>
+      <label class="field">
+        <span>Token（与网关 dashboard / openclaw 配置一致）</span>
+        <input v-model="token" type="password" autocomplete="off" placeholder="可选，与密码二选一" >
+      </label>
+      <label class="field">
+        <span>密码</span>
+        <input v-model="password" type="password" autocomplete="off" placeholder="可选" >
+      </label>
+      <p v-if="saveError" class="err">{{ saveError }}</p>
+      <div class="actions">
+        <button type="button" class="ghost" @click="open = false">取消</button>
+        <button type="button" :disabled="saving" @click="onSave">{{ saving ? "保存中…" : "保存并重连" }}</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.panel {
+  width: min(440px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+.hint {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #555;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.field span {
+  color: #333;
+  font-weight: 500;
+}
+.field input {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.err {
+  color: #b71c1c;
+  font-size: 12px;
+  margin: 0 0 12px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+button {
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #222;
+  color: #fff;
+  font-size: 13px;
+}
+button.ghost {
+  background: #fff;
+  color: #222;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+code {
+  font-size: 11px;
+  background: #f5f5f5;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+</style>

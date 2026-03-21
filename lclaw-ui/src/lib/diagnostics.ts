@@ -44,7 +44,14 @@ export function buildDiagnosticsSnapshot(input: {
   sessionCount: number;
   chatLastError: string | null;
   messageCount: number;
+  /** 含 Electron gateway-local.json 等非 env 来源时传入 */
+  gatewayTokenConfigured?: boolean;
+  gatewayPasswordConfigured?: boolean;
 }): DiagnosticsSnapshot {
+  const tokenConfigured =
+    input.gatewayTokenConfigured ?? !!import.meta.env.VITE_GATEWAY_TOKEN?.trim();
+  const passwordConfigured =
+    input.gatewayPasswordConfigured ?? !!import.meta.env.VITE_GATEWAY_PASSWORD?.trim();
   return {
     app: {
       version: input.version,
@@ -56,8 +63,8 @@ export function buildDiagnosticsSnapshot(input: {
       status: input.connectionStatus,
       helloInfo: input.helloInfo,
       lastError: input.gatewayLastError,
-      tokenConfigured: !!import.meta.env.VITE_GATEWAY_TOKEN?.trim(),
-      passwordConfigured: !!import.meta.env.VITE_GATEWAY_PASSWORD?.trim(),
+      tokenConfigured,
+      passwordConfigured,
     },
     session: {
       listError: input.sessionListError,

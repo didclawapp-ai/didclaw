@@ -234,3 +234,57 @@ ipcMain.handle("dialog:openFile", async (): Promise<string | null> => {
   }
   return pathToFileURL(r.filePaths[0]).href;
 });
+
+function gatewayLocalConfigPath(): string {
+  return path.join(app.getPath("userData"), "gateway-local.json");
+}
+
+type LocalGatewayFile = { url?: string; token?: string; password?: string };
+
+ipcMain.handle("gateway:readLocalConfig", async (): Promise<LocalGatewayFile> => {
+  try {
+    const raw = await fs.readFile(gatewayLocalConfigPath(), "utf8");
+    const j = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      url: typeof j.url === "string" ? j.url : undefined,
+      token: typeof j.token === "string" ? j.token : undefined,
+      password: typeof j.password === "string" ? j.password : undefined,
+    };
+  } catch {
+    return {};
+  }
+});
+
+ipcMain.handle(
+  "gateway:writeLocalConfig",
+  async (_e, data: unknown): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (data === null || typeof data !== "object" || Array.isArray(data)) {
+      return { ok: false, error: "参数无效" };
+    }
+    const o = data as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    if (typeof o.url === "string" && o.url.trim()) {
+      out.url = o.url.trim();
+    }
+    if (typeof o.token === "string" && o.token.trim()) {
+      out.token = o.token.trim();
+    }
+    if (typeof o.password === "string" && o.password.trim()) {
+      out.password = o.password.trim();
+    }
+    try {
+      const p = gatewayLocalConfigPath();
+      await fs.mkdir(path.dirname(p), { recursive: true });
+      if (Object.keys(out).length === 0) {
+        await fs.rm(p, { force: true }).catch(() => {
+          /* 文件不存在等 */
+        });
+        return { ok: true };
+      }
+      await fs.writeFile(p, `${JSON.stringify(out, null, 2)}\n`, "utf8");
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
+);

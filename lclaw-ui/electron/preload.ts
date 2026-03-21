@@ -8,4 +8,14 @@ contextBridge.exposeInMainWorld("lclawElectron", {
       | { ok: false; error: string }
     >,
   pickLocalFile: () => ipcRenderer.invoke("dialog:openFile") as Promise<string | null>,
+  readGatewayLocalConfig: () =>
+    ipcRenderer.invoke("gateway:readLocalConfig") as Promise<{
+      url?: string;
+      token?: string;
+      password?: string;
+    }>,
+  writeGatewayLocalConfig: (payload: { url?: string; token?: string; password?: string }) =>
+    ipcRenderer.invoke("gateway:writeLocalConfig", payload) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
 });
