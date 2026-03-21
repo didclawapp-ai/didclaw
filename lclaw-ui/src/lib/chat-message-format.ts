@@ -177,6 +177,58 @@ function isOpenClawCurrentTimeOnlyLine(t: string): boolean {
   return /^Current time:\s+/i.test(line) && /\d{4}-\d{2}-\d{2}/.test(line) && /\bUTC\b/i.test(line);
 }
 
+/** 工具调用失败 JSON，如 read → ENOENT */
+function isOpenClawToolErrorJson(t: string): boolean {
+  const s = t.trim();
+  if (!s.startsWith("{")) {
+    return false;
+  }
+  try {
+    const j = JSON.parse(s) as Record<string, unknown>;
+    if (j.status !== "error" || typeof j.tool !== "string") {
+      return false;
+    }
+    return typeof j.error === "string";
+  } catch {
+    return false;
+  }
+}
+
+/** 注入的 SKILL.md（YAML frontmatter + Markdown） */
+function isOpenClawSkillFileDump(t: string): boolean {
+  const s = t.trim();
+  if (!s.startsWith("---")) {
+    return false;
+  }
+  if (!/\nname:\s*\S+/m.test(s) || !/\ndescription:\s/m.test(s)) {
+    return false;
+  }
+  return (
+    s.length > 180 ||
+    /^---[\s\S]{0,800}---\s*\n#\s+/m.test(s) ||
+    /\nmetadata:\s*\{[\s\S]*"openclaw"/m.test(s)
+  );
+}
+
+/** wttr.in / curl 等着色终端天气块（含剥离 ESC 后残留的 `[38;5;226m`） */
+function isAnsiWeatherOrToolTerminalDump(t: string): boolean {
+  if (t.length < 80) {
+    return false;
+  }
+  const ansiish = t.includes("\u001b[") || /\[\d+;\d+m/.test(t);
+  const boxTable = /┌[─┬┴┼╴╵╶╷]+┐/.test(t) || /├[─┬┴┼]+┤/.test(t);
+  const weatherish =
+    /天气预报[:：]/.test(t) ||
+    /°C|km\/h|局部多云|多云转晴|Partly cloudy|wttr\.in|Open-Meteo/i.test(t);
+  if (ansiish && (weatherish || boxTable)) {
+    return true;
+  }
+  if (boxTable && weatherish && t.length > 200) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * 与「显示诊断/配置」无关：对话列表里仍应折叠的噪音。
  * 完整工具链输出可看右下事件区或浏览器 WS 帧。
@@ -198,6 +250,15 @@ export function shouldAlwaysHideFromChatList(
     return true;
   }
   if (role === "system") {
+    if (isOpenClawToolErrorJson(trim)) {
+      return true;
+    }
+    if (isOpenClawSkillFileDump(trim)) {
+      return true;
+    }
+    if (isAnsiWeatherOrToolTerminalDump(text)) {
+      return true;
+    }
     if (/^\(no output\)$/i.test(trim) || /^no output$/i.test(trim)) {
       return true;
     }
