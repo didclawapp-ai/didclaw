@@ -158,6 +158,25 @@ export function shouldHideDiagnosticChatLine(role: "user" | "assistant" | "syste
   return false;
 }
 
+/** OpenClaw 注入的「新会话 /new」启动说明，常为 user 角色 */
+function isOpenClawSessionBootstrapInjection(t: string): boolean {
+  return /A new session was started via \/new or \/reset/i.test(t);
+}
+
+/** 单行「Current time: … UTC」类运行时注入 */
+function isOpenClawCurrentTimeOnlyLine(t: string): boolean {
+  const lines = t
+    .trim()
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length !== 1) {
+    return false;
+  }
+  const line = lines[0] ?? "";
+  return /^Current time:\s+/i.test(line) && /\d{4}-\d{2}-\d{2}/.test(line) && /\bUTC\b/i.test(line);
+}
+
 /**
  * 与「显示诊断/配置」无关：对话列表里仍应折叠的噪音。
  * 完整工具链输出可看右下事件区或浏览器 WS 帧。
@@ -167,6 +186,14 @@ export function shouldAlwaysHideFromChatList(
   text: string,
 ): boolean {
   const trim = text.trim();
+  if (role === "user" || role === "system") {
+    if (isOpenClawSessionBootstrapInjection(text)) {
+      return true;
+    }
+    if (role === "user" && isOpenClawCurrentTimeOnlyLine(text)) {
+      return true;
+    }
+  }
   if (role === "assistant" && trim.startsWith("[助手·仅元数据]")) {
     return true;
   }

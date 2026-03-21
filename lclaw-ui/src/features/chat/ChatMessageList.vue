@@ -89,7 +89,6 @@ function onRowClick(index: number) {
           top: 0,
           left: 0,
           width: '100%',
-          height: `${item.size}px`,
           transform: `translateY(${item.start}px)`,
         }"
         @click="onRowClick(item.index)"
@@ -109,6 +108,10 @@ function onRowClick(index: number) {
   padding: 4px;
 }
 .row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   padding: 8px;
   padding-bottom: 10px;
   border-radius: 8px;
