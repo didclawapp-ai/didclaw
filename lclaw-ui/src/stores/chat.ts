@@ -8,12 +8,16 @@ import {
   type UiChatMessage,
   isOptimisticUserMessage,
 } from "@/lib/chat-messages";
+import { messageToChatLine } from "@/lib/chat-line";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
 import { formatZodIssues } from "@/lib/zod-format";
 import { generateUUID } from "@/lib/uuid";
 import { defineStore } from "pinia";
-import { nextTick, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
+import { useGatewayStore } from "./gateway";
+import { usePreviewStore } from "./preview";
+import { useSessionStore } from "./session";
 
 /** 单文件体积上限（含待预览的 PDF 等）；图片传入网关另有约 4.5MB 限制 */
 const MAX_COMPOSER_FILE_BYTES = 50 * 1024 * 1024;
@@ -22,13 +26,43 @@ export type PendingComposerFile = {
   id: string;
   file: File;
   objectUrl: string;
+  /** false：不参与本次 chat.send，发送成功后仍保留在列表（仅预览/对照） */
+  includeInSend: boolean;
 };
-import { useGatewayStore } from "./gateway";
-import { usePreviewStore } from "./preview";
-import { useSessionStore } from "./session";
 
 function collectOptimistics(msgs: UiChatMessage[]): OptimisticUserMessage[] {
   return msgs.filter(isOptimisticUserMessage);
+}
+
+function normalizeUserText(s: string): string {
+  return s.trim().replace(/\s+/g, " ");
+}
+
+/** 与列表展示一致：取 incoming 中**最后一条** user 的正文 */
+function lastUserDisplayTextInIncoming(incoming: GatewayChatMessage[]): string | null {
+  for (let i = incoming.length - 1; i >= 0; i--) {
+    const line = messageToChatLine(incoming[i]);
+    if (line.role === "user") {
+      const t = normalizeUserText(line.text);
+      return t.length > 0 ? t : null;
+    }
+  }
+  return null;
+}
+
+/**
+ * 当 incoming 已包含与乐观消息同文的 user 时不再追加（否则会出现「用户话重复两次」，
+ * 常见于服务端已落库 user 但条数仍短于本地含乐观项时的合并分支）。
+ */
+function filterRedundantOptimistics(
+  incoming: GatewayChatMessage[],
+  opts: OptimisticUserMessage[],
+): OptimisticUserMessage[] {
+  const lastUser = lastUserDisplayTextInIncoming(incoming);
+  if (lastUser == null) {
+    return opts;
+  }
+  return opts.filter((o) => normalizeUserText(o.text) !== lastUser);
 }
 
 /** 服务端快照往往比本地少一条刚发的 user（尚未落库）；此时应保留乐观消息，避免只剩「正在生成」一行 */
@@ -41,7 +75,8 @@ function mergeIncomingHistoryWithOptimistics(
     return [...incoming];
   }
   if (incoming.length < previous.length) {
-    return [...incoming, ...opts];
+    const keep = filterRedundantOptimistics(incoming, opts);
+    return [...incoming, ...keep];
   }
   return [...incoming];
 }
@@ -55,6 +90,29 @@ export const useChatStore = defineStore("chat", () => {
   const draft = ref("");
   const lastError = ref<string | null>(null);
   const pendingComposerFiles = ref<PendingComposerFile[]>([]);
+  /** 本轮用户发送起点（用于工具时间线对齐与耗时） */
+  const runStartedAtMs = ref<number | null>(null);
+  /** 最近一次助手 delta 到达时间（卡住检测） */
+  const lastDeltaAtMs = ref<number | null>(null);
+  const lastCompletedRunDurationMs = ref<number | null>(null);
+  const lastCompletedRunAtMs = ref<number | null>(null);
+
+  const agentBusy = computed(() => sending.value || runId.value != null);
+
+  /** 发送中或助手流式进行中时禁止再发（避免与网关并发 run 打架） */
+  const composerPhase = computed(() => {
+    if (sending.value) {
+      return "sending" as const;
+    }
+    if (runId.value == null) {
+      return "idle" as const;
+    }
+    const hasText = Boolean(streamText.value?.trim());
+    if (hasText) {
+      return "streaming" as const;
+    }
+    return "waiting" as const;
+  });
 
   function addPendingComposerFiles(files: File[]): void {
     for (const file of files) {
@@ -70,8 +128,29 @@ export const useChatStore = defineStore("chat", () => {
         id,
         file,
         objectUrl: URL.createObjectURL(file),
+        includeInSend: true,
       });
     }
+  }
+
+  function setPendingIncludeInSend(id: string, includeInSend: boolean): void {
+    const p = pendingComposerFiles.value.find((x) => x.id === id);
+    if (p) {
+      p.includeInSend = includeInSend;
+    }
+  }
+
+  /** 发送成功后移除「参与发送」的项，保留仅预览项 */
+  function removeIncludedPendingFiles(): void {
+    const next: PendingComposerFile[] = [];
+    for (const p of pendingComposerFiles.value) {
+      if (p.includeInSend) {
+        URL.revokeObjectURL(p.objectUrl);
+      } else {
+        next.push(p);
+      }
+    }
+    pendingComposerFiles.value = next;
   }
 
   function removePendingComposerFile(id: string): void {
@@ -100,6 +179,8 @@ export const useChatStore = defineStore("chat", () => {
       messages.value = [];
       streamText.value = null;
       runId.value = null;
+      runStartedAtMs.value = null;
+      lastDeltaAtMs.value = null;
       return;
     }
     if (!silent) {
@@ -117,6 +198,8 @@ export const useChatStore = defineStore("chat", () => {
         messages.value = [];
         streamText.value = null;
         runId.value = null;
+        runStartedAtMs.value = null;
+        lastDeltaAtMs.value = null;
         return;
       }
       const msgs = parsed.data.messages;
@@ -125,6 +208,8 @@ export const useChatStore = defineStore("chat", () => {
       messages.value = mergeIncomingHistoryWithOptimistics(incoming, previous);
       streamText.value = null;
       runId.value = null;
+      runStartedAtMs.value = null;
+      lastDeltaAtMs.value = null;
     } catch (e) {
       lastError.value = describeGatewayError(e);
     } finally {
@@ -141,16 +226,17 @@ export const useChatStore = defineStore("chat", () => {
     const key = session.activeSessionKey;
     const text = draft.value.trim();
     const queueSnapshot = pendingComposerFiles.value.slice();
-    if (!c?.connected || !key || sending.value) {
+    const sendQueue = queueSnapshot.filter((p) => p.includeInSend);
+    if (!c?.connected || !key || sending.value || runId.value != null) {
       return;
     }
-    if (!text && queueSnapshot.length === 0) {
+    if (!text && sendQueue.length === 0) {
       return;
     }
 
     const attachmentsPayload: GatewayChatAttachmentPayload[] = [];
     try {
-      for (const p of queueSnapshot) {
+      for (const p of sendQueue) {
         if (p.file.type.startsWith("image/")) {
           attachmentsPayload.push(await buildImageAttachmentPayload(p.file));
         }
@@ -160,7 +246,7 @@ export const useChatStore = defineStore("chat", () => {
       return;
     }
 
-    const nonImages = queueSnapshot.filter((p) => !p.file.type.startsWith("image/"));
+    const nonImages = sendQueue.filter((p) => !p.file.type.startsWith("image/"));
     let message = text;
     if (nonImages.length > 0) {
       const lines = nonImages
@@ -182,7 +268,10 @@ export const useChatStore = defineStore("chat", () => {
     sending.value = true;
     lastError.value = null;
     const idem = generateUUID();
+    const t0 = Date.now();
     runId.value = idem;
+    runStartedAtMs.value = t0;
+    lastDeltaAtMs.value = null;
     streamText.value = null;
     draft.value = "";
 
@@ -192,7 +281,7 @@ export const useChatStore = defineStore("chat", () => {
     } else if (attachmentsPayload.length > 0) {
       optimisticParts.push("（图片附件）");
     }
-    for (const p of queueSnapshot) {
+    for (const p of sendQueue) {
       optimisticParts.push(`📎${p.file.name}`);
     }
     const optimisticText = optimisticParts.length > 0 ? optimisticParts.join(" ") : "（附件）";
@@ -213,13 +302,15 @@ export const useChatStore = defineStore("chat", () => {
         idempotencyKey: idem,
         ...(attachmentsPayload.length > 0 ? { attachments: attachmentsPayload } : {}),
       });
-      clearPendingComposerFiles();
+      removeIncludedPendingFiles();
     } catch (e) {
       messages.value = messages.value.filter(
         (m) => !isOptimisticUserMessage(m) || m[CHAT_OPTIMISTIC_KEY] !== idem,
       );
       runId.value = null;
       streamText.value = null;
+      runStartedAtMs.value = null;
+      lastDeltaAtMs.value = null;
       lastError.value = describeGatewayError(e);
     } finally {
       sending.value = false;
@@ -241,6 +332,22 @@ export const useChatStore = defineStore("chat", () => {
     }
     streamText.value = null;
     runId.value = null;
+    clearRunTiming();
+  }
+
+  function clearRunTiming(): void {
+    runStartedAtMs.value = null;
+    lastDeltaAtMs.value = null;
+  }
+
+  /** 正常结束一轮时记录耗时（中断 / error 不写入，避免误显示「上一轮」） */
+  function snapshotRunDuration(): void {
+    const start = runStartedAtMs.value;
+    if (start != null) {
+      lastCompletedRunDurationMs.value = Date.now() - start;
+      lastCompletedRunAtMs.value = Date.now();
+    }
+    clearRunTiming();
   }
 
   function handleGatewayEvent(evt: GatewayEventFrame): void {
@@ -261,6 +368,7 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     if (payload.state === "delta") {
+      lastDeltaAtMs.value = Date.now();
       if (payload.runId) {
         runId.value = payload.runId;
       }
@@ -269,10 +377,17 @@ export const useChatStore = defineStore("chat", () => {
         streamText.value = mergeAssistantStreamDelta(streamText.value, chunk);
       }
     } else if (payload.state === "final") {
+      snapshotRunDuration();
+      streamText.value = null;
+      runId.value = null;
       void loadHistory({ silent: true });
     } else if (payload.state === "aborted") {
+      clearRunTiming();
+      streamText.value = null;
+      runId.value = null;
       void loadHistory({ silent: true });
     } else if (payload.state === "error") {
+      clearRunTiming();
       streamText.value = null;
       runId.value = null;
       lastError.value = payload.errorMessage?.trim() || "对话出错（网关返回 error 状态）";
@@ -285,10 +400,17 @@ export const useChatStore = defineStore("chat", () => {
     sending,
     streamText,
     runId,
+    runStartedAtMs,
+    lastDeltaAtMs,
+    lastCompletedRunDurationMs,
+    lastCompletedRunAtMs,
+    agentBusy,
+    composerPhase,
     draft,
     lastError,
     pendingComposerFiles,
     addPendingComposerFiles,
+    setPendingIncludeInSend,
     removePendingComposerFile,
     clearPendingComposerFiles,
     loadHistory,

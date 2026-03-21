@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import AppHeader from "@/app/AppHeader.vue";
+import ChatRunStatusBar from "@/features/chat/ChatRunStatusBar.vue";
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
+import InlineToolTimeline from "@/features/chat/InlineToolTimeline.vue";
 import MessageComposer from "@/features/chat/MessageComposer.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
 import {
@@ -152,6 +154,7 @@ async function pickLocalFileForPreview(): Promise<void> {
             </button>
           </div>
         </div>
+        <ChatRunStatusBar />
         <div v-if="historyLoading" class="muted">加载历史…</div>
         <p
           v-else-if="displayLines.length === 0 && messages.length > 0 && !showDiagnosticMessages"
@@ -159,13 +162,15 @@ async function pickLocalFileForPreview(): Promise<void> {
         >
           本会话消息已按规则隐藏（含全部 <strong>system</strong> 行、审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
         </p>
-        <ChatMessageList
-          v-else-if="!historyLoading && displayLines.length > 0"
-          :lines="displayLines"
-          :selected-index="selectedIndex"
-          :follow-latest="followLatest"
-          @select="onSelectMessage"
-        />
+        <template v-else-if="!historyLoading && displayLines.length > 0">
+          <InlineToolTimeline />
+          <ChatMessageList
+            :lines="displayLines"
+            :selected-index="selectedIndex"
+            :follow-latest="followLatest"
+            @select="onSelectMessage"
+          />
+        </template>
         <p v-else-if="!historyLoading && messages.length === 0" class="muted">暂无消息</p>
         <p v-else-if="!historyLoading" class="muted filter-hint">暂无可显示消息。</p>
 

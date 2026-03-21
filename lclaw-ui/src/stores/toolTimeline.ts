@@ -9,6 +9,8 @@ export type ToolTimelineEntry = {
   event: string;
   summary: string;
   count: number;
+  /** 网关载荷若带 runId 则写入，便于与当前回复轮次对齐 */
+  runId?: string;
 };
 
 const MAX_ENTRIES = 120;
@@ -35,6 +37,14 @@ function summarizePayload(payload: unknown): string {
   }
 }
 
+function extractRunId(payload: unknown): string | undefined {
+  if (payload == null || typeof payload !== "object") {
+    return undefined;
+  }
+  const r = (payload as { runId?: unknown }).runId;
+  return typeof r === "string" && r.length > 0 ? r : undefined;
+}
+
 /**
  * 非 chat 类 Gateway 事件时间线（节流合并写入，减轻高频工具事件压力）。
  */
@@ -52,7 +62,7 @@ export const useToolTimelineStore = defineStore("toolTimeline", () => {
     const session = useSessionStore();
     const activeKey = session.activeSessionKey;
 
-    type Merged = { event: string; summary: string; count: number };
+    type Merged = { event: string; summary: string; count: number; runId?: string };
     const merged: Merged[] = [];
     for (const evt of batch) {
       const p = evt.payload as { sessionKey?: unknown } | undefined;
@@ -65,11 +75,17 @@ export const useToolTimelineStore = defineStore("toolTimeline", () => {
         continue;
       }
       const summary = summarizePayload(evt.payload);
+      const runId = extractRunId(evt.payload);
       const tail = merged[merged.length - 1];
-      if (tail && tail.event === evt.event && tail.summary === summary) {
+      if (
+        tail &&
+        tail.event === evt.event &&
+        tail.summary === summary &&
+        tail.runId === runId
+      ) {
         tail.count += 1;
       } else {
-        merged.push({ event: evt.event, summary, count: 1 });
+        merged.push({ event: evt.event, summary, count: 1, runId });
       }
     }
 
@@ -82,6 +98,7 @@ export const useToolTimelineStore = defineStore("toolTimeline", () => {
         event: m.event,
         summary: m.summary,
         count: m.count,
+        ...(m.runId ? { runId: m.runId } : {}),
       });
     }
     entries.value = next.slice(0, MAX_ENTRIES);
