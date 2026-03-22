@@ -7,6 +7,13 @@ interface ImportMetaEnv {
   readonly VITE_GATEWAY_TOKEN?: string;
   readonly VITE_GATEWAY_PASSWORD?: string;
   readonly VITE_LINK_ALLOWLIST?: string;
+  /** ClawHub Registry 根 URL，默认生产为 https://clawhub.ai */
+  readonly VITE_CLAWHUB_REGISTRY?: string;
+  /**
+   * ClawHub API token（`clawhub login` 或网页签发，形如 `clh_...`）。
+   * 会随 Vite 注入前端包，勿提交含真实值的 .env；泄露请立即在 ClawHub 作废。
+   */
+  readonly VITE_CLAWHUB_TOKEN?: string;
 }
 
 interface ImportMeta {

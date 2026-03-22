@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
+import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
@@ -17,6 +18,7 @@ const { status, lastError, helloInfo, url } = storeToRefs(gw);
 const { sessions, error: sessionsError, activeSessionKey } = storeToRefs(session);
 const { messages, lastError: chatError } = storeToRefs(chat);
 
+const skillsDialogOpen = ref(false);
 const copiedDiag = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 const localSettings = useLocalSettingsStore();
@@ -152,8 +154,18 @@ async function copyDiagnostics(): Promise<void> {
         <h1 class="brand-title"><span class="brand-name">LCLAW</span> UI</h1>
       </div>
       <div class="brand-actions">
-        <p class="brand-tagline">Gateway 会话 · 预览 · 诊断</p>
-        <RouterLink to="/about" class="lc-btn lc-btn-ghost lc-btn-sm about-link">关于</RouterLink>
+        <div class="header-toolbar" role="toolbar" aria-label="快捷功能">
+          <button
+            type="button"
+            class="lc-btn lc-btn-ghost lc-btn-sm"
+            aria-haspopup="dialog"
+            :aria-expanded="skillsDialogOpen"
+            @click="skillsDialogOpen = true"
+          >
+            技能
+          </button>
+          <RouterLink to="/about" class="lc-btn lc-btn-ghost lc-btn-sm about-link">关于</RouterLink>
+        </div>
       </div>
     </div>
     <div class="conn">
@@ -202,6 +214,7 @@ async function copyDiagnostics(): Promise<void> {
     <p v-if="lastError" class="err">{{ lastError }}</p>
 
     <GatewayLocalDialog v-model="showGatewayLocal" />
+    <SkillsManagerDialog v-model="skillsDialogOpen" />
   </header>
 </template>
 
@@ -244,6 +257,12 @@ async function copyDiagnostics(): Promise<void> {
   align-items: center;
   gap: 10px 14px;
 }
+.header-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 .about-link {
   text-decoration: none;
   display: inline-flex;
@@ -270,13 +289,6 @@ async function copyDiagnostics(): Promise<void> {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-.brand-tagline {
-  margin: 0;
-  font-size: 12px;
-  color: var(--lc-text-muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 .conn {
   display: flex;

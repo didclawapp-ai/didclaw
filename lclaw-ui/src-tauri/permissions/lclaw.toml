@@ -22,4 +22,12 @@ commands.allow = [
   "restore_open_claw_config_to_latest_backup",
   "read_open_claw_providers",
   "write_open_claw_providers_patch",
+  "skills_default_install_root",
+  "skills_list_installed",
+  "skills_install_zip_base64",
+  "skills_install_zip_path",
+  "skills_install_from_folder",
+  "skills_delete",
+  "skills_pick_zip_file",
+  "skills_pick_folder",
 ]

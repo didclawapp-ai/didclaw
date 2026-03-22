@@ -112,7 +112,7 @@ gateway:
 - **消息列表**：虚拟列表、流式输出、乐观发送、**中止（abort）** 进行中的生成。  
 - **聊天 RPC**：`chat.history`、`chat.send`、`chat.abort` 等与网关协议对齐（具体方法名以当前 Gateway 版本为准）。  
 - **附件**：组合输入区支持附件能力（受连接状态等约束）。  
-- 顶栏或相关区域可进入 **关于** 等页面。
+- 顶栏可打开 **技能** 管理弹窗、进入 **关于** 等页面。
 
 ---
 
@@ -123,6 +123,13 @@ gateway:
 - **外链**：白名单策略（环境变量 `VITE_LINK_ALLOWLIST` 等，按实现为准）。  
 - **本地文件预览**（桌面端）：图片、PDF、Markdown/文本；Office 文档可通过 **LibreOffice** 转 PDF 后预览（未安装时可提示下载页）。实现见 `src-tauri/src/preview_local.rs`；回归项见迁移计划。  
 - **链接/文件菜单**：另存为、系统默认程序打开、邮件附件准备、分享复制等（见 preload / 主进程实现）。
+
+### 5.1 技能管理（ClawHub / 本机）
+
+- 顶栏 **「技能」** 打开弹窗：**ClawHub** 搜索、列表（可排序刷新）、详情与 **安装**（下载 zip 解压至本机 skills 目录）；**已安装** 列表、**更新**（ClawHub 来源）、**删除**；**本机安装** 通过 ZIP 或文件夹复制安装。  
+- 默认安装根目录：`%USERPROFILE%\.openclaw\skills`（可编辑并记忆到 `localStorage`）。  
+- **网页模式**（`dev:web`）可浏览/搜索 ClawHub；写入本机目录需 **Tauri 桌面版**。  
+- 实现索引：`lclaw-ui/src/features/skills/SkillsManagerDialog.vue`、`lclaw-ui/src/lib/clawhub-api.ts`、`lclaw-ui/src/lib/skills-invoke.ts`、`lclaw-ui/src-tauri/src/skills.rs`；方案见 **`docs/lclaw-ui-skills-功能实施方案.md`**。
 
 ---
 
@@ -160,6 +167,7 @@ gateway:
 | `docs/lclaw-ui-开发步骤.md` | 分阶段开发与勾选 |
 | `docs/lclaw-ui-功能补全清单.md` | 增量功能排期 |
 | `docs/lclaw-ui-桌面端专属-实现方案.md` | 桌面端专属能力 |
+| `docs/lclaw-ui-skills-功能实施方案.md` | 技能（ClawHub）管理与实施说明 |
 | `docs/lclaw-ui-electron-to-tauri-迁移计划.md` | 迁移阶段、§11 进度、§9 回归与手测记录 |
 | `lclaw-ui/src-tauri/src/openclaw_providers.rs`、`openclaw_model_config.rs` | OpenClaw 模型与 Providers 读写（原 TS 逻辑见 Git 历史） |
 | `lclaw-ui/src-tauri/src/openclaw_gateway.rs` | 本机网关进程拉起与端口探测 |

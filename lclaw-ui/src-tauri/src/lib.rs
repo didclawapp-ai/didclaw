@@ -10,6 +10,7 @@ mod openclaw_model_config;
 mod openclaw_providers;
 mod paths;
 mod preview_local;
+mod skills;
 
 #[cfg(not(debug_assertions))]
 mod static_server;
@@ -149,6 +150,14 @@ pub fn run() {
             commands::restore_open_claw_config_to_latest_backup,
             commands::read_open_claw_providers,
             commands::write_open_claw_providers_patch,
+            commands::skills_default_install_root,
+            commands::skills_list_installed,
+            commands::skills_install_zip_base64,
+            commands::skills_install_zip_path,
+            commands::skills_install_from_folder,
+            commands::skills_delete,
+            commands::skills_pick_zip_file,
+            commands::skills_pick_folder,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

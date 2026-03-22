@@ -196,3 +196,48 @@ pub fn read_open_claw_providers() -> Result<Value, String> {
 pub fn write_open_claw_providers_patch(payload: Value) -> Result<Value, String> {
     Ok(crate::openclaw_providers::write_open_claw_providers_patch(payload))
 }
+
+#[tauri::command]
+pub fn skills_default_install_root() -> Result<String, String> {
+    crate::skills::default_install_root()
+}
+
+#[tauri::command]
+pub fn skills_list_installed(install_root: String) -> Result<Value, String> {
+    crate::skills::list_installed(install_root)
+}
+
+#[tauri::command]
+pub fn skills_install_zip_base64(
+    install_root: String,
+    slug: String,
+    zip_base64: String,
+    origin: Option<Value>,
+) -> Result<Value, String> {
+    crate::skills::install_zip_base64(install_root, slug, zip_base64, origin)
+}
+
+#[tauri::command]
+pub fn skills_install_zip_path(install_root: String, slug: String, zip_path: String) -> Result<Value, String> {
+    crate::skills::install_zip_path(install_root, slug, zip_path)
+}
+
+#[tauri::command]
+pub fn skills_install_from_folder(install_root: String, slug: String, source_path: String) -> Result<Value, String> {
+    crate::skills::install_from_folder(install_root, slug, source_path)
+}
+
+#[tauri::command]
+pub fn skills_delete(install_root: String, slug: String) -> Result<(), String> {
+    crate::skills::delete_skill(install_root, slug)
+}
+
+#[tauri::command]
+pub fn skills_pick_zip_file() -> Result<Option<String>, String> {
+    Ok(crate::skills::pick_zip_file())
+}
+
+#[tauri::command]
+pub fn skills_pick_folder() -> Result<Option<String>, String> {
+    Ok(crate::skills::pick_folder())
+}
