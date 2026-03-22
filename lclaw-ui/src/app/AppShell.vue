@@ -17,8 +17,9 @@ import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useFilePreviewStore } from "@/stores/filePreview";
 import { usePreviewStore } from "@/stores/preview";
 import { useSessionStore } from "@/stores/session";
+import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 /** 与参考「流式占位」一致：首包 delta 到达前也显示助手行 */
 const STREAMING_PENDING_LABEL = "正在生成回复…";
@@ -57,6 +58,9 @@ const isPreviewPaneOpen = computed(
     fpLocalError.value != null ||
     fpChatMessagePreview.value != null,
 );
+
+const previewPaneRef = ref<HTMLElement | null>(null);
+useTauriPreviewWindowStrip(isPreviewPaneOpen, previewPaneRef);
 
 const activeSessionLabel = computed(() => {
   const row = activeSession.value;
@@ -262,7 +266,12 @@ async function pickLocalFileForPreview(): Promise<void> {
         <MessageComposer />
       </aside>
 
-      <section v-if="isPreviewPaneOpen" class="right" aria-label="文件预览">
+      <section
+        v-if="isPreviewPaneOpen"
+        ref="previewPaneRef"
+        class="right"
+        aria-label="文件预览"
+      >
         <div class="panel-title">文件预览</div>
         <div class="preview-wrap">
           <PreviewPane />
