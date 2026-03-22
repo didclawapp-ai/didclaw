@@ -1,6 +1,12 @@
 import { buildDeviceAuthPayload } from "@/lib/device-auth-payload";
-import { loadOrCreateDeviceIdentity, signDevicePayload } from "@/lib/device-identity";
+import {
+  loadOrCreateDeviceIdentity,
+  signDevicePayload,
+  type DeviceIdentity,
+} from "@/lib/device-identity";
+import { inferOpenclawGatewayOs } from "@/lib/openclaw-gateway-os";
 import { generateUUID } from "@/lib/uuid";
+import { TauriGatewayWebSocket } from "./tauri-gateway-socket";
 import {
   CONNECT_FAILED_CLOSE_CODE,
   GATEWAY_CLIENT_ID,
@@ -10,6 +16,9 @@ import {
   type GatewayEventFrame,
   type GatewayResponseFrame,
 } from "./gateway-types";
+
+/** 与 `WebSocket.OPEN` 一致；隧道实现未必继承 WebSocket，故用数值比较 */
+const WS_OPEN = typeof WebSocket !== "undefined" ? WebSocket.OPEN : 1;
 
 type Pending = {
   resolve: (value: unknown) => void;
@@ -21,15 +30,27 @@ export type GatewayClientOptions = {
   token?: string;
   password?: string;
   clientVersion?: string;
+  /** Tauri 下由 Rust 建连本机 WS，不经 WebView Origin */
+  useTauriTunnel?: boolean;
+  /**
+   * 默认 {@link GATEWAY_CLIENT_MODE}（webchat）；桌面壳应传 `ui`，与 OpenClaw Control UI 行为一致。
+   */
+  clientMode?: string;
   onHello?: (hello: unknown) => void;
   onEvent?: (evt: GatewayEventFrame) => void;
   onClose?: (info: { code: number; reason: string; error?: GatewayRequestError }) => void;
 };
 
-const OPERATOR_SCOPES = ["operator.admin", "operator.approvals", "operator.pairing"];
+const OPERATOR_SCOPES = [
+  "operator.admin",
+  "operator.approvals",
+  "operator.pairing",
+  "operator.read",
+  "operator.write",
+];
 
 export class GatewayClient {
-  private ws: WebSocket | null = null;
+  private ws: WebSocket | TauriGatewayWebSocket | null = null;
   private pending = new Map<string, Pending>();
   private closed = false;
   private connectNonce: string | null = null;
@@ -38,12 +59,19 @@ export class GatewayClient {
   private backoffMs = 800;
   private pendingConnectError: GatewayRequestError | undefined;
   private lastSeq: number | null = null;
+  /** 与建连并行准备，避免 crypto 耗时导致网关先断开（closed before connect） */
+  private deviceIdentityPromise: Promise<DeviceIdentity | null> | null = null;
 
   constructor(private readonly opts: GatewayClientOptions) {}
 
   start(): void {
     this.closed = false;
     this.backoffMs = 800;
+    if (typeof crypto !== "undefined" && crypto.subtle) {
+      this.deviceIdentityPromise = loadOrCreateDeviceIdentity().catch(() => null);
+    } else {
+      this.deviceIdentityPromise = null;
+    }
     this.connect();
   }
 
@@ -51,6 +79,7 @@ export class GatewayClient {
     this.closed = true;
     this.ws?.close();
     this.ws = null;
+    this.deviceIdentityPromise = null;
     this.pendingConnectError = undefined;
     this.flushPending(new Error("gateway client stopped"));
     if (this.connectTimer !== null) {
@@ -60,11 +89,11 @@ export class GatewayClient {
   }
 
   get connected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.ws?.readyState === WS_OPEN;
   }
 
   request<T = unknown>(method: string, params?: unknown): Promise<T> {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== WS_OPEN) {
       return Promise.reject(new Error("gateway not connected"));
     }
     const id = generateUUID();
@@ -83,10 +112,7 @@ export class GatewayClient {
     if (this.closed) {
       return;
     }
-    this.ws = new WebSocket(this.opts.url);
-    this.ws.addEventListener("open", () => this.queueConnect());
-    this.ws.addEventListener("message", (ev) => this.handleMessage(String(ev.data ?? "")));
-    this.ws.addEventListener("close", (ev) => {
+    const onClose = (ev: CloseEvent) => {
       const reason = String(ev.reason ?? "");
       const connectError = this.pendingConnectError;
       this.pendingConnectError = undefined;
@@ -100,8 +126,30 @@ export class GatewayClient {
       if (!this.closed && !this.shouldSuppressReconnect(ev.code, connectError)) {
         this.scheduleReconnect();
       }
-    });
-    this.ws.addEventListener("error", () => {
+    };
+
+    if (this.opts.useTauriTunnel) {
+      const ws = new TauriGatewayWebSocket(this.opts.url, {
+        token: this.opts.token,
+        password: this.opts.password,
+      });
+      this.ws = ws;
+      ws.addEventListener("open", () => this.queueConnect());
+      ws.addEventListener("message", (ev) => this.handleMessage(String(ev.data ?? "")));
+      ws.addEventListener("close", onClose);
+      ws.addEventListener("error", () => {
+        /* close handler runs */
+      });
+      void ws.start();
+      return;
+    }
+
+    const ws = new WebSocket(this.opts.url);
+    this.ws = ws;
+    ws.addEventListener("open", () => this.queueConnect());
+    ws.addEventListener("message", (ev) => this.handleMessage(String(ev.data ?? "")));
+    ws.addEventListener("close", onClose);
+    ws.addEventListener("error", () => {
       /* close handler runs */
     });
   }
@@ -138,9 +186,13 @@ export class GatewayClient {
     if (this.connectTimer !== null) {
       clearTimeout(this.connectTimer);
     }
+    // 官方协议要求先收 connect.challenge，再用其 nonce 做 device 签名后发 connect。
+    // 若在收到挑战前抢发 connect（nonce 为空），2026.3+ 网关会直接掐线（日志常见 closed before connect / 1006）。
+    // 见 https://docs.molt.bot/gateway/protocol
+    const challengeFallbackMs = 12_000;
     this.connectTimer = window.setTimeout(() => {
       void this.sendConnect();
-    }, 750);
+    }, challengeFallbackMs);
   }
 
   private handleMessage(raw: string): void {
@@ -231,6 +283,9 @@ export class GatewayClient {
   private async sendConnectInner(): Promise<void> {
     const isSecureContext = typeof crypto !== "undefined" && !!crypto.subtle;
     const role = "operator";
+    const clientMode = this.opts.clientMode ?? GATEWAY_CLIENT_MODE;
+    const platformOs = inferOpenclawGatewayOs();
+    const deviceFamily = "desktop";
     const token = this.opts.token?.trim() || undefined;
     const password = this.opts.password?.trim() || undefined;
     const auth =
@@ -252,18 +307,25 @@ export class GatewayClient {
       | undefined;
 
     if (isSecureContext) {
-      const deviceIdentity = await loadOrCreateDeviceIdentity();
+      const deviceIdentity =
+        (this.deviceIdentityPromise != null ? await this.deviceIdentityPromise : null) ??
+        (await loadOrCreateDeviceIdentity());
+      if (!deviceIdentity) {
+        throw new Error("device identity unavailable");
+      }
       const signedAtMs = Date.now();
       const nonce = this.connectNonce ?? "";
       const payload = buildDeviceAuthPayload({
         deviceId: deviceIdentity.deviceId,
         clientId: GATEWAY_CLIENT_ID,
-        clientMode: GATEWAY_CLIENT_MODE,
+        clientMode,
         role,
         scopes: OPERATOR_SCOPES,
         signedAtMs,
         token: token ?? null,
         nonce,
+        platformOs,
+        deviceFamily,
       });
       const signature = await signDevicePayload(deviceIdentity.privateKey, payload);
       device = {
@@ -275,14 +337,19 @@ export class GatewayClient {
       };
     }
 
+    if (!this.ws || this.ws.readyState !== WS_OPEN) {
+      throw new Error("gateway closed before connect request");
+    }
+
     const params = {
       minProtocol: PROTOCOL_VERSION,
       maxProtocol: PROTOCOL_VERSION,
       client: {
         id: GATEWAY_CLIENT_ID,
-        version: this.opts.clientVersion ?? "lclaw-ui/0.1.0",
-        platform: typeof navigator !== "undefined" ? navigator.platform : "web",
-        mode: GATEWAY_CLIENT_MODE,
+        version: this.opts.clientVersion ?? "lclaw-ui/0.2.1",
+        platform: platformOs,
+        deviceFamily,
+        mode: clientMode,
       },
       role,
       scopes: OPERATOR_SCOPES,

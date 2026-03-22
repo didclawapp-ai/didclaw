@@ -140,6 +140,39 @@ pub async fn ensure_open_claw_gateway(
 }
 
 #[tauri::command]
+pub async fn gateway_tunnel_open(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, std::sync::Arc<tokio::sync::Mutex<crate::gateway_tunnel::GatewayTunnelSlot>>>,
+    ws_url: String,
+    token: Option<String>,
+    password: Option<String>,
+) -> Result<(), String> {
+    crate::gateway_tunnel::gateway_tunnel_open(
+        app,
+        std::sync::Arc::clone(&state),
+        ws_url,
+        token,
+        password,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn gateway_tunnel_send(
+    state: tauri::State<'_, std::sync::Arc<tokio::sync::Mutex<crate::gateway_tunnel::GatewayTunnelSlot>>>,
+    text: String,
+) -> Result<(), String> {
+    crate::gateway_tunnel::gateway_tunnel_send(std::sync::Arc::clone(&state), text).await
+}
+
+#[tauri::command]
+pub async fn gateway_tunnel_close(
+    state: tauri::State<'_, std::sync::Arc<tokio::sync::Mutex<crate::gateway_tunnel::GatewayTunnelSlot>>>,
+) -> Result<(), String> {
+    crate::gateway_tunnel::gateway_tunnel_close(std::sync::Arc::clone(&state)).await
+}
+
+#[tauri::command]
 pub fn read_open_claw_model_config() -> Result<Value, String> {
     Ok(crate::openclaw_model_config::read_open_claw_model_config())
 }

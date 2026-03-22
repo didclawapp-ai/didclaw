@@ -247,6 +247,7 @@
 
 | 风险 | 影响 | 缓解 |
 |------|------|------|
+| **安装后闪退**（生产 `setup` 失败） | 无法启动 | Tauri 2 前端默认**仅嵌入 exe**，本地静态服务需在安装目录有 **`dist/index.html`**：在 `tauri.conf.json` 的 `bundle.resources` 中加入 `../dist/`（见仓库当前配置）；`static_server::resolve_bundle_dist` 会按 `dist/` 等路径解析 |
 | Gateway 拒绝 Tauri 的 Origin | 无法连接 | 阶段 2 尽早验证；兜底 127.0.0.1 HTTP |
 | WebView2 未安装（老 Win） | 无法启动 | 安装引导或文档说明；可选引导下载 Evergreen |
 | LibreOffice 路径/权限差异 | 预览失败 | 保留环境变量 `LIBREOFFICE_PATH` 与现逻辑一致 |

@@ -1,10 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
+  "description": "默认权限；生产默认从 http://127.0.0.1:34127 加载时需 remote 以注入 IPC（与 static_server 端口一致）",
   "windows": [
     "main"
   ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:34127/*",
+      "http://127.0.0.1:34127/",
+      "http://127.0.0.1:34127"
+    ]
+  },
   "permissions": [
     "core:default",
     "invoke-all"

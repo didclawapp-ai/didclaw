@@ -27,7 +27,12 @@ export class GatewayRequestError extends Error {
 
 export const PROTOCOL_VERSION = 3;
 export const GATEWAY_CLIENT_ID = "openclaw-control-ui";
-export const GATEWAY_CLIENT_MODE = "webchat";
+/** 纯浏览器 / 非桌面壳 */
+export const GATEWAY_CLIENT_MODE_WEBCHAT = "webchat";
+/** Electron、Tauri 等桌面壳：与官方 Control UI 一致，便于本机静默配对等逻辑 */
+export const GATEWAY_CLIENT_MODE_UI = "ui";
+/** 默认（浏览器联调）；桌面壳在 store 中覆盖为 {@link GATEWAY_CLIENT_MODE_UI} */
+export const GATEWAY_CLIENT_MODE = GATEWAY_CLIENT_MODE_WEBCHAT;
 
 /** Browser close code used by upstream when connect RPC fails */
 export const CONNECT_FAILED_CLOSE_CODE = 4008;

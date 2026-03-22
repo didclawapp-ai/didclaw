@@ -24,7 +24,7 @@ fn is_loopback_host(host: &str) -> bool {
     )
 }
 
-fn parse_gateway_ws_tcp_target(ws_url: &str) -> Option<(String, u16)> {
+pub(crate) fn parse_gateway_ws_tcp_target(ws_url: &str) -> Option<(String, u16)> {
     let u = Url::parse(ws_url.trim()).ok()?;
     let scheme = u.scheme();
     if scheme != "ws" && scheme != "wss" {
@@ -79,6 +79,35 @@ async fn wait_for_tcp_port_open(host: &str, port: u16, total: Duration, interval
         tokio::time::sleep(interval).await;
     }
     false
+}
+
+/// 与 OpenClaw `resolveGatewayPort` 对齐：读 `~/.openclaw/openclaw.json` 的 `gateway.port`（数字或字符串）。
+fn read_gateway_port_from_openclaw_json() -> Option<u16> {
+    let path = crate::openclaw_common::openclaw_config_path().ok()?;
+    let raw = std::fs::read_to_string(&path).ok()?;
+    let v: Value = serde_json::from_str(&raw).ok()?;
+    let port_val = v.get("gateway")?.get("port")?;
+    match port_val {
+        Value::Number(n) => n.as_u64().and_then(|u| u16::try_from(u).ok()),
+        Value::String(s) => s.trim().parse::<u16>().ok(),
+        _ => None,
+    }
+}
+
+fn format_port_mismatch_hint(ws_port: u16, host: &str) -> String {
+    let Some(cfg_port) = read_gateway_port_from_openclaw_json() else {
+        return String::new();
+    };
+    if cfg_port == ws_port {
+        return String::new();
+    }
+    let mut s = format!(
+        " 检测到 openclaw.json 中 gateway.port={cfg_port}，与当前连接地址端口 {ws_port} 不一致；请在「本机设置 → 连助手」将 WebSocket 改为 ws://{host}:{cfg_port}（或改配置使端口一致）。"
+    );
+    if probe_port_once(host, cfg_port, Duration::from_millis(800)) {
+        s.push_str(&format!(" 当前端口 {cfg_port} 已可连接，优先改连接地址。"));
+    }
+    s
 }
 
 fn resolve_open_claw_executable(custom: Option<&str>) -> Option<String> {
@@ -242,20 +271,46 @@ pub async fn ensure_open_claw_gateway_running(
         *g = Some(child);
     }
 
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    {
+        let mut g = MANAGED_CHILD.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(ref mut c) = *g {
+            match c.try_wait() {
+                Ok(Some(status)) => {
+                    drop(g);
+                    kill_managed_gateway_process();
+                    let code = status
+                        .code()
+                        .map(|c| c.to_string())
+                        .unwrap_or_else(|| "非零/信号".into());
+                    return Ok(json!({
+                        "ok": false,
+                        "error": format!(
+                            "openclaw gateway 启动后很快退出（退出码 {code}）。请在 CMD/PowerShell 手动执行「openclaw gateway」查看报错；常见原因：配置校验失败、端口被占用、依赖未就绪。若仅本应用拉不起进程，请在「本机设置」填写 openclaw 的完整路径（如 npm 全局目录下的 openclaw.cmd）。"
+                        )
+                    }));
+                }
+                Ok(None) => {}
+                Err(_) => {}
+            }
+        }
+    }
+
     let up = wait_for_tcp_port_open(
         &host,
         port,
-        Duration::from_secs(45),
+        Duration::from_secs(90),
         Duration::from_millis(350),
     )
     .await;
 
     if !up {
         kill_managed_gateway_process();
+        let hint = format_port_mismatch_hint(port, &host);
         return Ok(json!({
             "ok": false,
             "error": format!(
-                "已在后台执行 openclaw gateway，但端口 {port} 在超时内仍未就绪。请检查本机防火墙、openclaw.json 里的 gateway.port 是否与连接地址一致。"
+                "已在后台执行 openclaw gateway，但端口 {port} 在约 90 秒内仍未监听。请检查：1) 防火墙是否拦截本机环回；2) 该端口是否被其它程序占用；3) openclaw.json 里 gateway.port 是否与「连接地址」一致。{hint} 仍失败时请在终端运行「openclaw gateway」查看实时日志。"
             )
         }));
     }

@@ -1,6 +1,12 @@
 import { GatewayClient } from "@/features/gateway/gateway-client";
+import {
+  GATEWAY_CLIENT_MODE,
+  GATEWAY_CLIENT_MODE_UI,
+} from "@/features/gateway/gateway-types";
 import { gatewayHelloOkSchema } from "@/features/gateway/schemas";
 import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { isLclawDesktop } from "@/lib/desktop-api";
+import { isTauri } from "@tauri-apps/api/core";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
@@ -109,6 +115,8 @@ export const useGatewayStore = defineStore("gateway", () => {
         url: opts.url,
         token: opts.token,
         password: opts.password,
+        clientMode: isLclawDesktop() ? GATEWAY_CLIENT_MODE_UI : GATEWAY_CLIENT_MODE,
+        useTauriTunnel: isTauri(),
         onHello: (hello) => {
           const parsed = gatewayHelloOkSchema.safeParse(hello);
           if (parsed.success && parsed.data.server?.version) {

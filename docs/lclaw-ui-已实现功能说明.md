@@ -11,7 +11,7 @@
 
 | 形态 | 说明 |
 |------|------|
-| **桌面端（推荐）** | **Tauri 2**（WebView2）：`pnpm dev:tauri` / `pnpm dist:win`；本地静态资源（生产态 127.0.0.1）、本机设置、预览、OpenClaw 配置与网关子进程等与迁移前 Electron 版能力对齐，详见 `docs/lclaw-ui-electron-to-tauri-迁移计划.md`。 |
+| **桌面端（推荐）** | **Tauri 2**（WebView2）：`pnpm dev:tauri` / `pnpm dist:win`；**生产默认**在 **`http://127.0.0.1:34127`** 加载打包前端（与 OpenClaw 网关本机 **Origin 校验**兼容，**普通用户无需改网关配置**）；可选 `LCLAW_UI_BUILTIN_FRONTEND=1` 改用内置 `tauri.localhost`（需网关白名单，见 **2.5**）。本机设置、预览、OpenClaw 配置与网关子进程等见 `docs/lclaw-ui-electron-to-tauri-迁移计划.md`。 |
 | **浏览器开发联调** | `pnpm dev` / `dev:web`：通过环境变量 `VITE_GATEWAY_URL`、`VITE_GATEWAY_TOKEN`、`VITE_GATEWAY_PASSWORD` 指向网关；无桌面本机 IPC。 |
 
 打包发布（需在 **`lclaw-ui` 目录**执行）：
@@ -50,6 +50,29 @@
 
 - 建立连接、**connect** Hello、下行事件分发。  
 - 断线后 **自动重连**（含退避）；用户 **断开开关** 或切换配置时会取消孤儿重连，避免多实例抢连。
+
+### 2.5 何时需要配置 `gateway.controlUi.allowedOrigins`
+
+**默认（推荐，面向普通用户）**  
+安装版会在本机启动仅回环地址可访问的静态服务，并让窗口加载 **`http://127.0.0.1:34127/...`**。此时 WebSocket 握手的 **`Origin`** 为 **`http://127.0.0.1:34127`**（loopback）。OpenClaw 网关在 **客户端为本机直连**（`isLocalClient`）且 Origin 主机为 loopback 时，会走 **`local-loopback`** 分支，**一般不需要** 在网关里配置 `allowedOrigins`。若网关跑在 **另一台机器** 或经 **反向代理** 导致连接不被视为本机直连，则需按 OpenClaw 文档配置 **`trustedProxies` / `allowedOrigins`**。
+
+**例外：改用内置前端时**  
+若启动前设置环境变量 **`LCLAW_UI_BUILTIN_FRONTEND=1`**，生产包将像默认 Tauri 那样从 **`https://tauri.localhost` / `http://tauri.localhost`** 加载页面，此时 **必须** 在网关配置中允许对应 Origin，否则会出现 `origin not allowed ... allowedOrigins`。可合并例如：
+
+```yaml
+gateway:
+  controlUi:
+    allowedOrigins:
+      - "https://tauri.localhost"
+      - "http://tauri.localhost"
+      - "http://localhost:5173"
+```
+
+（`http://localhost:5173` 为本地 **`pnpm dev:tauri` / `dev:web`** 常见开发源，端口以实际为准。）
+
+**端口占用**：静态服务固定 **`34127`**（可用环境变量 **`LCLAW_UI_STATIC_PORT`** 修改）；若修改端口，需同步修改 `src-tauri/capabilities/default.json` 里 `remote.urls` 中的端口，否则 Tauri IPC 可能异常。
+
+修改网关配置后需 **重启网关** 再重连。
 
 ---
 
