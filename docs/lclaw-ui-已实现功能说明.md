@@ -12,7 +12,7 @@
 | 形态 | 说明 |
 |------|------|
 | **桌面端（推荐）** | **Electron**：本地静态资源、完整本机设置、文件预览与系统集成能力（当前功能最全）。 |
-| **桌面端（Tauri，迁移中）** | `pnpm dev:tauri` / `pnpm dist:win:tauri`：体积小（WebView2）；网关连接、`gateway-local`、自动拉起 openclaw、多数系统集成、**本地文件预览（含 LibreOffice 转 PDF）** 已接。**OpenClaw 模型/Providers 读写与备份恢复** 在 Tauri 侧仍为占位，详见 `docs/lclaw-ui-electron-to-tauri-迁移计划.md` §11.1。 |
+| **桌面端（Tauri，迁移中）** | `pnpm dev:tauri` / `pnpm dist:win:tauri`：体积小（WebView2）；网关连接、`gateway-local`、自动拉起 openclaw、系统集成、本地预览、**`openclaw.json` 默认模型读/写与从备份恢复** 已接。**② AI 账号（Providers）** 在 Tauri 侧仍为占位（阶段 6b），详见迁移计划 §11.1。 |
 | **浏览器开发联调** | `pnpm dev` / `dev:web`：通过环境变量 `VITE_GATEWAY_URL`、`VITE_GATEWAY_TOKEN`、`VITE_GATEWAY_PASSWORD` 指向网关；无桌面本机 IPC。 |
 
 打包发布（需在 **`lclaw-ui` 目录**执行）：
@@ -58,7 +58,7 @@
 
 ## 3. 本机设置（桌面端）
 
-通过顶栏 **「设置」** 打开 **本机设置** 对话框（分步 Tab）。**Electron** 下下列能力完整；**Tauri** 下「① 连助手」等与网关相关的项已对齐，**② AI 账号 / ③ 选模型** 依赖 OpenClaw 配置 IPC，Tauri 侧尚未移植完成（见迁移计划 §11.1）。
+通过顶栏 **「设置」** 打开 **本机设置** 对话框（分步 Tab）。**Electron** 下下列能力完整；**Tauri** 下「① 连助手」「③ 选模型」（`agents.defaults.model` / `models`）已对齐；**② AI 账号（Providers）** 仍依赖 6b 移植（见迁移计划 §11.1）。
 
 ### 3.1 ① 连助手
 
@@ -81,7 +81,8 @@
 - 读取 / 写入 **`openclaw.json`** 中 **`agents.defaults.model.primary`**（默认对话模型）。  
 - 维护 **`agents.defaults.models`** 别名表（模型 ref → `alias`）。  
 - 支持从预设快速选择常见主模型。  
-- 支持 **从最近备份恢复** `openclaw.json`（若实现提供该 IPC）。
+- 支持 **从最近备份恢复** `openclaw.json`（若实现提供该 IPC）。  
+- **Tauri**：③ 选模型与备份恢复已接 IPC，读写路径与备份文件命名与 Electron 一致；② Providers 仍为后续阶段（迁移计划 6b）。
 
 ---
 

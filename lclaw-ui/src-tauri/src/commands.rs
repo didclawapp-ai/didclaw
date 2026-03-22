@@ -139,21 +139,19 @@ pub async fn ensure_open_claw_gateway(
     crate::openclaw_gateway::ensure_open_claw_gateway_running(app, ws_url).await
 }
 
-/// 完整读取 `~/.openclaw` 尚未移植；返回空模型表以免顶栏报错。
 #[tauri::command]
 pub fn read_open_claw_model_config() -> Result<Value, String> {
-    Ok(json!({"ok": true, "model": {}, "models": {}}))
+    Ok(crate::openclaw_model_config::read_open_claw_model_config())
 }
 
 #[tauri::command]
 pub fn write_open_claw_model_config(payload: Value) -> Result<Value, String> {
-    let _ = payload;
-    Ok(json!({"ok": false, "error": "Tauri: OpenClaw 模型配置写入尚未实现"}))
+    Ok(crate::openclaw_model_config::write_open_claw_model_config(payload))
 }
 
 #[tauri::command]
 pub fn restore_open_claw_config_to_latest_backup() -> Result<Value, String> {
-    Ok(json!({"ok": false, "error": "Tauri: 备份恢复尚未实现"}))
+    Ok(crate::openclaw_model_config::restore_open_claw_config_to_latest_backup())
 }
 
 #[tauri::command]

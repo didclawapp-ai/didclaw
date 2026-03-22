@@ -319,11 +319,11 @@
 | **3** 低风险 Commands | **基本完成** | 文件对话框、系统打开、剪贴板、另存为、邮件准备（Windows）、`gateway-local` 读写、`desktop-api` 已接；LibreOffice **检测/安装引导对话框** 仍为占位 |
 | **4** 本地预览 + LibreOffice | **基本完成** | `preview_open_local`：图片/PDF/文本/Markdown/Office→PDF（`soffice`）与 Electron 主流程对齐；`preview_libre_office_status` / 安装引导对话框已接；**中文路径 Office 转 PDF** 需在 Windows 上手工回归（计划 §9） |
 | **5** 网关子进程 | **已完成** | 环回 WS 解析、TCP 探测、`openclaw gateway` 拉起、`RunEvent::Exit` 按 `stopManagedGatewayOnQuit` 清理 |
-| **6a** 模型配置 | **未开始** | `read_open_claw_model_config` 返回空表；`write` / `restore` 返回未实现 |
+| **6a** 模型配置 | **已完成** | `read` / `write` / `restore` 与 TS 的 `extractAgentsDefaults`、备份命名、`findLatestBackupFile`（按 mtime）行为对齐；不涉及 providers / auth-profiles（属 6b） |
 | **6b** Providers | **未开始** | `read_open_claw_providers` / `write_open_claw_providers_patch` 未实现 |
 | **7** 移除 Electron | **未开始** | 仍以双轨为主 |
 
-**里程碑**：M1、M2 **已达**；M3 **未达**（模型侧占位）；M3.5、M4 **未达**。
+**里程碑**：M1、M2 **已达**；M3 **基本可达**（模型读/写/恢复已在 Tauri 接好；Provider Tab 仍属 6b）；M3.5、M4 **未达**。
 
 **剩余工作量（相对 §10）**：大头在 **阶段 4**、**6a/6b**（`openclaw-config.ts` 对齐）、**阶段 7**；阶段 0 以文档闭合为主。
 
@@ -337,5 +337,5 @@
 
 ---
 
-*文档版本：1.3*（§11.1：阶段 4 本地预览/LibreOffice 在 Tauri 侧已接主流程）  
+*文档版本：1.4*（§11.1：阶段 6a 模型配置 IPC 已在 Tauri 对齐）  
 *对应仓库路径：`lclaw-ui`（Electron 源码位于 `lclaw-ui/electron/`）；Gateway 行为参考同仓 `openclaw-src/`*
