@@ -4,7 +4,7 @@ import {
   GATEWAY_CLIENT_MODE_UI,
 } from "@/features/gateway/gateway-types";
 import { gatewayHelloOkSchema } from "@/features/gateway/schemas";
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getLclawDesktopApi } from "@/lib/electron-bridge";
 import { isLclawDesktop } from "@/lib/desktop-api";
 import { isTauri } from "@tauri-apps/api/core";
 import { describeGatewayError } from "@/lib/gateway-errors";
@@ -35,7 +35,7 @@ async function loadGatewayConnectOptions(): Promise<ConnectOpts> {
   let password = import.meta.env.VITE_GATEWAY_PASSWORD?.trim() || undefined;
 
   const desktop = getLclawDesktopApi();
-  if (isLclawElectron() && desktop?.readGatewayLocalConfig) {
+  if (desktop?.readGatewayLocalConfig) {
     try {
       const local = await desktop.readGatewayLocalConfig();
       if (local.url?.trim()) {
@@ -99,7 +99,7 @@ export const useGatewayStore = defineStore("gateway", () => {
       url.value = opts.url;
 
       const desktop = getLclawDesktopApi();
-      if (isLclawElectron() && desktop?.ensureOpenClawGateway) {
+      if (desktop?.ensureOpenClawGateway) {
         const ensured = await desktop.ensureOpenClawGateway({ wsUrl: opts.url });
         if (req !== connectRequestId) {
           return;

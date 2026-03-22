@@ -20,6 +20,7 @@ const {
   previewTextError,
   previewTextLoading,
   chatMessagePreview,
+  savableEmbeddedImage,
 } = storeToRefs(filePreview);
 
 const chatMessageMarkdownHtml = computed(() => {
@@ -90,6 +91,13 @@ async function onLibreOfficeRetry(): Promise<void> {
     loRetrying.value = false;
   }
 }
+
+async function onSaveEmbeddedImage(): Promise<void> {
+  const r = await filePreview.saveEmbeddedImageAs();
+  if (!r.ok) {
+    window.alert(r.error);
+  }
+}
 </script>
 
 <template>
@@ -107,11 +115,20 @@ async function onLibreOfficeRetry(): Promise<void> {
             : target?.kind
         }}</span>
         <button v-if="target && canOpenExternal" type="button" @click="openExternal">新窗口打开</button>
+        <button
+          v-if="savableEmbeddedImage"
+          type="button"
+          class="save-embedded"
+          @click="onSaveEmbeddedImage"
+        >
+          另存为…
+        </button>
         <button type="button" class="ghost" @click="filePreview.clear">关闭预览</button>
       </template>
       <template v-else>
         <p class="hint muted">
           点击左侧消息里的 <strong>高亮链接</strong> 可预览文件；若某行提示「列表截断」，<strong>点该行</strong>可在右侧查看全文。
+          含 <strong>data:image/…;base64,…</strong> 的助手/用户消息<strong>点该行</strong>可在右侧预览并另存。
           支持 PDF / 图片 / <strong>Markdown</strong> / <strong>纯文本</strong>；Office 需桌面版或在线嵌入。
         </p>
         <button v-if="isLclawElectron()" type="button" class="toolbar-pick" @click="pickLocalFile">

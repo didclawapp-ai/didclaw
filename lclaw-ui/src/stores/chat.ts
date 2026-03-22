@@ -11,6 +11,7 @@ import {
 import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
 import { OPENCLAW_AFTER_WRITE_HINT } from "@/lib/openclaw-config-hint";
+import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
 import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
@@ -219,6 +220,11 @@ export const useChatStore = defineStore("chat", () => {
       return;
     }
     if (next === openClawPrimaryModel.value.trim()) {
+      return;
+    }
+    const primaryBlock = describeOpenClawPrimaryModelIncompatibility(next);
+    if (primaryBlock) {
+      openClawPrimaryPickerError.value = primaryBlock;
       return;
     }
     const api = getLclawDesktopApi();

@@ -5,6 +5,7 @@ import {
   PROVIDER_SETUP_PRESETS,
   type ProviderSetupPreset,
 } from "@/lib/openclaw-presets";
+import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
 import { OPENCLAW_PROVIDER_ID_RE } from "@/lib/openclaw-provider-id";
 import { gatewayUrlFromEnv, useGatewayStore } from "@/stores/gateway";
 import { useChatStore } from "@/stores/chat";
@@ -572,6 +573,11 @@ async function onSaveModel(): Promise<void> {
   const p = primaryModel.value.trim();
   if (!p) {
     modelError.value = "请先填写「默认使用的模型」那一栏。";
+    return;
+  }
+  const primaryBlock = describeOpenClawPrimaryModelIncompatibility(p);
+  if (primaryBlock) {
+    modelError.value = primaryBlock;
     return;
   }
   const models: Record<string, Record<string, unknown>> = {};

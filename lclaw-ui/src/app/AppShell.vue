@@ -126,15 +126,19 @@ const selectedIndex = computed(() => preview.getSelectedIndex(displayLines.value
 function onSelectMessage(index: number) {
   preview.selectLine(index, displayLines.value.length);
   const line = displayLines.value[index];
-  if (line) {
-    filePreview.showChatMessageFullText({
-      role: line.role,
-      text: line.text,
-      listText: line.listText,
-    });
-  } else {
+  if (!line) {
     filePreview.clearChatMessagePreview();
+    return;
   }
+  if (filePreview.tryOpenEmbeddedDataImageFromText(line.text)) {
+    return;
+  }
+  filePreview.forgetEmbeddedChatImageIfAny();
+  filePreview.showChatMessageFullText({
+    role: line.role,
+    text: line.text,
+    listText: line.listText,
+  });
 }
 
 async function pickLocalFileForPreview(): Promise<void> {

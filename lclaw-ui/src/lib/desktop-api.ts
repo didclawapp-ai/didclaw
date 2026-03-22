@@ -17,6 +17,8 @@ function tauriApi(): LclawElectronApi {
     openLocalPreview: (fileUrl) => invoke("preview_open_local", { fileUrl }),
     openFileUrlInSystem: (fileUrl) => invoke("shell_open_file_url", { fileUrl }),
     saveLocalFileCopyAs: (fileUrl) => invoke("file_save_copy_as", { fileUrl }),
+    saveBase64FileAs: (base64Data, defaultFileName) =>
+      invoke("dialog_save_base64_file", { base64Data, defaultFileName }),
     prepareEmailWithLocalFile: (fileUrl) =>
       invoke("shell_prepare_email_with_local_file", { fileUrl }),
     copyLocalFileForShare: (fileUrl, label) =>

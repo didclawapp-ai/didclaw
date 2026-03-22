@@ -40,6 +40,11 @@ interface LclawElectronApi {
   saveLocalFileCopyAs(
     fileUrl: string,
   ): Promise<{ ok: true; saved: boolean } | { ok: false; error: string }>;
+  /** 将图片 base64 正文另存为本地文件（聊天内嵌图等） */
+  saveBase64FileAs?(
+    base64Data: string,
+    defaultFileName: string,
+  ): Promise<{ ok: true; saved: boolean } | { ok: false; error: string }>;
   /** 在文件夹中显示并复制路径，便于作为邮件附件 */
   prepareEmailWithLocalFile(fileUrl: string): Promise<{ ok: true } | { ok: false; error: string }>;
   /** 复制文件名、路径与 file URL 到剪贴板 */

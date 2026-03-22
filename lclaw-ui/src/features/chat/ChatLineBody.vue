@@ -59,6 +59,10 @@ function canElectronLocalOps(url: string): boolean {
 
 function onLink(url: string, label: string, ev: MouseEvent): void {
   ev.stopPropagation();
+  const u = url.trim();
+  if (/^data:image\//i.test(u) && filePreview.tryOpenEmbeddedDataImageFromText(u)) {
+    return;
+  }
   void filePreview.openUrl(url, label);
 }
 

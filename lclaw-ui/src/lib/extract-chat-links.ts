@@ -20,7 +20,7 @@ export function segmentTextWithLinks(raw: string): ChatSegment[] {
   const out: ChatSegment[] = [];
   let last = 0;
   const re =
-    /(?:\[([^\]]*)\]\((https?:[^)\s]+|file:[^)\s]+)\))|(https?:\/\/[^\s<>"'()[\]]+|file:\/\/[^\s<>"'()[\]]+)/gi;
+    /(?:\[([^\]]*)\]\((https?:[^)\s]+|file:[^)\s]+|data:image\/[^)\s]+)\))|(https?:\/\/[^\s<>"'()[\]]+|file:\/\/[^\s<>"'()[\]]+|data:image\/[^\s<>"'()[\]]+)/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(raw)) !== null) {
     if (m.index > last) {

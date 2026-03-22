@@ -1,4 +1,8 @@
 import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import {
+  defaultFileNameForImageMime,
+  findFirstEmbeddedDataImage,
+} from "@/lib/extract-chat-embedded-image";
 import { isSafePreviewUrl } from "@/lib/is-safe-preview-url";
 import type { PreviewKind } from "@/lib/preview-kind";
 import { previewKindFromUrl } from "@/lib/preview-kind";
@@ -16,6 +20,13 @@ export type ChatMessagePreviewState = {
   title: string;
   body: string;
   role: "user" | "assistant";
+};
+
+/** 消息内 data:image 预览：桌面端另存为需原始 base64 */
+export type SavableEmbeddedImage = {
+  base64Payload: string;
+  mimeType: string;
+  defaultFileName: string;
 };
 
 function labelFromUrl(url: string, label?: string): string {
@@ -62,6 +73,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   const previewTextError = ref<string | null>(null);
   const previewTextLoading = ref(false);
   const chatMessagePreview = ref<ChatMessagePreviewState | null>(null);
+  const savableEmbeddedImage = ref<SavableEmbeddedImage | null>(null);
 
   function revokeBlobIfNeeded(): void {
     if (internalBlobUrl.value) {
@@ -78,6 +90,95 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
 
   function clearChatMessagePreview(): void {
     chatMessagePreview.value = null;
+  }
+
+  function clearSavableEmbeddedImage(): void {
+    savableEmbeddedImage.value = null;
+  }
+
+  /** 切换非内嵌图消息行时清掉上一张消息内嵌图（避免右侧残留） */
+  function forgetEmbeddedChatImageIfAny(): void {
+    if (!savableEmbeddedImage.value) {
+      return;
+    }
+    revokeBlobIfNeeded();
+    clearTextPreview();
+    target.value = null;
+    clearSavableEmbeddedImage();
+    pendingLocalFileUrl.value = null;
+    pendingLocalLabel.value = null;
+    localError.value = null;
+    localLoading.value = false;
+  }
+
+  /**
+   * 若正文含 `data:image/...;base64,...`，在右侧打开图片预览并允许另存。
+   * @returns 是否已打开（false 表示正文无可解析的内嵌图）
+   */
+  function tryOpenEmbeddedDataImageFromText(text: string): boolean {
+    const found = findFirstEmbeddedDataImage(text);
+    if (!found) {
+      return false;
+    }
+    let blob: Blob;
+    try {
+      blob = base64ToBlob(found.base64Payload, found.mimeType);
+    } catch {
+      return false;
+    }
+    revokeBlobIfNeeded();
+    clearTextPreview();
+    clearChatMessagePreview();
+    pendingLocalFileUrl.value = null;
+    pendingLocalLabel.value = null;
+    localError.value = null;
+    localLoading.value = false;
+    const blobUrl = URL.createObjectURL(blob);
+    internalBlobUrl.value = blobUrl;
+    target.value = { url: blobUrl, label: "内嵌图片（消息）", kind: "image" };
+    savableEmbeddedImage.value = {
+      base64Payload: found.base64Payload,
+      mimeType: found.mimeType,
+      defaultFileName: defaultFileNameForImageMime(found.mimeType),
+    };
+    return true;
+  }
+
+  async function saveEmbeddedImageAs(): Promise<
+    { ok: true; saved: boolean } | { ok: false; error: string }
+  > {
+    const s = savableEmbeddedImage.value;
+    if (!s) {
+      return { ok: false, error: "当前无可保存的内嵌图片" };
+    }
+    const api = getLclawDesktopApi();
+    if (api?.saveBase64FileAs) {
+      try {
+        const r = (await api.saveBase64FileAs(
+          s.base64Payload,
+          s.defaultFileName,
+        )) as { ok: boolean; saved?: boolean; error?: string };
+        if (!r.ok) {
+          return { ok: false, error: r.error ?? "另存失败" };
+        }
+        return { ok: true, saved: Boolean(r.saved) };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+    try {
+      const blob = base64ToBlob(s.base64Payload, s.mimeType);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = s.defaultFileName;
+      a.rel = "noopener";
+      a.click();
+      URL.revokeObjectURL(url);
+      return { ok: true, saved: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
   }
 
   /**
@@ -106,6 +207,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     revokeBlobIfNeeded();
     clearTextPreview();
     target.value = null;
+    clearSavableEmbeddedImage();
     pendingLocalFileUrl.value = null;
     pendingLocalLabel.value = null;
     localError.value = null;
@@ -124,6 +226,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     }
     const short = labelFromUrl(u, label);
     clearChatMessagePreview();
+    clearSavableEmbeddedImage();
 
     if (isLclawElectron() && u.startsWith("file:")) {
       revokeBlobIfNeeded();
@@ -246,6 +349,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     revokeBlobIfNeeded();
     clearTextPreview();
     clearChatMessagePreview();
+    clearSavableEmbeddedImage();
     target.value = null;
     localError.value = null;
     pendingLocalFileUrl.value = null;
@@ -258,6 +362,10 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     openUrl,
     clear,
     chatMessagePreview,
+    savableEmbeddedImage,
+    tryOpenEmbeddedDataImageFromText,
+    forgetEmbeddedChatImageIfAny,
+    saveEmbeddedImageAs,
     showChatMessageFullText,
     clearChatMessagePreview,
     localLoading,

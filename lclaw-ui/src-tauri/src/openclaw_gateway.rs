@@ -2,6 +2,7 @@
 
 use serde_json::{json, Value};
 use std::io;
+use std::io::Read;
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -110,31 +111,84 @@ fn format_port_mismatch_hint(ws_port: u16, host: &str) -> String {
     s
 }
 
+/// npm 全局目录常见：`where openclaw` 得到无扩展名垫片路径，`cmd /C` 无法直接执行，需改用同名的 `openclaw.cmd`。
+#[cfg(windows)]
+fn best_windows_openclaw_path(from_where: &str) -> Option<String> {
+    use std::path::Path;
+    let from_where = from_where.trim();
+    let p = Path::new(from_where);
+    if !p.exists() {
+        return None;
+    }
+    if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+        let ext_l = ext.to_ascii_lowercase();
+        if matches!(ext_l.as_str(), "cmd" | "bat" | "exe") {
+            return Some(from_where.to_string());
+        }
+        if ext_l == "ps1" {
+            let cmd = p.with_extension("cmd");
+            if cmd.exists() {
+                return Some(cmd.to_string_lossy().into_owned());
+            }
+        }
+    }
+    let cmd = p.with_extension("cmd");
+    if cmd.exists() {
+        return Some(cmd.to_string_lossy().into_owned());
+    }
+    let bat = p.with_extension("bat");
+    if bat.exists() {
+        return Some(bat.to_string_lossy().into_owned());
+    }
+    None
+}
+
+#[cfg(windows)]
+fn first_resolved_openclaw_from_where(args: &[&str]) -> Option<String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    for name in args {
+        let Ok(out) = Command::new("where.exe")
+            .arg(name)
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        else {
+            continue;
+        };
+        if !out.status.success() {
+            continue;
+        }
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for line in stdout.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            if let Some(best) = best_windows_openclaw_path(line) {
+                return Some(best);
+            }
+        }
+    }
+    None
+}
+
 fn resolve_open_claw_executable(custom: Option<&str>) -> Option<String> {
     if let Some(t) = custom.map(str::trim).filter(|s| !s.is_empty()) {
-        if std::path::Path::new(t).exists() {
-            return Some(t.to_string());
+        #[cfg(windows)]
+        {
+            if let Some(best) = best_windows_openclaw_path(t) {
+                return Some(best);
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            if std::path::Path::new(t).exists() {
+                return Some(t.to_string());
+            }
         }
         return None;
     }
 
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        if let Ok(out) = Command::new("where.exe")
-            .arg("openclaw")
-            .creation_flags(CREATE_NO_WINDOW)
-            .output()
-        {
-            if out.status.success() {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                if let Some(line) = stdout.lines().map(str::trim).find(|l| !l.is_empty()) {
-                    if std::path::Path::new(line).exists() {
-                        return Some(line.to_string());
-                    }
-                }
-            }
+        if let Some(p) = first_resolved_openclaw_from_where(&["openclaw.cmd", "openclaw"]) {
+            return Some(p);
         }
     }
 
@@ -172,6 +226,28 @@ fn resolve_open_claw_executable(custom: Option<&str>) -> Option<String> {
     None
 }
 
+/// 在子进程已退出或即将被回收前读取 stderr，便于把 OpenClaw 的校验/端口等报错展示给用户。
+fn read_child_stderr_abbrev(child: &mut Child, max_bytes: usize) -> String {
+    let Some(mut err) = child.stderr.take() else {
+        return String::new();
+    };
+    let mut buf = vec![0u8; max_bytes];
+    let mut total = 0usize;
+    loop {
+        match err.read(&mut buf[total..]) {
+            Ok(0) => break,
+            Ok(n) => {
+                total += n;
+                if total >= max_bytes {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    String::from_utf8_lossy(&buf[..total]).trim().to_string()
+}
+
 fn kill_managed_gateway_process() {
     let mut g = MANAGED_CHILD.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(mut c) = g.take() {
@@ -198,13 +274,15 @@ fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let inner = format!("\"{}\" gateway", exe.replace('"', ""));
+        // 勿把「"路径" gateway」拼成 /C 的单个参数，否则 cmd 会把整段当命令名而报「不是内部或外部命令」。
+        // 分开发传参，由 Rust/Windows 按规则为含空格的路径加引号。
         Command::new("cmd")
             .arg("/C")
-            .arg(&inner)
+            .arg(exe.trim())
+            .arg("gateway")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| e.to_string())
@@ -215,7 +293,7 @@ fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
             .arg("gateway")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| e.to_string())
     }
@@ -277,16 +355,22 @@ pub async fn ensure_open_claw_gateway_running(
         if let Some(ref mut c) = *g {
             match c.try_wait() {
                 Ok(Some(status)) => {
+                    let stderr_tail = read_child_stderr_abbrev(c, 8192);
                     drop(g);
                     kill_managed_gateway_process();
                     let code = status
                         .code()
                         .map(|c| c.to_string())
                         .unwrap_or_else(|| "非零/信号".into());
+                    let detail = if stderr_tail.is_empty() {
+                        "未捕获到子进程错误输出；请在 CMD/PowerShell 手动执行「openclaw gateway」查看完整日志。".to_string()
+                    } else {
+                        format!("进程错误输出：\n{stderr_tail}")
+                    };
                     return Ok(json!({
                         "ok": false,
                         "error": format!(
-                            "openclaw gateway 启动后很快退出（退出码 {code}）。请在 CMD/PowerShell 手动执行「openclaw gateway」查看报错；常见原因：配置校验失败、端口被占用、依赖未就绪。若仅本应用拉不起进程，请在「本机设置」填写 openclaw 的完整路径（如 npm 全局目录下的 openclaw.cmd）。"
+                            "openclaw gateway 启动后很快退出（退出码 {code}）。{detail} 常见原因：配置校验失败、端口被占用、依赖未就绪。若仅本应用拉不起进程，请在「本机设置」填写 openclaw 的完整路径（如 npm 全局目录下的 openclaw.cmd）。"
                         )
                     }));
                 }

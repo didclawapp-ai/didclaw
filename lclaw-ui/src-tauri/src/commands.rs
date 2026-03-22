@@ -36,6 +36,31 @@ pub fn shell_open_file_url(file_url: String) -> Result<Value, String> {
     Ok(json!({"ok": true}))
 }
 
+/// 将纯 base64 解码后通过「另存为」写入磁盘（用于聊天内嵌 `data:image/...;base64,...`）。
+#[tauri::command]
+pub fn dialog_save_base64_file(
+    base64_data: String,
+    default_file_name: String,
+) -> Result<Value, String> {
+    use base64::Engine;
+    let cleaned: String = base64_data.chars().filter(|c| !c.is_whitespace()).collect();
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(cleaned.as_bytes())
+        .map_err(|e| format!("base64 解码失败: {e}"))?;
+    let name = default_file_name.trim();
+    let name = if name.is_empty() {
+        "image.png".to_string()
+    } else {
+        name.to_string()
+    };
+    let dest = rfd::FileDialog::new().set_file_name(&name).save_file();
+    let Some(dest) = dest else {
+        return Ok(json!({"ok": true, "saved": false}));
+    };
+    fs::write(&dest, bytes).map_err(|e| e.to_string())?;
+    Ok(json!({"ok": true, "saved": true}))
+}
+
 #[tauri::command]
 pub fn file_save_copy_as(file_url: String) -> Result<Value, String> {
     let src = match crate::paths::resolve_existing_local_file(&file_url) {

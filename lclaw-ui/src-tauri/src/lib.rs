@@ -135,6 +135,7 @@ pub fn run() {
             commands::preview_open_libre_office_download_page,
             commands::preview_show_libre_office_install_dialog,
             commands::shell_open_file_url,
+            commands::dialog_save_base64_file,
             commands::file_save_copy_as,
             commands::shell_prepare_email_with_local_file,
             commands::shell_copy_local_file_for_share,

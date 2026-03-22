@@ -1,3 +1,5 @@
+import { findFirstEmbeddedDataImage } from "@/lib/extract-chat-embedded-image";
+
 const MAX_LIST_CHARS = 900;
 
 function truncateWithNote(s: string, max: number): string {
@@ -46,6 +48,9 @@ export function buildListPreview(fullText: string): string {
   const t = fullText.trim();
   if (t.length === 0) {
     return "";
+  }
+  if (findFirstEmbeddedDataImage(t)) {
+    return `[图片] 内嵌 Base64 图像（约 ${t.length} 字符）。点选本行在右侧预览并可另存。`;
   }
   if (t.length < 800 && !t.startsWith("{")) {
     return t;

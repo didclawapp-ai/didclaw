@@ -59,6 +59,7 @@ export const PROVIDER_SETUP_PRESETS: readonly ProviderSetupPreset[] = [
     label: "智谱 GLM（国内）",
     bucket: "cn",
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    /** 不含 glm-image：生图为 /images/generations，不能作 OpenClaw 流式对话主模型 */
     modelIds: ["glm-5", "glm-4.7", "glm-4.7-flash", "glm-4.7-flashx"],
     extras: { api: "openai-completions" },
   },
@@ -67,6 +68,7 @@ export const PROVIDER_SETUP_PRESETS: readonly ProviderSetupPreset[] = [
     label: "智谱 GLM（国际·OpenClaw 默认）",
     bucket: "intl",
     baseUrl: "https://api.z.ai/api/paas/v4",
+    /** 同上，不设 glm-image 为对话主模型 */
     modelIds: ["glm-5", "glm-4.7", "glm-4.7-flash", "glm-4.7-flashx"],
     extras: { api: "openai-completions" },
   },
