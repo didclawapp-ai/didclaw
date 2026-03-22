@@ -12,7 +12,7 @@
 | 形态 | 说明 |
 |------|------|
 | **桌面端（推荐）** | **Electron**：本地静态资源、完整本机设置、文件预览与系统集成能力（当前功能最全）。 |
-| **桌面端（Tauri，迁移中）** | `pnpm dev:tauri` / `pnpm dist:win:tauri`：体积小（WebView2）；网关连接、`gateway-local`、自动拉起 openclaw、多数系统集成功能已接。**本地 Office 预览、OpenClaw 模型/Providers 读写与备份恢复** 在 Tauri 侧仍为占位，详见 `docs/lclaw-ui-electron-to-tauri-迁移计划.md` §11.1。 |
+| **桌面端（Tauri，迁移中）** | `pnpm dev:tauri` / `pnpm dist:win:tauri`：体积小（WebView2）；网关连接、`gateway-local`、自动拉起 openclaw、多数系统集成、**本地文件预览（含 LibreOffice 转 PDF）** 已接。**OpenClaw 模型/Providers 读写与备份恢复** 在 Tauri 侧仍为占位，详见 `docs/lclaw-ui-electron-to-tauri-迁移计划.md` §11.1。 |
 | **浏览器开发联调** | `pnpm dev` / `dev:web`：通过环境变量 `VITE_GATEWAY_URL`、`VITE_GATEWAY_TOKEN`、`VITE_GATEWAY_PASSWORD` 指向网关；无桌面本机 IPC。 |
 
 打包发布（需在 **`lclaw-ui` 目录**执行）：
@@ -100,7 +100,7 @@
 - 选中消息：**Markdown 渲染**、代码高亮；支持 **echarts-json** 等约定格式。  
 - **工具时间线**：合并展示除部分高频事件外的下行事件，便于调试。  
 - **外链**：白名单策略（环境变量 `VITE_LINK_ALLOWLIST` 等，按实现为准）。  
-- **本地文件预览**（**Electron** 完整；**Tauri** 尚未实现 `preview_open_local`，见迁移计划 §11.1）：图片、PDF、Markdown/文本；Office 文档可通过 **LibreOffice** 转 PDF 后预览（未安装时可提示下载页）。  
+- **本地文件预览**（**Electron** 与 **Tauri** 均已实现主流程）：图片、PDF、Markdown/文本；Office 文档可通过 **LibreOffice** 转 PDF 后预览（未安装时可提示下载页）。Tauri 侧细节与回归项见迁移计划 §11.1。  
 - **链接/文件菜单**：另存为、系统默认程序打开、邮件附件准备、分享复制等（见 preload / 主进程实现）。
 
 ---

@@ -1,6 +1,8 @@
 mod commands;
 mod gateway_local;
 mod openclaw_gateway;
+mod paths;
+mod preview_local;
 
 #[cfg(not(debug_assertions))]
 mod static_server;

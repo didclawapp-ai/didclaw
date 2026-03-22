@@ -19,10 +19,12 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-log = "2"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs"] }
 axum = "0.7"
 tower-http = { version = "0.5", features = ["fs"] }
 url = "2.5"
 rfd = "0.15"
 open = "5"
 arboard = "3"
+base64 = "0.22"
+tempfile = "3"

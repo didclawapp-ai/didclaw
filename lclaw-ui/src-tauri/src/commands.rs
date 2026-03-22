@@ -2,26 +2,17 @@
 
 use serde_json::{json, Value};
 use std::fs;
-use std::path::PathBuf;
-
-fn file_url_to_path(file_url: &str) -> Result<PathBuf, String> {
-    let u = url::Url::parse(file_url.trim()).map_err(|e| e.to_string())?;
-    if u.scheme() != "file" {
-        return Err("非 file URL".into());
-    }
-    u.to_file_path()
-        .map_err(|_| "无法解析为本地路径".into())
-}
 
 #[tauri::command]
-pub fn preview_open_local(file_url: String) -> Result<Value, String> {
-    let _ = file_url;
-    Ok(json!({"ok": false, "error": "Tauri: 本地预览尚未实现（阶段后续）"}))
+pub async fn preview_open_local(file_url: String) -> Result<Value, String> {
+    Ok(crate::preview_local::open_local_preview(file_url).await)
 }
 
 #[tauri::command]
 pub fn preview_libre_office_status() -> Result<Value, String> {
-    Ok(json!({"available": false}))
+    Ok(json!({
+        "available": crate::preview_local::libre_office_available()
+    }))
 }
 
 #[tauri::command]
@@ -32,25 +23,25 @@ pub fn preview_open_libre_office_download_page() -> Result<(), String> {
 
 #[tauri::command]
 pub fn preview_show_libre_office_install_dialog() -> Result<Value, String> {
-    Ok(json!({"openedDownload": false}))
+    Ok(crate::preview_local::show_libre_office_install_dialog())
 }
 
 #[tauri::command]
 pub fn shell_open_file_url(file_url: String) -> Result<Value, String> {
-    let p = file_url_to_path(&file_url)?;
-    if !p.exists() {
-        return Ok(json!({"ok": false, "error": "文件不存在"}));
-    }
+    let p = match crate::paths::resolve_existing_local_file(&file_url) {
+        Ok(p) => p,
+        Err(e) => return Ok(json!({"ok": false, "error": e})),
+    };
     open::that(&p).map_err(|e| e.to_string())?;
     Ok(json!({"ok": true}))
 }
 
 #[tauri::command]
 pub fn file_save_copy_as(file_url: String) -> Result<Value, String> {
-    let src = file_url_to_path(&file_url)?;
-    if !src.is_file() {
-        return Ok(json!({"ok": false, "error": "源文件不存在"}));
-    }
+    let src = match crate::paths::resolve_existing_local_file(&file_url) {
+        Ok(p) => p,
+        Err(e) => return Ok(json!({"ok": false, "error": e})),
+    };
     let name = src
         .file_name()
         .and_then(|s| s.to_str())
@@ -67,10 +58,10 @@ pub fn file_save_copy_as(file_url: String) -> Result<Value, String> {
 
 #[tauri::command]
 pub fn shell_prepare_email_with_local_file(file_url: String) -> Result<Value, String> {
-    let p = file_url_to_path(&file_url)?;
-    if !p.exists() {
-        return Ok(json!({"ok": false, "error": "文件不存在"}));
-    }
+    let p = match crate::paths::resolve_existing_local_file(&file_url) {
+        Ok(p) => p,
+        Err(e) => return Ok(json!({"ok": false, "error": e})),
+    };
     #[cfg(windows)]
     {
         let p_str = p.to_string_lossy().to_string();
@@ -93,10 +84,10 @@ pub fn shell_prepare_email_with_local_file(file_url: String) -> Result<Value, St
 
 #[tauri::command]
 pub fn shell_copy_local_file_for_share(file_url: String, label: Option<String>) -> Result<Value, String> {
-    let p = file_url_to_path(&file_url)?;
-    if !p.exists() {
-        return Ok(json!({"ok": false, "error": "文件不存在"}));
-    }
+    let p = match crate::paths::resolve_existing_local_file(&file_url) {
+        Ok(p) => p,
+        Err(e) => return Ok(json!({"ok": false, "error": e})),
+    };
     let name = label
         .as_deref()
         .map(str::trim)
