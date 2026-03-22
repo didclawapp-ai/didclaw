@@ -11,7 +11,7 @@ import {
 import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
 import { OPENCLAW_AFTER_WRITE_HINT } from "@/lib/openclaw-config-hint";
-import { isLclawElectron } from "@/lib/electron-bridge";
+import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
 import { formatZodIssues } from "@/lib/zod-format";
@@ -171,13 +171,14 @@ export const useChatStore = defineStore("chat", () => {
 
   async function refreshOpenClawModelPicker(): Promise<void> {
     openClawPrimaryPickerError.value = null;
-    if (!isLclawElectron() || !window.lclawElectron?.readOpenClawModelConfig) {
+    const desktop = getLclawDesktopApi();
+    if (!isLclawElectron() || !desktop?.readOpenClawModelConfig) {
       openClawPrimaryModel.value = "";
       openClawModelPickerRows.value = [];
       return;
     }
     try {
-      const r = await window.lclawElectron.readOpenClawModelConfig();
+      const r = await desktop.readOpenClawModelConfig();
       if (!r.ok) {
         openClawPrimaryModel.value = "";
         openClawModelPickerRows.value = [];
@@ -220,7 +221,7 @@ export const useChatStore = defineStore("chat", () => {
     if (next === openClawPrimaryModel.value.trim()) {
       return;
     }
-    const api = window.lclawElectron;
+    const api = getLclawDesktopApi();
     if (!api?.writeOpenClawModelConfig) {
       openClawPrimaryPickerError.value = "当前无法保存：请使用桌面版，并确认本机已按教程装好助手。";
       return;

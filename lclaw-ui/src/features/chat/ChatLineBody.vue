@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { segmentTextWithLinks } from "@/lib/extract-chat-links";
-import { isLclawElectron } from "@/lib/electron-bridge";
+import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { useFilePreviewStore } from "@/stores/filePreview";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 
@@ -67,7 +67,7 @@ async function ctxSaveAs(): Promise<void> {
   if (!m || !canElectronLocalOps(m.url)) {
     return;
   }
-  const api = window.lclawElectron;
+  const api = getLclawDesktopApi();
   if (!api?.saveLocalFileCopyAs) {
     return;
   }
@@ -83,7 +83,7 @@ async function ctxOpenSystem(): Promise<void> {
   if (!m || !canElectronLocalOps(m.url)) {
     return;
   }
-  const api = window.lclawElectron;
+  const api = getLclawDesktopApi();
   if (!api?.openFileUrlInSystem) {
     return;
   }
@@ -99,7 +99,7 @@ async function ctxEmail(): Promise<void> {
   if (!m || !canElectronLocalOps(m.url)) {
     return;
   }
-  const api = window.lclawElectron;
+  const api = getLclawDesktopApi();
   if (!api?.prepareEmailWithLocalFile) {
     return;
   }
@@ -115,7 +115,7 @@ async function ctxShare(): Promise<void> {
   if (!m || !canElectronLocalOps(m.url)) {
     return;
   }
-  const api = window.lclawElectron;
+  const api = getLclawDesktopApi();
   if (!api?.copyLocalFileForShare) {
     return;
   }

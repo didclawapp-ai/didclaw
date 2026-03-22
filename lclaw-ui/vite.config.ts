@@ -8,6 +8,9 @@ import { defineConfig, type UserConfig } from "vite";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8")) as { version: string };
 
+/** Tauri 使用 `pnpm dev` / `dev:web`；Electron 使用 `pnpm dev:electron` */
+const useElectron = process.env.LCLAW_USE_ELECTRON === "1";
+
 /** 仅生产构建注入 CSP；开发态 Vite HMR 依赖 unsafe-eval，Electron 仍会提示，属预期 */
 function productionCspMeta(): string {
   const csp = [
@@ -43,10 +46,12 @@ export default defineConfig(async ({ command }): Promise<UserConfig> => ({
       },
     },
     vue(),
-    ...(await electron({
-      main: { entry: "electron/main.ts" },
-      preload: { input: "electron/preload.ts" },
-    })),
+    ...(useElectron
+      ? await electron({
+          main: { entry: "electron/main.ts" },
+          preload: { input: "electron/preload.ts" },
+        })
+      : []),
   ],
   resolve: {
     alias: {

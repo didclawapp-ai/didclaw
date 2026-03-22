@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isLclawElectron } from "@/lib/electron-bridge";
+import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { isLibreOfficeMissingError } from "@/lib/libreoffice-preview";
 import { isHttpsUrl, officeOnlineEmbedUrl } from "@/lib/preview-kind";
 import { renderMarkdownPreviewToHtml } from "@/lib/render-markdown-preview";
@@ -65,7 +65,7 @@ function openExternal(): void {
 }
 
 async function pickLocalFile(): Promise<void> {
-  const api = window.lclawElectron;
+  const api = getLclawDesktopApi();
   if (!api) {
     return;
   }

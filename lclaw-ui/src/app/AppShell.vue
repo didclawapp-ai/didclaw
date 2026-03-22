@@ -11,7 +11,7 @@ import {
   shouldHideDiagnosticChatLine,
 } from "@/lib/chat-message-format";
 import { messageToChatLine } from "@/lib/chat-line";
-import { isLclawElectron } from "@/lib/electron-bridge";
+import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useFilePreviewStore } from "@/stores/filePreview";
@@ -134,7 +134,7 @@ function onSelectMessage(index: number) {
 }
 
 async function pickLocalFileForPreview(): Promise<void> {
-  const api = window.lclawElectron;
+  const api = getLclawDesktopApi();
   if (!api) {
     return;
   }

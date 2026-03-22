@@ -7,8 +7,12 @@
   "scripts": {
     "dev": "vite",
     "dev:web": "vite",
+    "dev:electron": "cross-env LCLAW_USE_ELECTRON=1 vite",
+    "dev:tauri": "tauri dev",
     "build": "vue-tsc -b && vite build",
+    "build:tauri": "pnpm run build && tauri build",
     "dist:win": "pnpm run build && electron-builder --win",
+    "dist:win:tauri": "pnpm run build && tauri build",
     "dist:win:portable": "pnpm run build && electron-builder --win portable --x64",
     "dist:win:setup": "pnpm run build && electron-builder --win nsis --x64",
     "preview": "vite preview",
@@ -21,14 +25,22 @@
     "directories": {
       "output": "release"
     },
-    "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     }
   },
   "dependencies": {
     "@noble/ed25519": "^2.3.0",
     "@tanstack/vue-virtual": "^3.13.23",
+    "@tauri-apps/api": "^2.10.1",
     "dompurify": "^3.3.3",
     "echarts": "^6.0.0",
     "highlight.js": "^11.11.1",
@@ -39,15 +51,20 @@
     "zod": "^4.3.6"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["electron", "electron-winstaller"]
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@tauri-apps/cli": "^2.10.1",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.12.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/eslint-config-typescript": "^14.6.0",
     "@vue/tsconfig": "^0.9.0",
+    "cross-env": "^7.0.3",
     "electron": "^41.0.3",
     "electron-builder": "^26.8.1",
     "eslint": "^9.39.2",

@@ -1,0 +1,177 @@
+//! 桌面端 IPC 的 Tauri 实现；未迁移完成的命令返回明确错误，便于联调。
+
+use serde_json::{json, Value};
+use std::fs;
+use std::path::PathBuf;
+
+fn file_url_to_path(file_url: &str) -> Result<PathBuf, String> {
+    let u = url::Url::parse(file_url.trim()).map_err(|e| e.to_string())?;
+    if u.scheme() != "file" {
+        return Err("非 file URL".into());
+    }
+    u.to_file_path()
+        .map_err(|_| "无法解析为本地路径".into())
+}
+
+#[tauri::command]
+pub fn preview_open_local(file_url: String) -> Result<Value, String> {
+    let _ = file_url;
+    Ok(json!({"ok": false, "error": "Tauri: 本地预览尚未实现（阶段后续）"}))
+}
+
+#[tauri::command]
+pub fn preview_libre_office_status() -> Result<Value, String> {
+    Ok(json!({"available": false}))
+}
+
+#[tauri::command]
+pub fn preview_open_libre_office_download_page() -> Result<(), String> {
+    open::that("https://www.libreoffice.org/download/download-libreoffice/")
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn preview_show_libre_office_install_dialog() -> Result<Value, String> {
+    Ok(json!({"openedDownload": false}))
+}
+
+#[tauri::command]
+pub fn shell_open_file_url(file_url: String) -> Result<Value, String> {
+    let p = file_url_to_path(&file_url)?;
+    if !p.exists() {
+        return Ok(json!({"ok": false, "error": "文件不存在"}));
+    }
+    open::that(&p).map_err(|e| e.to_string())?;
+    Ok(json!({"ok": true}))
+}
+
+#[tauri::command]
+pub fn file_save_copy_as(file_url: String) -> Result<Value, String> {
+    let src = file_url_to_path(&file_url)?;
+    if !src.is_file() {
+        return Ok(json!({"ok": false, "error": "源文件不存在"}));
+    }
+    let name = src
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+    let dest = rfd::FileDialog::new()
+        .set_file_name(name)
+        .save_file();
+    let Some(dest) = dest else {
+        return Ok(json!({"ok": true, "saved": false}));
+    };
+    fs::copy(&src, &dest).map_err(|e| e.to_string())?;
+    Ok(json!({"ok": true, "saved": true}))
+}
+
+#[tauri::command]
+pub fn shell_prepare_email_with_local_file(file_url: String) -> Result<Value, String> {
+    let p = file_url_to_path(&file_url)?;
+    if !p.exists() {
+        return Ok(json!({"ok": false, "error": "文件不存在"}));
+    }
+    #[cfg(windows)]
+    {
+        let p_str = p.to_string_lossy().to_string();
+        let arg = format!("/select,\"{}\"", p_str.replace('"', ""));
+        std::process::Command::new("explorer")
+            .arg(arg)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(windows))]
+    {
+        return Ok(json!({"ok": false, "error": "Tauri: 当前平台「邮件准备」尚未实现"}));
+    }
+    let mut clip = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+    clip
+        .set_text(p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())?;
+    Ok(json!({"ok": true}))
+}
+
+#[tauri::command]
+pub fn shell_copy_local_file_for_share(file_url: String, label: Option<String>) -> Result<Value, String> {
+    let p = file_url_to_path(&file_url)?;
+    if !p.exists() {
+        return Ok(json!({"ok": false, "error": "文件不存在"}));
+    }
+    let name = label
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .unwrap_or_else(|| {
+            p.file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("file")
+                .to_string()
+        });
+    let href = url::Url::from_file_path(&p)
+        .map(|u| u.to_string())
+        .unwrap_or_default();
+    let text = format!("{name}\n路径：{}\n{href}", p.to_string_lossy());
+    let mut clip = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+    clip.set_text(text).map_err(|e| e.to_string())?;
+    Ok(json!({"ok": true}))
+}
+
+#[tauri::command]
+pub fn dialog_open_file() -> Result<Option<String>, String> {
+    let file = rfd::FileDialog::new()
+        .add_filter("Office", &["ppt", "pptx", "xls", "xlsx", "doc", "docx"])
+        .add_filter("Markdown / 文本", &["md", "markdown", "txt", "log", "csv"])
+        .add_filter("PDF", &["pdf"])
+        .add_filter("图片", &["png", "jpg", "jpeg", "gif", "webp", "svg"])
+        .pick_file();
+    Ok(file.and_then(|p| url::Url::from_file_path(&p).ok().map(|u| u.to_string())))
+}
+
+#[tauri::command]
+pub fn read_gateway_local_config(app: tauri::AppHandle) -> Result<Value, String> {
+    let m = crate::gateway_local::read_merged_map(&app)?;
+    Ok(crate::gateway_local::merged_to_frontend_value(&m))
+}
+
+#[tauri::command]
+pub fn write_gateway_local_config(app: tauri::AppHandle, data: Value) -> Result<Value, String> {
+    crate::gateway_local::write_merged_from_payload(&app, &data)?;
+    Ok(json!({"ok": true}))
+}
+
+#[tauri::command]
+pub async fn ensure_open_claw_gateway(
+    app: tauri::AppHandle,
+    ws_url: String,
+) -> Result<Value, String> {
+    crate::openclaw_gateway::ensure_open_claw_gateway_running(app, ws_url).await
+}
+
+/// 完整读取 `~/.openclaw` 尚未移植；返回空模型表以免顶栏报错。
+#[tauri::command]
+pub fn read_open_claw_model_config() -> Result<Value, String> {
+    Ok(json!({"ok": true, "model": {}, "models": {}}))
+}
+
+#[tauri::command]
+pub fn write_open_claw_model_config(payload: Value) -> Result<Value, String> {
+    let _ = payload;
+    Ok(json!({"ok": false, "error": "Tauri: OpenClaw 模型配置写入尚未实现"}))
+}
+
+#[tauri::command]
+pub fn restore_open_claw_config_to_latest_backup() -> Result<Value, String> {
+    Ok(json!({"ok": false, "error": "Tauri: 备份恢复尚未实现"}))
+}
+
+#[tauri::command]
+pub fn read_open_claw_providers() -> Result<Value, String> {
+    Ok(json!({"ok": false, "error": "Tauri: Providers 读取尚未实现"}))
+}
+
+#[tauri::command]
+pub fn write_open_claw_providers_patch(payload: Value) -> Result<Value, String> {
+    let _ = payload;
+    Ok(json!({"ok": false, "error": "Tauri: Providers 写入尚未实现"}))
+}

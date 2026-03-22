@@ -5,7 +5,16 @@ import pluginVue from "eslint-plugin-vue";
 import vueParser from "vue-eslint-parser";
 
 export default tseslint.config(
-  { ignores: ["dist", "dist-electron", "release", "node_modules"] },
+  {
+    ignores: [
+      "dist",
+      "dist-electron",
+      "release",
+      "node_modules",
+      "src-tauri/target",
+      "src-tauri/gen",
+    ],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   ...pluginVue.configs["flat/recommended"],

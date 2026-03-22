@@ -1,6 +1,6 @@
 import { GatewayClient } from "@/features/gateway/gateway-client";
 import { gatewayHelloOkSchema } from "@/features/gateway/schemas";
-import { isLclawElectron } from "@/lib/electron-bridge";
+import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
@@ -28,9 +28,10 @@ async function loadGatewayConnectOptions(): Promise<ConnectOpts> {
   let token = import.meta.env.VITE_GATEWAY_TOKEN?.trim() || undefined;
   let password = import.meta.env.VITE_GATEWAY_PASSWORD?.trim() || undefined;
 
-  if (isLclawElectron() && window.lclawElectron?.readGatewayLocalConfig) {
+  const desktop = getLclawDesktopApi();
+  if (isLclawElectron() && desktop?.readGatewayLocalConfig) {
     try {
-      const local = await window.lclawElectron.readGatewayLocalConfig();
+      const local = await desktop.readGatewayLocalConfig();
       if (local.url?.trim()) {
         finalUrl = local.url.trim();
       }
@@ -91,8 +92,9 @@ export const useGatewayStore = defineStore("gateway", () => {
       }
       url.value = opts.url;
 
-      if (isLclawElectron() && window.lclawElectron?.ensureOpenClawGateway) {
-        const ensured = await window.lclawElectron.ensureOpenClawGateway({ wsUrl: opts.url });
+      const desktop = getLclawDesktopApi();
+      if (isLclawElectron() && desktop?.ensureOpenClawGateway) {
+        const ensured = await desktop.ensureOpenClawGateway({ wsUrl: opts.url });
         if (req !== connectRequestId) {
           return;
         }

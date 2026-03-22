@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
-import { isLclawElectron } from "@/lib/electron-bridge";
+import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
@@ -99,9 +99,10 @@ const connLedAriaLabel = computed(() => {
 async function copyDiagnostics(): Promise<void> {
   let tokenConfigured = !!import.meta.env.VITE_GATEWAY_TOKEN?.trim();
   let passwordConfigured = !!import.meta.env.VITE_GATEWAY_PASSWORD?.trim();
-  if (isLclawElectron() && window.lclawElectron?.readGatewayLocalConfig) {
+  const desktop = getLclawDesktopApi();
+  if (isLclawElectron() && desktop?.readGatewayLocalConfig) {
     try {
-      const c = await window.lclawElectron.readGatewayLocalConfig();
+      const c = await desktop.readGatewayLocalConfig();
       if (c.token?.trim()) {
         tokenConfigured = true;
       }

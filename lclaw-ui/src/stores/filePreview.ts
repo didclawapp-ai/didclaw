@@ -1,4 +1,4 @@
-import { isLclawElectron } from "@/lib/electron-bridge";
+import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { isSafePreviewUrl } from "@/lib/is-safe-preview-url";
 import type { PreviewKind } from "@/lib/preview-kind";
 import { previewKindFromUrl } from "@/lib/preview-kind";
@@ -133,9 +133,9 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
       localLoading.value = true;
       localError.value = null;
       try {
-        const api = window.lclawElectron;
+        const api = getLclawDesktopApi();
         if (!api) {
-          throw new Error("Electron API 不可用");
+          throw new Error("桌面 API 不可用");
         }
         const r = await api.openLocalPreview(u);
         if (!r.ok) {
@@ -207,7 +207,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
 
   async function openPendingLocalInSystemApp(): Promise<void> {
     const u = pendingLocalFileUrl.value;
-    const api = window.lclawElectron;
+    const api = getLclawDesktopApi();
     if (!u || !api?.openFileUrlInSystem) {
       return;
     }
@@ -218,18 +218,18 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   }
 
   async function openLibreOfficeDownloadPage(): Promise<void> {
-    await window.lclawElectron?.openLibreOfficeDownloadPage?.();
+    await getLclawDesktopApi()?.openLibreOfficeDownloadPage?.();
   }
 
   async function showLibreOfficeInstallDialog(): Promise<void> {
-    await window.lclawElectron?.showLibreOfficeInstallDialog?.();
+    await getLclawDesktopApi()?.showLibreOfficeInstallDialog?.();
   }
 
   /** 安装 LibreOffice 后：先检测再重新走本地预览 */
   async function retryPendingLocalPreview(): Promise<void> {
     const u = pendingLocalFileUrl.value;
     const label = pendingLocalLabel.value ?? undefined;
-    const api = window.lclawElectron;
+    const api = getLclawDesktopApi();
     if (!u || !api?.getLibreOfficeStatus) {
       return;
     }

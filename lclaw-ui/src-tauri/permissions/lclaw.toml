@@ -1,0 +1,22 @@
+[[permission]]
+identifier = "invoke-all"
+description = "LCLAW UI 桌面端 invoke 命令（迁移自 Electron IPC）"
+commands.allow = [
+  "preview_open_local",
+  "preview_libre_office_status",
+  "preview_open_libre_office_download_page",
+  "preview_show_libre_office_install_dialog",
+  "shell_open_file_url",
+  "file_save_copy_as",
+  "shell_prepare_email_with_local_file",
+  "shell_copy_local_file_for_share",
+  "dialog_open_file",
+  "read_gateway_local_config",
+  "write_gateway_local_config",
+  "ensure_open_claw_gateway",
+  "read_open_claw_model_config",
+  "write_open_claw_model_config",
+  "restore_open_claw_config_to_latest_backup",
+  "read_open_claw_providers",
+  "write_open_claw_providers_patch",
+]
