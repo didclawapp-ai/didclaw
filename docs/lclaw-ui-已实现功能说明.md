@@ -11,14 +11,16 @@
 
 | 形态 | 说明 |
 |------|------|
-| **桌面端（推荐）** | Electron 壳：本地静态资源、完整本机设置、文件预览与系统集成能力。 |
-| **浏览器开发联调** | `pnpm dev` / `dev:web`：通过环境变量 `VITE_GATEWAY_URL`、`VITE_GATEWAY_TOKEN`、`VITE_GATEWAY_PASSWORD` 指向网关；无 Electron 本机读写能力。 |
+| **桌面端（推荐）** | **Electron**：本地静态资源、完整本机设置、文件预览与系统集成能力（当前功能最全）。 |
+| **桌面端（Tauri，迁移中）** | `pnpm dev:tauri` / `pnpm dist:win:tauri`：体积小（WebView2）；网关连接、`gateway-local`、自动拉起 openclaw、多数系统集成功能已接。**本地 Office 预览、OpenClaw 模型/Providers 读写与备份恢复** 在 Tauri 侧仍为占位，详见 `docs/lclaw-ui-electron-to-tauri-迁移计划.md` §11.1。 |
+| **浏览器开发联调** | `pnpm dev` / `dev:web`：通过环境变量 `VITE_GATEWAY_URL`、`VITE_GATEWAY_TOKEN`、`VITE_GATEWAY_PASSWORD` 指向网关；无桌面本机 IPC。 |
 
 打包发布（需在 **`lclaw-ui` 目录**执行）：
 
-- `pnpm dist:win:portable`：便携版  
-- `pnpm dist:win:setup`：NSIS 安装包  
-- `pnpm dist:win`：按 `package.json` 中 electron-builder 配置构建 Windows 产物  
+- `pnpm dist:win:portable`：便携版（Electron）  
+- `pnpm dist:win:setup`：NSIS 安装包（Electron）  
+- `pnpm dist:win`：按 `package.json` 中 electron-builder 配置构建 Windows 产物（Electron）  
+- `pnpm dist:win:tauri`：Tauri 构建（Windows 安装包以 `src-tauri/tauri.conf.json` 为准）  
 
 ---
 
@@ -54,9 +56,9 @@
 
 ---
 
-## 3. 本机设置（Electron）
+## 3. 本机设置（桌面端）
 
-通过顶栏 **「设置」** 打开 **本机设置** 对话框（分步 Tab）：
+通过顶栏 **「设置」** 打开 **本机设置** 对话框（分步 Tab）。**Electron** 下下列能力完整；**Tauri** 下「① 连助手」等与网关相关的项已对齐，**② AI 账号 / ③ 选模型** 依赖 OpenClaw 配置 IPC，Tauri 侧尚未移植完成（见迁移计划 §11.1）。
 
 ### 3.1 ① 连助手
 
@@ -98,7 +100,7 @@
 - 选中消息：**Markdown 渲染**、代码高亮；支持 **echarts-json** 等约定格式。  
 - **工具时间线**：合并展示除部分高频事件外的下行事件，便于调试。  
 - **外链**：白名单策略（环境变量 `VITE_LINK_ALLOWLIST` 等，按实现为准）。  
-- **本地文件预览**（Electron）：图片、PDF、Markdown/文本；Office 文档可通过 **LibreOffice** 转 PDF 后预览（未安装时可提示下载页）。  
+- **本地文件预览**（**Electron** 完整；**Tauri** 尚未实现 `preview_open_local`，见迁移计划 §11.1）：图片、PDF、Markdown/文本；Office 文档可通过 **LibreOffice** 转 PDF 后预览（未安装时可提示下载页）。  
 - **链接/文件菜单**：另存为、系统默认程序打开、邮件附件准备、分享复制等（见 preload / 主进程实现）。
 
 ---
@@ -123,6 +125,7 @@
 ## 8. 已知边界（当前版本）
 
 - **安装器内嵌 Node/OpenClaw 安装、国内镜像、首次启动自动从 `openclaw.json` 导入 Token** 等属于 **后续阶段**，本说明不包含。  
+- **Tauri 与 Electron 能力差异**（预览、模型/Providers 等）以 **`lclaw-ui-electron-to-tauri-迁移计划.md` §11.1** 为准。  
 - 未实现的能力排期见 **`lclaw-ui-功能补全清单.md`**。  
 - 协议细节与网关版本差异请维护 **`gateway-client-protocol-notes.md`**（若仓库中有该文件）。
 
@@ -136,6 +139,7 @@
 | `docs/lclaw-ui-开发步骤.md` | 分阶段开发与勾选 |
 | `docs/lclaw-ui-功能补全清单.md` | 增量功能排期 |
 | `docs/lclaw-ui-桌面端专属-实现方案.md` | 桌面端专属能力 |
+| `docs/lclaw-ui-electron-to-tauri-迁移计划.md` | Electron → Tauri 阶段划分与 **§11.1 实施进度** |
 | `lclaw-ui/electron/openclaw-config.ts` | OpenClaw 配置读写与合并 |
 | `lclaw-ui/electron/openclaw-gateway-process.ts` | 本机网关进程拉起与端口探测 |
 

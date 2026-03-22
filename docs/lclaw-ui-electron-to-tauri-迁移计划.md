@@ -307,6 +307,26 @@
 | M3.5 | 6b 完成，Provider 与 Electron 行为一致 |
 | M4 | 删除 Electron，发布 Tauri 安装包 |
 
+### 11.1 实施进度快照（与仓库实现对齐，随提交更新）
+
+以下对照 **§5 分阶段** 与 `lclaw-ui/src-tauri/src/commands.rs` 中命令实现情况。
+
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| **0** 基线与 Origin 结论 | 部分 | 实现上已采用 **方案 B**（127.0.0.1 静态 HTTP）；§9 回归清单、§6 决策表可在收尾时补勾选与文字 |
+| **1** 脚手架 | **已完成** | `src-tauri/`、`dev:tauri` / `build:tauri`，与 Electron 并行 |
+| **2** 生产 Origin 与 Gateway | **已完成** | 与 `static-server.ts` 同策略，规避 1008 |
+| **3** 低风险 Commands | **基本完成** | 文件对话框、系统打开、剪贴板、另存为、邮件准备（Windows）、`gateway-local` 读写、`desktop-api` 已接；LibreOffice **检测/安装引导对话框** 仍为占位 |
+| **4** 本地预览 + LibreOffice | **未开始** | `preview_open_local` 未实现；`preview_libre_office_status` 恒为不可用；`preview_show_libre_office_install_dialog` 占位 |
+| **5** 网关子进程 | **已完成** | 环回 WS 解析、TCP 探测、`openclaw gateway` 拉起、`RunEvent::Exit` 按 `stopManagedGatewayOnQuit` 清理 |
+| **6a** 模型配置 | **未开始** | `read_open_claw_model_config` 返回空表；`write` / `restore` 返回未实现 |
+| **6b** Providers | **未开始** | `read_open_claw_providers` / `write_open_claw_providers_patch` 未实现 |
+| **7** 移除 Electron | **未开始** | 仍以双轨为主 |
+
+**里程碑**：M1、M2 **已达**；M3 **未达**（模型侧占位）；M3.5、M4 **未达**。
+
+**剩余工作量（相对 §10）**：大头在 **阶段 4**、**6a/6b**（`openclaw-config.ts` 对齐）、**阶段 7**；阶段 0 以文档闭合为主。
+
 ---
 
 ## 12. 后续可选优化
@@ -317,5 +337,5 @@
 
 ---
 
-*文档版本：1.1*（纳入 Gateway 阶段 0 核查、阶段 6a/6b 拆分、LibreOffice/Windows 编码与工时修订）  
+*文档版本：1.2*（新增 §11.1 实施进度快照，与当前 `src-tauri` 实现对齐）  
 *对应仓库路径：`lclaw-ui`（Electron 源码位于 `lclaw-ui/electron/`）；Gateway 行为参考同仓 `openclaw-src/`*
