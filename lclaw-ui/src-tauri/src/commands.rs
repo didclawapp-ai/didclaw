@@ -156,11 +156,10 @@ pub fn restore_open_claw_config_to_latest_backup() -> Result<Value, String> {
 
 #[tauri::command]
 pub fn read_open_claw_providers() -> Result<Value, String> {
-    Ok(json!({"ok": false, "error": "Tauri: Providers 读取尚未实现"}))
+    Ok(crate::openclaw_providers::read_open_claw_providers())
 }
 
 #[tauri::command]
 pub fn write_open_claw_providers_patch(payload: Value) -> Result<Value, String> {
-    let _ = payload;
-    Ok(json!({"ok": false, "error": "Tauri: Providers 写入尚未实现"}))
+    Ok(crate::openclaw_providers::write_open_claw_providers_patch(payload))
 }

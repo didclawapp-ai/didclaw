@@ -1,42 +1,21 @@
 //! `openclaw.json` 中 `agents.defaults.model` / `models`：与 `electron/openclaw-config.ts` 中 6a 范围对齐。
 
-use chrono::{Datelike, Local, Timelike};
+use crate::openclaw_common::{is_enoent, openclaw_config_path, openclaw_dir};
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
 const BACKUP_PREFIX: &str = "openclaw.json.lclaw-backup-";
 const BACKUP_SUFFIX: &str = ".json";
 
-fn openclaw_dir() -> Result<PathBuf, String> {
-    dirs::home_dir()
-        .map(|h| h.join(".openclaw"))
-        .ok_or_else(|| "无法解析用户主目录".to_string())
-}
-
-fn openclaw_config_path() -> Result<PathBuf, String> {
-    Ok(openclaw_dir()?.join("openclaw.json"))
-}
-
 fn new_backup_basename() -> String {
-    let d = Local::now();
-    let p = |n: u32| format!("{:02}", n);
-    let stamp = format!(
-        "{}{}{}-{}{}{}",
-        d.year(),
-        p(d.month()),
-        p(d.day()),
-        p(d.hour()),
-        p(d.minute()),
-        p(d.second()),
-    );
-    format!("{BACKUP_PREFIX}{stamp}{BACKUP_SUFFIX}")
-}
-
-fn is_enoent(e: &io::Error) -> bool {
-    e.kind() == io::ErrorKind::NotFound
+    format!(
+        "{BACKUP_PREFIX}{}{BACKUP_SUFFIX}",
+        crate::openclaw_common::backup_timestamp()
+    )
 }
 
 fn extract_agents_defaults(root: &Value) -> (Map<String, Value>, Map<String, Value>) {

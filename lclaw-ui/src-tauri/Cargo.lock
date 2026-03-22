@@ -86,6 +86,7 @@ dependencies = [
  "dirs 5.0.1",
  "log",
  "open",
+ "regex",
  "rfd",
  "serde",
  "serde_json",

@@ -1,7 +1,9 @@
 mod commands;
 mod gateway_local;
+mod openclaw_common;
 mod openclaw_gateway;
 mod openclaw_model_config;
+mod openclaw_providers;
 mod paths;
 mod preview_local;
 
