@@ -3,39 +3,17 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
-  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "dev:web": "vite",
-    "dev:electron": "cross-env LCLAW_USE_ELECTRON=1 vite",
     "dev:tauri": "tauri dev",
     "build": "vue-tsc -b && vite build",
     "build:tauri": "pnpm run build && tauri build",
-    "dist:win": "pnpm run build && electron-builder --win",
-    "dist:win:tauri": "pnpm run build && tauri build",
-    "dist:win:portable": "pnpm run build && electron-builder --win portable --x64",
-    "dist:win:setup": "pnpm run build && electron-builder --win nsis --x64",
+    "dist:win": "pnpm run build && tauri build",
+    "dist:win:tauri": "pnpm run dist:win",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "vue-tsc -b --noEmit"
-  },
-  "build": {
-    "appId": "com.lclaw.ui",
-    "productName": "LCLAW UI",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ]
-    }
   },
   "dependencies": {
     "@noble/ed25519": "^2.3.0",
@@ -50,12 +28,6 @@
     "vue-router": "^4.6.4",
     "zod": "^4.3.6"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "electron-winstaller"
-    ]
-  },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@tauri-apps/cli": "^2.10.1",
@@ -64,16 +36,12 @@
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/eslint-config-typescript": "^14.6.0",
     "@vue/tsconfig": "^0.9.0",
-    "cross-env": "^7.0.3",
-    "electron": "^41.0.3",
-    "electron-builder": "^26.8.1",
     "eslint": "^9.39.2",
     "eslint-plugin-vue": "^10.6.2",
     "globals": "^17.4.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.50.0",
     "vite": "^8.0.1",
-    "vite-plugin-electron": "^0.29.1",
     "vue-eslint-parser": "^10.2.0",
     "vue-tsc": "^3.2.5"
   }

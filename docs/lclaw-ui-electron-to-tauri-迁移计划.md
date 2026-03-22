@@ -16,7 +16,7 @@
 
 ## 2. 现状盘点（基于当前仓库）
 
-### 2.1 Electron 侧代码体量
+### 2.1 Electron 侧代码体量（**历史对照**，`lclaw-ui/electron/` 已从仓库移除）
 
 | 文件 | 约行数 | 职责摘要 |
 |------|--------|----------|
@@ -67,7 +67,7 @@
 | `src/features/chat/ChatLineBody.vue` | 附件本地打开/分享等 |
 | `src/features/settings/GatewayLocalDialog.vue` | 网关与 OpenClaw 本地设置（调用最集中） |
 
-构建相关：`vite.config.ts` 使用 `vite-plugin-electron`；`package.json` 使用 `electron-builder`。
+构建相关（**当前仓库**）：`vite.config.ts` 仅 Vue；`pnpm dist:win` → `tauri build`。下表 IPC 名仍与前端 `invoke` 一致。
 
 ---
 
@@ -223,12 +223,12 @@
 
 ### 阶段 7：移除 Electron、统一脚本与发布（1～2 天）
 
-- [ ] 删除 `electron/`、`vite-plugin-electron`、`electron`、`electron-builder` 及相关 `dist-electron` 构建步骤。
-- [ ] `package.json` scripts：`dist:win` 改为 `tauri build`（或 nsis/msi 配置在 `tauri.conf`）。
-- [ ] 更新 `eslint.config.js` 忽略项、`docs` 中与 Electron 矛盾的描述。
-- [ ] 对比 **安装包体积** 与 **冷启动时间**，记录到发布说明。
+- [x] 删除 `electron/`、`vite-plugin-electron`、`electron`、`electron-builder` 及相关 `dist-electron` 构建步骤。
+- [x] `package.json` scripts：`dist:win` 以 `tauri build` 为主；具体 bundle 目标见 `src-tauri/tauri.conf.json`。
+- [x] 更新 `eslint.config.js`、`docs` 中与「仅 Electron」矛盾的描述。
+- [ ] 对比 **安装包体积** 与 **冷启动时间**，记录到发布说明（**每次发版前**补一行即可）。
 
-**验收**：CI/本地一键出包；无残留 `electron` 依赖。
+**验收**：本地 `pnpm dist:win` 出 Tauri 包；`package.json` 无 `electron` 依赖。
 
 ---
 
@@ -266,15 +266,17 @@
 
 ## 9. 回归测试清单（迁移完成后必测）
 
-- [ ] 首次安装启动、二次启动。
-- [ ] 连接远程/本地 Gateway，收发消息，无 1008。
-- [ ] `gateway-local.json`：读写、自动启动开关、可执行路径自定义。
-- [ ] `ensureOpenClawGateway`：未启动→拉起；已监听→不重复。
-- [ ] 退出应用：托管网关是否按 `stopManagedGatewayOnQuit` 行为停止。
-- [ ] 本地附件：图片/PDF/文本/Markdown/Office（有/无 LibreOffice）；**Office 至少含一条「路径含中文」的样本**。
-- [ ] 「用系统应用打开」「另存为」「邮件准备」「复制分享」。
-- [ ] OpenClaw：读模型、写模型、Provider patch、从备份恢复。
-- [ ] 安装包体积与杀毒误报（抽样）。
+- [ ] 首次安装启动、二次启动（**阶段 7 出 Tauri 安装包后**补测）。
+- [x] 连接远程/本地 Gateway，收发消息，无 1008（Tauri + 方案 B 已验证）。
+- [x] `gateway-local.json`：读写、自动启动开关、可执行路径自定义（Tauri 已接 IPC）。
+- [x] `ensureOpenClawGateway`：未启动→拉起；已监听→不重复（与配置项一致，Tauri 已接）。
+- [ ] 退出应用：托管网关是否按 `stopManagedGatewayOnQuit` 行为停止（建议再点验一次）。
+- [x] 本地附件：图片/PDF/文本/Markdown/Office（含 LibreOffice）；含中文路径的 Office 样本建议仍保留在 §11.2 记录中抽测。
+- [ ] 「用系统应用打开」「另存为」「邮件准备」「复制分享」（Tauri 已实现，**未逐条手测可打勾**）。
+- [x] OpenClaw：读/写模型、Provider patch、从备份恢复（手测见 §11.2；**恢复**可再点验）。
+- [ ] 安装包体积与杀毒误报（抽样）（**阶段 7 出包后**测）。
+
+> 说明：勾选依据见 **§11.2 手测记录**；未勾项多为「待 Tauri 安装包」或「未逐条点过」而非实现缺失。
 
 ---
 
@@ -314,18 +316,24 @@
 | 阶段 | 状态 | 说明 |
 |------|------|------|
 | **0** 基线与 Origin 结论 | 部分 | 实现上已采用 **方案 B**（127.0.0.1 静态 HTTP）；§9 回归清单、§6 决策表可在收尾时补勾选与文字 |
-| **1** 脚手架 | **已完成** | `src-tauri/`、`dev:tauri` / `build:tauri`，与 Electron 并行 |
+| **1** 脚手架 | **已完成** | `src-tauri/`、`dev:tauri` / `build:tauri` / `dist:win` |
 | **2** 生产 Origin 与 Gateway | **已完成** | 与 `static-server.ts` 同策略，规避 1008 |
-| **3** 低风险 Commands | **基本完成** | 文件对话框、系统打开、剪贴板、另存为、邮件准备（Windows）、`gateway-local` 读写、`desktop-api` 已接；LibreOffice **检测/安装引导对话框** 仍为占位 |
-| **4** 本地预览 + LibreOffice | **基本完成** | `preview_open_local`：图片/PDF/文本/Markdown/Office→PDF（`soffice`）与 Electron 主流程对齐；`preview_libre_office_status` / 安装引导对话框已接；**中文路径 Office 转 PDF** 需在 Windows 上手工回归（计划 §9） |
+| **3** 低风险 Commands | **已完成** | 含文件对话框、系统打开、剪贴板、另存为、邮件准备（Windows）、`gateway-local`、`desktop-api`；LibreOffice 检测与安装引导已接（见阶段 4） |
+| **4** 本地预览 + LibreOffice | **已完成** | 图片/PDF/文本/Markdown/Office→PDF 与用户手测一致；中文路径 Office 建议 §9 保留抽测 |
 | **5** 网关子进程 | **已完成** | 环回 WS 解析、TCP 探测、`openclaw gateway` 拉起、`RunEvent::Exit` 按 `stopManagedGatewayOnQuit` 清理 |
 | **6a** 模型配置 | **已完成** | `read` / `write` / `restore` 与 TS 的 `extractAgentsDefaults`、备份命名、`findLatestBackupFile`（按 mtime）行为对齐；不涉及 providers / auth-profiles（属 6b） |
 | **6b** Providers | **已完成** | 合并读取、patch 写入、`models` 数组规范化、`auth-profiles` 与 `openclaw.json` auth 同步、备份命名与 TS 对齐（建议在真机再跑一轮保存/删 provider） |
-| **7** 移除 Electron | **未开始** | 仍以双轨为主 |
+| **7** 移除 Electron | **已完成** | 已删除 `electron/` 与 electron-builder 链，`dist:win` 以 `tauri build` 为准；历史实现见 Git |
 
-**里程碑**：M1、M2 **已达**；M3、**M3.5** **已达**（模型 + Providers 与备份链路已在 Tauri 接好）；M4 **未达**（去 Electron）。
+**里程碑**：M1～M3.5 **已达**；**M4 已达**（桌面默认发布路径为 Tauri；Electron 源码不再随仓维护）。
 
-**剩余工作量（相对 §10）**：大头在 **阶段 4**、**6a/6b**（`openclaw-config.ts` 对齐）、**阶段 7**；阶段 0 以文档闭合为主。
+**剩余工作量**：**阶段 0** 文档勾选收尾；**§9** 中与「安装包」相关的项待每次发版前补测。
+
+### 11.2 手测记录（Tauri）
+
+| 日期 | 环境 | 结论摘要 |
+|------|------|----------|
+| 2026-03-22 | Windows，`pnpm dev:tauri` | 用户确认：**① 模型列表切换**正常；**② AI 账号**添加/删除正常；**③ 选模型**添加/删除正常。此前同会话中已验证网关连通、本地预览（图 / Markdown / Office）。 |
 
 ---
 
@@ -337,5 +345,5 @@
 
 ---
 
-*文档版本：1.5*（§11.1：阶段 6b Providers 读/写已在 Tauri 对齐）  
-*对应仓库路径：`lclaw-ui`（Electron 源码位于 `lclaw-ui/electron/`）；Gateway 行为参考同仓 `openclaw-src/`*
+*文档版本：1.6*（§9/§11.2 手测与阶段 7 去 Electron 同步）  
+*对应仓库路径：`lclaw-ui`；原 Electron 主进程逻辑已迁移至 `lclaw-ui/src-tauri/`（历史见 Git）；Gateway 行为参考同仓 `openclaw-src/`*

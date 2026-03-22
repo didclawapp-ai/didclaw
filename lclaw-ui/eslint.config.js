@@ -31,14 +31,6 @@ export default tseslint.config(
     },
   },
   {
-    files: ["electron/**/*.ts"],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-      },
-    },
-  },
-  {
     languageOptions: {
       globals: {
         ...globals.browser,

@@ -11,16 +11,13 @@
 
 | 形态 | 说明 |
 |------|------|
-| **桌面端（推荐）** | **Electron**：本地静态资源、完整本机设置、文件预览与系统集成能力（当前功能最全）。 |
-| **桌面端（Tauri，迁移中）** | `pnpm dev:tauri` / `pnpm dist:win:tauri`：体积小（WebView2）；网关连接、`gateway-local`、自动拉起 openclaw、系统集成、本地预览、**默认模型与 Providers（含 `models.json` / `auth-profiles` 写入）** 已与 Electron 主流程对齐；详见迁移计划 §11.1。 |
+| **桌面端（推荐）** | **Tauri 2**（WebView2）：`pnpm dev:tauri` / `pnpm dist:win`；本地静态资源（生产态 127.0.0.1）、本机设置、预览、OpenClaw 配置与网关子进程等与迁移前 Electron 版能力对齐，详见 `docs/lclaw-ui-electron-to-tauri-迁移计划.md`。 |
 | **浏览器开发联调** | `pnpm dev` / `dev:web`：通过环境变量 `VITE_GATEWAY_URL`、`VITE_GATEWAY_TOKEN`、`VITE_GATEWAY_PASSWORD` 指向网关；无桌面本机 IPC。 |
 
 打包发布（需在 **`lclaw-ui` 目录**执行）：
 
-- `pnpm dist:win:portable`：便携版（Electron）  
-- `pnpm dist:win:setup`：NSIS 安装包（Electron）  
-- `pnpm dist:win`：按 `package.json` 中 electron-builder 配置构建 Windows 产物（Electron）  
-- `pnpm dist:win:tauri`：Tauri 构建（Windows 安装包以 `src-tauri/tauri.conf.json` 为准）  
+- `pnpm dist:win`：前端 `vite build` + **`tauri build`**（安装包/可执行文件在 `src-tauri/target/release/bundle/`，目标以 `src-tauri/tauri.conf.json` 的 `bundle.targets` 为准）。  
+- `pnpm dist:win:tauri`：与 `dist:win` 相同（别名，便于旧文档链接）。  
 
 ---
 
@@ -43,7 +40,7 @@
 
 | 项 | 说明 |
 |----|------|
-| **连接时自动在后台启动本机 OpenClaw 网关** | 默认开启。仅当 **WebSocket 地址为本机**（`127.0.0.1` / `localhost` / `::1`）且 **对应 TCP 端口尚未监听** 时，由主进程 **无控制台窗口**（`windowsHide`）启动 `openclaw gateway`。Windows 下通过 **`shell: true`** 兼容 npm 全局 `openclaw.cmd`。 |
+| **连接时自动在后台启动本机 OpenClaw 网关** | 默认开启。仅当 **WebSocket 地址为本机**（`127.0.0.1` / `localhost` / `::1`）且 **对应 TCP 端口尚未监听** 时，由桌面壳 **无控制台窗口** 启动 `openclaw gateway`（Tauri：`cmd /C` + `CREATE_NO_WINDOW`；历史 Electron 版为 `windowsHide` + `shell: true`）。 |
 | **退出本应用时结束由本应用启动的网关进程** | 默认关闭。开启后，退出 LCLaw 时会结束 **本次由应用拉起的** 子进程（不处理用户手动另开的终端）。 |
 | **openclaw 可执行文件** | 可选。留空则从 PATH / `where openclaw` 解析；若找不到可填写 **完整路径**（如 `openclaw.cmd`）。 |
 
@@ -58,7 +55,7 @@
 
 ## 3. 本机设置（桌面端）
 
-通过顶栏 **「设置」** 打开 **本机设置** 对话框（分步 Tab）。**Electron** 与 **Tauri** 下 ① / ② / ③ 主流程均已接 IPC；细微差异以迁移计划 §11.1 与仓库实现为准。
+通过顶栏 **「设置」** 打开 **本机设置** 对话框（分步 Tab）。桌面端 ① / ② / ③ 均由 Tauri IPC 实现；行为说明与回归项见迁移计划 §9、§11。
 
 ### 3.1 ① 连助手
 
@@ -72,7 +69,7 @@
 - 读取并合并展示 **`~/.openclaw/openclaw.json`** 中 `models.providers` 与 **默认代理** 下 **`agents/<id>/agent/models.json`** 的 `providers`（与网关运行时合并规则一致：同 id 以代理目录为准；`models` 为对象时会按 key 合并）。  
 - 支持 **新增 / 编辑 / 删除** 供应商（provider id、baseUrl、API Key、模型 id 列表、`api`、`authHeader` 等）。  
 - **写入前** 会将各 provider 的 **`models`** 从「id → 对象」形态 **规范为非空数组**，满足 OpenClaw ModelRegistry 要求，避免出现 **Unknown model**。  
-- 写入时同步维护 **`auth-profiles.json`**、必要时调整 **`openclaw.json`**（避免密钥重复落盘等，详见 `electron/openclaw-config.ts` 注释）。  
+- 写入时同步维护 **`auth-profiles.json`**、必要时调整 **`openclaw.json`**（避免密钥重复落盘等；桌面端实现见 `lclaw-ui/src-tauri/src/openclaw_providers.rs`）。  
 - 提供常见厂商 **预设**（一键填 URL 等），减少手写。  
 - 保存前对 **openclaw.json** / **models.json** 等做备份（按实现生成带时间戳或约定前缀的备份文件）。
 
@@ -82,7 +79,7 @@
 - 维护 **`agents.defaults.models`** 别名表（模型 ref → `alias`）。  
 - 支持从预设快速选择常见主模型。  
 - 支持 **从最近备份恢复** `openclaw.json`（若实现提供该 IPC）。  
-- **Tauri**：③ 选模型与备份恢复、② Providers 合并读/写（含 `auth-profiles`）已接 IPC，路径与备份前缀与 Electron 一致。
+- ③ 选模型与备份恢复、② Providers 合并读/写（含 `auth-profiles`）路径与备份前缀与迁移前 Electron 版一致。
 
 ---
 
@@ -101,7 +98,7 @@
 - 选中消息：**Markdown 渲染**、代码高亮；支持 **echarts-json** 等约定格式。  
 - **工具时间线**：合并展示除部分高频事件外的下行事件，便于调试。  
 - **外链**：白名单策略（环境变量 `VITE_LINK_ALLOWLIST` 等，按实现为准）。  
-- **本地文件预览**（**Electron** 与 **Tauri** 均已实现主流程）：图片、PDF、Markdown/文本；Office 文档可通过 **LibreOffice** 转 PDF 后预览（未安装时可提示下载页）。Tauri 侧细节与回归项见迁移计划 §11.1。  
+- **本地文件预览**（桌面端）：图片、PDF、Markdown/文本；Office 文档可通过 **LibreOffice** 转 PDF 后预览（未安装时可提示下载页）。实现见 `src-tauri/src/preview_local.rs`；回归项见迁移计划。  
 - **链接/文件菜单**：另存为、系统默认程序打开、邮件附件准备、分享复制等（见 preload / 主进程实现）。
 
 ---
@@ -126,7 +123,7 @@
 ## 8. 已知边界（当前版本）
 
 - **安装器内嵌 Node/OpenClaw 安装、国内镜像、首次启动自动从 `openclaw.json` 导入 Token** 等属于 **后续阶段**，本说明不包含。  
-- **Tauri 与 Electron 能力差异**（预览、模型/Providers 等）以 **`lclaw-ui-electron-to-tauri-迁移计划.md` §11.1** 为准。  
+- 迁移过程与阶段说明见 **`lclaw-ui-electron-to-tauri-迁移计划.md`**（§11 进度与 §9 回归）。  
 - 未实现的能力排期见 **`lclaw-ui-功能补全清单.md`**。  
 - 协议细节与网关版本差异请维护 **`gateway-client-protocol-notes.md`**（若仓库中有该文件）。
 
@@ -140,9 +137,9 @@
 | `docs/lclaw-ui-开发步骤.md` | 分阶段开发与勾选 |
 | `docs/lclaw-ui-功能补全清单.md` | 增量功能排期 |
 | `docs/lclaw-ui-桌面端专属-实现方案.md` | 桌面端专属能力 |
-| `docs/lclaw-ui-electron-to-tauri-迁移计划.md` | Electron → Tauri 阶段划分与 **§11.1 实施进度** |
-| `lclaw-ui/electron/openclaw-config.ts` | OpenClaw 配置读写与合并 |
-| `lclaw-ui/electron/openclaw-gateway-process.ts` | 本机网关进程拉起与端口探测 |
+| `docs/lclaw-ui-electron-to-tauri-迁移计划.md` | 迁移阶段、§11 进度、§9 回归与手测记录 |
+| `lclaw-ui/src-tauri/src/openclaw_providers.rs`、`openclaw_model_config.rs` | OpenClaw 模型与 Providers 读写（原 TS 逻辑见 Git 历史） |
+| `lclaw-ui/src-tauri/src/openclaw_gateway.rs` | 本机网关进程拉起与端口探测 |
 
 ---
 
