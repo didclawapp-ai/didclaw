@@ -1,7 +1,6 @@
 //! Windows：子进程执行仓库 `ensure-openclaw-windows.ps1`（官方 install.ps1 + 可选非交互 onboard）。
 
 use serde_json::{json, Value};
-use std::fs;
 use std::path::PathBuf;
 #[cfg(windows)]
 use std::process::{Command, Stdio};
@@ -23,7 +22,7 @@ fn resolve_ensure_script_path(app: &AppHandle) -> Result<PathBuf, String> {
     #[cfg(debug_assertions)]
     {
         let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../scripts/ensure-openclaw-windows.ps1");
-        let dev = fs::canonicalize(&dev).map_err(|_| {
+        let dev = std::fs::canonicalize(&dev).map_err(|_| {
             format!(
                 "开发模式下未找到脚本（期望 {}）",
                 dev.display()
@@ -66,6 +65,9 @@ pub fn run_ensure_openclaw_windows_install_impl(
         let mut cmd = Command::new("powershell.exe");
         cmd.args([
             "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
             "-ExecutionPolicy",
             "Bypass",
             "-File",

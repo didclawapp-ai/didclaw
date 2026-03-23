@@ -8,9 +8,9 @@
 
 | 项 | 值 |
 |----|-----|
-| OpenClaw Gateway 版本 | 参考本地 `openclaw-src`：**2026.3.14**（以实际运行网关为准） |
+| OpenClaw Gateway 版本 | npm `openclaw` 当前 **latest** 为 **2026.3.22**（2026-03-23）；本地 `openclaw-src` 以检出/tag 为准（**以实际 `openclaw --version` / 运行为准**） |
 | lclaw-ui 包版本 | 见 `lclaw-ui/package.json` `version`（构建时写入 `__APP_VERSION__`） |
-| 本笔记最后更新 | 2026-03-20 |
+| 本笔记最后更新 | 2026-03-23 |
 | 验证人 | （团队填写） |
 
 ## 连接参数
@@ -87,6 +87,7 @@
 | 日期 | OpenClaw 版本 | 变更摘要 |
 |------|-----------------|----------|
 | 2026-03-20 | 参考 2026.3.14 | 阶段 E：核心 RPC/事件 Zod、错误中文映射、诊断复制、部署文档 |
+| 2026-03-23 | npm **2026.3.22**（相对 **2026.3.13**） | 上游约一周内有大量提交；与 LCLaw 最相关：**网关启动**改为从已编译 `dist/extensions` 加载捆绑插件（冷启动明显加快，见上游 CHANGELOG `Gateway/startup`）；文档强调 `controlUi.allowedOrigins` 勿滥用 `["*"]`；另有大量插件迁移、exec 审批、Breaking（如弃用 `CLAWDBOT_*` / `.moltbot` 等）。完整差异见 [compare 61d171a…e7d11f6](https://github.com/openclaw/openclaw/compare/61d171ab0b2fe4abc9afe89c518586274b4b76c2...e7d11f6c33e223a0dd8a21cfe01076bd76cef87a)（npm 2026.3.13 与 2026.3.22 对应提交）。 |
 | 2026-03-21 | openclaw `main` `chat.ts` | 确认 `chat.send` 无根级 `model`；lclaw-ui 不再随请求附带 `model` |
 | 2026-03-21 | [Configuration / hot reload](https://docs.openclaw.ai/gateway/configuration#config-hot-reload) | Gateway 监视 `openclaw.json`；`agents`/`models` 表列为可热更新；`gateway.reload.mode: off` 时需手动重启；UI 保存后提示用户 |
 

@@ -184,6 +184,8 @@ pub fn run() {
                 tauri::async_runtime::block_on(gateway_tunnel::shutdown_tunnel_slot(&s));
             }
             openclaw_gateway::dispose_managed_open_claw_gateway(app_handle);
+            #[cfg(windows)]
+            openclaw_gateway::cleanup_windows_gateway_console_titles();
         }
     });
 }

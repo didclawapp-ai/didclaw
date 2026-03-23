@@ -1,6 +1,6 @@
 /**
- * OpenClaw gateway 设备签名载荷 **v3**（协议 minProtocol 3 时应对齐此格式）。
- * 参考社区面板在 Rust 侧组装的 `v3|…|platform|deviceFamily` 串，与仅含 v2 的旧浏览器客户端区分。
+ * OpenClaw 网关设备认证载荷 **v3**：`minProtocol >= 3` 时须使用本格式（管道分隔字段，末尾含 `platformOs`、`deviceFamily`）。
+ * 与仅含 v2 字段的旧版浏览器客户端区分。
  */
 export function buildDeviceAuthPayload(params: {
   deviceId: string;

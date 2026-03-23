@@ -1,9 +1,11 @@
 //! 与 `electron/openclaw-gateway-process.ts` 对齐：本机环回 WS、探测端口、拉起 `openclaw gateway`、退出时可选结束子进程。
 
 use serde_json::{json, Value};
+use std::collections::BTreeSet;
 use std::io;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -147,9 +149,11 @@ fn best_windows_openclaw_path(from_where: &str) -> Option<String> {
 fn first_resolved_openclaw_from_where(args: &[&str]) -> Option<String> {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let path_env = windows_enhanced_path();
     for name in args {
         let Ok(out) = Command::new("where.exe")
             .arg(name)
+            .env("PATH", &path_env)
             .creation_flags(CREATE_NO_WINDOW)
             .output()
         else {
@@ -166,6 +170,110 @@ fn first_resolved_openclaw_from_where(args: &[&str]) -> Option<String> {
         }
     }
     None
+}
+
+/// 从资源管理器启动的 GUI 进程往往拿不到完整 PATH，补全常见 Node/npm 目录后再 `where` / 起子进程。
+#[cfg(windows)]
+fn windows_enhanced_path() -> String {
+    fn push_unique(seen: &mut BTreeSet<String>, out: &mut Vec<String>, s: String) {
+        let k = s.to_lowercase();
+        if seen.insert(k) {
+            out.push(s);
+        }
+    }
+    let mut seen = BTreeSet::new();
+    let mut out: Vec<String> = Vec::new();
+    if let Ok(base) = std::env::var("PATH") {
+        for p in base.split(';') {
+            let t = p.trim();
+            if !t.is_empty() {
+                push_unique(&mut seen, &mut out, t.to_string());
+            }
+        }
+    }
+    let extra_dirs: Vec<Option<PathBuf>> = vec![
+        std::env::var("ProgramFiles")
+            .ok()
+            .map(|p| Path::new(&p).join("nodejs")),
+        std::env::var("ProgramFiles(x86)")
+            .ok()
+            .map(|p| Path::new(&p).join("nodejs")),
+        std::env::var("LOCALAPPDATA")
+            .ok()
+            .map(|p| Path::new(&p).join("Programs").join("nodejs")),
+        std::env::var("APPDATA")
+            .ok()
+            .map(|p| Path::new(&p).join("npm")),
+    ];
+    for d in extra_dirs.into_iter().flatten() {
+        if d.is_dir() {
+            push_unique(&mut seen, &mut out, d.to_string_lossy().to_string());
+        }
+    }
+    out.join(";")
+}
+
+/// npm 全局 `openclaw.cmd` 同目录下一般为 `node_modules/openclaw/openclaw.mjs`（与官方包 `bin` 一致）。
+#[cfg(windows)]
+fn openclaw_entry_mjs_next_to_npm_shim(shim_path: &str) -> Option<PathBuf> {
+    let p = Path::new(shim_path.trim());
+    let ext = p.extension()?.to_str()?.to_ascii_lowercase();
+    if !matches!(ext.as_str(), "cmd" | "bat" | "ps1") {
+        return None;
+    }
+    let parent = p.parent()?;
+    let mjs = parent
+        .join("node_modules")
+        .join("openclaw")
+        .join("openclaw.mjs");
+    if mjs.is_file() {
+        Some(mjs)
+    } else {
+        None
+    }
+}
+
+#[cfg(windows)]
+fn resolve_node_exe_windows() -> Option<PathBuf> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let fixed_candidates: [Option<PathBuf>; 3] = [
+        std::env::var("ProgramFiles")
+            .ok()
+            .map(|p| Path::new(&p).join("nodejs").join("node.exe")),
+        std::env::var("ProgramFiles(x86)")
+            .ok()
+            .map(|p| Path::new(&p).join("nodejs").join("node.exe")),
+        std::env::var("LOCALAPPDATA")
+            .ok()
+            .map(|p| Path::new(&p).join("Programs").join("nodejs").join("node.exe")),
+    ];
+    for c in fixed_candidates.into_iter().flatten() {
+        if c.is_file() {
+            return Some(c);
+        }
+    }
+    let path_env = windows_enhanced_path();
+    let out = Command::new("where.exe")
+        .arg("node.exe")
+        .env("PATH", &path_env)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let line = stdout
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())?;
+    let pb = PathBuf::from(line);
+    if pb.is_file() {
+        Some(pb)
+    } else {
+        None
+    }
 }
 
 /// 解析 openclaw 可执行路径（网关自启与安装预检共用）。
@@ -197,8 +305,10 @@ pub fn resolve_open_claw_executable(custom: Option<&str>) -> Option<String> {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let path_env = windows_enhanced_path();
         if Command::new("openclaw")
             .arg("--version")
+            .env("PATH", &path_env)
             .creation_flags(CREATE_NO_WINDOW)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -249,11 +359,79 @@ fn read_child_stderr_abbrev(child: &mut Child, max_bytes: usize) -> String {
     String::from_utf8_lossy(&buf[..total]).trim().to_string()
 }
 
+/// Windows：将 stdout/stderr 重定向到 `~/.openclaw/logs/` 下文件，减少子进程分配可见控制台的概率；文件名使用 `lclaw-` 前缀以免与其它程序写入同一日志混淆。
+#[cfg(windows)]
+fn open_lclaw_gateway_stdio_log_files() -> Result<(std::fs::File, std::fs::File), std::io::Error> {
+    use std::fs::OpenOptions;
+    let dir = crate::openclaw_common::openclaw_dir()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+        .join("logs");
+    std::fs::create_dir_all(&dir)?;
+    let stdout_log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("lclaw-gateway.log"))?;
+    let stderr_log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("lclaw-gateway.err.log"))?;
+    Ok((stdout_log, stderr_log))
+}
+
+#[cfg(windows)]
+fn read_lclaw_gateway_err_log_tail(max_bytes: usize) -> String {
+    let Ok(dir) = crate::openclaw_common::openclaw_dir() else {
+        return String::new();
+    };
+    let path = dir.join("logs").join("lclaw-gateway.err.log");
+    let Ok(mut f) = std::fs::File::open(&path) else {
+        return String::new();
+    };
+    let Ok(meta) = f.metadata() else {
+        return String::new();
+    };
+    let len = meta.len();
+    if len == 0 {
+        return String::new();
+    }
+    let max = max_bytes as u64;
+    let start = len.saturating_sub(max);
+    if f.seek(std::io::SeekFrom::Start(start)).is_err() {
+        return String::new();
+    }
+    let to_read = (len - start) as usize;
+    let mut buf = vec![0u8; to_read];
+    let Ok(n) = f.read(&mut buf) else {
+        return String::new();
+    };
+    String::from_utf8_lossy(&buf[..n]).trim().to_string()
+}
+
 fn kill_managed_gateway_process() {
     let mut g = MANAGED_CHILD.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(mut c) = g.take() {
         let _ = c.kill();
         let _ = c.wait();
+    }
+}
+
+/// 退出应用时关闭仍带标题的网关控制台窗口（例如此前由其它方式拉起、或旧版本遗留）。
+#[cfg(windows)]
+pub fn cleanup_windows_gateway_console_titles() {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    for title in ["openclaw-gateway", "OpenClaw Gateway"] {
+        let _ = Command::new("cmd")
+            .args([
+                "/c",
+                "taskkill",
+                "/f",
+                "/t",
+                "/fi",
+                &format!("WINDOWTITLE eq {title}"),
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
     }
 }
 
@@ -270,20 +448,122 @@ pub fn dispose_managed_open_claw_gateway(app: &tauri::AppHandle) {
     }
 }
 
+/// Windows：`cmd /c *.cmd` 即使用 CREATE_NO_WINDOW，内层 node 仍可能闪控制台；用 PowerShell 拉 ProcessStartInfo.CreateNoWindow 包一层。
+#[cfg(windows)]
+fn run_openclaw_gateway_restart_captured(exe: &str) -> io::Result<std::process::Output> {
+    use base64::{engine::general_purpose, Engine as _};
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let exe = exe.trim();
+    let lower = exe.to_ascii_lowercase();
+    if lower.ends_with(".exe") && std::path::Path::new(exe).is_file() {
+        return Command::new(exe)
+            .args(["gateway", "restart"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+    }
+
+    let b64 = general_purpose::STANDARD.encode(exe.as_bytes());
+    let script = format!(
+        concat!(
+            "$ErrorActionPreference='Stop';",
+            "$exe=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{b64}'));",
+            "$q=[char]34;",
+            "$safe=$exe.Replace($q,$q+$q);",
+            "$argsLine='/c '+$q+$safe+$q+' gateway restart';",
+            "$psi=New-Object System.Diagnostics.ProcessStartInfo;",
+            "$psi.FileName='cmd.exe';$psi.Arguments=$argsLine;",
+            "$psi.UseShellExecute=$false;",
+            "$psi.RedirectStandardOutput=$true;",
+            "$psi.RedirectStandardError=$true;",
+            "$psi.CreateNoWindow=$true;",
+            "$p=[System.Diagnostics.Process]::Start($psi);",
+            "$out=$p.StandardOutput.ReadToEnd();$err=$p.StandardError.ReadToEnd();",
+            "$p.WaitForExit()|Out-Null;",
+            "[Console]::Out.Write($out);[Console]::Error.Write($err);",
+            "exit $p.ExitCode",
+        ),
+        b64 = b64
+    );
+
+    Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            &script,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+}
+
 fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        // 勿把「"路径" gateway」拼成 /C 的单个参数，否则 cmd 会把整段当命令名而报「不是内部或外部命令」。
-        // 分开发传参，由 Rust/Windows 按规则为含空格的路径加引号。
+        let exe = exe.trim();
+        let lower = exe.to_ascii_lowercase();
+        let path_env = windows_enhanced_path();
+
+        // 日志文件不可写时勿用 stderr 管道：个别环境下 node 仍会为管道分配可见控制台；双 null 则牺牲首包错误摘要。
+        let (stdout, stderr) = match open_lclaw_gateway_stdio_log_files() {
+            Ok((out, err)) => (Stdio::from(out), Stdio::from(err)),
+            Err(_) => (Stdio::null(), Stdio::null()),
+        };
+
+        // 真实 .exe：直接子进程 + CREATE_NO_WINDOW，无 cmd 中转。
+        if lower.ends_with(".exe") && Path::new(exe).is_file() {
+            return Command::new(exe)
+                .arg("gateway")
+                .env("PATH", &path_env)
+                .stdin(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|e| e.to_string());
+        }
+
+        // npm 垫片：`cmd /c *.cmd` 时 CREATE_NO_WINDOW 盖不住内层 node 的新控制台；改为 node openclaw.mjs gateway。
+        if let Some(mjs) = openclaw_entry_mjs_next_to_npm_shim(exe) {
+            if let Some(node) = resolve_node_exe_windows() {
+                let pkg_root = mjs
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| mjs.clone());
+                return Command::new(node)
+                    .arg(&mjs)
+                    .arg("gateway")
+                    .env("PATH", &path_env)
+                    .stdin(Stdio::null())
+                    .stdout(stdout)
+                    .stderr(stderr)
+                    .current_dir(pkg_root)
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .spawn()
+                    .map_err(|e| e.to_string());
+            }
+        }
+
+        // 兜底：仍走 cmd（pnpm 等非标准布局时可能只有垫片可用）。
         Command::new("cmd")
             .arg("/C")
-            .arg(exe.trim())
+            .arg(exe)
             .arg("gateway")
+            .env("PATH", &path_env)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
+            .stdout(stdout)
+            .stderr(stderr)
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| e.to_string())
@@ -326,18 +606,7 @@ pub fn restart_open_claw_gateway_service(app: &tauri::AppHandle) -> Value {
     let output = {
         #[cfg(windows)]
         {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            Command::new("cmd")
-                .arg("/C")
-                .arg(exe.trim())
-                .arg("gateway")
-                .arg("restart")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .creation_flags(CREATE_NO_WINDOW)
-                .output()
+            run_openclaw_gateway_restart_captured(&exe)
         }
         #[cfg(not(windows))]
         {
@@ -443,7 +712,11 @@ pub async fn ensure_open_claw_gateway_running(
         if let Some(ref mut c) = *g {
             match c.try_wait() {
                 Ok(Some(status)) => {
-                    let stderr_tail = read_child_stderr_abbrev(c, 8192);
+                    let mut stderr_tail = read_child_stderr_abbrev(c, 8192);
+                    #[cfg(windows)]
+                    if stderr_tail.is_empty() {
+                        stderr_tail = read_lclaw_gateway_err_log_tail(8192);
+                    }
                     drop(g);
                     kill_managed_gateway_process();
                     let code = status
@@ -451,7 +724,14 @@ pub async fn ensure_open_claw_gateway_running(
                         .map(|c| c.to_string())
                         .unwrap_or_else(|| "非零/信号".into());
                     let detail = if stderr_tail.is_empty() {
-                        "未捕获到子进程错误输出；请在 CMD/PowerShell 手动执行「openclaw gateway」查看完整日志。".to_string()
+                        #[cfg(windows)]
+                        {
+                            "启动失败且暂无错误摘要；可打开用户文件夹\\.openclaw\\logs\\lclaw-gateway.err.log 查看，或在终端执行「openclaw gateway」。".to_string()
+                        }
+                        #[cfg(not(windows))]
+                        {
+                            "未捕获到子进程错误输出；请在终端手动执行「openclaw gateway」查看完整日志。".to_string()
+                        }
                     } else {
                         format!("进程错误输出：\n{stderr_tail}")
                     };

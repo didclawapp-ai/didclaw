@@ -1,4 +1,5 @@
 ﻿#Requires -Version 5.1
+# 须以 UTF-8 **带 BOM** 保存：否则 Windows PowerShell 5.1 用系统 ANSI 解析，中文会乱码并触发 ParserError。
 <#
 .SYNOPSIS
   纯 Windows：检测 openclaw；缺失则用官方 install.ps1 安装（-NoOnboard）；再可选执行官方非交互 onboard。
@@ -7,7 +8,8 @@
   - 安装 CLI：下载 https://openclaw.ai/install.ps1，子进程执行 -NoOnboard（与官方一致）。
   - 引导：使用官方一次性非交互命令（见 https://openclaws.io/docs/start/wizard-cli-automation ）。
   - 默认模型提供方：Pollinations（OpenAI 兼容网关 https://gen.pollinations.ai ，说明见 https://pollinations.ai 与 https://enter.pollinations.ai/api/docs ）。
-    若有 POLLINATIONS_API_KEY（或 -PollinationsApiKey）则走 Pollinations；否则默认自动改为 skip，仍会完成 onboard（安装 Gateway 计划任务等），避免只装了 CLI 却未装网关。
+    若有 POLLINATIONS_API_KEY（或 -PollinationsApiKey）则走 Pollinations；否则默认自动改为 skip，仍会完成 onboard（写入配置等）。
+    **默认不** 向官方 onboard 传 --install-daemon：避免计划任务 + gateway.cmd 弹出独立 CMD；网关由 LCLaw 无窗子进程拉起。需要官方「登录即起网关」时请加 -InstallGatewayDaemon。
     若必须配置 Pollinations 才允许继续：加 -RequirePollinationsApiKey（缺密钥则退出码 5）。
 
   用法：
@@ -24,6 +26,8 @@
     powershell ...\ensure-openclaw-windows.ps1 -FailIfOllamaUnreachable
     # 缺 Pollinations 密钥时必须失败（不要自动 skip）
     powershell ...\ensure-openclaw-windows.ps1 -RequirePollinationsApiKey
+    # 需要官方「登录启动」计划任务 + gateway.cmd（会多一个 CMD 窗口）时：
+    powershell ...\ensure-openclaw-windows.ps1 -InstallGatewayDaemon
 
   参数也可从 ensure-openclaw-windows.bat 传入：ensure-openclaw-windows.bat -SkipOnboard
 #>
@@ -52,7 +56,9 @@ param(
     # 不探测 Ollama（本地未监听 11434 但仅用 Ollama Cloud 等场景可开）
     [switch]$SkipOllamaPreflight,
     # 已选 pollinations 但未提供密钥时直接退出码 5（默认改为 skip 并继续完成网关安装）
-    [switch]$RequirePollinationsApiKey
+    [switch]$RequirePollinationsApiKey,
+    # 向官方 onboard 传入 --install-daemon（计划任务 + gateway.cmd，通常会弹出独立控制台；LCLaw 桌面版默认不需要）
+    [switch]$InstallGatewayDaemon
 )
 
 # 勿对本机脚本开 StrictMode：官方 install.ps1 在部分分支会读到尚未赋值的变量；
@@ -102,7 +108,8 @@ function Invoke-OpenclawOnboardNonInteractive {
         [string]$PollinationsKey,
         [string]$PollinationsModel,
         [int]$Port,
-        [switch]$SkipHealthCheck
+        [switch]$SkipHealthCheck,
+        [switch]$InstallGatewayDaemon
     )
 
     $onboardArgs = [System.Collections.Generic.List[string]]::new()
@@ -144,9 +151,11 @@ function Invoke-OpenclawOnboardNonInteractive {
     $onboardArgs.Add("$Port")
     $onboardArgs.Add('--gateway-bind')
     $onboardArgs.Add('loopback')
-    $onboardArgs.Add('--install-daemon')
-    $onboardArgs.Add('--daemon-runtime')
-    $onboardArgs.Add('node')
+    if ($InstallGatewayDaemon) {
+        $onboardArgs.Add('--install-daemon')
+        $onboardArgs.Add('--daemon-runtime')
+        $onboardArgs.Add('node')
+    }
     $onboardArgs.Add('--skip-channels')
     $onboardArgs.Add('--skip-search')
     $onboardArgs.Add('--skip-skills')
@@ -161,6 +170,11 @@ function Invoke-OpenclawOnboardNonInteractive {
         default { 'QuickStart + 跳过模型/API（auth skip）+ 跳过频道/搜索/技能/UI 提示' }
     }
     Write-Host ('[ensure-openclaw] 执行官方非交互 onboard（{0}）...' -f $flowDesc) -ForegroundColor Yellow
+    if ($InstallGatewayDaemon) {
+        Write-Host '[ensure-openclaw] 已启用 -InstallGatewayDaemon：将注册官方 Gateway 计划任务（可能单独弹出 CMD）。' -ForegroundColor DarkGray
+    } else {
+        Write-Host '[ensure-openclaw] 未安装 Gateway 计划任务；请由 LCLaw 启动本机网关（无窗）或手动 openclaw gateway。' -ForegroundColor DarkGray
+    }
     Write-Host ('[ensure-openclaw] 文档: https://openclaws.io/docs/start/wizard-cli-automation' ) -ForegroundColor DarkGray
 
     & $OpenclawExe @($onboardArgs.ToArray())
@@ -245,7 +259,7 @@ if ($effectiveAuth -eq 'pollinations' -and [string]::IsNullOrWhiteSpace($pollina
         Write-Host '    设置环境变量 POLLINATIONS_API_KEY，或: -PollinationsApiKey ''sk_...''' -ForegroundColor DarkGray
         exit 5
     }
-    Write-Host '[ensure-openclaw] 未检测到 POLLINATIONS_API_KEY，将改用 --auth-choice skip 以完成 onboard（会安装 Gateway 服务等）。' -ForegroundColor Yellow
+    Write-Host '[ensure-openclaw] 未检测到 POLLINATIONS_API_KEY，将改用 --auth-choice skip 以完成 onboard（写入配置；默认不装计划任务）。' -ForegroundColor Yellow
     Write-Host '  稍后可设密钥并重跑本脚本（仅 onboard），或: openclaw configure / LCLaw 内配置 Pollinations。' -ForegroundColor DarkGray
     Write-Host '  注册密钥: https://enter.pollinations.ai/' -ForegroundColor DarkGray
     $effectiveAuth = 'skip'
@@ -270,7 +284,7 @@ try {
     Invoke-OpenclawOnboardNonInteractive -OpenclawExe $openclawExe -AuthChoice $effectiveAuth `
         -ModelId $OllamaModelId -BaseUrl $OllamaBaseUrl `
         -PollinationsKey $pollinationsKeyResolved -PollinationsModel $PollinationsModelId `
-        -Port $GatewayPort -SkipHealthCheck:$SkipHealth
+        -Port $GatewayPort -SkipHealthCheck:$SkipHealth -InstallGatewayDaemon:$InstallGatewayDaemon
 } catch {
     Write-Host ('[ensure-openclaw] onboard 失败: {0}' -f $_) -ForegroundColor Red
     exit 3
