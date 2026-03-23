@@ -716,9 +716,14 @@ async function onRestoreModel(): Promise<void> {
           <label class="field">
             <span class="field-label-row">
               口令（Token）
-              <span class="help-tip" title="与下方密码二选一，按安装教程填写" tabindex="0" role="note">?</span>
+              <span
+                class="help-tip"
+                title="与下方密码二选一。留空时启动连接会自动读取 ~/.openclaw/openclaw.json 中 gateway.auth.token（mode 为 token 时）。"
+                tabindex="0"
+                role="note"
+              >?</span>
             </span>
-            <input v-model="token" type="password" autocomplete="off" placeholder="可选">
+            <input v-model="token" type="password" autocomplete="off" placeholder="可选（可自动从 openclaw.json 读取）">
           </label>
           <label class="field">
             <span>密码</span>

@@ -138,6 +138,8 @@ export type PrimaryModelQuickPick = {
 
 /** ③ 选模型：与 OpenClaw 默认 ref 对齐 */
 export const PRIMARY_MODEL_QUICK_PICKS: readonly PrimaryModelQuickPick[] = [
+  { label: "Ollama · llama3.2（本机）", ref: "ollama/llama3.2", bucket: "cn" },
+  { label: "Ollama · qwen2.5:7b（本机）", ref: "ollama/qwen2.5:7b", bucket: "cn" },
   { label: "MiniMax M2.7", ref: "minimax/MiniMax-M2.7", bucket: "cn" },
   { label: "MiniMax M2.5", ref: "minimax/MiniMax-M2.5", bucket: "cn" },
   { label: "Kimi K2.5", ref: "moonshot/kimi-k2.5", bucket: "cn" },

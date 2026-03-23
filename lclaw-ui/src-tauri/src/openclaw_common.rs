@@ -2,6 +2,7 @@
 
 use chrono::{Datelike, Local, Timelike};
 use serde_json::Value;
+use std::fs;
 use std::io;
 use std::path::PathBuf;
 
@@ -94,4 +95,32 @@ pub fn extract_default_agent_id(root: &Value) -> String {
         }
     }
     "main".into()
+}
+
+/// 供本机网关连接：从 `~/.openclaw/openclaw.json` 读取 `gateway.auth.token`。
+/// 仅当 `auth.mode` 为 `token`、或未写 `mode` 且存在非空 `token` 时返回；`password` 模式返回 `None`，避免误把 token 当口令。
+pub fn read_openclaw_gateway_token_for_client() -> Option<String> {
+    let path = openclaw_config_path().ok()?;
+    let raw = fs::read_to_string(path).ok()?;
+    let root: Value = serde_json::from_str(&raw).ok()?;
+    let gateway = root.get("gateway")?.as_object()?;
+    let auth = gateway.get("auth")?.as_object()?;
+    let mode = auth
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .unwrap_or("");
+    if mode == "password" {
+        return None;
+    }
+    let token = auth
+        .get("token")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())?;
+    if mode.is_empty() || mode == "token" {
+        Some(token.to_string())
+    } else {
+        None
+    }
 }

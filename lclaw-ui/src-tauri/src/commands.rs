@@ -147,7 +147,20 @@ pub fn dialog_open_file() -> Result<Option<String>, String> {
 #[tauri::command]
 pub fn read_gateway_local_config(app: tauri::AppHandle) -> Result<Value, String> {
     let m = crate::gateway_local::read_merged_map(&app)?;
-    Ok(crate::gateway_local::merged_to_frontend_value(&m))
+    let mut v = crate::gateway_local::merged_to_frontend_value(&m);
+    if let Value::Object(ref mut map) = v {
+        let token_missing = match map.get("token") {
+            None => true,
+            Some(Value::String(s)) => s.trim().is_empty(),
+            _ => false,
+        };
+        if token_missing {
+            if let Some(t) = crate::openclaw_common::read_openclaw_gateway_token_for_client() {
+                map.insert("token".into(), json!(t));
+            }
+        }
+    }
+    Ok(v)
 }
 
 #[tauri::command]

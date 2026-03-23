@@ -42,7 +42,19 @@ export const useSessionStore = defineStore("session", () => {
       }
       const list = parsed.data.sessions ?? [];
       sessions.value = list.filter((s) => typeof s.key === "string");
-      if (sessions.value.length > 0 && !activeSessionKey.value) {
+
+      // 新装或尚未产生任何会话时，网关常返回空列表；此时没有 activeSessionKey 会导致无法 chat.send。
+      // 与 OpenClaw resolveMainSessionKey 一致：无 agents.list 时默认 agent 为 main，主会话键为 agent:main:main。
+      const DEFAULT_MAIN_SESSION_KEY = "agent:main:main";
+      if (sessions.value.length === 0) {
+        sessions.value = [{ key: DEFAULT_MAIN_SESSION_KEY, label: "main" }];
+      }
+
+      const cur = activeSessionKey.value;
+      if (
+        sessions.value.length > 0 &&
+        (!cur || !sessions.value.some((s) => s.key === cur))
+      ) {
         activeSessionKey.value = sessions.value[0]?.key ?? null;
       }
       const key = activeSessionKey.value;
