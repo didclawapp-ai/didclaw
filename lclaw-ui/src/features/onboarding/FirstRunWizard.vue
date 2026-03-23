@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import {
+  afterOpenClawModelConfigSaved,
   isFirstRunModelStepComplete,
   markFirstRunModelStepComplete,
   readModelWizardSnoozeExpired,
   setModelConfigDeferred,
   snoozeModelWizard24h,
 } from "@/composables/modelConfigDeferred";
+import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayAfterControlUiMerge";
 import { getLclawDesktopApi } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
 const WIZARD_DOC = "https://docs.openclaw.ai/start/wizard";
 const ONBOARD_CMD = "openclaw onboard";
@@ -94,6 +96,9 @@ async function refreshStatus(): Promise<void> {
   modelError.value = null;
   try {
     const s = await api.getOpenClawSetupStatus();
+    if (s.controlUiAllowedOriginsMerged) {
+      await restartGatewayAfterControlUiMerge(gw);
+    }
     openclawDirExists.value = s.openclawDirExists;
     configState.value = s.openclawConfigState;
     configError.value = s.openclawConfigError;
@@ -244,8 +249,7 @@ async function applyOllamaQuickSetup(): Promise<void> {
     }
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
-    setModelConfigDeferred(false);
-    markFirstRunModelStepComplete();
+    afterOpenClawModelConfigSaved();
     visible.value = false;
     gw.disconnect();
     gw.connect();
@@ -257,8 +261,6 @@ async function applyOllamaQuickSetup(): Promise<void> {
 }
 
 function onModelCloudPath(): void {
-  setModelConfigDeferred(false);
-  markFirstRunModelStepComplete();
   localSettings.open("providers");
   visible.value = false;
 }
@@ -281,8 +283,17 @@ function onModelStepSnooze24h(): void {
   visible.value = false;
 }
 
+function onRecheckFirstRunEvent(): void {
+  void refreshStatus();
+}
+
 onMounted(() => {
   void refreshStatus();
+  window.addEventListener("lclaw-first-run-recheck", onRecheckFirstRunEvent);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("lclaw-first-run-recheck", onRecheckFirstRunEvent);
 });
 </script>
 

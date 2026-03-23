@@ -5,6 +5,7 @@ use std::fs;
 use tauri::AppHandle;
 
 use crate::gateway_local;
+use crate::launch_log;
 use crate::openclaw_common::{is_enoent, openclaw_config_path, openclaw_dir};
 use crate::openclaw_gateway::resolve_open_claw_executable;
 
@@ -50,11 +51,23 @@ pub fn build_open_claw_setup_status(app: &AppHandle) -> Value {
         }),
     };
 
+    let origins_merged =
+        match crate::openclaw_gateway_origins::ensure_lclaw_desktop_allowed_origins() {
+            Ok(o) => o.merged,
+            Err(e) => {
+                launch_log::line(&format!(
+                    "openclaw: 预检合并 controlUi.allowedOrigins 失败（可忽略）: {e}"
+                ));
+                false
+            }
+        };
+
     json!({
         "openclawDirExists": openclaw_dir_exists,
         "openclawConfigState": config_state,
         "openclawConfigError": config_error,
         "openclawCli": openclaw_cli,
         "modelConfigDeferred": false,
+        "controlUiAllowedOriginsMerged": origins_merged,
     })
 }

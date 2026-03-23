@@ -24,6 +24,7 @@ import {
   syncDeferredModelBannerFromStorage,
   setModelConfigDeferred,
 } from "@/composables/modelConfigDeferred";
+import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayAfterControlUiMerge";
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, onMounted, ref } from "vue";
@@ -113,9 +114,28 @@ onMounted(() => {
   }
   // 与 Tauri WebView / 隧道订阅抢跑会放大首连失败；略推迟自动连接
   void nextTick(() => {
-    window.setTimeout(() => {
-      gw.connect();
-    }, 150);
+    void (async () => {
+      let deferConnectMs = 150;
+      const api = getLclawDesktopApi();
+      if (isLclawElectron() && api?.getOpenClawSetupStatus) {
+        try {
+          const s = await api.getOpenClawSetupStatus();
+          if (s.controlUiAllowedOriginsMerged) {
+            const ok = await restartGatewayAfterControlUiMerge(gw);
+            if (ok) {
+              deferConnectMs = 0;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (deferConnectMs > 0) {
+        window.setTimeout(() => {
+          gw.connect();
+        }, deferConnectMs);
+      }
+    })();
   });
 });
 

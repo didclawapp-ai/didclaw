@@ -1,8 +1,11 @@
 import { ref } from "vue";
 
+import { getLclawDesktopApi } from "@/lib/electron-bridge";
+
 const LS_MODEL_COMPLETE = "lclaw_first_run_model_complete";
 const LS_DEFERRED = "lclaw_model_config_deferred";
 const LS_MODEL_SNOOZE = "lclaw_model_wizard_snooze_until";
+const LS_ENV_SNOOZE = "lclaw_setup_wizard_snooze_until";
 
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
@@ -69,4 +72,45 @@ export function snoozeModelWizard24h(): void {
   } catch {
     /* ignore */
   }
+}
+
+/** 测试/排错：清除首次引导相关 localStorage 并刷新横幅状态 */
+export function resetFirstRunWizardLocalState(): void {
+  try {
+    localStorage.removeItem(LS_MODEL_COMPLETE);
+    localStorage.removeItem(LS_DEFERRED);
+    localStorage.removeItem(LS_MODEL_SNOOZE);
+    localStorage.removeItem(LS_ENV_SNOOZE);
+  } catch {
+    /* ignore */
+  }
+  syncDeferredModelBannerFromStorage();
+}
+
+/** 在「② AI 账号」保存成功后：去掉「稍后配置」横幅；若已存在默认 primary 则标记模型步完成 */
+export async function afterOpenClawProvidersSaved(): Promise<void> {
+  setModelConfigDeferred(false);
+  syncDeferredModelBannerFromStorage();
+  const api = getLclawDesktopApi();
+  if (!api?.readOpenClawModelConfig) {
+    return;
+  }
+  try {
+    const mc = await api.readOpenClawModelConfig();
+    if (mc.ok) {
+      const primary = mc.model?.primary;
+      if (typeof primary === "string" && primary.trim().length > 0) {
+        markFirstRunModelStepComplete();
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 在「③ 选模型」保存成功后：标记首次引导模型步完成并清除稍后配置 */
+export function afterOpenClawModelConfigSaved(): void {
+  markFirstRunModelStepComplete();
+  setModelConfigDeferred(false);
+  syncDeferredModelBannerFromStorage();
 }

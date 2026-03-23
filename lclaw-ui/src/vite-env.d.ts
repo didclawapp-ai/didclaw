@@ -104,6 +104,8 @@ interface LclawElectronApi {
     openclawConfigError: string | null;
     openclawCli: { ok: true; path: string } | { ok: false; error: string };
     modelConfigDeferred: boolean;
+    /** 本次预检是否刚把桌面 WebView Origin 写入 openclaw.json；为 true 时应重启网关后重连 */
+    controlUiAllowedOriginsMerged?: boolean;
   }>;
   /** Windows：执行打包内的 ensure-openclaw-windows.ps1；`skipOnboard` 为 true 时等价 -SkipOnboard */
   runEnsureOpenclawWindowsInstall(payload: {

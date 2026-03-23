@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resetFirstRunWizardLocalState } from "@/composables/modelConfigDeferred";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
@@ -165,6 +166,14 @@ async function copyDiagnostics(): Promise<void> {
     window.alert("复制失败：请在 https 或 localhost 下打开，并允许浏览器剪贴板权限。");
   }
 }
+
+function onRedoFirstRunWizard(): void {
+  if (!window.confirm("将清除「首次引导」本地记录并重新检测，是否继续？")) {
+    return;
+  }
+  resetFirstRunWizardLocalState();
+  window.dispatchEvent(new CustomEvent("lclaw-first-run-recheck"));
+}
 </script>
 
 <template>
@@ -218,6 +227,15 @@ async function copyDiagnostics(): Promise<void> {
           @click="copyDiagnostics"
         >
           诊断
+        </button>
+        <button
+          v-if="isLclawElectron()"
+          type="button"
+          class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
+          title="清除本机首次引导状态并重新检测（便于测试安装流程）"
+          @click="onRedoFirstRunWizard"
+        >
+          引导
         </button>
         <button
           v-if="isLclawElectron()"

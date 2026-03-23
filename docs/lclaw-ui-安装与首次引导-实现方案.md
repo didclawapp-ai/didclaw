@@ -116,7 +116,7 @@ flowchart TD
 |------|------|------|
 | **M1** | `~/.openclaw` 分支 + 向导壳 + 预检 API + 跳转现有设置步骤 | 无 OpenClaw 目录时必现向导；有目录时进聊天 |
 | **M2** | **步骤 1 一体**：`ensure-openclaw-windows.ps1` 已打入 `bundle.resources`，Tauri `run_ensure_openclaw_windows_install` 子进程执行 + 日志回传；`FirstRunWizard` 内「应用内一键安装」按钮 | 干净 Windows 环境可一键装 CLI + skip 型 onboard；**流式日志**与 **macOS/Linux 安装** 仍为后续增强 |
-| **M3** | **步骤 2**：`FirstRunWizard` 在 `.openclaw` 已存在且未完成模型步时展示**三选一**（Ollama 一键写入 / 打开设置填云端 / 先跳过）；`localStorage` 标记完成与「稍后配置」；主界面 **`showDeferredModelBanner` 提示条**；已设 `primary` 时自动结束向导 | 已实现；**测试连接**仍可在设置内细化 |
+| **M3** | **步骤 2**：`FirstRunWizard` 在 `.openclaw` 已存在且未完成模型步时展示**三选一**（Ollama 一键写入 / 打开设置填云端 / 先跳过）；「云端」仅打开本机设置 **② AI 账号**，**不在未保存时**标记模型步完成；在设置内 **保存 providers / 保存默认模型** 后同步 `modelConfigDeferred` 与首次引导完成态（已有非空 `primary` 时可在保存 providers 后即结束）；`localStorage` 与主界面 **`showDeferredModelBanner`**；顶栏 **「引导」** 可清空引导相关 localStorage 并触发重新检测（便于回归） | 已实现；**测试连接**仍可在设置内细化 |
 | **M4** | NSIS/安装程序可选「一并执行官方安装脚本」 | 安装结束即减少步骤 1 失败率 |
 
 ---

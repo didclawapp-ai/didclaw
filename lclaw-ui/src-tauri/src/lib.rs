@@ -5,7 +5,6 @@ mod launch_log;
 mod openclaw_common;
 mod openclaw_ensure_install;
 mod openclaw_gateway;
-#[cfg(not(debug_assertions))]
 mod openclaw_gateway_origins;
 mod openclaw_model_config;
 mod openclaw_providers;
@@ -94,13 +93,16 @@ pub fn run() {
                 );
             }
 
+            // 内置 https://tauri.localhost 等需在网关 allowedOrigins 中；若启动时尚无 openclaw.json，会在预检/拉起网关时再次合并。
+            if let Err(e) = openclaw_gateway_origins::ensure_lclaw_desktop_allowed_origins() {
+                launch_log::line(&format!(
+                    "openclaw: 启动时合并 allowedOrigins 未成功（可忽略）: {e}"
+                ));
+            }
+
             #[cfg(not(debug_assertions))]
             {
-                // 默认：Tauri 内置 https://tauri.localhost（界面稳定）；启动时尝试合并 gateway.controlUi.allowedOrigins，免用户改网关。
                 // 可选：LCLAW_UI_HTTP_LOOPBACK=1 使用本机 axum + navigate 到 127.0.0.1（若仍白屏可对比排查；capabilities 已含 remote.urls）。
-                if let Err(e) = openclaw_gateway_origins::ensure_lclaw_desktop_allowed_origins() {
-                    launch_log::line(&format!("openclaw: 自动合并 allowedOrigins 未成功（可忽略）: {e}"));
-                }
                 let http_loopback = std::env::var("LCLAW_UI_HTTP_LOOPBACK")
                     .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                     .unwrap_or(false);

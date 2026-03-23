@@ -1,11 +1,21 @@
-//! 启动时合并 `openclaw.json` 中 `gateway.controlUi.allowedOrigins`，使内置 `tauri.localhost` 等无需用户手工改网关。
+//! 合并 `openclaw.json` 中 `gateway.controlUi.allowedOrigins`，使内置 `tauri.localhost` 等无需用户手工改网关。
+//! 启动时执行一次；若当时尚无配置文件（例如尚未 onboard），须在 `openclaw.json` 出现之后再次调用（见 `get_open_claw_setup_status`）。
 
 use crate::launch_log;
 use crate::openclaw_common::{is_enoent, openclaw_config_path};
+use serde::Serialize;
 use serde_json::{json, Map, Value};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
+
+/// 是否实际写入了 `openclaw.json`（若为 true，正在运行的网关需 restart 才能生效）。
+#[derive(Debug, Clone, Serialize)]
+pub struct AllowedOriginsMergeOutcome {
+    pub merged: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub added: Vec<String>,
+}
 
 const BACKUP_PREFIX: &str = "openclaw.json.lclaw-backup-";
 const BACKUP_SUFFIX: &str = ".json";
@@ -54,13 +64,16 @@ fn ensure_object_in_map<'a>(
 }
 
 /// 若 `openclaw.json` 不存在则跳过；若 JSON 非法则返回 Err。有变更则先备份再写回。
-pub fn ensure_lclaw_desktop_allowed_origins() -> Result<(), String> {
+pub fn ensure_lclaw_desktop_allowed_origins() -> Result<AllowedOriginsMergeOutcome, String> {
     let config_path = openclaw_config_path()?;
     let raw = match fs::read_to_string(&config_path) {
         Ok(s) => s,
         Err(e) if is_enoent(&e) => {
             launch_log::line("openclaw: 未找到 openclaw.json，跳过 controlUi.allowedOrigins 合并");
-            return Ok(());
+            return Ok(AllowedOriginsMergeOutcome {
+                merged: false,
+                added: vec![],
+            });
         }
         Err(e) => return Err(e.to_string()),
     };
@@ -90,7 +103,7 @@ pub fn ensure_lclaw_desktop_allowed_origins() -> Result<(), String> {
         .map(norm_origin)
         .collect();
 
-    let mut added: Vec<&str> = Vec::new();
+    let mut added: Vec<String> = Vec::new();
     for o in ORIGINS_TO_ENSURE {
         let n = norm_origin(o);
         if seen.contains(&n) {
@@ -98,12 +111,15 @@ pub fn ensure_lclaw_desktop_allowed_origins() -> Result<(), String> {
         }
         seen.insert(n);
         origins.push(json!(o));
-        added.push(o);
+        added.push((*o).to_string());
     }
 
     if added.is_empty() {
         launch_log::line("openclaw: controlUi.allowedOrigins 已包含桌面所需 Origin，无需写入");
-        return Ok(());
+        return Ok(AllowedOriginsMergeOutcome {
+            merged: false,
+            added: vec![],
+        });
     }
 
     let backup_path_str = backup_current_file_if_exists(&config_path)?;
@@ -121,5 +137,5 @@ pub fn ensure_lclaw_desktop_allowed_origins() -> Result<(), String> {
         "openclaw: 已合并 controlUi.allowedOrigins: {}",
         added.join(", ")
     ));
-    Ok(())
+    Ok(AllowedOriginsMergeOutcome { merged: true, added })
 }

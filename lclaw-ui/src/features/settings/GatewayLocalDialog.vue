@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import {
+  afterOpenClawModelConfigSaved,
+  afterOpenClawProvidersSaved,
+} from "@/composables/modelConfigDeferred";
 import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import {
   PRIMARY_MODEL_QUICK_PICKS,
@@ -464,6 +468,7 @@ async function onSaveProvider(): Promise<void> {
     await loadProvidersForm();
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
+    void afterOpenClawProvidersSaved();
   } catch (e) {
     provError.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -611,6 +616,7 @@ async function onSaveModel(): Promise<void> {
       : "已保存。";
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
+    afterOpenClawModelConfigSaved();
   } catch (e) {
     modelError.value = e instanceof Error ? e.message : String(e);
   } finally {

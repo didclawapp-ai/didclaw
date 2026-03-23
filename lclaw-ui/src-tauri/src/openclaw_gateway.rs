@@ -391,6 +391,8 @@ pub async fn ensure_open_claw_gateway_running(
 ) -> Result<Value, String> {
     let _guard = ensure_mutex().lock().await;
 
+    let _ = crate::openclaw_gateway_origins::ensure_lclaw_desktop_allowed_origins();
+
     let Some((host, port)) = parse_gateway_ws_tcp_target(&ws_url) else {
         return Ok(json!({"ok": true, "started": false}));
     };
