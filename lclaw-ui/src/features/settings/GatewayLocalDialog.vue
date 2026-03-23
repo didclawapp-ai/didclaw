@@ -435,7 +435,7 @@ async function onSaveProvider(): Promise<void> {
     }
     if (mid.includes("/")) {
       provError.value =
-        "「模型 ID」里不要写斜杠 /。下面每一行只填模型名字（如 MiniMax-M2.7）；斜杠前面的服务代号在左侧列表里已经选好了。";
+        "「模型 ID」里不要写斜杠 /。下面每一行只填模型名字（如 MiniMax-M2.7、OpenRouter 免费路由填 free）；斜杠前面的服务代号在左侧列表里已经选好了。";
       return;
     }
     const pe = prevModels[mid];

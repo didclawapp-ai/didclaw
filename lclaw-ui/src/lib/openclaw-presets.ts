@@ -109,7 +109,11 @@ export const PROVIDER_SETUP_PRESETS: readonly ProviderSetupPreset[] = [
     label: "OpenRouter",
     bucket: "intl",
     baseUrl: "https://openrouter.ai/api/v1",
-    modelIds: ["auto"],
+    /**
+     * `auto`：按 OpenRouter 策略选模型（常为付费档，适合正经用）。
+     * `free`：官方 Free Models Router（② 里只填 free），能通但模型池小、质量参差，仅适合试连通，不适合龙虾/LCLaw 主力法律助手场景。
+     */
+    modelIds: ["auto", "free"],
     extras: { api: "openai-completions" },
   },
   {
