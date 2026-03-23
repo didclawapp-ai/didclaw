@@ -20,7 +20,7 @@ import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 
 /** 与参考「流式占位」一致：首包 delta 到达前也显示助手行 */
 const STREAMING_PENDING_LABEL = "正在生成回复…";
@@ -95,7 +95,12 @@ onMounted(() => {
   if (isLclawElectron()) {
     void chat.refreshOpenClawModelPicker();
   }
-  gw.connect();
+  // 与 Tauri WebView / 隧道订阅抢跑会放大首连失败；略推迟自动连接
+  void nextTick(() => {
+    window.setTimeout(() => {
+      gw.connect();
+    }, 150);
+  });
 });
 
 const displayLines = computed(() => {

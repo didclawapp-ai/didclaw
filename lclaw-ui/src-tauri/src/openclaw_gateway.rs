@@ -399,5 +399,8 @@ pub async fn ensure_open_claw_gateway_running(
         }));
     }
 
+    // 端口刚 accept 时，进程内 WebSocket 与首帧 connect.challenge 可能仍滞后；立刻建连易首连失败，关开开关后反而秒连。
+    tokio::time::sleep(Duration::from_millis(650)).await;
+
     Ok(json!({"ok": true, "started": true}))
 }

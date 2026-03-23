@@ -189,7 +189,8 @@ export class GatewayClient {
     // 官方协议要求先收 connect.challenge，再用其 nonce 做 device 签名后发 connect。
     // 若在收到挑战前抢发 connect（nonce 为空），2026.3+ 网关会直接掐线（日志常见 closed before connect / 1006）。
     // 见 https://docs.molt.bot/gateway/protocol
-    const challengeFallbackMs = 12_000;
+    /** 慢盘/冷启动网关可能较晚才下发 challenge；过短会空 nonce 抢连导致被网关断开 */
+    const challengeFallbackMs = 28_000;
     this.connectTimer = window.setTimeout(() => {
       void this.sendConnect();
     }, challengeFallbackMs);
