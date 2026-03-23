@@ -19,6 +19,11 @@ import { useFilePreviewStore } from "@/stores/filePreview";
 import { usePreviewStore } from "@/stores/preview";
 import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
+import {
+  showDeferredModelBanner,
+  syncDeferredModelBannerFromStorage,
+  setModelConfigDeferred,
+} from "@/composables/modelConfigDeferred";
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, onMounted, ref } from "vue";
@@ -92,8 +97,18 @@ const showOpenClawModelSelect = computed(
     (openClawModelPickerRows.value.length > 0 || Boolean(openClawPrimaryModel.value?.trim())),
 );
 
+function onDeferredBannerOpenSettings(): void {
+  localSettings.open("providers");
+}
+
+function onDeferredBannerDismiss(): void {
+  setModelConfigDeferred(false);
+  syncDeferredModelBannerFromStorage();
+}
+
 onMounted(() => {
   if (isLclawElectron()) {
+    syncDeferredModelBannerFromStorage();
     void chat.refreshOpenClawModelPicker();
   }
   // 与 Tauri WebView / 隧道订阅抢跑会放大首连失败；略推迟自动连接
@@ -166,6 +181,31 @@ async function pickLocalFileForPreview(): Promise<void> {
   <div class="shell">
     <FirstRunWizard v-if="isLclawElectron()" />
     <AppHeader />
+    <div
+      v-if="isLclawElectron() && showDeferredModelBanner"
+      class="lc-deferred-model-banner"
+      role="status"
+    >
+      <span class="lc-deferred-model-banner__text">
+        您已选择稍后配置对话模型。发消息前请在本机设置中完成「② AI 账号」与「③ 选模型」。
+      </span>
+      <div class="lc-deferred-model-banner__actions">
+        <button
+          type="button"
+          class="lc-btn lc-btn-primary lc-btn-xs"
+          @click="onDeferredBannerOpenSettings"
+        >
+          打开本机设置
+        </button>
+        <button
+          type="button"
+          class="lc-btn lc-btn-ghost lc-btn-xs"
+          @click="onDeferredBannerDismiss"
+        >
+          已完成配置
+        </button>
+      </div>
+    </div>
 
     <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
       <aside class="left">
@@ -303,6 +343,28 @@ async function pickLocalFileForPreview(): Promise<void> {
   font-family: var(--lc-font);
   font-size: 14px;
   color: var(--lc-text);
+}
+.lc-deferred-model-banner {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised, var(--lc-surface-panel));
+  font-size: 12px;
+  line-height: 1.45;
+}
+.lc-deferred-model-banner__text {
+  flex: 1;
+  min-width: 200px;
+  color: var(--lc-text-muted);
+}
+.lc-deferred-model-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .main {
   flex: 1;
