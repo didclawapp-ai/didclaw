@@ -767,8 +767,8 @@ pub async fn ensure_open_claw_gateway_running(
         }));
     }
 
-    // 端口刚 accept 时，进程内 WebSocket 与首帧 connect.challenge 可能仍滞后；立刻建连易首连失败，关开开关后反而秒连。
-    tokio::time::sleep(Duration::from_millis(650)).await;
+    // 端口刚 listen 时，进程内 WS 升级与 connect.challenge 仍可能滞后（冷启加载扩展更明显）；650ms 常不够，表现为首连很久或失败、断开后重连却秒好。
+    tokio::time::sleep(Duration::from_millis(2000)).await;
 
     Ok(json!({"ok": true, "started": true}))
 }

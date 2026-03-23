@@ -7,6 +7,7 @@ import { gatewayHelloOkSchema } from "@/features/gateway/schemas";
 import { getLclawDesktopApi } from "@/lib/electron-bridge";
 import { isLclawDesktop } from "@/lib/desktop-api";
 import { isTauri } from "@tauri-apps/api/core";
+import { cancelDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
@@ -28,6 +29,12 @@ export function gatewayUrlFromEnv(): string {
 type ConnectOpts = { url: string; token?: string; password?: string };
 
 let connectRequestId = 0;
+
+function delayMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 async function loadGatewayConnectOptions(): Promise<ConnectOpts> {
   let finalUrl = gatewayUrlFromEnv();
@@ -64,6 +71,7 @@ export const useGatewayStore = defineStore("gateway", () => {
   const url = ref(gatewayUrlFromEnv());
 
   function disconnect(): void {
+    cancelDeferredGatewayConnect();
     connectRequestId++;
     client.value?.stop();
     client.value = null;
@@ -84,6 +92,7 @@ export const useGatewayStore = defineStore("gateway", () => {
   }
 
   function connect(): void {
+    cancelDeferredGatewayConnect();
     connectRequestId++;
     client.value?.stop();
     client.value = null;
@@ -108,6 +117,13 @@ export const useGatewayStore = defineStore("gateway", () => {
           lastError.value = ensured.error;
           status.value = "error";
           return;
+        }
+        // 本次由桌面端新拉了网关进程时，再给事件循环与隧道一层缓冲，减少首连与 challenge 的竞态。
+        if (ensured.started) {
+          await delayMs(400);
+          if (req !== connectRequestId) {
+            return;
+          }
         }
       }
 

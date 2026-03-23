@@ -19,7 +19,9 @@ import { useFilePreviewStore } from "@/stores/filePreview";
 import { usePreviewStore } from "@/stores/preview";
 import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
+import { scheduleDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import {
+  isFirstRunModelStepComplete,
   showDeferredModelBanner,
   syncDeferredModelBannerFromStorage,
   setModelConfigDeferred,
@@ -112,28 +114,32 @@ onMounted(() => {
     syncDeferredModelBannerFromStorage();
     void chat.refreshOpenClawModelPicker();
   }
-  // 与 Tauri WebView / 隧道订阅抢跑会放大首连失败；略推迟自动连接
   void nextTick(() => {
     void (async () => {
-      let deferConnectMs = 150;
       const api = getLclawDesktopApi();
-      if (isLclawElectron() && api?.getOpenClawSetupStatus) {
-        try {
-          const s = await api.getOpenClawSetupStatus();
-          if (s.controlUiAllowedOriginsMerged) {
-            const ok = await restartGatewayAfterControlUiMerge(gw);
-            if (ok) {
-              deferConnectMs = 0;
-            }
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-      if (deferConnectMs > 0) {
+      if (!isLclawElectron()) {
         window.setTimeout(() => {
           gw.connect();
-        }, deferConnectMs);
+        }, 150);
+        return;
+      }
+      if (!api?.getOpenClawSetupStatus) {
+        scheduleDeferredGatewayConnect(gw);
+        return;
+      }
+      try {
+        const s = await api.getOpenClawSetupStatus();
+        if (s.controlUiAllowedOriginsMerged) {
+          await restartGatewayAfterControlUiMerge(gw);
+        }
+        const envReady = s.openclawDirExists && s.openclawConfigState !== "missing";
+        const modelReady = isFirstRunModelStepComplete();
+        if (!envReady || !modelReady) {
+          return;
+        }
+        scheduleDeferredGatewayConnect(gw);
+      } catch {
+        scheduleDeferredGatewayConnect(gw);
       }
     })();
   });

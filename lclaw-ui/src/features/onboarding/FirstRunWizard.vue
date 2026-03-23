@@ -7,6 +7,7 @@ import {
   setModelConfigDeferred,
   snoozeModelWizard24h,
 } from "@/composables/modelConfigDeferred";
+import { scheduleDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayAfterControlUiMerge";
 import { getLclawDesktopApi } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
@@ -126,6 +127,7 @@ async function refreshStatus(): Promise<void> {
             markFirstRunModelStepComplete();
             setModelConfigDeferred(false);
             visible.value = false;
+            scheduleDeferredGatewayConnect(gw);
             return;
           }
         }
@@ -252,7 +254,7 @@ async function applyOllamaQuickSetup(): Promise<void> {
     afterOpenClawModelConfigSaved();
     visible.value = false;
     gw.disconnect();
-    gw.connect();
+    scheduleDeferredGatewayConnect(gw);
   } catch (e) {
     modelError.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -276,6 +278,7 @@ function onModelSkipLater(): void {
   setModelConfigDeferred(true);
   markFirstRunModelStepComplete();
   visible.value = false;
+  scheduleDeferredGatewayConnect(gw);
 }
 
 function onModelStepSnooze24h(): void {

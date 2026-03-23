@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { scheduleDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import {
   afterOpenClawModelConfigSaved,
   afterOpenClawProvidersSaved,
@@ -554,7 +555,7 @@ async function onSaveGateway(): Promise<void> {
     }
     open.value = false;
     gw.disconnect();
-    gw.connect();
+    scheduleDeferredGatewayConnect(gw);
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : String(e);
   } finally {
