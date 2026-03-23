@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { getLclawDesktopApi } from "@/lib/electron-bridge";
 import { useLocalSettingsStore } from "@/stores/localSettings";
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+
+const WIZARD_DOC = "https://docs.openclaw.ai/start/wizard";
+const ONBOARD_CMD = "openclaw onboard";
 
 const SNOOZE_KEY = "lclaw_setup_wizard_snooze_until";
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
@@ -17,6 +20,18 @@ const configError = ref<string | null>(null);
 const cliOk = ref(false);
 const cliPath = ref<string | null>(null);
 const cliError = ref<string | null>(null);
+
+/** 已装 CLI，但尚未生成数据目录（最常见：只 npm -g 了，还没 onboard） */
+const cliReadyNeedInit = computed(
+  () => !loading.value && cliOk.value && !openclawDirExists.value,
+);
+
+const leadText = computed(() => {
+  if (cliReadyNeedInit.value) {
+    return "已检测到 openclaw 命令行，但还没有用户数据目录。需要跑一次官方初始化（onboard）生成用户文件夹下的 .openclaw，之后才能连网关、配模型。";
+  }
+  return "未检测到本机 OpenClaw 数据目录（通常为用户文件夹下的 .openclaw）。请先安装官方助手并完成初始化，否则无法连接网关与对话。";
+});
 
 function readSnoozeExpired(): boolean {
   try {
@@ -94,6 +109,22 @@ function onSnooze(): void {
   visible.value = false;
 }
 
+async function copyOnboardCommand(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(ONBOARD_CMD);
+  } catch {
+    /* ignore */
+  }
+}
+
+function openWizardDoc(): void {
+  try {
+    window.open(WIZARD_DOC, "_blank", "noopener,noreferrer");
+  } catch {
+    /* ignore */
+  }
+}
+
 onMounted(() => {
   void refreshStatus();
 });
@@ -106,8 +137,23 @@ onMounted(() => {
       <div class="first-run-card">
         <h2 id="first-run-title" class="first-run-title">欢迎使用</h2>
         <p class="first-run-lead">
-          未检测到本机 OpenClaw 数据目录（通常为用户文件夹下的 <code>.openclaw</code>）。请先安装官方助手并完成初始化，否则无法连接网关与对话。
+          {{ leadText }}
+          <template v-if="!cliReadyNeedInit">
+            目录一般为 <code>.openclaw</code>。
+          </template>
         </p>
+
+        <div v-if="cliReadyNeedInit" class="first-run-tip" role="note">
+          <strong>建议下一步</strong>：在终端执行
+          <code class="first-run-cmd">{{ ONBOARD_CMD }}</code>
+          <span class="first-run-tip-actions">
+            <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs" @click="() => void copyOnboardCommand()">
+              复制命令
+            </button>
+            <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs" @click="openWizardDoc">官方说明</button>
+          </span>
+          <span class="first-run-tip-after">完成后点「重新检测」；应用内「一键安装引导」仍在开发中。</span>
+        </div>
 
         <div v-if="loading" class="first-run-muted">正在检测环境…</div>
         <p v-else-if="loadError" class="first-run-err">{{ loadError }}</p>
@@ -148,7 +194,12 @@ onMounted(() => {
           </button>
         </div>
         <p class="first-run-foot">
-          完整安装引导将逐步接入「官方一键安装」与模型配置。当前可先在本机设置中填写 OpenClaw 路径并保存。
+          <template v-if="cliReadyNeedInit">
+            若命令行路径无误，一般不必改设置；onboard 完成后本提示会自动消失。也可打开本机设置检查网关地址与 Token。
+          </template>
+          <template v-else>
+            完整流程将接入应用内「官方一键安装」与模型三选一。当前若未装 CLI，可先运行官方 install.ps1，或在本机设置填写 openclaw 路径。
+          </template>
         </p>
       </div>
     </div>
@@ -241,6 +292,43 @@ onMounted(() => {
   margin: 14px 0 0;
   font-size: 0.72rem;
   line-height: 1.5;
+  color: var(--lc-text-dim);
+}
+.first-run-tip {
+  margin: 0 0 14px;
+  padding: 12px 12px 10px;
+  border-radius: var(--lc-radius-sm, 8px);
+  border: 1px solid var(--lc-border-strong, #3d4f63);
+  background: var(--lc-bg-raised, #232d3a);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--lc-text-muted, #8b9cb0);
+}
+.first-run-tip strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--lc-text, #e8eef4);
+  font-size: 0.8rem;
+}
+.first-run-cmd {
+  display: inline-block;
+  margin: 4px 0 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--lc-bg, #0f1419);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--lc-accent, #2dd4bf);
+}
+.first-run-tip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.first-run-tip-after {
+  display: block;
+  font-size: 0.72rem;
   color: var(--lc-text-dim);
 }
 </style>
