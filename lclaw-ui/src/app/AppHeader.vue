@@ -20,6 +20,7 @@ const { messages, lastError: chatError } = storeToRefs(chat);
 
 const skillsDialogOpen = ref(false);
 const copiedDiag = ref(false);
+const restartGatewayBusy = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 const localSettings = useLocalSettingsStore();
 const showGatewayLocal = computed({
@@ -97,6 +98,26 @@ const connLedAriaLabel = computed(() => {
       return `网关未连接，${url.value}`;
   }
 });
+
+async function onRestartGateway(): Promise<void> {
+  const desktop = getLclawDesktopApi();
+  if (!desktop?.restartOpenClawGateway || restartGatewayBusy.value) {
+    return;
+  }
+  restartGatewayBusy.value = true;
+  try {
+    const r = await desktop.restartOpenClawGateway();
+    if (r && "ok" in r && r.ok === false) {
+      window.alert((r as { error?: string }).error ?? "重启网关失败");
+      return;
+    }
+    await gw.reloadConnection();
+  } catch (e) {
+    window.alert(e instanceof Error ? e.message : String(e));
+  } finally {
+    restartGatewayBusy.value = false;
+  }
+}
 
 async function copyDiagnostics(): Promise<void> {
   let tokenConfigured = !!import.meta.env.VITE_GATEWAY_TOKEN?.trim();
@@ -206,6 +227,16 @@ async function copyDiagnostics(): Promise<void> {
           @click="localSettings.open('gateway')"
         >
           设置
+        </button>
+        <button
+          v-if="isLclawElectron()"
+          type="button"
+          class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
+          title="执行 openclaw gateway restart（系统服务/计划任务），随后重新连接"
+          :disabled="restartGatewayBusy"
+          @click="onRestartGateway"
+        >
+          {{ restartGatewayBusy ? "重启中…" : "重启网关" }}
         </button>
         <span v-if="copiedDiag" class="copied">已复制</span>
       </div>

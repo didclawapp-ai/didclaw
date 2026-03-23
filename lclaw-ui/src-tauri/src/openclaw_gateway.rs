@@ -299,6 +299,91 @@ fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
     }
 }
 
+/// 调用 `openclaw gateway restart`（Windows 计划任务 / systemd 等服务），与官方 CLI 一致。
+/// 会先结束本应用此前 `ensure_open_claw_gateway` 拉起的子进程，避免与系统服务抢端口。
+pub fn restart_open_claw_gateway_service(app: &tauri::AppHandle) -> Value {
+    kill_managed_gateway_process();
+
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => {
+            return json!({ "ok": false, "error": e });
+        }
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+
+    let output = {
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            Command::new("cmd")
+                .arg("/C")
+                .arg(exe.trim())
+                .arg("gateway")
+                .arg("restart")
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .creation_flags(CREATE_NO_WINDOW)
+                .output()
+        }
+        #[cfg(not(windows))]
+        {
+            Command::new(exe.trim())
+                .arg("gateway")
+                .arg("restart")
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+        }
+    };
+
+    let output = match output {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw gateway restart 失败：{e}")
+            });
+        }
+    };
+
+    if output.status.success() {
+        return json!({ "ok": true });
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let mut detail = [stderr.as_str(), stdout.as_str()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if detail.is_empty() {
+        detail = output
+            .status
+            .code()
+            .map(|c| format!("退出码 {c}"))
+            .unwrap_or_else(|| "进程异常退出".into());
+    }
+    json!({
+        "ok": false,
+        "error": format!("网关服务重启失败：{detail}")
+    })
+}
+
 pub async fn ensure_open_claw_gateway_running(
     app: tauri::AppHandle,
     ws_url: String,

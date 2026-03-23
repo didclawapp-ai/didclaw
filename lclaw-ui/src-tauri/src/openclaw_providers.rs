@@ -26,7 +26,8 @@ fn non_secret_api_key_markers() -> &'static HashSet<String> {
         [
             "minimax-oauth",
             "qwen-oauth",
-            "ollama-local",
+            // 注意：勿把 ollama-local 放这里——网关仍要在 auth-profiles.json 里有一条 api_key 记录，
+            // 本机 Ollama 无真实密钥时用字面量 ollama-local 占位（见 effective_auth_storage_key）。
             "custom-local",
             "secretref-managed",
         ]
@@ -45,6 +46,17 @@ fn normalize_writable_provider_api_key(raw: Option<&str>) -> Option<String> {
         return None;
     }
     Some(t.to_string())
+}
+
+/// 写入 auth-profiles / openclaw.json 时使用的 API Key：本机 `ollama` 允许空密钥，但网关仍要求有 profile。
+fn effective_auth_storage_key(provider_id: &str, api_key: Option<&str>) -> Option<String> {
+    if provider_id == "ollama" {
+        let empty = api_key.map(str::trim).unwrap_or("").is_empty();
+        if empty {
+            return Some("ollama-local".to_string());
+        }
+    }
+    normalize_writable_provider_api_key(api_key)
 }
 
 fn extract_models_providers(root: &Value) -> Map<String, Value> {
@@ -318,7 +330,7 @@ fn build_next_agent_auth_profiles_root(
             .and_then(|p| p.as_object())
             .and_then(|o| o.get("apiKey"))
             .and_then(|v| v.as_str());
-        let key = normalize_writable_provider_api_key(api_key);
+        let key = effective_auth_storage_key(id, api_key);
         if let Some(k) = key {
             profiles.insert(
                 profile_key.clone(),
@@ -367,7 +379,7 @@ fn sync_open_claw_root_auth_profile_refs(
             .and_then(|p| p.as_object())
             .and_then(|o| o.get("apiKey"))
             .and_then(|v| v.as_str());
-        let key = normalize_writable_provider_api_key(api_key);
+        let key = effective_auth_storage_key(id, api_key);
         if let Some(_k) = key {
             profiles.insert(
                 profile_key.clone(),

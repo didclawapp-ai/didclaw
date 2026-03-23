@@ -143,6 +143,7 @@ pub fn run() {
             commands::read_gateway_local_config,
             commands::write_gateway_local_config,
             commands::ensure_open_claw_gateway,
+            commands::restart_open_claw_gateway,
             commands::gateway_tunnel_open,
             commands::gateway_tunnel_send,
             commands::gateway_tunnel_close,

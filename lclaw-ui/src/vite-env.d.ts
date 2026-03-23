@@ -76,6 +76,8 @@ interface LclawElectronApi {
   ensureOpenClawGateway(payload: { wsUrl: string }): Promise<
     { ok: true; started: boolean } | { ok: false; error: string }
   >;
+  /** 执行 `openclaw gateway restart`（系统已安装的服务/计划任务） */
+  restartOpenClawGateway?(): Promise<{ ok: true } | { ok: false; error: string }>;
   readOpenClawModelConfig(): Promise<
     | { ok: true; model: Record<string, unknown>; models: Record<string, unknown> }
     | { ok: false; error: string }

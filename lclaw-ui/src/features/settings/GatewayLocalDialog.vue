@@ -62,6 +62,11 @@ const provBusy = ref(false);
 const pvProviderExtras = ref<Record<string, unknown>>({});
 
 const providerKeyList = computed(() => Object.keys(providerSnapshots.value).sort());
+/** 正在编辑的服务代号（含「新建」时草稿），用于 Ollama 密钥提示等 */
+const editingProviderKey = computed(() =>
+  creatingNewProvider.value ? newProviderKeyDraft.value.trim() : selectedProviderKey.value,
+);
+const isEditingOllamaProvider = computed(() => editingProviderKey.value === "ollama");
 const providerPresetsCn = computed(() => PROVIDER_SETUP_PRESETS.filter((p) => p.bucket === "cn"));
 const providerPresetsIntl = computed(() => PROVIDER_SETUP_PRESETS.filter((p) => p.bucket === "intl"));
 const primaryModelQuickPicksCn = computed(() => PRIMARY_MODEL_QUICK_PICKS.filter((p) => p.bucket === "cn"));
@@ -1005,7 +1010,11 @@ async function onRestoreModel(): Promise<void> {
                     密钥
                     <span
                       class="help-tip"
-                      title="在服务商控制台创建 API Key 后粘贴；高级用法可填环境变量引用。"
+                      :title="
+                        isEditingOllamaProvider
+                          ? '本机 Ollama 通常无真实 API Key，可留空；保存后本应用会写入网关所需的占位凭据（ollama-local）。若使用需密钥的 Ollama 云端再粘贴。'
+                          : '在服务商控制台创建 API Key 后粘贴；高级用法可填环境变量引用。'
+                      "
                       tabindex="0"
                       role="note"
                     >?</span>
@@ -1015,7 +1024,7 @@ async function onRestoreModel(): Promise<void> {
                       v-model="pvApiKey"
                       :type="showPvApiKey ? 'text' : 'password'"
                       autocomplete="off"
-                      placeholder="粘贴 API Key"
+                      :placeholder="isEditingOllamaProvider ? '本机可留空' : '粘贴 API Key'"
                     >
                     <button type="button" class="ghost sm" @click="showPvApiKey = !showPvApiKey">
                       {{ showPvApiKey ? "隐藏" : "显示" }}

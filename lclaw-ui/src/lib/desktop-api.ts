@@ -31,6 +31,7 @@ function tauriApi(): LclawElectronApi {
     writeGatewayLocalConfig: (data) => invoke("write_gateway_local_config", { data }),
     ensureOpenClawGateway: (payload) =>
       invoke("ensure_open_claw_gateway", { wsUrl: payload.wsUrl }),
+    restartOpenClawGateway: () => invoke("restart_open_claw_gateway"),
     readOpenClawModelConfig: () => invoke("read_open_claw_model_config"),
     writeOpenClawModelConfig: (payload) =>
       invoke("write_open_claw_model_config", { payload }),

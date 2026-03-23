@@ -14,6 +14,7 @@ commands.allow = [
   "read_gateway_local_config",
   "write_gateway_local_config",
   "ensure_open_claw_gateway",
+  "restart_open_claw_gateway",
   "gateway_tunnel_open",
   "gateway_tunnel_send",
   "gateway_tunnel_close",

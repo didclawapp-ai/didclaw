@@ -178,6 +178,11 @@ pub async fn ensure_open_claw_gateway(
 }
 
 #[tauri::command]
+pub fn restart_open_claw_gateway(app: tauri::AppHandle) -> Result<Value, String> {
+    Ok(crate::openclaw_gateway::restart_open_claw_gateway_service(&app))
+}
+
+#[tauri::command]
 pub async fn gateway_tunnel_open(
     app: tauri::AppHandle,
     state: tauri::State<'_, std::sync::Arc<tokio::sync::Mutex<crate::gateway_tunnel::GatewayTunnelSlot>>>,
