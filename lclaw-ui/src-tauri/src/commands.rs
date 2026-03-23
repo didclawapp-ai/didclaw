@@ -150,6 +150,14 @@ pub fn get_open_claw_setup_status(app: tauri::AppHandle) -> Result<Value, String
 }
 
 #[tauri::command]
+pub fn run_ensure_openclaw_windows_install(
+    app: tauri::AppHandle,
+    skip_onboard: bool,
+) -> Result<Value, String> {
+    crate::openclaw_ensure_install::run_ensure_openclaw_windows_install_impl(&app, skip_onboard)
+}
+
+#[tauri::command]
 pub fn read_gateway_local_config(app: tauri::AppHandle) -> Result<Value, String> {
     let m = crate::gateway_local::read_merged_map(&app)?;
     let mut v = crate::gateway_local::merged_to_frontend_value(&m);

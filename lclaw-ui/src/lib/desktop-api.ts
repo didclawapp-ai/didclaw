@@ -40,6 +40,10 @@ function tauriApi(): LclawElectronApi {
     writeOpenClawProvidersPatch: (payload) =>
       invoke("write_open_claw_providers_patch", { payload }),
     getOpenClawSetupStatus: () => invoke("get_open_claw_setup_status"),
+    runEnsureOpenclawWindowsInstall: (payload: { skipOnboard: boolean }) =>
+      invoke("run_ensure_openclaw_windows_install", {
+        skipOnboard: payload.skipOnboard,
+      }),
   };
 }
 

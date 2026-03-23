@@ -3,6 +3,7 @@ mod gateway_local;
 mod gateway_tunnel;
 mod launch_log;
 mod openclaw_common;
+mod openclaw_ensure_install;
 mod openclaw_gateway;
 #[cfg(not(debug_assertions))]
 mod openclaw_gateway_origins;
@@ -142,6 +143,7 @@ pub fn run() {
             commands::shell_copy_local_file_for_share,
             commands::dialog_open_file,
             commands::get_open_claw_setup_status,
+            commands::run_ensure_openclaw_windows_install,
             commands::read_gateway_local_config,
             commands::write_gateway_local_config,
             commands::ensure_open_claw_gateway,

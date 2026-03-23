@@ -105,6 +105,15 @@ interface LclawElectronApi {
     openclawCli: { ok: true; path: string } | { ok: false; error: string };
     modelConfigDeferred: boolean;
   }>;
+  /** Windows：执行打包内的 ensure-openclaw-windows.ps1；`skipOnboard` 为 true 时等价 -SkipOnboard */
+  runEnsureOpenclawWindowsInstall(payload: {
+    skipOnboard: boolean;
+  }): Promise<{
+    ok: boolean;
+    exitCode: number;
+    log: string;
+    error?: string | null;
+  }>;
   writeOpenClawProvidersPatch(payload: {
     patch: Record<string, Record<string, unknown> | null>;
   }): Promise<

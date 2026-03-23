@@ -115,7 +115,7 @@ flowchart TD
 | 阶段 | 内容 | 验收 |
 |------|------|------|
 | **M1** | `~/.openclaw` 分支 + 向导壳 + 预检 API + 跳转现有设置步骤 | 无 OpenClaw 目录时必现向导；有目录时进聊天 |
-| **M2** | **步骤 1 一体**：`ensure-openclaw-windows.ps1` + 官方 `install.ps1` + 日志视图 + PATH 提示；**不单独做 Node 向导页** | 干净 Windows 环境一次跑通后 `openclaw --version` 成功 |
+| **M2** | **步骤 1 一体**：`ensure-openclaw-windows.ps1` 已打入 `bundle.resources`，Tauri `run_ensure_openclaw_windows_install` 子进程执行 + 日志回传；`FirstRunWizard` 内「应用内一键安装」按钮 | 干净 Windows 环境可一键装 CLI + skip 型 onboard；**流式日志**与 **macOS/Linux 安装** 仍为后续增强 |
 | **M3** | **步骤 2**：模型**三选一** + 与 `GatewayLocalDialog` 复用 + C 的横幅/空状态 +「测试连接」细化 | 三种路径均可完成向导；选 C 时主界面明确提示未配置模型 |
 | **M4** | NSIS/安装程序可选「一并执行官方安装脚本」 | 安装结束即减少步骤 1 失败率 |
 

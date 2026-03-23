@@ -21,10 +21,21 @@ const cliOk = ref(false);
 const cliPath = ref<string | null>(null);
 const cliError = ref<string | null>(null);
 
+const installBusy = ref(false);
+const installLog = ref("");
+
 /** 已装 CLI，但尚未生成数据目录（最常见：只 npm -g 了，还没 onboard） */
 const cliReadyNeedInit = computed(
   () => !loading.value && cliOk.value && !openclawDirExists.value,
 );
+
+const canRunEnsureInstall = computed(() => {
+  if (typeof navigator === "undefined" || !/Win/i.test(navigator.userAgent)) {
+    return false;
+  }
+  const api = getLclawDesktopApi();
+  return Boolean(api?.runEnsureOpenclawWindowsInstall);
+});
 
 const leadText = computed(() => {
   if (cliReadyNeedInit.value) {
@@ -125,6 +136,31 @@ function openWizardDoc(): void {
   }
 }
 
+/** 执行打包内的 ensure-openclaw-windows.ps1（下载官方 install.ps1 + 可选非交互 onboard） */
+async function runEnsureScript(skipOnboard: boolean): Promise<void> {
+  const api = getLclawDesktopApi();
+  if (!api?.runEnsureOpenclawWindowsInstall) {
+    return;
+  }
+  installBusy.value = true;
+  installLog.value = skipOnboard
+    ? "正在执行：仅安装 CLI（-SkipOnboard）…\n"
+    : "正在执行：安装 CLI + 非交互 onboard（-OnboardAuthChoice skip）…\n";
+  try {
+    const r = await api.runEnsureOpenclawWindowsInstall({ skipOnboard });
+    installLog.value = r.log;
+    if (r.ok) {
+      await refreshStatus();
+    } else if (r.error) {
+      installLog.value += `\n[结果] ${r.error}（退出码 ${r.exitCode}）`;
+    }
+  } catch (e) {
+    installLog.value += `\n${e instanceof Error ? e.message : String(e)}`;
+  } finally {
+    installBusy.value = false;
+  }
+}
+
 onMounted(() => {
   void refreshStatus();
 });
@@ -152,7 +188,9 @@ onMounted(() => {
             </button>
             <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs" @click="openWizardDoc">官方说明</button>
           </span>
-          <span class="first-run-tip-after">完成后点「重新检测」；应用内「一键安装引导」仍在开发中。</span>
+          <span class="first-run-tip-after">
+            也可点下方「应用内运行初始化」自动执行脚本；或手动在终端运行后点「重新检测」。
+          </span>
         </div>
 
         <div v-if="loading" class="first-run-muted">正在检测环境…</div>
@@ -182,23 +220,84 @@ onMounted(() => {
           </ul>
         </template>
 
+        <div
+          v-if="canRunEnsureInstall && !loading && !loadError"
+          class="first-run-install"
+        >
+          <p class="first-run-install-title">应用内一键安装（Windows）</p>
+          <p class="first-run-install-hint">
+            使用内置 <code>ensure-openclaw-windows.ps1</code>：下载官方 install.ps1，并可自动完成非交互
+            onboard（默认跳过云端模型，稍后在龙虾里配置）。可能需要数分钟，请保持网络畅通。
+          </p>
+          <div class="first-run-install-btns">
+            <button
+              v-if="cliReadyNeedInit"
+              type="button"
+              class="lc-btn lc-btn-primary"
+              :disabled="installBusy"
+              @click="() => void runEnsureScript(false)"
+            >
+              应用内运行初始化（生成 .openclaw）
+            </button>
+            <template v-else>
+              <button
+                type="button"
+                class="lc-btn lc-btn-primary"
+                :disabled="installBusy"
+                @click="() => void runEnsureScript(false)"
+              >
+                一键安装并初始化（推荐）
+              </button>
+              <button
+                type="button"
+                class="lc-btn lc-btn-ghost"
+                :disabled="installBusy"
+                @click="() => void runEnsureScript(true)"
+              >
+                仅安装命令行（不 onboard）
+              </button>
+            </template>
+          </div>
+          <pre v-if="installLog.trim()" class="first-run-install-log">{{ installLog }}</pre>
+        </div>
+        <p v-else-if="!loading && !loadError && !canRunEnsureInstall" class="first-run-platform-note">
+          非 Windows 或未打包脚本时：请按
+          <a :href="WIZARD_DOC" target="_blank" rel="noopener noreferrer">OpenClaw 官方文档</a>
+          安装后，再打开本机设置连接网关。
+        </p>
+
         <div class="first-run-actions">
-          <button type="button" class="lc-btn lc-btn-primary" :disabled="loading" @click="onOpenSettings">
+          <button
+            type="button"
+            class="lc-btn lc-btn-primary"
+            :disabled="loading || installBusy"
+            @click="onOpenSettings"
+          >
             打开本机设置（连助手）
           </button>
-          <button type="button" class="lc-btn lc-btn-ghost" :disabled="loading" @click="() => void refreshStatus()">
+          <button
+            type="button"
+            class="lc-btn lc-btn-ghost"
+            :disabled="loading || installBusy"
+            @click="() => void refreshStatus()"
+          >
             重新检测
           </button>
-          <button type="button" class="lc-btn lc-btn-ghost" :disabled="loading" @click="onSnooze">
+          <button
+            type="button"
+            class="lc-btn lc-btn-ghost"
+            :disabled="loading || installBusy"
+            @click="onSnooze"
+          >
             稍后再说（24 小时内不提示）
           </button>
         </div>
         <p class="first-run-foot">
           <template v-if="cliReadyNeedInit">
-            若命令行路径无误，一般不必改设置；onboard 完成后本提示会自动消失。也可打开本机设置检查网关地址与 Token。
+            优先试「应用内运行初始化」；若失败可手动终端执行 onboard。完成后点「重新检测」。网关与 Token 可在本机设置核对。
           </template>
           <template v-else>
-            完整流程将接入应用内「官方一键安装」与模型三选一。当前若未装 CLI，可先运行官方 install.ps1，或在本机设置填写 openclaw 路径。
+            可用上方脚本一键安装；模型与 API 仍建议在「本机设置」或后续向导中配置。未装 CLI 时也可只在设置里填写 openclaw 路径。
           </template>
         </p>
       </div>
@@ -224,8 +323,10 @@ onMounted(() => {
 }
 .first-run-card {
   position: relative;
-  max-width: 420px;
+  max-width: 460px;
   width: 100%;
+  max-height: min(92vh, 720px);
+  overflow-y: auto;
   padding: 22px 20px 18px;
   border-radius: var(--lc-radius-md, 12px);
   border: 1px solid var(--lc-border, #2d3a4a);
@@ -330,5 +431,59 @@ onMounted(() => {
   display: block;
   font-size: 0.72rem;
   color: var(--lc-text-dim);
+}
+.first-run-install {
+  margin: 0 0 14px;
+  padding: 12px;
+  border-radius: var(--lc-radius-sm, 8px);
+  border: 1px dashed var(--lc-border-strong, #3d4f63);
+  background: var(--lc-bg-raised, #232d3a);
+}
+.first-run-install-title {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--lc-text, #e8eef4);
+}
+.first-run-install-hint {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--lc-text-muted);
+}
+.first-run-install-hint code {
+  font-size: 0.68rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--lc-bg, #0f1419);
+}
+.first-run-install-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.first-run-install-log {
+  margin: 10px 0 0;
+  max-height: 160px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #0d1117;
+  border: 1px solid var(--lc-border);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: #9ecbff;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.first-run-platform-note {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--lc-text-dim);
+}
+.first-run-platform-note a {
+  color: var(--lc-accent, #2dd4bf);
 }
 </style>
