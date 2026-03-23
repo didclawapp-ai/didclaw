@@ -65,6 +65,23 @@ param(
 # 也不要在同一进程里直接 & 调用 install.ps1，以免继承本脚本的 EAP。
 $ErrorActionPreference = 'Stop'
 
+# 子进程重定向时 Write-Host 常不进 stdout；需要进 LCLaw 流式日志时同时 Write-Output。
+function Write-UiLine {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [ValidateSet('', 'Yellow', 'Red', 'Green', 'DarkGray')]
+        [string]$ForegroundColor = ''
+    )
+    Write-Output $Text
+    switch ($ForegroundColor) {
+        'Yellow' { Write-Host $Text -ForegroundColor Yellow; break }
+        'Red' { Write-Host $Text -ForegroundColor Red; break }
+        'Green' { Write-Host $Text -ForegroundColor Green; break }
+        'DarkGray' { Write-Host $Text -ForegroundColor DarkGray; break }
+        default { Write-Host $Text }
+    }
+}
+
 function Sync-PathFromRegistry {
     $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $user = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -169,13 +186,14 @@ function Invoke-OpenclawOnboardNonInteractive {
         'ollama' { 'QuickStart + Ollama + 跳过频道/搜索/技能/UI 提示' }
         default { 'QuickStart + 跳过模型/API（auth skip）+ 跳过频道/搜索/技能/UI 提示' }
     }
-    Write-Host ('[ensure-openclaw] 执行官方非交互 onboard（{0}）...' -f $flowDesc) -ForegroundColor Yellow
+    Write-UiLine ('[ensure-openclaw] 执行官方非交互 onboard（{0}）...' -f $flowDesc) -ForegroundColor Yellow
     if ($InstallGatewayDaemon) {
-        Write-Host '[ensure-openclaw] 已启用 -InstallGatewayDaemon：将注册官方 Gateway 计划任务（可能单独弹出 CMD）。' -ForegroundColor DarkGray
+        Write-UiLine '[ensure-openclaw] 已启用 -InstallGatewayDaemon：将注册官方 Gateway 计划任务（可能单独弹出 CMD）。' -ForegroundColor DarkGray
     } else {
-        Write-Host '[ensure-openclaw] 未安装 Gateway 计划任务；请由 LCLaw 启动本机网关（无窗）或手动 openclaw gateway。' -ForegroundColor DarkGray
+        Write-UiLine '[ensure-openclaw] 未安装 Gateway 计划任务；请由 LCLaw 启动本机网关（无窗）或手动 openclaw gateway。' -ForegroundColor DarkGray
     }
-    Write-Host ('[ensure-openclaw] 文档: https://openclaws.io/docs/start/wizard-cli-automation' ) -ForegroundColor DarkGray
+    Write-UiLine ('[ensure-openclaw] 文档: https://openclaws.io/docs/start/wizard-cli-automation' ) -ForegroundColor DarkGray
+    Write-Output '[ensure-openclaw] ui=onboard_exec'
 
     & $OpenclawExe @($onboardArgs.ToArray())
     if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
@@ -187,12 +205,14 @@ Sync-PathFromRegistry
 $openclawExe = Test-OpenclawOnPath
 
 if (-not $openclawExe) {
-    Write-Host '[ensure-openclaw] 未检测到 openclaw，开始执行官方安装脚本（-NoOnboard）...' -ForegroundColor Yellow
-    Write-Host '[ensure-openclaw] 需要联网下载 https://openclaw.ai/install.ps1' -ForegroundColor DarkGray
+    Write-UiLine '[ensure-openclaw] 未检测到 openclaw，开始执行官方安装脚本（-NoOnboard）...' -ForegroundColor Yellow
+    Write-UiLine '[ensure-openclaw] 需要联网下载 https://openclaw.ai/install.ps1' -ForegroundColor DarkGray
+    Write-Output '[ensure-openclaw] ui=stage_cli_install_begin'
 
     $tmpInstall = $null
     try {
         $tmpInstall = Join-Path ([System.IO.Path]::GetTempPath()) ('openclaw-install-{0}.ps1' -f [guid]::NewGuid())
+        Write-Output '[ensure-openclaw] ui=downloading_official_install_ps1'
         Invoke-WebRequest -Uri 'https://openclaw.ai/install.ps1' -UseBasicParsing -OutFile $tmpInstall -TimeoutSec 300
 
         if (-not (Test-Path -LiteralPath $tmpInstall)) {
@@ -202,6 +222,7 @@ if (-not $openclawExe) {
             throw '下载内容过短，可能不是有效的 install.ps1（网络拦截或错误页）。'
         }
 
+        Write-Output '[ensure-openclaw] ui=running_official_install_ps1_wait'
         $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
             '-NoProfile'
             '-ExecutionPolicy', 'Bypass'
@@ -212,8 +233,9 @@ if (-not $openclawExe) {
         if ($null -ne $proc.ExitCode -and $proc.ExitCode -ne 0) {
             throw ('官方 install.ps1 退出码: {0}' -f $proc.ExitCode)
         }
+        Write-Output '[ensure-openclaw] ui=official_install_ps1_finished'
     } catch {
-        Write-Host ('[ensure-openclaw] 下载或执行安装脚本失败: {0}' -f $_) -ForegroundColor Red
+        Write-UiLine ('[ensure-openclaw] 下载或执行安装脚本失败: {0}' -f $_) -ForegroundColor Red
         exit 1
     } finally {
         if ($tmpInstall -and (Test-Path -LiteralPath $tmpInstall)) {
@@ -224,19 +246,19 @@ if (-not $openclawExe) {
     Sync-PathFromRegistry
     $openclawExe = Test-OpenclawOnPath
     if (-not $openclawExe) {
-        Write-Host '[ensure-openclaw] 安装已完成，但当前会话仍找不到 openclaw。' -ForegroundColor Yellow
-        Write-Host '  请关闭并重新打开终端，或检查 npm 全局目录是否已加入用户 PATH。' -ForegroundColor Yellow
-        Write-Host '  可运行: npm prefix -g' -ForegroundColor DarkGray
+        Write-UiLine '[ensure-openclaw] 安装已完成，但当前会话仍找不到 openclaw。' -ForegroundColor Yellow
+        Write-UiLine '  请关闭并重新打开终端，或检查 npm 全局目录是否已加入用户 PATH。' -ForegroundColor Yellow
+        Write-UiLine '  可运行: npm prefix -g' -ForegroundColor DarkGray
         exit 2
     }
 
-    Write-Host ('[ensure-openclaw] CLI 安装完成: {0}' -f $openclawExe) -ForegroundColor Green
+    Write-UiLine ('[ensure-openclaw] CLI 安装完成: {0}' -f $openclawExe) -ForegroundColor Green
 } else {
-    Write-Host ('[ensure-openclaw] 已检测到 openclaw: {0} — 跳过 CLI 安装。' -f $openclawExe) -ForegroundColor Green
+    Write-UiLine ('[ensure-openclaw] 已检测到 openclaw: {0} — 跳过 CLI 安装。' -f $openclawExe) -ForegroundColor Green
 }
 
 if ($SkipOnboard) {
-    Write-Host '[ensure-openclaw] 已指定 -SkipOnboard，跳过 onboard。' -ForegroundColor DarkGray
+    Write-UiLine '[ensure-openclaw] 已指定 -SkipOnboard，跳过 onboard。' -ForegroundColor DarkGray
     exit 0
 }
 
@@ -254,25 +276,25 @@ if ([string]::IsNullOrWhiteSpace($pollinationsKeyResolved)) {
 
 if ($effectiveAuth -eq 'pollinations' -and [string]::IsNullOrWhiteSpace($pollinationsKeyResolved)) {
     if ($RequirePollinationsApiKey) {
-        Write-Host '[ensure-openclaw] 已选 Pollinations 且指定 -RequirePollinationsApiKey，但未提供 API 密钥。' -ForegroundColor Red
-        Write-Host '  请到 https://enter.pollinations.ai/ 注册并创建 sk_ 密钥，然后：' -ForegroundColor Yellow
-        Write-Host '    设置环境变量 POLLINATIONS_API_KEY，或: -PollinationsApiKey ''sk_...''' -ForegroundColor DarkGray
+        Write-UiLine '[ensure-openclaw] 已选 Pollinations 且指定 -RequirePollinationsApiKey，但未提供 API 密钥。' -ForegroundColor Red
+        Write-UiLine '  请到 https://enter.pollinations.ai/ 注册并创建 sk_ 密钥，然后：' -ForegroundColor Yellow
+        Write-UiLine '    设置环境变量 POLLINATIONS_API_KEY，或: -PollinationsApiKey ''sk_...''' -ForegroundColor DarkGray
         exit 5
     }
-    Write-Host '[ensure-openclaw] 未检测到 POLLINATIONS_API_KEY，将改用 --auth-choice skip 以完成 onboard（写入配置；默认不装计划任务）。' -ForegroundColor Yellow
-    Write-Host '  稍后可设密钥并重跑本脚本（仅 onboard），或: openclaw configure / LCLaw 内配置 Pollinations。' -ForegroundColor DarkGray
-    Write-Host '  注册密钥: https://enter.pollinations.ai/' -ForegroundColor DarkGray
+    Write-UiLine '[ensure-openclaw] 未检测到 POLLINATIONS_API_KEY，将改用 --auth-choice skip 以完成 onboard（写入配置；默认不装计划任务）。' -ForegroundColor Yellow
+    Write-UiLine '  稍后可设密钥并重跑本脚本（仅 onboard），或: openclaw configure / LCLaw 内配置 Pollinations。' -ForegroundColor DarkGray
+    Write-UiLine '  注册密钥: https://enter.pollinations.ai/' -ForegroundColor DarkGray
     $effectiveAuth = 'skip'
 }
 
 if ($effectiveAuth -eq 'ollama' -and -not $SkipOllamaPreflight) {
     if (-not (Test-OllamaApiReachable -BaseUrl $OllamaBaseUrl)) {
-        Write-Host ('[ensure-openclaw] 未检测到本机 Ollama HTTP API（{0}/api/tags 不可达）。' -f ($OllamaBaseUrl.TrimEnd('/'))) -ForegroundColor Yellow
-        Write-Host '  若需本机推理：安装并启动 Ollama — https://ollama.com/download 或 winget install Ollama.Ollama' -ForegroundColor DarkGray
-        Write-Host '  若仅用云端/向导自处理：可忽略，或加 -SkipOllamaPreflight 去掉本提示。' -ForegroundColor DarkGray
-        Write-Host '  无人值守且无 Ollama：加 -OnboardAuthChoice skip 或 -FallbackToSkipAuthIfOllamaUnreachable。' -ForegroundColor DarkGray
+        Write-UiLine ('[ensure-openclaw] 未检测到本机 Ollama HTTP API（{0}/api/tags 不可达）。' -f ($OllamaBaseUrl.TrimEnd('/'))) -ForegroundColor Yellow
+        Write-UiLine '  若需本机推理：安装并启动 Ollama — https://ollama.com/download 或 winget install Ollama.Ollama' -ForegroundColor DarkGray
+        Write-UiLine '  若仅用云端/向导自处理：可忽略，或加 -SkipOllamaPreflight 去掉本提示。' -ForegroundColor DarkGray
+        Write-UiLine '  无人值守且无 Ollama：加 -OnboardAuthChoice skip 或 -FallbackToSkipAuthIfOllamaUnreachable。' -ForegroundColor DarkGray
         if ($FallbackToSkipAuthIfOllamaUnreachable) {
-            Write-Host '[ensure-openclaw] 已启用 -FallbackToSkipAuthIfOllamaUnreachable，onboard 将使用 --auth-choice skip（请稍后配置模型）。' -ForegroundColor Yellow
+            Write-UiLine '[ensure-openclaw] 已启用 -FallbackToSkipAuthIfOllamaUnreachable，onboard 将使用 --auth-choice skip（请稍后配置模型）。' -ForegroundColor Yellow
             $effectiveAuth = 'skip'
         } elseif ($FailIfOllamaUnreachable) {
             exit 4
@@ -280,15 +302,16 @@ if ($effectiveAuth -eq 'ollama' -and -not $SkipOllamaPreflight) {
     }
 }
 
+Write-Output '[ensure-openclaw] ui=onboard_prepare'
 try {
     Invoke-OpenclawOnboardNonInteractive -OpenclawExe $openclawExe -AuthChoice $effectiveAuth `
         -ModelId $OllamaModelId -BaseUrl $OllamaBaseUrl `
         -PollinationsKey $pollinationsKeyResolved -PollinationsModel $PollinationsModelId `
         -Port $GatewayPort -SkipHealthCheck:$SkipHealth -InstallGatewayDaemon:$InstallGatewayDaemon
 } catch {
-    Write-Host ('[ensure-openclaw] onboard 失败: {0}' -f $_) -ForegroundColor Red
+    Write-UiLine ('[ensure-openclaw] onboard 失败: {0}' -f $_) -ForegroundColor Red
     exit 3
 }
 
-Write-Host '[ensure-openclaw] onboard 已完成。' -ForegroundColor Green
+Write-UiLine '[ensure-openclaw] onboard 已完成。' -ForegroundColor Green
 exit 0

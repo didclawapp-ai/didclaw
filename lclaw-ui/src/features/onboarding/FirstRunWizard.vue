@@ -13,6 +13,8 @@ import { getLclawDesktopApi } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
 const WIZARD_DOC = "https://docs.openclaw.ai/start/wizard";
@@ -41,6 +43,32 @@ const cliError = ref<string | null>(null);
 
 const installBusy = ref(false);
 const installLog = ref("");
+/** 安装脚本已运行秒数（每秒 +1，用于进度区展示） */
+const installElapsedSec = ref(0);
+
+const INSTALL_PROGRESS_HINTS = [
+  "正在后台执行 PowerShell 脚本（无弹窗），请稍候。",
+  "若需下载官方 install.ps1 与 npm 包，视网络情况可能需数分钟。",
+  "下方日志会随输出实时刷新；界面未卡死，请勿强制关闭应用。",
+  "长时间停在「running_official_install」多为官方安装器在拉取 Node / 包体，属正常现象。",
+] as const;
+
+const installProgressHint = computed(() => {
+  if (!installBusy.value) {
+    return "";
+  }
+  const idx = Math.min(
+    Math.floor(installElapsedSec.value / 14),
+    INSTALL_PROGRESS_HINTS.length - 1,
+  );
+  return INSTALL_PROGRESS_HINTS[idx] ?? INSTALL_PROGRESS_HINTS[INSTALL_PROGRESS_HINTS.length - 1];
+});
+
+function formatInstallElapsed(totalSec: number): string {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 const modelBusy = ref(false);
 const modelError = ref<string | null>(null);
@@ -199,21 +227,64 @@ async function runEnsureScript(skipOnboard: boolean): Promise<void> {
     return;
   }
   installBusy.value = true;
+  installElapsedSec.value = 0;
   installLog.value = skipOnboard
     ? "正在执行：仅安装 CLI（-SkipOnboard）…\n"
     : "正在执行：安装 CLI + 非交互 onboard（-OnboardAuthChoice skip）…\n";
+
+  let streamReceived = false;
+  let unlisten: UnlistenFn | undefined;
+  let tick: ReturnType<typeof setInterval> | undefined;
+  if (isTauri()) {
+    try {
+      unlisten = await listen<{ stream?: string; line?: string }>(
+        "lclaw-ensure-install-log",
+        (ev) => {
+          const line = ev.payload?.line;
+          if (typeof line !== "string" || line.length === 0) {
+            return;
+          }
+          streamReceived = true;
+          const prefix = ev.payload?.stream === "stderr" ? "[stderr] " : "";
+          installLog.value += `${prefix}${line}\n`;
+        },
+      );
+    } catch {
+      /* 监听失败时仍依赖 invoke 结束后的完整 log */
+    }
+  }
+  tick = window.setInterval(() => {
+    installElapsedSec.value += 1;
+  }, 1000);
+
   try {
     const r = await api.runEnsureOpenclawWindowsInstall({ skipOnboard });
-    installLog.value = r.log;
+    if (!isTauri() || !streamReceived) {
+      installLog.value =
+        (skipOnboard
+          ? "正在执行：仅安装 CLI（-SkipOnboard）…\n"
+          : "正在执行：安装 CLI + 非交互 onboard（-OnboardAuthChoice skip）…\n") + (r.log ?? "");
+    } else {
+      const tail =
+        typeof r.error === "string" && r.error.length > 0
+          ? ` — ${r.error}`
+          : "";
+      installLog.value += `\n--- 完成（退出码 ${r.exitCode}）${r.ok ? "" : tail} ---\n`;
+    }
     if (r.ok) {
       await refreshStatus();
-    } else if (r.error) {
+    } else if (r.error && !streamReceived) {
       installLog.value += `\n[结果] ${r.error}（退出码 ${r.exitCode}）`;
     }
   } catch (e) {
     installLog.value += `\n${e instanceof Error ? e.message : String(e)}`;
   } finally {
+    if (tick !== undefined) {
+      clearInterval(tick);
+    }
+    unlisten?.();
     installBusy.value = false;
+    installElapsedSec.value = 0;
   }
 }
 
@@ -399,7 +470,20 @@ onUnmounted(() => {
                 </button>
               </template>
             </div>
-            <pre v-if="installLog.trim()" class="first-run-install-log">{{ installLog }}</pre>
+            <div v-if="installBusy" class="first-run-install-progress" role="status" aria-live="polite">
+              <div class="first-run-install-progress-row">
+                <span class="first-run-install-elapsed">已用时 {{ formatInstallElapsed(installElapsedSec) }}</span>
+                <div class="first-run-install-bar" aria-hidden="true">
+                  <div class="first-run-install-bar-fill" />
+                </div>
+              </div>
+              <p class="first-run-install-progress-hint">{{ installProgressHint }}</p>
+            </div>
+            <pre
+              v-if="installLog.trim()"
+              class="first-run-install-log"
+              :class="{ 'first-run-install-log--busy': installBusy }"
+            >{{ installLog }}</pre>
           </div>
           <p v-else-if="!loading && !loadError && !canRunEnsureInstall" class="first-run-platform-note">
             非 Windows 或未打包脚本时：请按
@@ -670,6 +754,56 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 8px;
 }
+.first-run-install-progress {
+  margin: 12px 0 0;
+  padding: 10px 10px 8px;
+  border-radius: 6px;
+  background: #0d1117;
+  border: 1px solid var(--lc-border);
+}
+.first-run-install-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.first-run-install-elapsed {
+  flex: 0 0 auto;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.7rem;
+  color: #9ecbff;
+}
+.first-run-install-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(158, 203, 255, 0.15);
+  overflow: hidden;
+}
+.first-run-install-bar-fill {
+  height: 100%;
+  width: 35%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #238636, #58a6ff, #238636);
+  background-size: 200% 100%;
+  animation: first-run-indeterminate 1.2s ease-in-out infinite;
+}
+@keyframes first-run-indeterminate {
+  0% {
+    transform: translateX(-100%);
+    background-position: 0% 0;
+  }
+  100% {
+    transform: translateX(280%);
+    background-position: 100% 0;
+  }
+}
+.first-run-install-progress-hint {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--lc-text-muted, #8b9cb0);
+}
 .first-run-install-log {
   margin: 10px 0 0;
   max-height: 160px;
@@ -684,6 +818,9 @@ onUnmounted(() => {
   color: #9ecbff;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.first-run-install-log--busy {
+  max-height: min(220px, 32vh);
 }
 .first-run-platform-note {
   margin: 0 0 12px;

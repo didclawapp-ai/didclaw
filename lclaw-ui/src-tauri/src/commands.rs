@@ -150,11 +150,11 @@ pub fn get_open_claw_setup_status(app: tauri::AppHandle) -> Result<Value, String
 }
 
 #[tauri::command]
-pub fn run_ensure_openclaw_windows_install(
+pub async fn run_ensure_openclaw_windows_install(
     app: tauri::AppHandle,
     skip_onboard: bool,
 ) -> Result<Value, String> {
-    crate::openclaw_ensure_install::run_ensure_openclaw_windows_install_impl(&app, skip_onboard)
+    crate::openclaw_ensure_install::run_ensure_openclaw_windows_install_impl(app, skip_onboard).await
 }
 
 #[tauri::command]
