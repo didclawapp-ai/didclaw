@@ -16,6 +16,7 @@ import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useFilePreviewStore } from "@/stores/filePreview";
 import { usePreviewStore } from "@/stores/preview";
+import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
@@ -26,6 +27,7 @@ const STREAMING_PENDING_LABEL = "正在生成回复…";
 
 const session = useSessionStore();
 const chat = useChatStore();
+const gw = useGatewayStore();
 const localSettings = useLocalSettingsStore();
 const preview = usePreviewStore();
 const filePreview = useFilePreviewStore();
@@ -93,6 +95,7 @@ onMounted(() => {
   if (isLclawElectron()) {
     void chat.refreshOpenClawModelPicker();
   }
+  gw.connect();
 });
 
 const displayLines = computed(() => {

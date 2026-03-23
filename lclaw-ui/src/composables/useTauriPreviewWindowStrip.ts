@@ -4,8 +4,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { ComputedRef, Ref } from "vue";
 import { nextTick, watch } from "vue";
 
-/** 关闭预览后保证主窗口内宽不会小于该值（物理像素） */
-const MIN_INNER_WIDTH_PX = 560;
+/** 关闭预览后保证主窗口内宽不会小于该值（物理像素）；需低于默认窗宽 550 以免被意外拉大 */
+const MIN_INNER_WIDTH_PX = 480;
 
 /**
  * 推迟到当前帧的 ResizeObserver 投递结束后再改窗口尺寸，减轻

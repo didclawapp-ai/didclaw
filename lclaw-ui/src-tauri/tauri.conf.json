@@ -15,8 +15,8 @@
       {
         "label": "main",
         "title": "LCLAW UI",
-        "width": 1280,
-        "height": 840,
+        "width": 570,
+        "height": 920,
         "resizable": true,
         "fullscreen": false,
         "devtools": true
