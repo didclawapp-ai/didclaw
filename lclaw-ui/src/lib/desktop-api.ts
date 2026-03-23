@@ -39,6 +39,7 @@ function tauriApi(): LclawElectronApi {
     readOpenClawProviders: () => invoke("read_open_claw_providers"),
     writeOpenClawProvidersPatch: (payload) =>
       invoke("write_open_claw_providers_patch", { payload }),
+    getOpenClawSetupStatus: () => invoke("get_open_claw_setup_status"),
   };
 }
 

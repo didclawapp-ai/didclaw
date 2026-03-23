@@ -11,6 +11,7 @@ mod openclaw_providers;
 mod paths;
 mod preview_local;
 mod skills;
+mod setup_status;
 
 #[cfg(not(debug_assertions))]
 mod static_server;
@@ -140,6 +141,7 @@ pub fn run() {
             commands::shell_prepare_email_with_local_file,
             commands::shell_copy_local_file_for_share,
             commands::dialog_open_file,
+            commands::get_open_claw_setup_status,
             commands::read_gateway_local_config,
             commands::write_gateway_local_config,
             commands::ensure_open_claw_gateway,

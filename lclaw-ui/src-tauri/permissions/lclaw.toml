@@ -2,6 +2,7 @@
 identifier = "invoke-all"
 description = "LCLAW UI 桌面端 invoke 命令（迁移自 Electron IPC）"
 commands.allow = [
+  "get_open_claw_setup_status",
   "preview_open_local",
   "preview_libre_office_status",
   "preview_open_libre_office_download_page",

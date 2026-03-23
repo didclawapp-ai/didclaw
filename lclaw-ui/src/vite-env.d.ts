@@ -97,6 +97,14 @@ interface LclawElectronApi {
     | { ok: true; providers: Record<string, unknown>; defaultAgentId: string }
     | { ok: false; error: string }
   >;
+  /** 首次安装向导预检（桌面端） */
+  getOpenClawSetupStatus(): Promise<{
+    openclawDirExists: boolean;
+    openclawConfigState: "ok" | "missing" | "invalid";
+    openclawConfigError: string | null;
+    openclawCli: { ok: true; path: string } | { ok: false; error: string };
+    modelConfigDeferred: boolean;
+  }>;
   writeOpenClawProvidersPatch(payload: {
     patch: Record<string, Record<string, unknown> | null>;
   }): Promise<

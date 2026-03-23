@@ -145,6 +145,11 @@ pub fn dialog_open_file() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+pub fn get_open_claw_setup_status(app: tauri::AppHandle) -> Result<Value, String> {
+    Ok(crate::setup_status::build_open_claw_setup_status(&app))
+}
+
+#[tauri::command]
 pub fn read_gateway_local_config(app: tauri::AppHandle) -> Result<Value, String> {
     let m = crate::gateway_local::read_merged_map(&app)?;
     let mut v = crate::gateway_local::merged_to_frontend_value(&m);

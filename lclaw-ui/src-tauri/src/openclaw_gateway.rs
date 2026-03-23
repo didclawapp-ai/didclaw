@@ -168,7 +168,8 @@ fn first_resolved_openclaw_from_where(args: &[&str]) -> Option<String> {
     None
 }
 
-fn resolve_open_claw_executable(custom: Option<&str>) -> Option<String> {
+/// 解析 openclaw 可执行路径（网关自启与安装预检共用）。
+pub fn resolve_open_claw_executable(custom: Option<&str>) -> Option<String> {
     if let Some(t) = custom.map(str::trim).filter(|s| !s.is_empty()) {
         #[cfg(windows)]
         {
