@@ -246,10 +246,17 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
         }
         if (r.displayKind === "markdown" || r.displayKind === "text") {
           previewTextBody.value = base64Utf8ToString(r.base64);
+          const inferred = previewKindFromUrl(u);
+          const kind =
+            r.displayKind === "markdown"
+              ? "markdown"
+              : inferred === "code"
+                ? "code"
+                : "text";
           target.value = {
             url: u,
             label: short,
-            kind: r.displayKind === "markdown" ? "markdown" : "text",
+            kind,
           };
           pendingLocalFileUrl.value = null;
           pendingLocalLabel.value = null;
@@ -283,7 +290,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     if (u.startsWith("blob:") && kind === "other") {
       kind = previewKindFromUrl(`https://preview.local/${encodeURIComponent(short)}`);
     }
-    if (kind === "markdown" || kind === "text") {
+    if (kind === "markdown" || kind === "text" || kind === "code") {
       target.value = { url: u, label: short, kind };
       previewTextLoading.value = true;
       previewTextError.value = null;

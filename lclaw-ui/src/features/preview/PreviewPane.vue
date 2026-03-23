@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
 import { isLibreOfficeMissingError } from "@/lib/libreoffice-preview";
-import { isHttpsUrl, officeOnlineEmbedUrl } from "@/lib/preview-kind";
+import { hljsLanguageFromUrl, isHttpsUrl, officeOnlineEmbedUrl } from "@/lib/preview-kind";
+import { renderCodePreviewHtml } from "@/lib/render-code-preview";
 import { renderMarkdownPreviewToHtml } from "@/lib/render-markdown-preview";
 import { useFilePreviewStore } from "@/stores/filePreview";
 import { useToolTimelineStore } from "@/stores/toolTimeline";
@@ -37,6 +38,16 @@ const markdownHtml = computed(() => {
     return "";
   }
   return renderMarkdownPreviewToHtml(body);
+});
+
+const codePreviewHtml = computed(() => {
+  const body = previewTextBody.value;
+  const t = target.value;
+  if (!body || t?.kind !== "code") {
+    return "";
+  }
+  const lang = hljsLanguageFromUrl(t.url);
+  return renderCodePreviewHtml(body, lang);
 });
 
 const toolTimeline = useToolTimelineStore();
@@ -129,7 +140,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
         <p class="hint muted">
           点击左侧消息里的 <strong>高亮链接</strong> 可预览文件；若某行提示「列表截断」，<strong>点该行</strong>可在右侧查看全文。
           含 <strong>data:image/…;base64,…</strong> 的助手/用户消息<strong>点该行</strong>可在右侧预览并另存。
-          支持 PDF / 图片 / <strong>Markdown</strong> / <strong>纯文本</strong>；Office 需桌面版或在线嵌入。
+          支持 PDF / 图片 / <strong>Markdown</strong> / <strong>纯文本</strong> / <strong>常见源码</strong>（语法高亮）；Office 需桌面版或在线嵌入。
         </p>
         <button v-if="isLclawElectron()" type="button" class="toolbar-pick" @click="pickLocalFile">
           选择本地文件…
@@ -157,7 +168,9 @@ async function onSaveEmbeddedImage(): Promise<void> {
       <div v-else-if="target && previewTextLoading" class="card state-card">正在加载文本…</div>
       <div
         v-else-if="
-          target && (target.kind === 'markdown' || target.kind === 'text') && previewTextError
+          target &&
+            (target.kind === 'markdown' || target.kind === 'text' || target.kind === 'code') &&
+            previewTextError
         "
         class="card state-card err"
       >
@@ -170,6 +183,11 @@ async function onSaveEmbeddedImage(): Promise<void> {
         v-else-if="target?.kind === 'markdown' && previewTextBody"
         class="text-preview md-render"
         v-html="markdownHtml"
+      />
+      <div
+        v-else-if="target?.kind === 'code' && previewTextBody"
+        class="text-preview code-preview"
+        v-html="codePreviewHtml"
       />
       <pre
         v-else-if="target?.kind === 'text' && previewTextBody"
@@ -232,7 +250,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
         <button type="button" @click="openExternal">仍要尝试打开</button>
       </div>
       <div v-else-if="target" class="card">
-        <p>此链接不是内置预览类型（PDF / 图片 / Office / Markdown / 文本）。</p>
+        <p>此链接不是内置预览类型（PDF / 图片 / Office / Markdown / 文本 / 源码）。</p>
         <button type="button" @click="openExternal">在新窗口打开</button>
       </div>
     </div>
@@ -580,5 +598,19 @@ button.ghost:hover {
   padding-left: 12px;
   border-left: 3px solid var(--lc-accent);
   color: var(--lc-text-muted);
+}
+.code-preview :deep(.code-preview-pre) {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  background: #f1f5f9;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1e293b;
+}
+.code-preview :deep(.code-preview-pre code) {
+  font-family: var(--lc-mono);
 }
 </style>

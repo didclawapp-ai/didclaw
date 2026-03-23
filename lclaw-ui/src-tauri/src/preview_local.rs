@@ -37,7 +37,25 @@ fn is_text_preview_ext(ext: &str) -> bool {
     matches!(
         ext,
         "txt" | "text" | "log" | "csv" | "md" | "markdown" | "mdown" | "mkd"
+            | "ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs" | "py" | "pyw" | "rs"
+            | "go" | "java" | "kt" | "kts" | "c" | "h" | "cpp" | "cxx" | "cc" | "hpp" | "hh" | "cs"
+            | "rb" | "php" | "swift" | "scala" | "sc" | "sh" | "zsh" | "ps1" | "psm1" | "sql" | "vue"
+            | "html" | "htm" | "xml" | "css" | "scss" | "sass" | "less" | "json" | "jsonc" | "yaml"
+            | "yml" | "toml" | "ini" | "gradle" | "groovy" | "lua" | "pl" | "r" | "dart" | "ex" | "exs"
+            | "erl" | "hrl" | "clj" | "cljs" | "edn" | "fs" | "fsx" | "hs" | "nim" | "zig" | "vhdl"
+            | "verilog" | "v" | "sv" | "tcl" | "diff" | "patch" | "cmake" | "proto" | "prisma"
+            | "graphql" | "gql" | "properties" | "asm" | "s"
     )
+}
+
+fn is_dockerfile_name(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| {
+            let lower = n.to_lowercase();
+            lower == "dockerfile" || lower == "containerfile"
+        })
+        .unwrap_or(false)
 }
 
 fn is_office_ext(ext: &str) -> bool {
@@ -208,7 +226,7 @@ pub async fn open_local_preview(file_url: String) -> Value {
         }
     }
 
-    if is_text_preview_ext(&ext) {
+    if is_text_preview_ext(&ext) || is_dockerfile_name(&p) {
         let meta = match tokio::fs::metadata(&p).await {
             Ok(m) => m,
             Err(e) => return json!({ "ok": false, "error": e.to_string() }),
@@ -259,7 +277,7 @@ pub async fn open_local_preview(file_url: String) -> Value {
         }
     }
 
-    json!({"ok": false, "error": "不支持的文件类型（图片、PDF、Office、Markdown、纯文本）"})
+    json!({"ok": false, "error": "不支持的文件类型（图片、PDF、Office、Markdown、纯文本与常见源码）"})
 }
 
 pub fn show_libre_office_install_dialog() -> Value {
