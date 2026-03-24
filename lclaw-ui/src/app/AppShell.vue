@@ -235,6 +235,7 @@ async function pickLocalFileForPreview(): Promise<void> {
 
     <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
       <aside class="left">
+        <div class="left-session">
         <div class="panel-title session-panel-head">
           <span class="session-head-label">会话</span>
           <span
@@ -290,7 +291,9 @@ async function pickLocalFileForPreview(): Promise<void> {
             </button>
           </li>
         </ul>
+        </div>
 
+        <div class="left-conversation">
         <div class="panel-title row-title">
           <span>消息</span>
           <div v-if="!historyLoading" class="msg-toolbar">
@@ -324,24 +327,42 @@ async function pickLocalFileForPreview(): Promise<void> {
           </div>
         </div>
         <ChatRunStatusBar />
-        <div v-if="historyLoading" class="muted">加载历史…</div>
-        <p
+        <div class="left-messages">
+        <template v-if="historyLoading">
+          <div class="muted">加载历史…</div>
+          <div class="left-messages-spacer" aria-hidden="true" />
+        </template>
+        <template
           v-else-if="displayLines.length === 0 && messages.length > 0 && !showDiagnosticMessages"
-          class="muted filter-hint"
         >
-          本会话消息已按规则隐藏（含全部 <strong>system</strong> 行、审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
-        </p>
+          <p class="muted filter-hint">
+            本会话消息已按规则隐藏（含全部 <strong>system</strong> 行、审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
+          </p>
+          <div class="left-messages-spacer" aria-hidden="true" />
+        </template>
         <template v-else-if="!historyLoading && displayLines.length > 0">
           <InlineToolTimeline />
-          <ChatMessageList
-            :lines="displayLines"
-            :selected-index="selectedIndex"
-            :follow-latest="followLatest"
-            @select="onSelectMessage"
-          />
+          <div class="left-msg-list-wrap">
+            <ChatMessageList
+              :lines="displayLines"
+              :selected-index="selectedIndex"
+              :follow-latest="followLatest"
+              @select="onSelectMessage"
+            />
+          </div>
         </template>
-        <p v-else-if="!historyLoading && messages.length === 0" class="muted">暂无消息</p>
-        <p v-else-if="!historyLoading" class="muted filter-hint">暂无可显示消息。</p>
+        <div
+          v-else-if="!historyLoading && messages.length === 0"
+          class="left-msg-list-wrap left-msg-list-wrap--placeholder"
+        >
+          <p class="muted">暂无消息</p>
+        </div>
+        <template v-else-if="!historyLoading">
+          <p class="muted filter-hint">暂无可显示消息。</p>
+          <div class="left-messages-spacer" aria-hidden="true" />
+        </template>
+        </div>
+        </div>
 
         <MessageComposer />
       </aside>
@@ -406,6 +427,48 @@ async function pickLocalFileForPreview(): Promise<void> {
   flex-direction: column;
   min-height: 0;
   background: var(--lc-surface-panel);
+}
+.left-session {
+  flex-shrink: 0;
+}
+.left-conversation {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.left-messages {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+.left-msg-list-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.left-msg-list-wrap--placeholder {
+  align-items: stretch;
+  justify-content: center;
+  padding: 24px 14px;
+}
+.left-msg-list-wrap--placeholder .muted {
+  margin: 0;
+  text-align: center;
+}
+.left-messages-spacer {
+  flex: 1;
+  min-height: 0;
+}
+.left-messages > .inline-tools,
+.left-messages > .muted,
+.left-messages > .filter-hint {
+  flex-shrink: 0;
 }
 .main:not(.preview-pane-open) .left {
   border-right: none;

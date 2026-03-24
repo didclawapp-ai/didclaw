@@ -3,9 +3,7 @@ import {
   afterOpenClawModelConfigSaved,
   isFirstRunModelStepComplete,
   markFirstRunModelStepComplete,
-  readModelWizardSnoozeExpired,
   setModelConfigDeferred,
-  snoozeModelWizard24h,
 } from "@/composables/modelConfigDeferred";
 import { scheduleDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayAfterControlUiMerge";
@@ -18,11 +16,13 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
 const WIZARD_DOC = "https://docs.openclaw.ai/start/wizard";
-const ONBOARD_CMD = "openclaw onboard";
 const OLLAMA_DEFAULT_PRIMARY = "ollama/qwen2.5:7b";
 
-const SNOOZE_KEY = "lclaw_setup_wizard_snooze_until";
-const SNOOZE_MS = 24 * 60 * 60 * 1000;
+/** 环境步固定说明（不展示逐项检测结果） */
+const ENV_INSTALL_LEAD = "检测到未安装openclaw，请点击下面按键进行安装初始化。";
+
+const MODEL_STEP_LEAD =
+  "不配置模型将无法连接AI进行对话，请选择本地或者云端AI进行配置";
 
 const localSettings = useLocalSettingsStore();
 const chat = useChatStore();
@@ -46,12 +46,7 @@ const installLog = ref("");
 /** 安装脚本已运行秒数（每秒 +1，用于进度区展示） */
 const installElapsedSec = ref(0);
 
-const INSTALL_PROGRESS_HINTS = [
-  "正在后台执行 PowerShell 脚本（无弹窗），请稍候。",
-  "若需下载官方 install.ps1 与 npm 包，视网络情况可能需数分钟。",
-  "下方日志会随输出实时刷新；界面未卡死，请勿强制关闭应用。",
-  "长时间停在「running_official_install」多为官方安装器在拉取 Node / 包体，属正常现象。",
-] as const;
+const INSTALL_PROGRESS_HINTS = ["安装进行中…", "下载组件时可能需数分钟。"] as const;
 
 const installProgressHint = computed(() => {
   if (!installBusy.value) {
@@ -73,11 +68,6 @@ function formatInstallElapsed(totalSec: number): string {
 const modelBusy = ref(false);
 const modelError = ref<string | null>(null);
 
-/** 已装 CLI，但尚未生成数据目录（最常见：只 npm -g 了，还没 onboard） */
-const cliReadyNeedInit = computed(
-  () => !loading.value && cliOk.value && !openclawDirExists.value,
-);
-
 const canRunEnsureInstall = computed(() => {
   if (typeof navigator === "undefined" || !/Win/i.test(navigator.userAgent)) {
     return false;
@@ -86,32 +76,9 @@ const canRunEnsureInstall = computed(() => {
   return Boolean(api?.runEnsureOpenclawWindowsInstall);
 });
 
-const leadText = computed(() => {
-  if (cliReadyNeedInit.value) {
-    return "已检测到 openclaw 命令行，但还没有用户数据目录。需要跑一次官方初始化（onboard）生成用户文件夹下的 .openclaw，之后才能连网关、配模型。";
-  }
-  return "未检测到本机 OpenClaw 数据目录（通常为用户文件夹下的 .openclaw）。请先安装官方助手并完成初始化，否则无法连接网关与对话。";
-});
-
 const dialogAriaLabel = computed(() =>
-  phase.value === "model" ? "选择对话模型" : "首次环境设置",
+  phase.value === "model" ? "配置模型" : "安装 OpenClaw",
 );
-
-function readSnoozeExpired(): boolean {
-  try {
-    const raw = localStorage.getItem(SNOOZE_KEY);
-    if (!raw) {
-      return true;
-    }
-    const until = Number(raw);
-    if (!Number.isFinite(until)) {
-      return true;
-    }
-    return Date.now() >= until;
-  } catch {
-    return true;
-  }
-}
 
 async function refreshStatus(): Promise<void> {
   const api = getLclawDesktopApi();
@@ -166,23 +133,18 @@ async function refreshStatus(): Promise<void> {
 
     if (s.openclawDirExists) {
       phase.value = "model";
-      visible.value = readModelWizardSnoozeExpired();
+      visible.value = true;
       return;
     }
 
     phase.value = "env";
-    visible.value = readSnoozeExpired();
+    visible.value = true;
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
     visible.value = false;
   } finally {
     loading.value = false;
   }
-}
-
-function onOpenSettings(): void {
-  localSettings.open("gateway");
-  visible.value = false;
 }
 
 /** 从本机设置返回后重新检测，便于装完助手仍无 .openclaw 时再次提示 */
@@ -195,42 +157,15 @@ watch(
   },
 );
 
-function onSnooze(): void {
-  try {
-    localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
-  } catch {
-    /* ignore */
-  }
-  visible.value = false;
-}
-
-async function copyOnboardCommand(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(ONBOARD_CMD);
-  } catch {
-    /* ignore */
-  }
-}
-
-function openWizardDoc(): void {
-  try {
-    window.open(WIZARD_DOC, "_blank", "noopener,noreferrer");
-  } catch {
-    /* ignore */
-  }
-}
-
-/** 执行打包内的 ensure-openclaw-windows.ps1（下载官方 install.ps1 + 可选非交互 onboard） */
-async function runEnsureScript(skipOnboard: boolean): Promise<void> {
+/** 执行打包内的 ensure-openclaw-windows.ps1（下载官方 install.ps1 + 非交互 onboard） */
+async function runEnsureInstallAndInit(): Promise<void> {
   const api = getLclawDesktopApi();
   if (!api?.runEnsureOpenclawWindowsInstall) {
     return;
   }
   installBusy.value = true;
   installElapsedSec.value = 0;
-  installLog.value = skipOnboard
-    ? "正在执行：仅安装 CLI（-SkipOnboard）…\n"
-    : "正在执行：安装 CLI + 非交互 onboard（-OnboardAuthChoice skip）…\n";
+  installLog.value = "正在执行：安装并初始化…\n";
 
   let streamReceived = false;
   let unlisten: UnlistenFn | undefined;
@@ -258,12 +193,9 @@ async function runEnsureScript(skipOnboard: boolean): Promise<void> {
   }, 1000);
 
   try {
-    const r = await api.runEnsureOpenclawWindowsInstall({ skipOnboard });
+    const r = await api.runEnsureOpenclawWindowsInstall({ skipOnboard: false });
     if (!isTauri() || !streamReceived) {
-      installLog.value =
-        (skipOnboard
-          ? "正在执行：仅安装 CLI（-SkipOnboard）…\n"
-          : "正在执行：安装 CLI + 非交互 onboard（-OnboardAuthChoice skip）…\n") + (r.log ?? "");
+      installLog.value = "正在执行：安装并初始化…\n" + (r.log ?? "");
     } else {
       const tail =
         typeof r.error === "string" && r.error.length > 0
@@ -340,9 +272,7 @@ function onModelCloudPath(): void {
 
 function onModelSkipLater(): void {
   if (
-    !window.confirm(
-      "确定稍后在「本机设置」里配置模型？主界面将显示提示条；在配置完成前对话可能不可用。",
-    )
+    !window.confirm("稍后在设置里配置？完成前对话可能不可用。")
   ) {
     return;
   }
@@ -350,11 +280,6 @@ function onModelSkipLater(): void {
   markFirstRunModelStepComplete();
   visible.value = false;
   scheduleDeferredGatewayConnect(gw);
-}
-
-function onModelStepSnooze24h(): void {
-  snoozeModelWizard24h();
-  visible.value = false;
 }
 
 function onRecheckFirstRunEvent(): void {
@@ -384,93 +309,21 @@ onUnmounted(() => {
       <div class="first-run-card">
         <template v-if="phase === 'env'">
           <h2 id="first-run-title" class="first-run-title">欢迎使用</h2>
-          <p class="first-run-lead">
-            {{ leadText }}
-            <template v-if="!cliReadyNeedInit">
-              目录一般为 <code>.openclaw</code>。
-            </template>
-          </p>
-
-          <div v-if="cliReadyNeedInit" class="first-run-tip" role="note">
-            <strong>建议下一步</strong>：在终端执行
-            <code class="first-run-cmd">{{ ONBOARD_CMD }}</code>
-            <span class="first-run-tip-actions">
-              <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs" @click="() => void copyOnboardCommand()">
-                复制命令
-              </button>
-              <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs" @click="openWizardDoc">官方说明</button>
-            </span>
-            <span class="first-run-tip-after">
-              也可点下方「应用内运行初始化」自动执行脚本；或手动在终端运行后点「重新检测」。
-            </span>
-          </div>
-
           <div v-if="loading" class="first-run-muted">正在检测环境…</div>
           <p v-else-if="loadError" class="first-run-err">{{ loadError }}</p>
           <template v-else>
-            <ul class="first-run-checks">
-              <li :class="{ ok: openclawDirExists, bad: !openclawDirExists }">
-                数据目录 .openclaw：{{ openclawDirExists ? "已存在" : "未找到" }}
-              </li>
-              <li
-                :class="{
-                  ok: configState === 'ok',
-                  bad: configState === 'invalid',
-                  warn: configState === 'missing',
-                }"
-              >
-                openclaw.json：{{
-                  configState === "ok" ? "正常" : configState === "missing" ? "缺失" : "异常"
-                }}
-                <span v-if="configError" class="first-run-detail">（{{ configError }}）</span>
-              </li>
-              <li :class="{ ok: cliOk, bad: !cliOk }">
-                openclaw 命令行：{{ cliOk ? "已找到" : "未找到" }}
-                <span v-if="cliPath" class="first-run-detail">{{ cliPath }}</span>
-                <span v-if="cliError" class="first-run-detail">{{ cliError }}</span>
-              </li>
-            </ul>
-          </template>
-
-          <div
-            v-if="canRunEnsureInstall && !loading && !loadError"
-            class="first-run-install"
-          >
-            <p class="first-run-install-title">应用内一键安装（Windows）</p>
-            <p class="first-run-install-hint">
-              使用内置 <code>ensure-openclaw-windows.ps1</code>：下载官方 install.ps1，并可自动完成非交互
-              onboard（默认跳过云端模型，稍后在龙虾里配置）。可能需要数分钟，请保持网络畅通。
+            <p class="first-run-lead">{{ ENV_INSTALL_LEAD }}</p>
+            <p v-if="!canRunEnsureInstall" class="first-run-platform-note">
+              当前环境无法一键安装，请参阅
+              <a :href="WIZARD_DOC" target="_blank" rel="noopener noreferrer">安装说明</a>
+              。
             </p>
-            <div class="first-run-install-btns">
-              <button
-                v-if="cliReadyNeedInit"
-                type="button"
-                class="lc-btn lc-btn-primary"
-                :disabled="installBusy"
-                @click="() => void runEnsureScript(false)"
-              >
-                应用内运行初始化（生成 .openclaw）
-              </button>
-              <template v-else>
-                <button
-                  type="button"
-                  class="lc-btn lc-btn-primary"
-                  :disabled="installBusy"
-                  @click="() => void runEnsureScript(false)"
-                >
-                  一键安装并初始化（推荐）
-                </button>
-                <button
-                  type="button"
-                  class="lc-btn lc-btn-ghost"
-                  :disabled="installBusy"
-                  @click="() => void runEnsureScript(true)"
-                >
-                  仅安装命令行（不 onboard）
-                </button>
-              </template>
-            </div>
-            <div v-if="installBusy" class="first-run-install-progress" role="status" aria-live="polite">
+            <div
+              v-if="canRunEnsureInstall && installBusy"
+              class="first-run-install-progress"
+              role="status"
+              aria-live="polite"
+            >
               <div class="first-run-install-progress-row">
                 <span class="first-run-install-elapsed">已用时 {{ formatInstallElapsed(installElapsedSec) }}</span>
                 <div class="first-run-install-bar" aria-hidden="true">
@@ -480,96 +333,85 @@ onUnmounted(() => {
               <p class="first-run-install-progress-hint">{{ installProgressHint }}</p>
             </div>
             <pre
-              v-if="installLog.trim()"
+              v-if="canRunEnsureInstall && installLog.trim()"
               class="first-run-install-log"
               :class="{ 'first-run-install-log--busy': installBusy }"
             >{{ installLog }}</pre>
-          </div>
-          <p v-else-if="!loading && !loadError && !canRunEnsureInstall" class="first-run-platform-note">
-            非 Windows 或未打包脚本时：请按
-            <a :href="WIZARD_DOC" target="_blank" rel="noopener noreferrer">OpenClaw 官方文档</a>
-            安装后，再打开本机设置连接网关。
-          </p>
-
-          <div class="first-run-actions">
-            <button
-              type="button"
-              class="lc-btn lc-btn-primary"
-              :disabled="loading || installBusy"
-              @click="onOpenSettings"
-            >
-              打开本机设置（连助手）
-            </button>
-            <button
-              type="button"
-              class="lc-btn lc-btn-ghost"
-              :disabled="loading || installBusy"
-              @click="() => void refreshStatus()"
-            >
-              重新检测
-            </button>
-            <button
-              type="button"
-              class="lc-btn lc-btn-ghost"
-              :disabled="loading || installBusy"
-              @click="onSnooze"
-            >
-              稍后再说（24 小时内不提示）
-            </button>
-          </div>
-          <p class="first-run-foot">
-            <template v-if="cliReadyNeedInit">
-              优先试「应用内运行初始化」；若失败可手动终端执行 onboard。完成后点「重新检测」。网关与 Token 可在本机设置核对。
-            </template>
-            <template v-else>
-              可用上方脚本一键安装；模型与 API 仍建议在「本机设置」或后续向导中配置。未装 CLI 时也可只在设置里填写 openclaw 路径。
-            </template>
-          </p>
+            <div class="first-run-actions first-run-env-actions">
+              <button
+                v-if="canRunEnsureInstall"
+                type="button"
+                class="lc-btn lc-btn-primary"
+                :disabled="installBusy"
+                @click="() => void runEnsureInstallAndInit()"
+              >
+                安装并初始化
+              </button>
+              <button
+                type="button"
+                class="lc-btn lc-btn-ghost"
+                :disabled="loading || installBusy"
+                @click="() => void refreshStatus()"
+              >
+                重新检测
+              </button>
+            </div>
+          </template>
         </template>
 
         <template v-else-if="phase === 'model'">
-          <h2 id="first-run-model-title" class="first-run-title">第二步：选择对话模型</h2>
+          <h2 id="first-run-model-title" class="first-run-title">配置模型</h2>
           <div v-if="loading" class="first-run-muted">正在检测…</div>
           <p v-else-if="loadError" class="first-run-err">{{ loadError }}</p>
           <template v-else>
-            <p class="first-run-lead">
-              OpenClaw 数据目录已就绪。请选择一种方式配置<strong>默认对话模型</strong>（之后可在「本机设置」随时修改）。
-            </p>
+            <p class="first-run-lead first-run-lead-model">{{ MODEL_STEP_LEAD }}</p>
             <div class="model-cards">
               <button
                 type="button"
-                class="model-card"
+                class="model-card model-card-local"
                 :disabled="modelBusy"
                 @click="() => void applyOllamaQuickSetup()"
               >
-                <strong>本机模型（Ollama）</strong>
-                <span
-                  >一键写入服务 <code>http://127.0.0.1:11434/v1</code>、默认模型
-                  <code>qwen2.5:7b</code>，密钥留空。请先安装并启动 Ollama；若无该模型请在本机执行
-                  <code>ollama pull qwen2.5:7b</code>。</span
-                >
+                <span class="model-card-num" aria-hidden="true">1</span>
+                <div class="model-card-main">
+                  <span class="model-card-tag">本地 AI</span>
+                  <strong class="model-card-head">Ollama</strong>
+                  <p class="model-card-desc">
+                    <code>127.0.0.1:11434</code>
+                    <span class="model-card-desc-sep">·</span>
+                    <code>qwen2.5:7b</code>
+                  </p>
+                </div>
               </button>
               <button
                 type="button"
-                class="model-card"
+                class="model-card model-card-cloud"
                 :disabled="modelBusy"
                 @click="onModelCloudPath"
               >
-                <strong>云端模型（API Key）</strong>
-                <span>打开「本机设置 → ② AI 账号」，选择厂商并粘贴密钥，保存后在「③ 选模型」设默认模型。</span>
+                <span class="model-card-num" aria-hidden="true">2</span>
+                <div class="model-card-main">
+                  <span class="model-card-tag">云端 AI</span>
+                  <strong class="model-card-head">API 密钥</strong>
+                  <p class="model-card-desc">在本机设置中填写厂商密钥并选择模型</p>
+                </div>
               </button>
               <button
                 type="button"
-                class="model-card model-card-warn"
+                class="model-card model-card-later"
                 :disabled="modelBusy"
                 @click="onModelSkipLater"
               >
-                <strong>先跳过，稍后在设置里配置</strong>
-                <span>主界面将显示提示条；未配置前对话可能不可用。</span>
+                <span class="model-card-num model-card-num-muted" aria-hidden="true">3</span>
+                <div class="model-card-main">
+                  <span class="model-card-tag model-card-tag-muted">稍后</span>
+                  <strong class="model-card-head">稍后配置</strong>
+                  <p class="model-card-desc">主界面将提示你继续配置</p>
+                </div>
               </button>
             </div>
             <p v-if="modelError" class="first-run-err">{{ modelError }}</p>
-            <div class="first-run-actions">
+            <div class="first-run-actions first-run-model-actions">
               <button
                 type="button"
                 class="lc-btn lc-btn-ghost"
@@ -578,18 +420,7 @@ onUnmounted(() => {
               >
                 重新检测
               </button>
-              <button
-                type="button"
-                class="lc-btn lc-btn-ghost"
-                :disabled="modelBusy"
-                @click="onModelStepSnooze24h"
-              >
-                本步 24 小时内不提示
-              </button>
             </div>
-            <p class="first-run-foot">
-              若已在他处配置好模型，点「重新检测」后本向导会自动结束。需要测试连接请在打开的设置里保存后使用聊天。
-            </p>
           </template>
         </template>
       </div>
@@ -643,6 +474,11 @@ onUnmounted(() => {
   border-radius: 4px;
   background: var(--lc-bg-raised, #232d3a);
 }
+.first-run-lead-model {
+  color: var(--lc-text, #e8eef4);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
 .first-run-muted {
   font-size: 0.85rem;
   color: var(--lc-text-muted);
@@ -653,106 +489,13 @@ onUnmounted(() => {
   color: var(--lc-error, #f87171);
   margin: 0 0 12px;
 }
-.first-run-checks {
-  margin: 0 0 16px;
-  padding-left: 1.1rem;
-  font-size: 0.8rem;
-  line-height: 1.65;
-  color: var(--lc-text-muted);
-}
-.first-run-checks li.ok {
-  color: var(--lc-success, #4ade80);
-}
-.first-run-checks li.bad {
-  color: var(--lc-error, #f87171);
-}
-.first-run-checks li.warn {
-  color: var(--lc-text-dim, #a1b0c0);
-}
-.first-run-detail {
-  display: block;
-  margin-top: 2px;
-  font-size: 0.72rem;
-  opacity: 0.92;
-  word-break: break-all;
-}
 .first-run-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.first-run-foot {
-  margin: 14px 0 0;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  color: var(--lc-text-dim);
-}
-.first-run-tip {
-  margin: 0 0 14px;
-  padding: 12px 12px 10px;
-  border-radius: var(--lc-radius-sm, 8px);
-  border: 1px solid var(--lc-border-strong, #3d4f63);
-  background: var(--lc-bg-raised, #232d3a);
-  font-size: 0.78rem;
-  line-height: 1.55;
-  color: var(--lc-text-muted, #8b9cb0);
-}
-.first-run-tip strong {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--lc-text, #e8eef4);
-  font-size: 0.8rem;
-}
-.first-run-cmd {
-  display: inline-block;
-  margin: 4px 0 6px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: var(--lc-bg, #0f1419);
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.8rem;
-  color: var(--lc-accent, #2dd4bf);
-}
-.first-run-tip-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.first-run-tip-after {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--lc-text-dim);
-}
-.first-run-install {
-  margin: 0 0 14px;
-  padding: 12px;
-  border-radius: var(--lc-radius-sm, 8px);
-  border: 1px dashed var(--lc-border-strong, #3d4f63);
-  background: var(--lc-bg-raised, #232d3a);
-}
-.first-run-install-title {
-  margin: 0 0 6px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--lc-text, #e8eef4);
-}
-.first-run-install-hint {
-  margin: 0 0 10px;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  color: var(--lc-text-muted);
-}
-.first-run-install-hint code {
-  font-size: 0.68rem;
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--lc-bg, #0f1419);
-}
-.first-run-install-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.first-run-env-actions {
+  margin-top: 14px;
 }
 .first-run-install-progress {
   margin: 12px 0 0;
@@ -824,9 +567,9 @@ onUnmounted(() => {
 }
 .first-run-platform-note {
   margin: 0 0 12px;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   line-height: 1.45;
-  color: var(--lc-text-dim);
+  color: var(--lc-text-muted);
 }
 .first-run-platform-note a {
   color: var(--lc-accent, #2dd4bf);
@@ -834,49 +577,134 @@ onUnmounted(() => {
 .model-cards {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin: 0 0 14px;
+  gap: 12px;
+  margin: 0 0 16px;
 }
 .model-card {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
   width: 100%;
   text-align: left;
-  padding: 14px 12px;
-  border-radius: var(--lc-radius-sm, 8px);
-  border: 1px solid var(--lc-border, #2d3a4a);
+  padding: 16px 14px;
+  border-radius: 10px;
+  border: 2px solid var(--lc-border-strong, #3d4f63);
   background: var(--lc-bg-raised, #232d3a);
   color: inherit;
   font: inherit;
   cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
   transition:
-    border-color 0.15s ease,
-    background 0.15s ease;
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+.model-card-local {
+  border-color: rgba(45, 212, 191, 0.5);
+  background: linear-gradient(
+    145deg,
+    rgba(45, 212, 191, 0.1) 0%,
+    var(--lc-bg-raised, #232d3a) 52%
+  );
+}
+.model-card-cloud {
+  border-color: rgba(88, 166, 255, 0.5);
+  background: linear-gradient(
+    145deg,
+    rgba(88, 166, 255, 0.1) 0%,
+    var(--lc-bg-raised, #232d3a) 52%
+  );
+}
+.model-card-later {
+  border-style: dashed;
+  border-color: var(--lc-border-strong, #3d4f63);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
 }
 .model-card:hover:not(:disabled) {
-  border-color: var(--lc-border-strong, #3d4f63);
+  border-color: var(--lc-accent, #2dd4bf);
+  box-shadow: 0 6px 22px rgba(45, 212, 191, 0.14);
+  transform: translateY(-2px);
+}
+.model-card-cloud:hover:not(:disabled) {
+  border-color: #58a6ff;
+  box-shadow: 0 6px 22px rgba(88, 166, 255, 0.14);
+}
+.model-card-later:hover:not(:disabled) {
+  border-color: var(--lc-text-muted, #8b9cb0);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 .model-card:disabled {
   opacity: 0.55;
   cursor: wait;
+  transform: none;
 }
-.model-card strong {
+.model-card-num {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+  background: var(--lc-accent, #2dd4bf);
+  color: #0a0e12;
+}
+.model-card-cloud .model-card-num {
+  background: #58a6ff;
+  color: #0a0e12;
+}
+.model-card-num-muted {
+  background: transparent;
+  border: 2px solid var(--lc-border-strong, #3d4f63);
+  color: var(--lc-text-muted, #8b9cb0);
+}
+.model-card-main {
+  flex: 1;
+  min-width: 0;
+}
+.model-card-tag {
   display: block;
-  font-size: 0.88rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lc-accent, #2dd4bf);
   margin-bottom: 6px;
+}
+.model-card-cloud .model-card-tag {
+  color: #79b8ff;
+}
+.model-card-tag-muted {
+  color: var(--lc-text-dim, #a1b0c0);
+}
+.model-card-head {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 6px;
   color: var(--lc-text, #e8eef4);
 }
-.model-card span {
-  font-size: 0.74rem;
+.model-card-desc {
+  margin: 0;
+  font-size: 0.78rem;
   line-height: 1.5;
-  color: var(--lc-text-muted);
+  color: var(--lc-text-muted, #8b9cb0);
 }
-.model-card code {
-  font-size: 0.68rem;
-  padding: 1px 4px;
+.model-card-desc code {
+  font-size: 0.72rem;
+  padding: 2px 6px;
   border-radius: 4px;
   background: var(--lc-bg, #0f1419);
+  color: #9ecbff;
 }
-.model-card-warn {
-  border-style: dashed;
+.model-card-desc-sep {
+  margin: 0 0.35em;
+  opacity: 0.55;
+}
+.first-run-model-actions {
+  margin-top: 2px;
 }
 </style>
