@@ -31,8 +31,15 @@
 | `chat.history` | 历史消息 | `sessionKey`, `limit` | `messages[]`：见下「与官方 Control UI」 | `chatHistoryResponseSchema` |
 | `chat.send` | 发送并触发 Agent | `sessionKey`, `message`, `deliver`, `idempotencyKey`，可选 **`attachments`**、**`thinking`**、**`timeoutMs`** 等（以网关 `validateChatSendParams` / TypeBox 为准）；**根级无 `model`**（模型由网关按 `openclaw.json` / 会话解析） | 依网关版本而定 | 未强校验（仅用 `request` 成功/失败） |
 | `chat.abort` | 中断生成 | `sessionKey`，可选 `runId` | 依网关版本而定 | 未强校验 |
+| `cron.list` | 定时任务列表 | 通常 `{}`；以网关为准 | 多为 `{ jobs: [...] }` 或数组；**lclaw-ui** 两种都兼容解析 | 未强校验（`CronJobsDialog` 内宽松解析） |
+| `cron.add` | 新建任务 | 见 [定时任务](https://docs.openclaw.ai/zh-CN/automation/cron-jobs)：`schedule`（`at` / `every` / `cron`）、`sessionTarget`、`payload`、`delivery` 等 | 依网关版本而定 | 未强校验 |
+| `cron.update` | 更新任务 | `jobId`、`patch`（如 `enabled`、`schedule`） | 依网关版本而定 | 未强校验 |
+| `cron.remove` | 删除任务 | `jobId` | 依网关版本而定 | 未强校验 |
+| `cron.run` | 立即运行 | `jobId`，可选 `mode: "force"` | 依网关版本而定 | 未强校验 |
 
 未实现：`chat.inject` 等，需要时在表中增行并补 Zod。
+
+**说明**：若某网关版本对 `webchat` 模式未开放 `cron.*`，界面会显示 RPC 错误；桌面壳使用 `ui` 模式时通常与官方 Control UI 能力更接近。详见官方 [定时任务](https://docs.openclaw.ai/zh-CN/automation/cron-jobs)。
 
 ### `chat.history` 与官方 Control UI（排序与时间）
 

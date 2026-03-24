@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { resetFirstRunWizardLocalState } from "@/composables/modelConfigDeferred";
+import CronJobsDialog from "@/features/cron/CronJobsDialog.vue";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
@@ -20,6 +21,7 @@ const { sessions, error: sessionsError, activeSessionKey } = storeToRefs(session
 const { messages, lastError: chatError } = storeToRefs(chat);
 
 const skillsDialogOpen = ref(false);
+const cronDialogOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -189,6 +191,16 @@ function onRedoFirstRunWizard(): void {
             type="button"
             class="lc-btn lc-btn-ghost lc-btn-sm"
             aria-haspopup="dialog"
+            :aria-expanded="cronDialogOpen"
+            title="本机 Gateway 定时任务：一次性与周期性"
+            @click="cronDialogOpen = true"
+          >
+            定时任务
+          </button>
+          <button
+            type="button"
+            class="lc-btn lc-btn-ghost lc-btn-sm"
+            aria-haspopup="dialog"
             :aria-expanded="skillsDialogOpen"
             @click="skillsDialogOpen = true"
           >
@@ -263,6 +275,7 @@ function onRedoFirstRunWizard(): void {
     <p v-if="lastError" class="err">{{ lastError }}</p>
 
     <GatewayLocalDialog v-model="showGatewayLocal" />
+    <CronJobsDialog v-model="cronDialogOpen" />
     <SkillsManagerDialog v-model="skillsDialogOpen" />
   </header>
 </template>
