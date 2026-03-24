@@ -183,7 +183,9 @@ function onRedoFirstRunWizard(): void {
     <div class="brand-row">
       <div class="brand">
         <span class="brand-glyph" aria-hidden="true" />
-        <h1 class="brand-title"><span class="brand-name">DidClaw</span></h1>
+        <h1 class="brand-title">
+          <span class="brand-d">D</span><span class="brand-mid">idCl</span><span class="brand-tail">aw</span>
+        </h1>
       </div>
       <div class="brand-actions">
         <div class="header-toolbar" role="toolbar" aria-label="快捷功能">
@@ -335,19 +337,27 @@ function onRedoFirstRunWizard(): void {
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  background: linear-gradient(135deg, var(--lc-accent), #6366f1);
-  box-shadow: 0 0 16px var(--lc-accent-glow);
+  background: #dc2626;
+  box-shadow: 0 1px 5px rgba(220, 38, 38, 0.4);
   transform: rotate(45deg);
 }
 .brand-title {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: "Righteous", system-ui, sans-serif;
+  font-size: 1.3rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
   color: var(--lc-text);
 }
-.brand-name {
-  background: linear-gradient(105deg, #0e7490 0%, var(--lc-accent) 42%, #4f46e5 100%);
+.brand-d {
+  color: #dc2626;
+}
+.brand-mid {
+  color: #22d3ee;
+}
+.brand-tail {
+  background: linear-gradient(90deg, #22d3ee 0%, #3b82f6 55%, #6366f1 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

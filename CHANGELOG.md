@@ -6,6 +6,14 @@
 
 ## [未发布]
 
+### 新增
+
+- `public/logo-didclaw-variants.html`：DidClaw Logo 字体与样式对比静态页，便于选型与评审。
+
+### 变更
+
+- 顶栏品牌区：DidClaw 标题分色（D / idCl / aw）、Righteous 字体与菱形标配色调整；`index.html` 补充加载 Righteous 字重。
+
 ## [0.3.0] - 2026-03-24
 
 ### 新增

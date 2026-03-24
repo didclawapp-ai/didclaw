@@ -1,0 +1,941 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DidClaw Logo 样式对比</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- 均为 Google Fonts，授权以 SIL Open Font License 1.1 为主，可自由用于商业项目；详见各字体 GitHub / fonts.google.com 说明页 -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@600;700;800&family=DM+Sans:wght@600;700;800&family=Figtree:wght@600;700;800&family=Inter:wght@600;700;800&family=Lexend:wght@600;700;800&family=Manrope:wght@600;700;800&family=Outfit:wght@600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=Sora:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- 展示 / 艺术向（多为 Display，小字号可读性弱，适合作主标题、海报、关于页） -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Audiowide&family=Bebas+Neue&family=Bungee&family=Cinzel:wght@600;700&family=Orbitron:wght@600;700;800&family=Poiret+One&family=Righteous&family=Russo+One&family=Staatliches&family=Syne:wght@700;800&family=Unbounded:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: Inter, system-ui, sans-serif;
+        background: #f4f6f8;
+        color: #0f172a;
+      }
+      h1 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      .hint {
+        font-size: 0.875rem;
+        color: #64748b;
+        margin-bottom: 12px;
+      }
+      .license-note {
+        font-size: 0.8125rem;
+        color: #475569;
+        background: #e2e8f0;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 24px;
+        max-width: 920px;
+        line-height: 1.5;
+      }
+      .license-note a {
+        color: #2563eb;
+      }
+      .section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 32px 0 16px;
+        color: #0f172a;
+      }
+      .grid {
+        display: grid;
+        gap: 20px;
+        max-width: 920px;
+      }
+      .font-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+        max-width: 1000px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px 24px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+      .card h2 {
+        margin: 0 0 16px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #94a3b8;
+      }
+      .card h2 .ff-name {
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 700;
+        color: #334155;
+        font-size: 0.9375rem;
+      }
+      .card h2 .ff-lic {
+        display: block;
+        margin-top: 4px;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        color: #94a3b8;
+        text-transform: none;
+        letter-spacing: 0.02em;
+      }
+      .row {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .glyph {
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        transform: rotate(45deg);
+      }
+
+      .word {
+        display: inline-flex;
+        align-items: baseline;
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1;
+      }
+      /* 首字母 D：实色红（与各样式渐变分离） */
+      .word-d {
+        color: #dc2626;
+        -webkit-text-fill-color: #dc2626;
+      }
+
+      /* 字体族（均来自 Google Fonts，OFL） */
+      .ff-inter .word {
+        font-family: "Inter", system-ui, sans-serif;
+      }
+      .ff-outfit .word {
+        font-family: "Outfit", system-ui, sans-serif;
+      }
+      .ff-plus-jakarta .word {
+        font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      }
+      .ff-sora .word {
+        font-family: "Sora", system-ui, sans-serif;
+      }
+      .ff-manrope .word {
+        font-family: "Manrope", system-ui, sans-serif;
+      }
+      .ff-lexend .word {
+        font-family: "Lexend", system-ui, sans-serif;
+        letter-spacing: -0.04em;
+      }
+      .ff-dm-sans .word {
+        font-family: "DM Sans", system-ui, sans-serif;
+      }
+      .ff-space-grotesk .word {
+        font-family: "Space Grotesk", system-ui, sans-serif;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+      }
+      .ff-figtree .word {
+        font-family: "Figtree", system-ui, sans-serif;
+      }
+      .ff-albert .word {
+        font-family: "Albert Sans", system-ui, sans-serif;
+      }
+
+      /* —— 艺术 / 展示向（多数为单字重，覆盖默认 font-weight:800） */
+      .row--display .word {
+        font-size: 1.65rem;
+      }
+      .ff-syne .word {
+        font-family: "Syne", system-ui, sans-serif;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+      }
+      .ff-unbounded .word {
+        font-family: "Unbounded", system-ui, sans-serif;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+      }
+      .ff-bebas .word {
+        font-family: "Bebas Neue", Impact, sans-serif;
+        font-weight: 400;
+        font-size: 2rem;
+        letter-spacing: 0.06em;
+      }
+      .ff-righteous .word {
+        font-family: "Righteous", system-ui, sans-serif;
+        font-weight: 400;
+        letter-spacing: 0.02em;
+      }
+      .ff-audiowide .word {
+        font-family: "Audiowide", system-ui, sans-serif;
+        font-weight: 400;
+        font-size: 1.35rem;
+        letter-spacing: 0.04em;
+      }
+      .ff-orbitron .word {
+        font-family: "Orbitron", system-ui, sans-serif;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        font-size: 1.45rem;
+      }
+      .ff-staatliches .word {
+        font-family: "Staatliches", system-ui, sans-serif;
+        font-weight: 400;
+        font-size: 1.85rem;
+        letter-spacing: 0.05em;
+      }
+      .ff-russo .word {
+        font-family: "Russo One", system-ui, sans-serif;
+        font-weight: 400;
+        letter-spacing: 0.02em;
+      }
+      .ff-bungee .word {
+        font-family: "Bungee", system-ui, sans-serif;
+        font-weight: 400;
+        font-size: 1.35rem;
+        line-height: 1.15;
+        letter-spacing: 0.02em;
+      }
+      .ff-poiret .word {
+        font-family: "Poiret One", system-ui, sans-serif;
+        font-weight: 400;
+        font-size: 1.85rem;
+        letter-spacing: 0.12em;
+      }
+      .ff-cinzel .word {
+        font-family: "Cinzel", "Times New Roman", serif;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        font-size: 1.45rem;
+      }
+
+      .v1 .glyph {
+        background: linear-gradient(165deg, #2dd4bf 0%, #06b6d4 45%, #2563eb 100%);
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+      }
+      .v1 .word-rest {
+        background: linear-gradient(90deg, #14b8a6 0%, #22d3ee 35%, #3b82f6 70%, #4f46e5 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .v2 .glyph {
+        background: linear-gradient(180deg, #5eead4 0%, #0ea5e9 50%, #4338ca 100%);
+        border-radius: 4px;
+      }
+      .v2 .word-rest {
+        background: linear-gradient(92deg, #0d9488 0%, #0284c7 40%, #4f46e5 85%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .v3 .glyph {
+        background: linear-gradient(160deg, #99f6e4 0%, #7dd3fc 100%);
+        box-shadow: none;
+      }
+      .v3 .word-rest {
+        background: linear-gradient(90deg, #5eead4 0%, #7dd3fc 50%, #a5b4fc 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        font-weight: 700;
+      }
+
+      .card.dark-strip {
+        background: #0f172a;
+        border-color: #1e293b;
+      }
+      .card.dark-strip h2 {
+        color: #64748b;
+      }
+      .card.dark-strip h2 .ff-name {
+        color: #cbd5e1;
+      }
+      .v4 .glyph {
+        background: linear-gradient(160deg, #5eead4 0%, #38bdf8 40%, #6366f1 100%);
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+      }
+      .v4 .word-rest {
+        background: linear-gradient(90deg, #e2e8f0 0%, #f8fafc 40%, #7dd3fc 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .v5 .glyph {
+        background: #2563eb;
+        transform: rotate(45deg);
+        border-radius: 3px;
+      }
+      .v5 .word-rest {
+        color: #1e40af;
+        font-weight: 800;
+      }
+
+      .v6 .glyph {
+        background: linear-gradient(135deg, #06b6d4, #4f46e5);
+      }
+      .v6 .word-d {
+        -webkit-text-stroke: 0;
+        text-stroke: 0;
+      }
+      .v6 .word-rest {
+        color: transparent;
+        -webkit-text-stroke: 1.5px #334155;
+        text-stroke: 1.5px #334155;
+        font-weight: 800;
+      }
+
+      .v7 .glyph {
+        background: linear-gradient(180deg, #2dd4bf, #6366f1);
+        border-radius: 4px;
+      }
+      .v7 .word-rest {
+        background: linear-gradient(90deg, #0d9488, #2563eb);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        filter: drop-shadow(0 0 0.5px rgba(15, 23, 42, 0.15))
+          drop-shadow(0 1px 0 rgba(255, 255, 255, 0.9));
+      }
+
+      .v8 .glyph {
+        background: linear-gradient(145deg, #22d3ee 0%, #3b82f6 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.35),
+          0 2px 4px rgba(37, 99, 235, 0.3);
+      }
+      .v8 .word-rest {
+        background: linear-gradient(180deg, #0e7490 0%, #1d4ed8 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.4));
+      }
+
+      /* —— 概念：D ≈ 弓背小龙虾 */
+      .concept-intro {
+        font-size: 0.9375rem;
+        color: #475569;
+        line-height: 1.65;
+        max-width: 760px;
+        margin: 0 0 18px;
+      }
+      .concept-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+        max-width: 920px;
+        margin-bottom: 8px;
+      }
+      .concept-card .concept-svg-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 140px;
+        background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 10px;
+        border: 1px dashed #cbd5e1;
+        margin-top: 12px;
+      }
+      .concept-card svg {
+        width: 112px;
+        height: auto;
+        overflow: visible;
+      }
+      .concept-card .concept-caption {
+        margin: 10px 0 0;
+        font-size: 0.8125rem;
+        color: #64748b;
+        line-height: 1.5;
+      }
+      .concept-directions {
+        max-width: 760px;
+        margin: 0 0 22px;
+        padding: 14px 18px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 10px;
+        font-size: 0.875rem;
+        color: #78350f;
+        line-height: 1.6;
+      }
+      .concept-directions h3 {
+        margin: 0 0 10px;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #92400e;
+      }
+      .concept-directions ul {
+        margin: 0;
+        padding-left: 1.15em;
+      }
+      .concept-directions li {
+        margin-bottom: 10px;
+      }
+      .concept-directions li:last-child {
+        margin-bottom: 0;
+      }
+      .concept-directions strong {
+        color: #92400e;
+      }
+      .concept-palette-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px;
+        justify-content: center;
+        align-items: flex-end;
+        margin-top: 12px;
+      }
+      .concept-palette-item {
+        text-align: center;
+      }
+      .concept-palette-item svg {
+        width: 96px;
+      }
+      .concept-palette-item .swatch-label {
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-top: 8px;
+        max-width: 130px;
+        line-height: 1.4;
+      }
+      .concept-palette-item code {
+        font-size: 0.68rem;
+        background: #f1f5f9;
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>DidClaw Logo — 样式对比</h1>
+    <p class="hint">
+      开发时打开：
+      <code>http://localhost:5173/logo-didclaw-variants.html</code>
+      （先 <code>pnpm dev:web</code>）
+    </p>
+    <p class="license-note">
+      下方英文字体均通过 <strong>Google Fonts</strong> 引入，授权以 <strong>SIL Open Font License 1.1</strong> 为主（与大多数开源字体相同）：可商用、可再分发，需保留授权声明；不要求对使用 LOGO 的商标再授权。选用前可在
+      <a href="https://fonts.google.com/" target="_blank" rel="noopener">fonts.google.com</a>
+      各字体页查看完整条款。中文界面正文可继续用系统字体或另选有中文授权的字库。
+    </p>
+
+    <h2 class="section-title">概念：字母 D 与「弓背小龙虾」</h2>
+    <p class="concept-intro">
+      大写 <strong>D</strong> 若做抽象处理：左侧竖笔像头胸一线，右侧半圆拱起像<strong>弓起的背甲</strong>；整体侧影可联想成一只蜷缩、拱背的小龙虾（或淡水螯虾）剪影——和品牌里的
+      <strong>Claw</strong>（螯）也能形成轻量谐音梗。下面是<strong>极简示意</strong>与后续可迭代方向，不是定稿商标。
+    </p>
+
+    <div class="concept-directions">
+      <h3>可继续优化的方向</h3>
+      <ul>
+        <li>
+          <strong>螯钳外伸：</strong>避免大螯完全画在 D 的「肚子」里显得挤。让<strong>一只螯明显伸出 D 的外轮廓</strong>，打破封闭线框，更有动感，也隐喻<strong>伸出去钳住问题</strong>。
+        </li>
+        <li>
+          <strong>尾扇 ×「嘀嗒」彩蛋：</strong>尾扇线条可做成<strong>钟摆摆动般的弧线</strong>；瓣数固定为<strong>三片</strong>，在团队内部对应「嘀·嗒·哒」三声——观众不必读懂，但标志背后多一层只有你们自己知道的故事。
+        </li>
+        <li>
+          <strong>配色气质：</strong><strong>龙虾红</strong>（如 <code>#dc2626</code>）与 OpenClaw 生态里的红色线索容易呼应；若希望更「帮你干活」、少一分攻击性，可试<strong>暖橙</strong>（如 <code>#ea580c</code>）或<strong>珊瑚色</strong>（如 <code>#fb7185</code>），更柔和亲切。
+        </li>
+      </ul>
+    </div>
+
+    <div class="concept-grid">
+      <div class="card concept-card">
+        <h2>
+          <span class="ff-name">示意 A · 纯轮廓</span>
+          <span class="ff-lic">尾扇改为钟摆式三弧 · 三瓣彩蛋</span>
+        </h2>
+        <div class="concept-svg-wrap">
+          <svg viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="4.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M 18 12 L 18 54 Q 44 33 18 12"
+            />
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              d="M 18 12 L 11 6 M 18 12 L 25 6"
+            />
+            <!-- 尾扇：钟摆式三弧，三瓣暗示「嘀·嗒·哒」 -->
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              d="M 18 54 Q 6 59 4 70"
+            />
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              d="M 18 54 Q 18 62 18 72"
+            />
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              d="M 18 54 Q 30 59 36 70"
+            />
+          </svg>
+        </div>
+        <p class="concept-caption">
+          三笔尾扇从同一点甩出、带弧度，像摆锤扫过的轨迹；数量固定为三，便于在品牌手册里写成「内部彩蛋」而不必对外解释。
+        </p>
+      </div>
+      <div class="card concept-card">
+        <h2>
+          <span class="ff-name">示意 B · 螯钳外伸</span>
+          <span class="ff-lic">双螯之一伸出 D 外轮廓 · 尾扇三弧</span>
+        </h2>
+        <div class="concept-svg-wrap">
+          <svg viewBox="0 0 84 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="4.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M 20 14 L 20 52 Q 42 34 20 14"
+            />
+            <circle cx="24" cy="20" r="2.2" fill="#dc2626" />
+            <circle cx="29" cy="17.5" r="2.2" fill="#dc2626" />
+            <!-- 内侧小螯（仍在弓背内，点缀体量） -->
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="2.8"
+              stroke-linecap="round"
+              d="M 34 36 Q 40 34 42 40"
+            />
+            <!-- 主螯：向右伸出，打破 D 的封闭轮廓 -->
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="3.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M 36 26 C 54 14 70 12 78 22"
+            />
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="3.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M 36 30 C 56 26 74 28 80 38"
+            />
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              d="M 20 52 Q 10 58 7 69"
+            />
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              d="M 20 52 Q 20 61 20 71"
+            />
+            <path
+              fill="none"
+              stroke="#dc2626"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              d="M 20 52 Q 30 58 37 69"
+            />
+          </svg>
+        </div>
+        <p class="concept-caption">
+          主螯两笔成钳、端点落到 D 的轮廓外，留白更大、动感更强；尾扇与 A 一致用三弧钟摆式，与「三声嘀嗒」叙事对齐。
+        </p>
+      </div>
+      <div class="card concept-card">
+        <h2>
+          <span class="ff-name">示意 C · 配色气质（同一结构）</span>
+          <span class="ff-lic">红 vs 暖橙 vs 珊瑚 · 仅描边色不同</span>
+        </h2>
+        <div class="concept-svg-wrap" style="flex-direction: column; gap: 0; padding: 16px">
+          <div class="concept-palette-row">
+            <div class="concept-palette-item">
+              <svg viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path
+                  fill="none"
+                  stroke="#dc2626"
+                  stroke-width="4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M 18 12 L 18 54 Q 44 33 18 12"
+                />
+                <path fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" d="M 18 12 L 11 6 M 18 12 L 25 6" />
+                <path fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 6 59 4 70" />
+                <path fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 18 62 18 72" />
+                <path fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 30 59 36 70" />
+              </svg>
+              <div class="swatch-label"><strong>龙虾红</strong><br /><code>#dc2626</code><br />贴 OpenClaw 生态里的红色线索</div>
+            </div>
+            <div class="concept-palette-item">
+              <svg viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path
+                  fill="none"
+                  stroke="#ea580c"
+                  stroke-width="4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M 18 12 L 18 54 Q 44 33 18 12"
+                />
+                <path fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" d="M 18 12 L 11 6 M 18 12 L 25 6" />
+                <path fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 6 59 4 70" />
+                <path fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 18 62 18 72" />
+                <path fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 30 59 36 70" />
+              </svg>
+              <div class="swatch-label"><strong>暖橙</strong><br /><code>#ea580c</code><br />攻击性弱一些，偏「来帮你干活」</div>
+            </div>
+            <div class="concept-palette-item">
+              <svg viewBox="0 0 64 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path
+                  fill="none"
+                  stroke="#fb7185"
+                  stroke-width="4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M 18 12 L 18 54 Q 44 33 18 12"
+                />
+                <path fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round" d="M 18 12 L 11 6 M 18 12 L 25 6" />
+                <path fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 6 59 4 70" />
+                <path fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 18 62 18 72" />
+                <path fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round" d="M 18 54 Q 30 59 36 70" />
+              </svg>
+              <div class="swatch-label"><strong>珊瑚</strong><br /><code>#fb7185</code><br />更柔和、偏亲和与陪伴感</div>
+            </div>
+          </div>
+        </div>
+        <p class="concept-caption">实际落地时可定一个主色 + 深色模式变体；与产品里红色按钮是否冲突，建议在真实界面上各截一屏对比。</p>
+      </div>
+    </div>
+
+    <h2 class="section-title">艺术 / 展示向字体（海报、主标题感；同一「样式 1」渐变）</h2>
+    <p class="hint" style="margin-top: -8px; margin-bottom: 16px">
+      这类 Display 字体笔画夸张或极粗/极细，<strong>不适合顶栏小字长期阅读</strong>，可作启动图、关于页、官网 Hero。授权仍为 Google Fonts 页所列（多为 SIL OFL）。
+    </p>
+    <div class="font-grid">
+      <div class="card">
+        <h2>
+          <span class="ff-name">Syne</span>
+          <span class="ff-lic">SIL OFL · 当代艺术馆风、字形有个性</span>
+        </h2>
+        <div class="row row--display v1 ff-syne">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Unbounded</span>
+          <span class="ff-lic">SIL OFL · 轮廓独特、偏「潮」</span>
+        </h2>
+        <div class="row row--display v1 ff-unbounded">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Bebas Neue</span>
+          <span class="ff-lic">SIL OFL · 高窄大写感、经典海报</span>
+        </h2>
+        <div class="row row--display v1 ff-bebas">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Righteous</span>
+          <span class="ff-lic">SIL OFL · 美式复古展示体</span>
+        </h2>
+        <div class="row row--display v1 ff-righteous">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Audiowide</span>
+          <span class="ff-lic">SIL OFL · 科幻、宽体</span>
+        </h2>
+        <div class="row row--display v1 ff-audiowide">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Orbitron</span>
+          <span class="ff-lic">SIL OFL · 科幻 HUD、几何</span>
+        </h2>
+        <div class="row row--display v1 ff-orbitron">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Staatliches</span>
+          <span class="ff-lic">SIL OFL · 德式海报、窄长</span>
+        </h2>
+        <div class="row row--display v1 ff-staatliches">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Russo One</span>
+          <span class="ff-lic">SIL OFL · 厚重游戏/运动风</span>
+        </h2>
+        <div class="row row--display v1 ff-russo">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Bungee</span>
+          <span class="ff-lic">SIL OFL · 城市招牌、极醒目</span>
+        </h2>
+        <div class="row row--display v1 ff-bungee">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Poiret One</span>
+          <span class="ff-lic">SIL OFL · 装饰艺术、细线优雅</span>
+        </h2>
+        <div class="row row--display v1 ff-poiret">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Cinzel</span>
+          <span class="ff-lic">SIL OFL · 古典衬线展示、仪式感</span>
+        </h2>
+        <div class="row row--display v1 ff-cinzel">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title">字体对比（统一用「样式 1」渐变，便于横向看字形）</h2>
+    <div class="font-grid">
+      <div class="card">
+        <h2>
+          <span class="ff-name">Inter</span>
+          <span class="ff-lic">SIL OFL 1.1 · 默认 UI 无衬线</span>
+        </h2>
+        <div class="row v1 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Outfit</span>
+          <span class="ff-lic">SIL OFL 1.1 · 几何、偏现代产品</span>
+        </h2>
+        <div class="row v1 ff-outfit">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Plus Jakarta Sans</span>
+          <span class="ff-lic">SIL OFL 1.1 · 圆润、友好</span>
+        </h2>
+        <div class="row v1 ff-plus-jakarta">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Sora</span>
+          <span class="ff-lic">SIL OFL 1.1 · 科技感、略窄</span>
+        </h2>
+        <div class="row v1 ff-sora">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Manrope</span>
+          <span class="ff-lic">SIL OFL 1.1 · 均衡、适合标题</span>
+        </h2>
+        <div class="row v1 ff-manrope">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Lexend</span>
+          <span class="ff-lic">SIL OFL 1.1 · 易读、略宽</span>
+        </h2>
+        <div class="row v1 ff-lexend">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">DM Sans</span>
+          <span class="ff-lic">SIL OFL 1.1 · 几何人文、常见 SaaS</span>
+        </h2>
+        <div class="row v1 ff-dm-sans">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Space Grotesk</span>
+          <span class="ff-lic">SIL OFL 1.1 · 无衬线、偏「工程」</span>
+        </h2>
+        <div class="row v1 ff-space-grotesk">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Figtree</span>
+          <span class="ff-lic">SIL OFL 1.1 · 亲和、略圆</span>
+        </h2>
+        <div class="row v1 ff-figtree">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>
+          <span class="ff-name">Albert Sans</span>
+          <span class="ff-lic">SIL OFL 1.1 · 简洁、中性</span>
+        </h2>
+        <div class="row v1 ff-albert">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title">配色 / 效果样式（字体：Inter）</h2>
+    <div class="grid">
+      <div class="card">
+        <h2>1 · 接近参考图</h2>
+        <div class="row v1 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>2 · 更强对比（青 → 钴蓝 → 靛紫）</h2>
+        <div class="row v2 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>3 · 柔和浅色</h2>
+        <div class="row v3 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+
+      <div class="card dark-strip">
+        <h2>4 · 深色顶栏用</h2>
+        <div class="row v4 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>5 · 极简实色</h2>
+        <div class="row v5 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>6 · 空心描边字</h2>
+        <div class="row v6 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>7 · 渐变字 + 轻外晕</h2>
+        <div class="row v7 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>8 · 微立体（字 + 菱形）</h2>
+        <div class="row v8 ff-inter">
+          <span class="glyph" aria-hidden="true"></span>
+          <span class="word"><span class="word-d">D</span><span class="word-rest">idClaw</span></span>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
