@@ -1,17 +1,17 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 /** 浏览器 + Electron + Tauri 统一判断 */
-export function isLclawDesktop(): boolean {
+export function isDidClawDesktop(): boolean {
   if (typeof window === "undefined") {
     return false;
   }
-  if (window.lclawElectron?.isElectron === true) {
+  if (window.didClawElectron?.isElectron === true) {
     return true;
   }
   return isTauri();
 }
 
-function tauriApi(): LclawElectronApi {
+function tauriApi(): DidClawElectronApi {
   return {
     isElectron: true,
     openLocalPreview: (fileUrl) => invoke("preview_open_local", { fileUrl }),
@@ -59,12 +59,12 @@ function tauriApi(): LclawElectronApi {
 }
 
 /** 桌面壳 API：Electron preload 或 Tauri invoke */
-export function getLclawDesktopApi(): LclawElectronApi | undefined {
-  if (!isLclawDesktop()) {
+export function getDidClawDesktopApi(): DidClawElectronApi | undefined {
+  if (!isDidClawDesktop()) {
     return undefined;
   }
-  if (typeof window !== "undefined" && window.lclawElectron?.isElectron) {
-    return window.lclawElectron;
+  if (typeof window !== "undefined" && window.didClawElectron?.isElectron) {
+    return window.didClawElectron;
   }
   if (isTauri()) {
     return tauriApi();

@@ -1,9 +1,9 @@
-# lclaw-ui 开发步骤
+# didclaw 开发步骤
 
-> 依据 [`OpenClaw-顶层界面-开发方案.md`](./OpenClaw-顶层界面-开发方案.md)（**方案 v1.7**）整理的**执行顺序**；勾选 `[ ]` 跟踪进度。增量排期另见 [`lclaw-ui-功能补全清单.md`](./lclaw-ui-功能补全清单.md)。  
-> **当前包版本**：`lclaw-ui/package.json` → **0.2.0**（发版时与 Git tag / 方案 § 头同步更新）。  
+> 依据 [`OpenClaw-顶层界面-开发方案.md`](./OpenClaw-顶层界面-开发方案.md)（**方案 v1.7**）整理的**执行顺序**；勾选 `[ ]` 跟踪进度。增量排期另见 [`didclaw-功能补全清单.md`](./didclaw-功能补全清单.md)。  
+> **当前包版本**：`didclaw/package.json` → **0.2.0**（发版时与 Git tag / 方案 § 头同步更新）。  
 > 协议细节随时记入 [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md)。  
-> **桌面壳（Electron）与本机文件预览**：见 [`lclaw-ui-electron-local-preview.md`](./lclaw-ui-electron-local-preview.md)。
+> **桌面壳（Electron）与本机文件预览**：见 [`didclaw-electron-local-preview.md`](./didclaw-electron-local-preview.md)。
 
 ---
 
@@ -18,9 +18,9 @@
 
 ## 1. 工程脚手架与目录
 
-在 `LCLAW/lclaw-ui/` 下初始化（若目录已有内容则跳过重复步骤）。
+在 `DidClaw/didclaw/` 下初始化（若目录已有内容则跳过重复步骤）。
 
-- [x] 使用 Vite 创建 **Vue + TypeScript** 工程（参见 `lclaw-ui/README.md` 中的 `create vite` 命令）。
+- [x] 使用 Vite 创建 **Vue + TypeScript** 工程（参见 `didclaw/README.md` 中的 `create vite` 命令）。
 - [x] 安装 **Pinia**、**Vue Router**（`/` → `HomeView`/`AppShell`，`/about` 关于页）。
 - [x] 建立方案 §1.4 建议的目录：`src/app/`、`src/features/chat`、`preview`、`gateway`、`src/components`、`src/lib`。
 - [x] 配置 **路径别名**（如 `@/`），统一 import 风格。
@@ -100,7 +100,7 @@
 
 对应方案 **§7 阶段 D**。
 
-- [x] **ECharts**：约定围栏语言 **`echarts-json`**；**Zod** 校验（`lib/echarts-option-schema.ts`），失败时右栏 `<pre class="lclaw-chart-error">` 占位。
+- [x] **ECharts**：约定围栏语言 **`echarts-json`**；**Zod** 校验（`lib/echarts-option-schema.ts`），失败时右栏 `<pre class="didclaw-chart-error">` 占位。
 - [x] **ECharts 按需引入**（`echarts/core` + charts/components/renderers，`composables/usePreviewEcharts.ts`）。
 - [x] **工具调用时间线**：`stores/toolTimeline.ts` + `PreviewPane` 底部列表；载荷摘要脱敏；切换会话时清空。
 - [x] **外链白名单**：`lib/url-allowlist.ts` + DOMPurify 钩子；`VITE_LINK_ALLOWLIST`；允许的 `http(s)` 链接统一 `target=_blank` + `rel=noopener noreferrer`（方案 §4.2）。
@@ -119,9 +119,9 @@
 - [x] **Zod** 覆盖核心 RPC 响应（`sessions.list`、`chat.history`）与下行 **`chat`** 事件；校验失败有中文说明（`formatZodIssues`）；RPC 异常走 `describeGatewayError`（`lib/gateway-errors.ts`）。
 - [x] **同步 `gateway-client-protocol-notes.md`**：方法表、事件表、schema 索引、版本字段。
 - [x] **可观测性**：顶栏 **复制诊断信息**（脱敏 JSON，无 token/密码明文）；常见 JSON-RPC 码中文对照（`gateway-errors.ts`）。*（错误上报 SDK 未接，按需再加。）*
-- [x] **回归**：版本锁定与升级后冒烟步骤写入 **`docs/lclaw-ui-内网部署.md`** §联调冒烟清单。
-- [x] **构建**：`pnpm typecheck` + `pnpm build`；SPA fallback 配置示例见 **`docs/lclaw-ui-内网部署.md`**（Nginx/Caddy/IIS）。
-- [x] **文档**：**`docs/lclaw-ui-内网部署.md`**（环境变量、前置条件、部署命令）。
+- [x] **回归**：版本锁定与升级后冒烟步骤写入 **`docs/didclaw-内网部署.md`** §联调冒烟清单。
+- [x] **构建**：`pnpm typecheck` + `pnpm build`；SPA fallback 配置示例见 **`docs/didclaw-内网部署.md`**（Nginx/Caddy/IIS）。
+- [x] **文档**：**`docs/didclaw-内网部署.md`**（环境变量、前置条件、部署命令）。
 - [ ] （按需）**BFF / SSO / 审计**（方案 §2、§6）。
 - [ ] （按需）**无障碍**、**i18n** 文案外置（方案 §7 阶段 E）。
 
@@ -131,7 +131,7 @@
 
 ## 8. 桌面安装包（Electron）
 
-方案 §5.2、§1.4；细节见 **`docs/lclaw-ui-electron-local-preview.md`**。
+方案 §5.2、§1.4；细节见 **`docs/didclaw-electron-local-preview.md`**。
 
 - [x] 采用 **Electron + Vite**（`vite-plugin-electron`）；开发态 `pnpm dev` 联调；生产态 **127.0.0.1 静态服务** 避免 `file://` Origin 被拒。
 - [x] **网关本地配置**：`gateway-local.json` + 界面「网关本地设置」（打包后无 `.env` 时使用）。
@@ -157,9 +157,9 @@
 |------|------|
 | [OpenClaw-顶层界面-开发方案.md](./OpenClaw-顶层界面-开发方案.md) | 架构、契约、安全、复审约定 |
 | [gateway-client-protocol-notes.md](./gateway-client-protocol-notes.md) | 版本化协议笔记 |
-| [../lclaw-ui/README.md](../lclaw-ui/README.md) | 技术栈摘要与初始化命令 |
-| [lclaw-ui-electron-local-preview.md](./lclaw-ui-electron-local-preview.md) | Electron、LibreOffice、本地预览 IPC |
-| [lclaw-ui-功能补全清单.md](./lclaw-ui-功能补全清单.md) | 对照官方文档的增量功能与设置排期 |
+| [../didclaw/README.md](../didclaw/README.md) | 技术栈摘要与初始化命令 |
+| [didclaw-electron-local-preview.md](./didclaw-electron-local-preview.md) | Electron、LibreOffice、本地预览 IPC |
+| [didclaw-功能补全清单.md](./didclaw-功能补全清单.md) | 对照官方文档的增量功能与设置排期 |
 
 ---
 

@@ -8,14 +8,14 @@ static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// 日志路径：与安装目录无关，始终可写。
 pub fn log_path() -> std::path::PathBuf {
-    std::env::temp_dir().join("lclaw-ui-launch.log")
+    std::env::temp_dir().join("didclaw-launch.log")
 }
 
 /// 安装 panic 钩子并写入会话头；应在 `run()` 最开头调用一次。
 pub fn init() {
     let path = log_path();
     let path_s = path.display().to_string();
-    line(&format!("======== LCLAW UI 启动 {path_s} ========"));
+    line(&format!("======== DidClaw 启动 {path_s} ========"));
     if let Ok(exe) = std::env::current_exe() {
         line(&format!("exe: {}", exe.display()));
     }

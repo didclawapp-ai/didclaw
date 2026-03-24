@@ -12,7 +12,7 @@ import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
 import { OPENCLAW_AFTER_WRITE_HINT } from "@/lib/openclaw-config-hint";
 import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
 import { formatZodIssues } from "@/lib/zod-format";
@@ -172,8 +172,8 @@ export const useChatStore = defineStore("chat", () => {
 
   async function refreshOpenClawModelPicker(): Promise<void> {
     openClawPrimaryPickerError.value = null;
-    const desktop = getLclawDesktopApi();
-    if (!isLclawElectron() || !desktop?.readOpenClawModelConfig) {
+    const desktop = getDidClawDesktopApi();
+    if (!isDidClawElectron() || !desktop?.readOpenClawModelConfig) {
       openClawPrimaryModel.value = "";
       openClawModelPickerRows.value = [];
       return;
@@ -227,7 +227,7 @@ export const useChatStore = defineStore("chat", () => {
       openClawPrimaryPickerError.value = primaryBlock;
       return;
     }
-    const api = getLclawDesktopApi();
+    const api = getDidClawDesktopApi();
     if (!api?.writeOpenClawModelConfig) {
       openClawPrimaryPickerError.value = "当前无法保存：请使用桌面版，并确认本机已按教程装好助手。";
       return;
@@ -499,7 +499,7 @@ export const useChatStore = defineStore("chat", () => {
     const parsed = chatEventPayloadSchema.safeParse(evt.payload);
     if (!parsed.success) {
       if (import.meta.env.DEV) {
-        console.warn("[lclaw-ui] chat event payload invalid:", formatZodIssues(parsed.error));
+        console.warn("[didclaw] chat event payload invalid:", formatZodIssues(parsed.error));
       }
       return;
     }

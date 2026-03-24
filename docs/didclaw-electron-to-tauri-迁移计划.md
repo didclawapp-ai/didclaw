@@ -1,6 +1,6 @@
-# LCLAW UI：Electron → Tauri 迁移计划
+# DidClaw：Electron → Tauri 迁移计划
 
-本文档面向 `lclaw-ui` 子项目，在已备份仓库的前提下，将桌面壳从 **Electron** 迁到 **Tauri 2**，以显著减小安装包体积（Windows 主要依赖系统 WebView2）。
+本文档面向 `didclaw` 子项目，在已备份仓库的前提下，将桌面壳从 **Electron** 迁到 **Tauri 2**，以显著减小安装包体积（Windows 主要依赖系统 WebView2）。
 
 ---
 
@@ -9,22 +9,22 @@
 | 项目 | 说明 |
 |------|------|
 | **主要目标** | 用 Tauri 替代 Electron 打包桌面端；保留现有 Vue 前端与业务行为（网关、OpenClaw 配置、本地预览等）。 |
-| **范围内** | `lclaw-ui` 内构建链、Rust 后端命令、前端 `invoke` 封装、Windows 优先验证。 |
+| **范围内** | `didclaw` 内构建链、Rust 后端命令、前端 `invoke` 封装、Windows 优先验证。 |
 | **范围外（首期可不做）** | macOS/Linux 安装包签名与公证；CI 全矩阵；文档站同步改版（除非单独要求）。 |
 
 ---
 
 ## 2. 现状盘点（基于当前仓库）
 
-### 2.1 Electron 侧代码体量（**历史对照**，`lclaw-ui/electron/` 已从仓库移除）
+### 2.1 Electron 侧代码体量（**历史对照**，`didclaw/electron/` 已从仓库移除）
 
 | 文件 | 约行数 | 职责摘要 |
 |------|--------|----------|
 | `electron/main.ts` | ~557 | 窗口生命周期、全部 `ipcMain.handle`、预览读文件/Base64、剪贴板、对话框、与配置/网关模块衔接 |
 | `electron/openclaw-config.ts` | ~888 | `~/.openclaw` 下 JSON 读写、备份命名、模型/Provider 合并逻辑、敏感字段处理 |
 | `electron/openclaw-gateway-process.ts` | ~212 | 解析 `ws://` 本机端口、`where openclaw` / 可执行路径、TCP 探测、`spawn` 子进程、退出清理 |
-| `electron/static-server.ts` | ~107 | 生产环境在 `127.0.0.1` 起静态 HTTP 服务（默认端口 34127，环境变量 `LCLAW_UI_STATIC_PORT`），避免 `file://` 导致 Gateway **Origin 校验失败（1008）** |
-| `electron/preload.ts` | ~104 | `contextBridge` 暴露 `window.lclawElectron` |
+| `electron/static-server.ts` | ~107 | 生产环境在 `127.0.0.1` 起静态 HTTP 服务（默认端口 34127，环境变量 `DIDCLAW_STATIC_PORT`），避免 `file://` 导致 Gateway **Origin 校验失败（1008）** |
+| `electron/preload.ts` | ~104 | `contextBridge` 暴露 `window.didClawElectron` |
 
 **合计**：主进程相关 TypeScript 约 **1900 行**，逻辑密度高，不是「薄壳」。
 
@@ -52,12 +52,12 @@
 | `openclaw:readProviders` | 读 providers |
 | `openclaw:writeProvidersPatch` | 合并写入 providers patch |
 
-### 2.3 前端依赖 `lclawElectron` / `isLclawElectron` 的位置
+### 2.3 前端依赖 `didClawElectron` / `isDidClawElectron` 的位置
 
 | 路径 | 用途 |
 |------|------|
-| `src/lib/electron-bridge.ts` | `isLclawElectron()` |
-| `src/vite-env.d.ts` | `LclawElectronApi` 类型 |
+| `src/lib/electron-bridge.ts` | `isDidClawElectron()` |
+| `src/vite-env.d.ts` | `DidClawElectronApi` 类型 |
 | `src/app/AppShell.vue` | 桌面专属 UI、OpenClaw 模型工具条 |
 | `src/app/AppHeader.vue` | 网关本地配置入口 |
 | `src/stores/gateway.ts` | 启动时读本地网关配置、`ensureOpenClawGateway` |
@@ -93,7 +93,7 @@
 ## 4. 前置条件
 
 1. **Rust**：`rustup`，stable；Windows 需 **Visual Studio Build Tools**（MSVC）与 WebView2（Win10/11 通常已有）。
-2. **Node/pnpm**：与现有 `lclaw-ui` 一致。
+2. **Node/pnpm**：与现有 `didclaw` 一致。
 3. **Git 分支**：在 `main`/`develop` 外建长期分支 `feat/tauri-desktop`（名称自定），便于对比与回滚。
 4. **备份**：你已另有文件夹备份；建议同时 **推送远程分支**，避免单点丢失。
 
@@ -129,7 +129,7 @@
 
 ### 阶段 1：Tauri 脚手架 + 空白窗体能加载前端（1～2 天）
 
-- [ ] 在 `lclaw-ui` 下 `pnpm create tauri-app` 或与官方「add to existing」流程对齐，得到 `src-tauri/`。
+- [ ] 在 `didclaw` 下 `pnpm create tauri-app` 或与官方「add to existing」流程对齐，得到 `src-tauri/`。
 - [ ] `tauri.conf`：`build.frontendDistDir` 指向 Vite 的 `dist`；开发态 `beforeDevCommand` / `devUrl` 与现有 `vite` 端口一致。
 - [ ] **先不删 Electron**：并行存在，脚本区分 `dev` / `dev:tauri` / `build` / `build:tauri`。
 - [ ] 验证：开发模式 Tauri 窗口能打开 HMR；生产 `vite build` + `tauri build` 能出包。
@@ -145,7 +145,7 @@
 **推荐顺序**（与 **阶段 0 结论**挂钩）：
 
 1. **方案 A（仅当阶段 0 确认「可配置白名单且值得试」时再做）**：Tauri 2 自定义协议 / `asset` 协议；实测 WebView 发出的 **Origin** 字符串，并写入 `gateway.controlUi.allowedOrigins`（或依赖 `origin-check.ts` 中本机 loopback 分支，以实测为准）。若阶段 0 已判定无法改网关，**跳过本方案**。
-2. **方案 B（默认兜底，与现行为一致）**：在 Rust 内实现与 `static-server.ts` 等价的 **127.0.0.1 静态 HTTP 服务**（端口策略保留 `LCLAW_UI_STATIC_PORT` 或改为 Tauri 配置项），窗口 `load_url` 指向该 origin。
+2. **方案 B（默认兜底，与现行为一致）**：在 Rust 内实现与 `static-server.ts` 等价的 **127.0.0.1 静态 HTTP 服务**（端口策略保留 `DIDCLAW_STATIC_PORT` 或改为 Tauri 配置项），窗口 `load_url` 指向该 origin。
 
 - [ ] 实现选定方案并连接真实 Gateway，验证 WebSocket **不再出现 1008（Origin）**。
 - [ ] SPA 路由刷新（直接打开子路径）行为与现版一致（需 `index.html` 回退）。
@@ -163,10 +163,10 @@
 | 1 | `dialog:openFile`、`shell:openFileUrl` | `rfd` / `opener` 或 Tauri 插件 |
 | 2 | 剪贴板、`openLibreOfficeDownloadPage`（打开外链） | `arboard`、`open` |
 | 3 | `file:saveCopyAs`、`shell:prepareEmailWithLocalFile`、`shell:copyLocalFileForShare` | 文件系统 + 对话框 + 剪贴板 |
-| 4 | `gateway:readLocalConfig`、`gateway:writeLocalConfig` | `tauri::path::BaseDirectory::AppData` 或等价路径，与 Electron `userData` 对齐（需查 Tauri 默认 app data 目录，必要时固定子目录名 `LCLAW UI` 与现版一致） |
+| 4 | `gateway:readLocalConfig`、`gateway:writeLocalConfig` | `tauri::path::BaseDirectory::AppData` 或等价路径，与 Electron `userData` 对齐（需查 Tauri 默认 app data 目录，必要时固定子目录名 `DidClaw` 与现版一致） |
 
 - [ ] 前端：新增 `src/lib/desktop-bridge.ts`（或扩展原文件），内部 `invoke`，对外保持与现 API 形状接近，减少 Vue  diff。
-- [ ] 将 `isLclawElectron()` 改为 **`isLclawDesktop()`**（或保留别名），检测 `__TAURI_INTERNALS__` / 官方推荐方式。
+- [x] 将 `isDidClawElectron()` 与 **`isDidClawDesktop()`** 配合使用，检测 Tauri / Electron。
 
 **验收**：不涉及预览与网关进程时，设置页与文件打开已可用。
 
@@ -312,7 +312,7 @@
 
 ### 11.1 实施进度快照（与仓库实现对齐，随提交更新）
 
-以下对照 **§5 分阶段** 与 `lclaw-ui/src-tauri/src/commands.rs` 中命令实现情况。
+以下对照 **§5 分阶段** 与 `didclaw/src-tauri/src/commands.rs` 中命令实现情况。
 
 | 阶段 | 状态 | 说明 |
 |------|------|------|
@@ -347,4 +347,4 @@
 ---
 
 *文档版本：1.6*（§9/§11.2 手测与阶段 7 去 Electron 同步）  
-*对应仓库路径：`lclaw-ui`；原 Electron 主进程逻辑已迁移至 `lclaw-ui/src-tauri/`（历史见 Git）；Gateway 行为参考同仓 `openclaw-src/`*
+*对应仓库路径：`didclaw`；原 Electron 主进程逻辑已迁移至 `didclaw/src-tauri/`（历史见 Git）；Gateway 行为参考同仓 `openclaw-src/`*

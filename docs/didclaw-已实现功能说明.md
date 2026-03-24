@@ -1,7 +1,7 @@
-# LCLAW UI 已实现功能说明
+# DidClaw 已实现功能说明
 
-> **产品**：LCLAW UI（`lclaw-ui`）  
-> **版本**（与 `lclaw-ui/package.json` 同步）：**0.2.0**  
+> **产品**：DidClaw（`didclaw`）  
+> **版本**（与 `didclaw/package.json` 同步）：**0.2.0**  
 > **说明范围**：截至当前仓库已实现、可交付使用的功能；不含路线图中的「待开发」项。  
 > **原则**：OpenClaw **Gateway 不改源码**；本客户端通过 WebSocket 协议与网关交互，并在桌面端读写本机 OpenClaw 配置文件。
 
@@ -11,10 +11,10 @@
 
 | 形态 | 说明 |
 |------|------|
-| **桌面端（推荐）** | **Tauri 2**（WebView2）：`pnpm dev:tauri` / `pnpm dist:win`；**生产默认**在 **`http://127.0.0.1:34127`** 加载打包前端（与 OpenClaw 网关本机 **Origin 校验**兼容，**普通用户无需改网关配置**）；可选 `LCLAW_UI_BUILTIN_FRONTEND=1` 改用内置 `tauri.localhost`（需网关白名单，见 **2.5**）。本机设置、预览、OpenClaw 配置与网关子进程等见 `docs/lclaw-ui-electron-to-tauri-迁移计划.md`。 |
+| **桌面端（推荐）** | **Tauri 2**（WebView2）：`pnpm dev:tauri` / `pnpm dist:win`；**生产默认**在 **`http://127.0.0.1:34127`** 加载打包前端（与 OpenClaw 网关本机 **Origin 校验**兼容，**普通用户无需改网关配置**）；可选 `DIDCLAW_BUILTIN_FRONTEND=1` 改用内置 `tauri.localhost`（需网关白名单，见 **2.5**）。本机设置、预览、OpenClaw 配置与网关子进程等见 `docs/didclaw-electron-to-tauri-迁移计划.md`。 |
 | **浏览器开发联调** | `pnpm dev` / `dev:web`：通过环境变量 `VITE_GATEWAY_URL`、`VITE_GATEWAY_TOKEN`、`VITE_GATEWAY_PASSWORD` 指向网关；无桌面本机 IPC。 |
 
-打包发布（需在 **`lclaw-ui` 目录**执行）：
+打包发布（需在 **`didclaw` 目录**执行）：
 
 - `pnpm dist:win`：前端 `vite build` + **`tauri build`**（安装包/可执行文件在 `src-tauri/target/release/bundle/`，目标以 `src-tauri/tauri.conf.json` 的 `bundle.targets` 为准）。  
 - `pnpm dist:win:tauri`：与 `dist:win` 相同（别名，便于旧文档链接）。  
@@ -57,7 +57,7 @@
 安装版会在本机启动仅回环地址可访问的静态服务，并让窗口加载 **`http://127.0.0.1:34127/...`**。此时 WebSocket 握手的 **`Origin`** 为 **`http://127.0.0.1:34127`**（loopback）。OpenClaw 网关在 **客户端为本机直连**（`isLocalClient`）且 Origin 主机为 loopback 时，会走 **`local-loopback`** 分支，**一般不需要** 在网关里配置 `allowedOrigins`。若网关跑在 **另一台机器** 或经 **反向代理** 导致连接不被视为本机直连，则需按 OpenClaw 文档配置 **`trustedProxies` / `allowedOrigins`**。
 
 **例外：改用内置前端时**  
-若启动前设置环境变量 **`LCLAW_UI_BUILTIN_FRONTEND=1`**，生产包将像默认 Tauri 那样从 **`https://tauri.localhost` / `http://tauri.localhost`** 加载页面，此时 **必须** 在网关配置中允许对应 Origin，否则会出现 `origin not allowed ... allowedOrigins`。可合并例如：
+若启动前设置环境变量 **`DIDCLAW_BUILTIN_FRONTEND=1`**，生产包将像默认 Tauri 那样从 **`https://tauri.localhost` / `http://tauri.localhost`** 加载页面，此时 **必须** 在网关配置中允许对应 Origin，否则会出现 `origin not allowed ... allowedOrigins`。可合并例如：
 
 ```yaml
 gateway:
@@ -70,7 +70,7 @@ gateway:
 
 （`http://localhost:5173` 为本地 **`pnpm dev:tauri` / `dev:web`** 常见开发源，端口以实际为准。）
 
-**端口占用**：静态服务固定 **`34127`**（可用环境变量 **`LCLAW_UI_STATIC_PORT`** 修改）；若修改端口，需同步修改 `src-tauri/capabilities/default.json` 里 `remote.urls` 中的端口，否则 Tauri IPC 可能异常。
+**端口占用**：静态服务固定 **`34127`**（可用环境变量 **`DIDCLAW_STATIC_PORT`** 修改）；若修改端口，需同步修改 `src-tauri/capabilities/default.json` 里 `remote.urls` 中的端口，否则 Tauri IPC 可能异常。
 
 修改网关配置后需 **重启网关** 再重连。
 
@@ -92,7 +92,7 @@ gateway:
 - 读取并合并展示 **`~/.openclaw/openclaw.json`** 中 `models.providers` 与 **默认代理** 下 **`agents/<id>/agent/models.json`** 的 `providers`（与网关运行时合并规则一致：同 id 以代理目录为准；`models` 为对象时会按 key 合并）。  
 - 支持 **新增 / 编辑 / 删除** 供应商（provider id、baseUrl、API Key、模型 id 列表、`api`、`authHeader` 等）。  
 - **写入前** 会将各 provider 的 **`models`** 从「id → 对象」形态 **规范为非空数组**，满足 OpenClaw ModelRegistry 要求，避免出现 **Unknown model**。  
-- 写入时同步维护 **`auth-profiles.json`**、必要时调整 **`openclaw.json`**（避免密钥重复落盘等；桌面端实现见 `lclaw-ui/src-tauri/src/openclaw_providers.rs`）。  
+- 写入时同步维护 **`auth-profiles.json`**、必要时调整 **`openclaw.json`**（避免密钥重复落盘等；桌面端实现见 `didclaw/src-tauri/src/openclaw_providers.rs`）。  
 - 提供常见厂商 **预设**（一键填 URL 等），减少手写。  
 - 保存前对 **openclaw.json** / **models.json** 等做备份（按实现生成带时间戳或约定前缀的备份文件）。
 
@@ -129,7 +129,7 @@ gateway:
 - 顶栏 **「技能」** 打开弹窗：**ClawHub** 搜索、列表（可排序刷新）、详情与 **安装**（下载 zip 解压至本机 skills 目录）；**已安装** 列表、**更新**（ClawHub 来源）、**删除**；**本机安装** 通过 ZIP 或文件夹复制安装。  
 - 默认安装根目录：`%USERPROFILE%\.openclaw\skills`（可编辑并记忆到 `localStorage`）。  
 - **网页模式**（`dev:web`）可浏览/搜索 ClawHub；写入本机目录需 **Tauri 桌面版**。  
-- 实现索引：`lclaw-ui/src/features/skills/SkillsManagerDialog.vue`、`lclaw-ui/src/lib/clawhub-api.ts`、`lclaw-ui/src/lib/skills-invoke.ts`、`lclaw-ui/src-tauri/src/skills.rs`；方案见 **`docs/lclaw-ui-skills-功能实施方案.md`**。
+- 实现索引：`didclaw/src/features/skills/SkillsManagerDialog.vue`、`didclaw/src/lib/clawhub-api.ts`、`didclaw/src/lib/skills-invoke.ts`、`didclaw/src-tauri/src/skills.rs`；方案见 **`docs/didclaw-skills-功能实施方案.md`**。
 
 ---
 
@@ -153,8 +153,8 @@ gateway:
 ## 8. 已知边界（当前版本）
 
 - **安装器内嵌 Node/OpenClaw 安装、国内镜像、首次启动自动从 `openclaw.json` 导入 Token** 等属于 **后续阶段**，本说明不包含。  
-- 迁移过程与阶段说明见 **`lclaw-ui-electron-to-tauri-迁移计划.md`**（§11 进度与 §9 回归）。  
-- 未实现的能力排期见 **`lclaw-ui-功能补全清单.md`**。  
+- 迁移过程与阶段说明见 **`didclaw-electron-to-tauri-迁移计划.md`**（§11 进度与 §9 回归）。  
+- 未实现的能力排期见 **`didclaw-功能补全清单.md`**。  
 - 协议细节与网关版本差异请维护 **`gateway-client-protocol-notes.md`**（若仓库中有该文件）。
 
 ---
@@ -164,13 +164,13 @@ gateway:
 | 文档 | 用途 |
 |------|------|
 | `docs/OpenClaw-顶层界面-开发方案.md` | 总体方案与架构 |
-| `docs/lclaw-ui-开发步骤.md` | 分阶段开发与勾选 |
-| `docs/lclaw-ui-功能补全清单.md` | 增量功能排期 |
-| `docs/lclaw-ui-桌面端专属-实现方案.md` | 桌面端专属能力 |
-| `docs/lclaw-ui-skills-功能实施方案.md` | 技能（ClawHub）管理与实施说明 |
-| `docs/lclaw-ui-electron-to-tauri-迁移计划.md` | 迁移阶段、§11 进度、§9 回归与手测记录 |
-| `lclaw-ui/src-tauri/src/openclaw_providers.rs`、`openclaw_model_config.rs` | OpenClaw 模型与 Providers 读写（原 TS 逻辑见 Git 历史） |
-| `lclaw-ui/src-tauri/src/openclaw_gateway.rs` | 本机网关进程拉起与端口探测 |
+| `docs/didclaw-开发步骤.md` | 分阶段开发与勾选 |
+| `docs/didclaw-功能补全清单.md` | 增量功能排期 |
+| `docs/didclaw-桌面端专属-实现方案.md` | 桌面端专属能力 |
+| `docs/didclaw-skills-功能实施方案.md` | 技能（ClawHub）管理与实施说明 |
+| `docs/didclaw-electron-to-tauri-迁移计划.md` | 迁移阶段、§11 进度、§9 回归与手测记录 |
+| `didclaw/src-tauri/src/openclaw_providers.rs`、`openclaw_model_config.rs` | OpenClaw 模型与 Providers 读写（原 TS 逻辑见 Git 历史） |
+| `didclaw/src-tauri/src/openclaw_gateway.rs` | 本机网关进程拉起与端口探测 |
 
 ---
 

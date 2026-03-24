@@ -61,7 +61,7 @@ export function extractMessageTimeMs(m: GatewayChatMessage): number | null {
  * 将 `chat.history` 的 `messages` 规范为**时间升序**（旧在上、新在下），与左侧列表阅读习惯一致。
  *
  * 官方 Control UI 的 `loadChatHistory` **不对数组再排序**，直接采用网关返回顺序（网关侧来自会话 transcript
- * 的尾部切片，一般为时间正序）。lclaw-ui 在收到载荷后按 `timestamp` 做一次规范化，防止个别版本/路径下顺序异常。
+ * 的尾部切片，一般为时间正序）。didclaw 在收到载荷后按 `timestamp` 做一次规范化，防止个别版本/路径下顺序异常。
  *
  * - 若**全部**条目可解析时间：按时间升序稳定排序。
  * - 否则若**首尾**皆可解析且首条时间晚于末条：视为整段为 newest-first，**整体反转**。

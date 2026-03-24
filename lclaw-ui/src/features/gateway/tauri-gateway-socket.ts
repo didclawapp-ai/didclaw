@@ -105,7 +105,7 @@ export class TauriGatewayWebSocket {
       try {
         await invoke("gateway_tunnel_send", { text: data });
       } catch (e) {
-        console.error("[lclaw-ui] gateway_tunnel_send", e);
+        console.error("[didclaw] gateway_tunnel_send", e);
       }
     });
   }
@@ -150,7 +150,7 @@ export class TauriGatewayWebSocket {
   async start(): Promise<void> {
     try {
       this.pendingInbound = [];
-      this.unlisten = await listen<TunnelPayload>("lclaw-gateway-tunnel", (event) => {
+      this.unlisten = await listen<TunnelPayload>("didclaw-gateway-tunnel", (event) => {
         const p = event.payload;
         if (p.kind === "text") {
           if (this.readyState !== TauriGatewayWebSocket.OPEN) {
@@ -198,7 +198,7 @@ export class TauriGatewayWebSocket {
       this.unlisten?.();
       this.unlisten = undefined;
       this.readyState = TauriGatewayWebSocket.CLOSED;
-      console.error("[lclaw-ui] gateway tunnel connect failed", e);
+      console.error("[didclaw] gateway tunnel connect failed", e);
       const errEv = new Event("error");
       for (const l of this.errorListeners) {
         l.call(this, errEv);

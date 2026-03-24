@@ -1,4 +1,4 @@
-# LCLAW UI：技能（Skills）功能实施方案
+# DidClaw：技能（Skills）功能实施方案
 
 ## 1. 目标与范围
 
@@ -16,7 +16,7 @@
 
 **本期不做**：ClawHub 登录、`whoami`、发布、星标、同步（`sync`）等需 Token 的写操作——与此前「只要搜索 / 详情 / 列表 / 下载」一致。
 
-**参考**：OpenClaw [Skills](https://docs.openclaw.ai/tools/skills)、ClawHub 仓库 [CLI 文档](https://github.com/openclaw/clawhub/blob/main/docs/cli.md)、本仓库 `lclaw-ui/src/lib/clawhub-api.ts`。
+**参考**：OpenClaw [Skills](https://docs.openclaw.ai/tools/skills)、ClawHub 仓库 [CLI 文档](https://github.com/openclaw/clawhub/blob/main/docs/cli.md)、本仓库 `didclaw/src/lib/clawhub-api.ts`。
 
 ---
 
@@ -41,7 +41,7 @@
 
 ### 2.2 技能弹窗（新建组件）
 
-建议路径：`lclaw-ui/src/features/skills/SkillsManagerDialog.vue`（或 `SkillHubDialog.vue`）。
+建议路径：`didclaw/src/features/skills/SkillsManagerDialog.vue`（或 `SkillHubDialog.vue`）。
 
 - **打开方式**：`v-model` 布尔值，由 `AppHeader` 内 `ref` 控制；仅在需要时挂载或使用 `Teleport` 至 `body`（按项目惯例）。
 - **布局（建议分栏或 Tab）**：
@@ -133,7 +133,7 @@
 
 ## 8. 文档与后续
 
-- 功能上线后，在 `docs/lclaw-ui-已实现功能说明.md` 中增加一节「技能管理」并链到本文。
+- 功能上线后，在 `docs/didclaw-已实现功能说明.md` 中增加一节「技能管理」并链到本文。
 - 若增加「工作区 skills」或 ClawHub 登录，应更新本文阶段与验收项。
 
 ---

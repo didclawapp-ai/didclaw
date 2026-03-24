@@ -4,7 +4,7 @@ import {
   afterOpenClawModelConfigSaved,
   afterOpenClawProvidersSaved,
 } from "@/composables/modelConfigDeferred";
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import {
   PRIMARY_MODEL_QUICK_PICKS,
   PROVIDER_SETUP_PRESETS,
@@ -87,7 +87,7 @@ async function loadGatewayForm(): Promise<void> {
   wsUrl.value = gatewayUrlFromEnv();
   token.value = "";
   password.value = "";
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.readGatewayLocalConfig) {
     return;
   }
@@ -130,7 +130,7 @@ function rowFromModels(models: Record<string, unknown>): AliasRow[] {
 async function loadModelForm(): Promise<void> {
   modelError.value = null;
   modelToast.value = null;
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.readOpenClawModelConfig) {
     return;
   }
@@ -310,7 +310,7 @@ function onModelPresetSelect(bucket: "cn" | "intl", e: Event): void {
 async function loadProvidersForm(): Promise<void> {
   provError.value = null;
   provToast.value = null;
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.readOpenClawProviders) {
     return;
   }
@@ -415,7 +415,7 @@ function formatProviderSaveToast(
 async function onSaveProvider(): Promise<void> {
   provError.value = null;
   provToast.value = null;
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.writeOpenClawProvidersPatch) {
     provError.value = "请使用桌面版打开本设置。";
     return;
@@ -491,7 +491,7 @@ async function onDeleteProvider(): Promise<void> {
   }
   provError.value = null;
   provToast.value = null;
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.writeOpenClawProvidersPatch) {
     provError.value = "请使用桌面版打开本设置。";
     return;
@@ -518,7 +518,7 @@ async function onDeleteProvider(): Promise<void> {
 watch(
   () => props.modelValue,
   (v) => {
-    if (v && isLclawElectron()) {
+    if (v && isDidClawElectron()) {
       tab.value = localSettings.initialTab;
       creatingNewProvider.value = false;
       void loadAll();
@@ -527,14 +527,14 @@ watch(
 );
 
 watch(tab, (t) => {
-  if (props.modelValue && isLclawElectron() && t === "providers") {
+  if (props.modelValue && isDidClawElectron() && t === "providers") {
     void loadProvidersForm();
   }
 });
 
 async function onSaveGateway(): Promise<void> {
   saveError.value = null;
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.writeGatewayLocalConfig) {
     saveError.value = "请使用桌面版保存连接设置。";
     return;
@@ -576,7 +576,7 @@ function removeAliasRow(i: number): void {
 async function onSaveModel(): Promise<void> {
   modelError.value = null;
   modelToast.value = null;
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.writeOpenClawModelConfig) {
     modelError.value = "请使用桌面版保存模型设置。";
     return;
@@ -628,7 +628,7 @@ async function onSaveModel(): Promise<void> {
 async function onRestoreModel(): Promise<void> {
   modelError.value = null;
   modelToast.value = null;
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.restoreOpenClawConfigToLatestBackup) {
     modelError.value = "请使用桌面版恢复备份。";
     return;

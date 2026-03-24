@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { segmentTextWithLinks } from "@/lib/extract-chat-links";
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { useFilePreviewStore } from "@/stores/filePreview";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 
@@ -54,7 +54,7 @@ function isLocalFileUrl(url: string): boolean {
 }
 
 function canElectronLocalOps(url: string): boolean {
-  return isLclawElectron() && isLocalFileUrl(url);
+  return isDidClawElectron() && isLocalFileUrl(url);
 }
 
 function onLink(url: string, label: string, ev: MouseEvent): void {
@@ -71,7 +71,7 @@ async function ctxSaveAs(): Promise<void> {
   if (!m || !canElectronLocalOps(m.url)) {
     return;
   }
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.saveLocalFileCopyAs) {
     return;
   }
@@ -87,7 +87,7 @@ async function ctxOpenSystem(): Promise<void> {
   if (!m || !canElectronLocalOps(m.url)) {
     return;
   }
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.openFileUrlInSystem) {
     return;
   }
@@ -103,7 +103,7 @@ async function ctxEmail(): Promise<void> {
   if (!m || !canElectronLocalOps(m.url)) {
     return;
   }
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.prepareEmailWithLocalFile) {
     return;
   }
@@ -119,7 +119,7 @@ async function ctxShare(): Promise<void> {
   if (!m || !canElectronLocalOps(m.url)) {
     return;
   }
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.copyLocalFileForShare) {
     return;
   }

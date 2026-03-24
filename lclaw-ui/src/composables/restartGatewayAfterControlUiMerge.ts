@@ -1,8 +1,8 @@
-import { getLclawDesktopApi } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 
 /** 与 `getOpenClawSetupStatus().controlUiAllowedOriginsMerged` 配合：配置已写入磁盘后让网关 reload。 */
 export async function restartGatewayAfterControlUiMerge(gw: { disconnect: () => void }): Promise<boolean> {
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.restartOpenClawGateway) {
     return false;
   }

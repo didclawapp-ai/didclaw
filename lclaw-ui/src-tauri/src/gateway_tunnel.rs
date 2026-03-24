@@ -14,7 +14,7 @@ use tokio_tungstenite::{
 };
 use tauri::{AppHandle, Emitter, Manager};
 
-pub const EVT: &str = "lclaw-gateway-tunnel";
+pub const EVT: &str = "didclaw-gateway-tunnel";
 
 #[derive(Default)]
 pub struct GatewayTunnelSlot {

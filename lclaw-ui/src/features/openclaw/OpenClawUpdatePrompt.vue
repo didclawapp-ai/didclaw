@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { onMounted, ref } from "vue";
 
 /** 用户点「稍后」后，对该 npm 版本不再提示，直至出现更新的 latest */
-const DISMISS_KEY = "lclaw.openclawUpdate.dismissedLatest";
+const DISMISS_KEY = "didclaw.openclawUpdate.dismissedLatest";
 
 const open = ref(false);
 const currentVersion = ref("");
@@ -13,7 +13,7 @@ const platform = ref("");
 const upgradeBusy = ref(false);
 
 onMounted(() => {
-  if (!isLclawElectron()) {
+  if (!isDidClawElectron()) {
     return;
   }
   window.setTimeout(() => {
@@ -22,7 +22,7 @@ onMounted(() => {
 });
 
 async function checkOnce(): Promise<void> {
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.checkOpenclawUpdate) {
     return;
   }
@@ -68,7 +68,7 @@ function dismissForThisRelease(): void {
 }
 
 async function onWindowsScriptUpgrade(): Promise<void> {
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.runEnsureOpenclawWindowsInstall) {
     window.alert("当前环境无法调用内置升级脚本。");
     return;

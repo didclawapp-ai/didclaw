@@ -3,19 +3,19 @@
 > **版本**：1.7  
 > **前提**：OpenClaw 作为底层黑盒服务运行，**不修改**其源码；上层自研「左聊天 + 右预览」客户端。  
 > **参考文档**：[OpenClaw Control UI](https://docs.openclaw.ai/web/control-ui) · [WebChat](https://docs.openclaw.ai/web/webchat)  
-> **技术选型**：`lclaw-ui` 以 **Vue 3 + TypeScript + Vite** 为主（团队熟悉 Vue）。  
-> **当前客户端版本**（`lclaw-ui/package.json`）：**0.2.0**（与实现进度同步时更新）。
+> **技术选型**：`didclaw` 以 **Vue 3 + TypeScript + Vite** 为主（团队熟悉 Vue）。  
+> **当前客户端版本**（`didclaw/package.json`）：**0.2.0**（与实现进度同步时更新）。
 
 ### 修订记录
 
 | 版本 | 说明 |
 |------|------|
-| 1.7 | §9 增加 **`lclaw-ui-功能补全清单.md`** 引用（对照官方文档的增量排期） |
-| 1.6 | 对齐 `lclaw-ui` **v0.2.0**：§1.3/§4.1/§4.2 补充流式、乐观消息、system 默认隐藏、终端噪音过滤、右栏文件预览（PDF/图/Office/Markdown/文本）、Electron 与 LibreOffice；§7 阶段说明与实现状态脚注 |
-| 1.5 | 新增 `lclaw-ui-开发步骤.md`；§9 与 `lclaw-ui/README` 增加引用 |
+| 1.7 | §9 增加 **`didclaw-功能补全清单.md`** 引用（对照官方文档的增量排期） |
+| 1.6 | 对齐 `didclaw` **v0.2.0**：§1.3/§4.1/§4.2 补充流式、乐观消息、system 默认隐藏、终端噪音过滤、右栏文件预览（PDF/图/Office/Markdown/文本）、Electron 与 LibreOffice；§7 阶段说明与实现状态脚注 |
+| 1.5 | 新增 `didclaw-开发步骤.md`；§9 与 `didclaw/README` 增加引用 |
 | 1.4 | 复审完善：§3.4/3.5 联调与协议类型化；§4.1/4.2 会话切换与 Office 预期；§6.1 可观测性；阶段 E 与 §11 复审补充；新增 `gateway-client-protocol-notes.md` 模板 |
-| 1.3 | 明确 **Vue 3** 为默认前端栈；§5.1 改为 Vue 生态选型；与 `lclaw-ui/README` 对齐 |
-| 1.2 | 基线标注：确认 §1.4 / §5 全文 / §9 / `lclaw-ui/README` 摘要均已纳入 |
+| 1.3 | 明确 **Vue 3** 为默认前端栈；§5.1 改为 Vue 生态选型；与 `didclaw/README` 对齐 |
+| 1.2 | 基线标注：确认 §1.4 / §5 全文 / §9 / `didclaw/README` 摘要均已纳入 |
 | 1.1 | 扩展 §5 为「技术栈与打包方案」；更新 §9；版本号调整 |
 | 1.0 | 初版方案 |
 
@@ -36,21 +36,21 @@
 ### 1.3 成功标准（建议）
 
 - 能完成：选会话 → 拉历史 → 发送 → **流式**增量展示（含乐观用户消息、delta 与终态历史一致）→ 中断。
-- 左栏默认面向对话：**`system` 角色消息默认不进入列表**（勾选「显示诊断/配置」后可见）；工具 stdout/stderr 类噪音可按规则折叠（详见 `lclaw-ui` 实现与协议笔记）。
+- 左栏默认面向对话：**`system` 角色消息默认不进入列表**（勾选「显示诊断/配置」后可见）；工具 stdout/stderr 类噪音可按规则折叠（详见 `didclaw` 实现与协议笔记）。
 - 右栏能稳定展示：**消息内 Markdown**（选中/跟随最新）、约定 **ECharts**、工具时间线、**可点击的 http(s)/file 链接**；**文件预览**支持 PDF/图片、**Markdown/纯文本文件**（`.md`/`.txt` 等）、Office（HTTPS 在线嵌入；**Electron** 下本地 Office 经 **LibreOffice** 转 PDF，未安装时可引导下载或用系统程序打开）。
 - **Electron**：无活跃文件预览时右栏可收起以扩大聊天区；有预览时自动展开。
 - Gateway 升级小版本后，通过既定回归用例仍可用。
 
-### 1.4 仓库与目录布局（LCLAW 工作区）
+### 1.4 仓库与目录布局（DidClaw 工作区）
 
 顶层界面**单独一个文件夹**开发，与 OpenClaw 源码目录并列，避免混在一起、也方便以后单独开 Git 仓库或发版。
 
 ```
-LCLAW/
+DidClaw/
 ├── docs/                              # 工作区级文档（方案、协议笔记等）
 │   └── OpenClaw-顶层界面-开发方案.md
 ├── openclaw-src/                      # OpenClaw 上游：本地跑 Gateway、只读参考（勿改业务逻辑）
-└── lclaw-ui/                          # 自研「左聊天 + 右预览」客户端（本方案主工程）
+└── didclaw/                          # 自研「左聊天 + 右预览」客户端（本方案主工程）
     ├── README.md                      # 如何安装、如何连 Gateway、环境变量说明
     ├── package.json                   # 若用 Node 前端工具链
     ├── src/
@@ -65,11 +65,11 @@ LCLAW/
     └── e2e/ 或 tests/                 # 按需：端到端或单测
 ```
 
-**命名说明**：`lclaw-ui` 可按团队习惯改名（如 `openclaw-client`）；原则只有一个——**与 `openclaw-src` 平级、职责清晰**。
+**命名说明**：`didclaw` 可按团队习惯改名（如 `openclaw-client`）；原则只有一个——**与 `openclaw-src` 平级、职责清晰**。
 
-若后续引入 **BFF**，推荐仍在 `LCLAW` 下并列新建目录（例如 `lclaw-api/`），不要让 BFF 嵌进 `lclaw-ui` 源码树深处，便于独立部署与扩缩。
+若后续引入 **BFF**，推荐仍在 **本仓库根目录**（`DidClaw/`）下并列新建目录（例如 `didclaw-api/`），不要让 BFF 嵌进 `didclaw` 源码树深处，便于独立部署与扩缩。
 
-**桌面壳（Electron / Tauri）**：可在 `lclaw-ui` 内增加 `src-tauri/` 或 `electron/`，或拆成 `lclaw-ui/packages/desktop`（pnpm workspace）；首期用纯 Web + 浏览器验证协议即可，再包壳。
+**桌面壳（Electron / Tauri）**：可在 `didclaw` 内增加 `src-tauri/` 或 `electron/`，或拆成 `didclaw/packages/desktop`（pnpm workspace）；首期用纯 Web + 浏览器验证协议即可，再包壳。
 
 ---
 
@@ -141,7 +141,7 @@ LCLAW/
 
 ### 3.5 协议载荷与类型安全（建议）
 
-- 在 `lclaw-ui` 内对 **下行事件、RPC 响应** 建立一层 **运行时校验**（推荐 **Zod**；与 OpenClaw 内部风格接近者可用 **TypeBox**，二选一即可），避免 Gateway 小版本字段增减导致静默错误。
+- 在 `didclaw` 内对 **下行事件、RPC 响应** 建立一层 **运行时校验**（推荐 **Zod**；与 OpenClaw 内部风格接近者可用 **TypeBox**，二选一即可），避免 Gateway 小版本字段增减导致静默错误。
 - 校验失败时：**打结构化日志（脱敏）+ 对用户给出可理解错误文案**，勿直接白屏。
 - 与 §9 中 **`docs/gateway-client-protocol-notes.md`** 同步维护：OpenClaw **版本号、方法名、示例 JSON、已知差异**。
 
@@ -206,7 +206,7 @@ LCLAW/
 
 ### 5.1 推荐默认组合（本仓库：**Vue 3**）
 
-以 **「先 Web 验证协议，再按需包桌面」** 为路径；**`lclaw-ui` 默认采用 Vue 3 技术栈**（团队熟悉、双栏与长列表场景成熟）。
+以 **「先 Web 验证协议，再按需包桌面」** 为路径；**`didclaw` 默认采用 Vue 3 技术栈**（团队熟悉、双栏与长列表场景成熟）。
 
 | 层级 | 选型 | 说明 |
 |------|------|------|
@@ -282,7 +282,7 @@ LCLAW/
 
 | 环节 | 做法 |
 |------|------|
-| 版本源 | `package.json` version + Git tag（如 `lclaw-ui/v0.1.0`） |
+| 版本源 | `package.json` version + Git tag（如 `didclaw/v0.1.0`） |
 | CI | **GitHub Actions** / 自建 Runner：`pnpm i --frozen-lockfile` → `pnpm lint` → `pnpm test` → `pnpm build` |
 | 产物 | Web：`dist` 归档为 zip 或上传对象存储；桌面：各平台 artifact 分开展示 |
 
@@ -290,7 +290,7 @@ LCLAW/
 
 ### 5.4 与 OpenClaw 的衔接方式（不变）
 
-- 运行时不依赖把 `lclaw-ui` 放进 `openclaw-src`：**独立进程、独立端口**；仅通过 **WebSocket** 连 Gateway。
+- 运行时不依赖把 `didclaw` 放进 `openclaw-src`：**独立进程、独立端口**；仅通过 **WebSocket** 连 Gateway。
 - Node 版本：与前端工具链一致即可（建议 **Node 22 LTS**）；Gateway 仍按 OpenClaw 要求单独安装/运行。
 
 ---
@@ -315,7 +315,7 @@ LCLAW/
 
 ### 阶段 A — 基础设施（约 1～2 周，视人力）
 
-- [x] WebSocket 客户端：连接、鉴权、心跳/重连、错误分类（配对、403、断线）。*`lclaw-ui` 已具备*
+- [x] WebSocket 客户端：连接、鉴权、心跳/重连、错误分类（配对、403、断线）。*`didclaw` 已具备*
 - [x] 最小会话列表 + 历史消息只读。
 - [x] 发送消息并展示**流式**结果（含 delta 合并、乐观消息、终态静默刷新等）。*持续随 Gateway 形态微调*
 
@@ -344,7 +344,7 @@ LCLAW/
 - [x] 内网部署文档；**Electron** Windows 打包脚本（签名/自动更新仍按需）。
 - [ ] （按需）**无障碍**；**国际化** 文案外置。
 
-（周期为估算，按团队规模调整。`[x]` 表示 `lclaw-ui` **0.2.0** 已覆盖的主线能力。）
+（周期为估算，按团队规模调整。`[x]` 表示 `didclaw` **0.2.0** 已覆盖的主线能力。）
 
 ---
 
@@ -360,8 +360,8 @@ LCLAW/
 
 ## 9. 文档与仓库建议
 
-- 在本工作区维护：`docs/OpenClaw-顶层界面-开发方案.md`（本文）、**`docs/lclaw-ui-开发步骤.md`**（按阶段可勾选的开发顺序）、**`docs/lclaw-ui-功能补全清单.md`**（对照 [OpenClaw 文档](https://docs.openclaw.ai/) 的增量功能排期）、**`docs/gateway-client-protocol-notes.md`**（**必填维护**：按 Gateway 版本记录方法名、示例 JSON、与官方行为差异；见该文件头模板）。
-- 自研客户端代码根目录：`lclaw-ui/`（见 §1.4）。
+- 在本工作区维护：`docs/OpenClaw-顶层界面-开发方案.md`（本文）、**`docs/didclaw-开发步骤.md`**（按阶段可勾选的开发顺序）、**`docs/didclaw-功能补全清单.md`**（对照 [OpenClaw 文档](https://docs.openclaw.ai/) 的增量功能排期）、**`docs/gateway-client-protocol-notes.md`**（**必填维护**：按 Gateway 版本记录方法名、示例 JSON、与官方行为差异；见该文件头模板）。
+- 自研客户端代码根目录：`didclaw/`（见 §1.4）。
 - OpenClaw 本体：`openclaw-src/` 仅作**只读参考**与本地启动 Gateway，不作为魔改主战场。
 
 ---

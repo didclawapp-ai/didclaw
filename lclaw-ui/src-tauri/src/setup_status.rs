@@ -52,7 +52,7 @@ pub fn build_open_claw_setup_status(app: &AppHandle) -> Value {
     };
 
     let origins_merged =
-        match crate::openclaw_gateway_origins::ensure_lclaw_desktop_allowed_origins() {
+        match crate::openclaw_gateway_origins::ensure_didclaw_desktop_allowed_origins() {
             Ok(o) => o.merged,
             Err(e) => {
                 launch_log::line(&format!(

@@ -30,7 +30,7 @@ export default defineConfig(({ command }): UserConfig => ({
   },
   plugins: [
     {
-      name: "lclaw-inject-csp-prod",
+      name: "didclaw-inject-csp-prod",
       transformIndexHtml(html) {
         if (command !== "build") {
           return html;

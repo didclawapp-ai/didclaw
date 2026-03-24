@@ -1,11 +1,11 @@
 import { ref } from "vue";
 
-import { getLclawDesktopApi } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 
-const LS_MODEL_COMPLETE = "lclaw_first_run_model_complete";
-const LS_DEFERRED = "lclaw_model_config_deferred";
-const LS_MODEL_SNOOZE = "lclaw_model_wizard_snooze_until";
-const LS_ENV_SNOOZE = "lclaw_setup_wizard_snooze_until";
+const LS_MODEL_COMPLETE = "didclaw_first_run_model_complete";
+const LS_DEFERRED = "didclaw_model_config_deferred";
+const LS_MODEL_SNOOZE = "didclaw_model_wizard_snooze_until";
+const LS_ENV_SNOOZE = "didclaw_setup_wizard_snooze_until";
 
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
@@ -91,7 +91,7 @@ export function resetFirstRunWizardLocalState(): void {
 export async function afterOpenClawProvidersSaved(): Promise<void> {
   setModelConfigDeferred(false);
   syncDeferredModelBannerFromStorage();
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.readOpenClawModelConfig) {
     return;
   }

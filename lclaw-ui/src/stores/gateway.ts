@@ -4,8 +4,8 @@ import {
   GATEWAY_CLIENT_MODE_UI,
 } from "@/features/gateway/gateway-types";
 import { gatewayHelloOkSchema } from "@/features/gateway/schemas";
-import { getLclawDesktopApi } from "@/lib/electron-bridge";
-import { isLclawDesktop } from "@/lib/desktop-api";
+import { getDidClawDesktopApi } from "@/lib/electron-bridge";
+import { isDidClawDesktop } from "@/lib/desktop-api";
 import { isTauri } from "@tauri-apps/api/core";
 import { cancelDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import { describeGatewayError } from "@/lib/gateway-errors";
@@ -41,7 +41,7 @@ async function loadGatewayConnectOptions(): Promise<ConnectOpts> {
   let token = import.meta.env.VITE_GATEWAY_TOKEN?.trim() || undefined;
   let password = import.meta.env.VITE_GATEWAY_PASSWORD?.trim() || undefined;
 
-  const desktop = getLclawDesktopApi();
+  const desktop = getDidClawDesktopApi();
   if (desktop?.readGatewayLocalConfig) {
     try {
       const local = await desktop.readGatewayLocalConfig();
@@ -107,7 +107,7 @@ export const useGatewayStore = defineStore("gateway", () => {
       }
       url.value = opts.url;
 
-      const desktop = getLclawDesktopApi();
+      const desktop = getDidClawDesktopApi();
       if (desktop?.ensureOpenClawGateway) {
         const ensured = await desktop.ensureOpenClawGateway({ wsUrl: opts.url });
         if (req !== connectRequestId) {
@@ -131,7 +131,7 @@ export const useGatewayStore = defineStore("gateway", () => {
         url: opts.url,
         token: opts.token,
         password: opts.password,
-        clientMode: isLclawDesktop() ? GATEWAY_CLIENT_MODE_UI : GATEWAY_CLIENT_MODE,
+        clientMode: isDidClawDesktop() ? GATEWAY_CLIENT_MODE_UI : GATEWAY_CLIENT_MODE,
         useTauriTunnel: isTauri(),
         onHello: (hello) => {
           const parsed = gatewayHelloOkSchema.safeParse(hello);
@@ -154,7 +154,7 @@ export const useGatewayStore = defineStore("gateway", () => {
         },
         onEvent: (evt) => {
           if (import.meta.env.DEV && evt.event !== "chat") {
-            console.debug("[lclaw-ui][gateway event]", evt.event, evt.payload);
+            console.debug("[didclaw][gateway event]", evt.event, evt.payload);
           }
           void import("./chat").then(({ useChatStore }) => {
             useChatStore().handleGatewayEvent(evt);

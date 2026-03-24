@@ -1,6 +1,6 @@
 [[permission]]
 identifier = "invoke-all"
-description = "LCLAW UI 桌面端 invoke 命令（迁移自 Electron IPC）"
+description = "DidClaw 桌面端 invoke 命令（迁移自 Electron IPC）"
 commands.allow = [
   "get_open_claw_setup_status",
   "check_openclaw_update",

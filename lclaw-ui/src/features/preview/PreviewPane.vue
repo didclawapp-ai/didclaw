@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { isLibreOfficeMissingError } from "@/lib/libreoffice-preview";
 import { hljsLanguageFromUrl, isHttpsUrl, officeOnlineEmbedUrl } from "@/lib/preview-kind";
 import { renderCodePreviewHtml } from "@/lib/render-code-preview";
@@ -77,7 +77,7 @@ function openExternal(): void {
 }
 
 async function pickLocalFile(): Promise<void> {
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api) {
     return;
   }
@@ -89,7 +89,7 @@ async function pickLocalFile(): Promise<void> {
 
 const showLibreOfficeHints = computed(
   () =>
-    isLclawElectron() &&
+    isDidClawElectron() &&
     Boolean(pendingLocalFileUrl.value) &&
     isLibreOfficeMissingError(localError.value),
 );
@@ -142,7 +142,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
           含 <strong>data:image/…;base64,…</strong> 的助手/用户消息<strong>点该行</strong>可在右侧预览并另存。
           支持 PDF / 图片 / <strong>Markdown</strong> / <strong>纯文本</strong> / <strong>常见源码</strong>（语法高亮）；Office 需桌面版或在线嵌入。
         </p>
-        <button v-if="isLclawElectron()" type="button" class="toolbar-pick" @click="pickLocalFile">
+        <button v-if="isDidClawElectron()" type="button" class="toolbar-pick" @click="pickLocalFile">
           选择本地文件…
         </button>
       </template>
@@ -211,11 +211,11 @@ async function onSaveEmbeddedImage(): Promise<void> {
             </button>
           </div>
         </template>
-        <p v-else-if="isLclawElectron() && pendingLocalFileUrl" class="fallback-hint">
+        <p v-else-if="isDidClawElectron() && pendingLocalFileUrl" class="fallback-hint">
           若已安装 <strong>Microsoft Office</strong> 或 WPS，可用系统默认程序打开。
         </p>
         <button
-          v-if="isLclawElectron() && pendingLocalFileUrl"
+          v-if="isDidClawElectron() && pendingLocalFileUrl"
           type="button"
           class="fallback-btn"
           @click="filePreview.openPendingLocalInSystemApp()"

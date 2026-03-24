@@ -413,9 +413,9 @@ fn read_child_stderr_abbrev(child: &mut Child, max_bytes: usize) -> String {
     String::from_utf8_lossy(&buf[..total]).trim().to_string()
 }
 
-/// Windows：将 stdout/stderr 重定向到 `~/.openclaw/logs/` 下文件，减少子进程分配可见控制台的概率；文件名使用 `lclaw-` 前缀以免与其它程序写入同一日志混淆。
+/// Windows：将 stdout/stderr 重定向到 `~/.openclaw/logs/` 下文件，减少子进程分配可见控制台的概率；文件名使用 `didclaw-` 前缀以免与其它程序写入同一日志混淆。
 #[cfg(windows)]
-fn open_lclaw_gateway_stdio_log_files() -> Result<(std::fs::File, std::fs::File), std::io::Error> {
+fn open_didclaw_gateway_stdio_log_files() -> Result<(std::fs::File, std::fs::File), std::io::Error> {
     use std::fs::OpenOptions;
     let dir = crate::openclaw_common::openclaw_dir()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
@@ -424,20 +424,20 @@ fn open_lclaw_gateway_stdio_log_files() -> Result<(std::fs::File, std::fs::File)
     let stdout_log = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(dir.join("lclaw-gateway.log"))?;
+        .open(dir.join("didclaw-gateway.log"))?;
     let stderr_log = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(dir.join("lclaw-gateway.err.log"))?;
+        .open(dir.join("didclaw-gateway.err.log"))?;
     Ok((stdout_log, stderr_log))
 }
 
 #[cfg(windows)]
-fn read_lclaw_gateway_err_log_tail(max_bytes: usize) -> String {
+fn read_didclaw_gateway_err_log_tail(max_bytes: usize) -> String {
     let Ok(dir) = crate::openclaw_common::openclaw_dir() else {
         return String::new();
     };
-    let path = dir.join("logs").join("lclaw-gateway.err.log");
+    let path = dir.join("logs").join("didclaw-gateway.err.log");
     let Ok(mut f) = std::fs::File::open(&path) else {
         return String::new();
     };
@@ -696,7 +696,7 @@ fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
         let path_env = windows_enhanced_path();
 
         // 日志文件不可写时勿用 stderr 管道：个别环境下 node 仍会为管道分配可见控制台；双 null 则牺牲首包错误摘要。
-        let (stdout, stderr) = match open_lclaw_gateway_stdio_log_files() {
+        let (stdout, stderr) = match open_didclaw_gateway_stdio_log_files() {
             Ok((out, err)) => (Stdio::from(out), Stdio::from(err)),
             Err(_) => (Stdio::null(), Stdio::null()),
         };
@@ -945,7 +945,7 @@ pub async fn ensure_open_claw_gateway_running(
 ) -> Result<Value, String> {
     let _guard = ensure_mutex().lock().await;
 
-    let _ = crate::openclaw_gateway_origins::ensure_lclaw_desktop_allowed_origins();
+    let _ = crate::openclaw_gateway_origins::ensure_didclaw_desktop_allowed_origins();
 
     let Some((host, port)) = parse_gateway_ws_tcp_target(&ws_url) else {
         return Ok(json!({"ok": true, "started": false}));
@@ -1000,7 +1000,7 @@ pub async fn ensure_open_claw_gateway_running(
                     let mut stderr_tail = read_child_stderr_abbrev(c, 8192);
                     #[cfg(windows)]
                     if stderr_tail.is_empty() {
-                        stderr_tail = read_lclaw_gateway_err_log_tail(8192);
+                        stderr_tail = read_didclaw_gateway_err_log_tail(8192);
                     }
                     drop(g);
                     kill_managed_gateway_process();
@@ -1011,7 +1011,7 @@ pub async fn ensure_open_claw_gateway_running(
                     let detail = if stderr_tail.is_empty() {
                         #[cfg(windows)]
                         {
-                            "启动失败且暂无错误摘要；可打开用户文件夹\\.openclaw\\logs\\lclaw-gateway.err.log 查看，或在终端执行「openclaw gateway」。".to_string()
+                            "启动失败且暂无错误摘要；可打开用户文件夹\\.openclaw\\logs\\didclaw-gateway.err.log 查看，或在终端执行「openclaw gateway」。".to_string()
                         }
                         #[cfg(not(windows))]
                         {

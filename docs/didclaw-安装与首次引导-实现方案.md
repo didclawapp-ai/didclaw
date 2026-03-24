@@ -176,7 +176,7 @@ flowchart TD
 | **向导实现** | 步骤 2 可提供「一键填好地址 + 模型 ID（如 `openai`）」模板，用户只粘贴 Key；**测试连接**走最小请求。 |
 | **与「公益 AI」** | 若产品希望强调公益叙事，可把文案写成「低门槛试用 / 开放生态」类表述，**勿代厂商承诺永久免费**；具体条款链到官方说明。 |
 
-**可选工程后续**：在 `lclaw-ui/src/lib/openclaw-presets.ts` 的 `PROVIDER_SETUP_PRESETS` 中增加 Pollinations 预设，与设置页「国内/国际快捷」一致，减少手工输入 URL。
+**可选工程后续**：在 `didclaw/src/lib/openclaw-presets.ts` 的 `PROVIDER_SETUP_PRESETS` 中增加 Pollinations 预设，与设置页「国内/国际快捷」一致，减少手工输入 URL。
 
 ### 7.3 备选：国内「新人免费额度」类 OpenAI 兼容网关
 
@@ -209,10 +209,10 @@ flowchart TD
 | 资产 | 路径/说明 |
 |------|-----------|
 | Windows 一键脚本 | `scripts/ensure-openclaw-windows.ps1`、`scripts/ensure-openclaw-windows.bat` |
-| 网关发现与自启 | `lclaw-ui/src-tauri/src/openclaw_gateway.rs` |
-| 提供商与 auth 写入 | `lclaw-ui/src-tauri/src/openclaw_providers.rs`（含 Ollama 空密钥占位） |
-| 本机设置 UI | `lclaw-ui/src/features/settings/GatewayLocalDialog.vue` |
-| 提供商预设与快捷模型 | `lclaw-ui/src/lib/openclaw-presets.ts` |
+| 网关发现与自启 | `didclaw/src-tauri/src/openclaw_gateway.rs` |
+| 提供商与 auth 写入 | `didclaw/src-tauri/src/openclaw_providers.rs`（含 Ollama 空密钥占位） |
+| 本机设置 UI | `didclaw/src/features/settings/GatewayLocalDialog.vue` |
+| 提供商预设与快捷模型 | `didclaw/src/lib/openclaw-presets.ts` |
 | OpenClaw 官方 onboard | 上游 `openclaw onboard` / 非交互参数（与脚本注释中的文档链接一致） |
 
 ---

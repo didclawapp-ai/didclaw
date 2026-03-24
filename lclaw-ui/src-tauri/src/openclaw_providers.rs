@@ -11,8 +11,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
 
-const MODELS_BACKUP_PREFIX: &str = "models.json.lclaw-backup-";
-const AUTH_BACKUP_PREFIX: &str = "auth-profiles.json.lclaw-backup-";
+const MODELS_BACKUP_PREFIX: &str = "models.json.didclaw-backup-";
+const AUTH_BACKUP_PREFIX: &str = "auth-profiles.json.didclaw-backup-";
 const BACKUP_SUFFIX: &str = ".json";
 
 fn provider_id_regex() -> &'static Regex {
@@ -417,7 +417,7 @@ fn backup_file_in_parent(config_path: &Path, basename_fn: impl FnOnce() -> Strin
 fn backup_openclaw_if_exists(config_path: &Path) -> Result<String, String> {
     backup_file_in_parent(config_path, || {
         format!(
-            "openclaw.json.lclaw-backup-{}{BACKUP_SUFFIX}",
+            "openclaw.json.didclaw-backup-{}{BACKUP_SUFFIX}",
             backup_timestamp()
         )
     })

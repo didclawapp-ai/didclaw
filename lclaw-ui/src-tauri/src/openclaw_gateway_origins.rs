@@ -17,7 +17,7 @@ pub struct AllowedOriginsMergeOutcome {
     pub added: Vec<String>,
 }
 
-const BACKUP_PREFIX: &str = "openclaw.json.lclaw-backup-";
+const BACKUP_PREFIX: &str = "openclaw.json.didclaw-backup-";
 const BACKUP_SUFFIX: &str = ".json";
 
 /// 与内置前端、可选 loopback 静态页、本地 Vite 开发一致；已存在则跳过（按规范化字符串比较）。
@@ -64,7 +64,7 @@ fn ensure_object_in_map<'a>(
 }
 
 /// 若 `openclaw.json` 不存在则跳过；若 JSON 非法则返回 Err。有变更则先备份再写回。
-pub fn ensure_lclaw_desktop_allowed_origins() -> Result<AllowedOriginsMergeOutcome, String> {
+pub fn ensure_didclaw_desktop_allowed_origins() -> Result<AllowedOriginsMergeOutcome, String> {
     let config_path = openclaw_config_path()?;
     let raw = match fs::read_to_string(&config_path) {
         Ok(s) => s,

@@ -1,12 +1,17 @@
 # OpenClaw 上游克隆体积大且可独立更新；若需纳入仓库，删除本行
 /openclaw-src/
 
-# lclaw-ui 构建与依赖
+# 客户端构建与依赖（目录名可为 lclaw-ui 或 didclaw，按本地实际）
 lclaw-ui/node_modules/
 lclaw-ui/dist/
 lclaw-ui/.env
 lclaw-ui/.env.development
 lclaw-ui/.env.production
+didclaw/node_modules/
+didclaw/dist/
+didclaw/.env
+didclaw/.env.development
+didclaw/.env.production
 
 # 日志与缓存
 *.log

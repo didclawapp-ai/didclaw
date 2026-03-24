@@ -12,7 +12,7 @@ use tower_http::services::{ServeDir, ServeFile};
 const DEFAULT_BASE_PORT: u16 = 34127;
 
 fn parse_static_port() -> u16 {
-    std::env::var("LCLAW_UI_STATIC_PORT")
+    std::env::var("DIDCLAW_STATIC_PORT")
         .ok()
         .and_then(|s| s.parse().ok())
         .filter(|&p| p >= 1)
@@ -128,7 +128,7 @@ pub async fn start_server(dist: PathBuf, tx: Sender<Result<u16, String>>) {
         }
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
             let msg = format!(
-                "端口 {base} 已被占用（须与 ACL remote.urls 一致，勿换端口扫描）。可结束占用进程或改 LCLAW_UI_STATIC_PORT 并同步修改 capabilities/default.json"
+                "端口 {base} 已被占用（须与 ACL remote.urls 一致，勿换端口扫描）。可结束占用进程或改 DIDCLAW_STATIC_PORT 并同步修改 capabilities/default.json"
             );
             crate::launch_log::line(&msg);
             let _ = tx.send(Err(msg));

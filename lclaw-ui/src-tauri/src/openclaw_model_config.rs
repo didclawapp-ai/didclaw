@@ -8,7 +8,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
-const BACKUP_PREFIX: &str = "openclaw.json.lclaw-backup-";
+const BACKUP_PREFIX: &str = "openclaw.json.didclaw-backup-";
 const BACKUP_SUFFIX: &str = ".json";
 
 fn new_backup_basename() -> String {
@@ -258,7 +258,7 @@ pub fn restore_open_claw_config_to_latest_backup() -> Value {
         Err(e) => return json!({"ok": false, "error": e.to_string()}),
     };
     let Some(latest) = latest else {
-        return json!({"ok": false, "error": "未找到本应用生成的备份文件（openclaw.json.lclaw-backup-*.json）"});
+        return json!({"ok": false, "error": "未找到本应用生成的备份文件（openclaw.json.didclaw-backup-*.json）"});
     };
 
     let pre_backup = match backup_current_file_if_exists(&config_path) {

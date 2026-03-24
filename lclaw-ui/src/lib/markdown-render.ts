@@ -85,18 +85,18 @@ const fenceRule: RenderRule = (tokens, idx, options) => {
       parsedJson = JSON.parse(raw);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return `<pre class="lclaw-chart-error">${md.utils.escapeHtml(`JSON 无效：${msg}`)}</pre>\n`;
+      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml(`JSON 无效：${msg}`)}</pre>\n`;
     }
     const zr = echartsJsonSchema.safeParse(parsedJson);
     if (!zr.success) {
       const detail = zr.error.issues.map((i) => i.message).join("; ");
-      return `<pre class="lclaw-chart-error">${md.utils.escapeHtml(`图表配置未通过校验：${detail}`)}</pre>\n`;
+      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml(`图表配置未通过校验：${detail}`)}</pre>\n`;
     }
     const payload = utf8ToBase64(JSON.stringify(zr.data));
     if (payload.length > 180_000) {
-      return `<pre class="lclaw-chart-error">${md.utils.escapeHtml("图表数据过大")}</pre>\n`;
+      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml("图表数据过大")}</pre>\n`;
     }
-    return `<div class="lclaw-chart" data-lclaw-chart="${payload}" role="img" aria-label="图表"></div>\n`;
+    return `<div class="didclaw-chart" data-didclaw-chart="${payload}" role="img" aria-label="图表"></div>\n`;
   }
 
   const highlighted =
@@ -137,16 +137,16 @@ const SAFE_TAGS = [
   "div",
 ];
 
-const g = globalThis as { __lclawDomPurifyHooks?: boolean };
-if (!g.__lclawDomPurifyHooks) {
-  g.__lclawDomPurifyHooks = true;
+const g = globalThis as { __didclawDomPurifyHooks?: boolean };
+if (!g.__didclawDomPurifyHooks) {
+  g.__didclawDomPurifyHooks = true;
   DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
     if (data.attrName === "href" && String(node.nodeName).toLowerCase() === "a") {
       if (!isLinkHrefAllowed(String(data.attrValue ?? ""))) {
         data.keepAttr = false;
       }
     }
-    if (data.attrName === "data-lclaw-chart" && String(node.nodeName).toLowerCase() === "div") {
+    if (data.attrName === "data-didclaw-chart" && String(node.nodeName).toLowerCase() === "div") {
       const v = String(data.attrValue ?? "");
       if (!/^[A-Za-z0-9+/=]+$/.test(v) || v.length > 200_000) {
         data.keepAttr = false;
@@ -178,7 +178,7 @@ export function renderMarkdownToSafeHtml(source: string): string {
   const raw = md.render(source);
   const sanitized = DOMPurify.sanitize(raw, {
     ALLOWED_TAGS: SAFE_TAGS,
-    ALLOWED_ATTR: ["href", "target", "rel", "class", "data-lclaw-chart", "role", "aria-label"],
+    ALLOWED_ATTR: ["href", "target", "rel", "class", "data-didclaw-chart", "role", "aria-label"],
   });
   return applyExternalLinkTargets(sanitized);
 }

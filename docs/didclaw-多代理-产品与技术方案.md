@@ -43,9 +43,9 @@ OpenClaw 的「多代理」不是单一换模型，而是**多套隔离的大脑
 
 ## 4. 当前仓库基线（与多代理相关的现状）
 
-- 会话侧默认与 **`main`** 对齐：空列表时用 `agent:main:main` 作为兜底会话键（与网关 `resolveMainSessionKey` 行为一致）。实现见 `lclaw-ui/src/stores/session.ts`。
+- 会话侧默认与 **`main`** 对齐：空列表时用 `agent:main:main` 作为兜底会话键（与网关 `resolveMainSessionKey` 行为一致）。实现见 `didclaw/src/stores/session.ts`。
 - **`chat.send`** 不带根级 `model`**；模型以网关 / 会话解析为准（与现有桌面端方案一致）。
-- **`openclaw.json`** 读写策略以 `docs/lclaw-ui-桌面端专属-实现方案.md` 为准（白名单、备份等）；多代理后可能出现 **per-agent 的 `model` / `workspace` / `agentDir`**，与当前「只动 `agents.defaults` 部分字段」的范围可能冲突，需单独定边界。
+- **`openclaw.json`** 读写策略以 `docs/didclaw-桌面端专属-实现方案.md` 为准（白名单、备份等）；多代理后可能出现 **per-agent 的 `model` / `workspace` / `agentDir`**，与当前「只动 `agents.defaults` 部分字段」的范围可能冲突，需单独定边界。
 
 ---
 
@@ -107,7 +107,7 @@ OpenClaw 的「多代理」不是单一换模型，而是**多套隔离的大脑
 
 - [多智能体路由（中文）](https://docs.openclaw.ai/zh-CN/concepts/multi-agent)
 - [Gateway Configuration](https://docs.openclaw.ai/gateway/configuration)
-- 本仓库：`docs/gateway-client-protocol-notes.md`、`docs/lclaw-ui-桌面端专属-实现方案.md`
+- 本仓库：`docs/gateway-client-protocol-notes.md`、`docs/didclaw-桌面端专属-实现方案.md`
 
 ---
 

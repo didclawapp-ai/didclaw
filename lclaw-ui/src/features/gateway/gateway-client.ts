@@ -223,14 +223,14 @@ export class GatewayClient {
       const seq = typeof evt.seq === "number" ? evt.seq : null;
       if (seq !== null) {
         if (this.lastSeq !== null && seq > this.lastSeq + 1) {
-          console.warn("[lclaw-ui] gateway event seq gap", this.lastSeq + 1, seq);
+          console.warn("[didclaw] gateway event seq gap", this.lastSeq + 1, seq);
         }
         this.lastSeq = seq;
       }
       try {
         this.opts.onEvent?.(evt);
       } catch (e) {
-        console.error("[lclaw-ui] onEvent error", e);
+        console.error("[didclaw] onEvent error", e);
       }
       return;
     }
@@ -269,7 +269,7 @@ export class GatewayClient {
     try {
       await this.sendConnectInner();
     } catch (e) {
-      console.error("[lclaw-ui] sendConnect failed", e);
+      console.error("[didclaw] sendConnect failed", e);
       this.pendingConnectError =
         e instanceof GatewayRequestError
           ? e
@@ -347,7 +347,7 @@ export class GatewayClient {
       maxProtocol: PROTOCOL_VERSION,
       client: {
         id: GATEWAY_CLIENT_ID,
-        version: this.opts.clientVersion ?? "lclaw-ui/0.2.1",
+        version: this.opts.clientVersion ?? "didclaw/0.2.1",
         platform: platformOs,
         deviceFamily,
         mode: clientMode,

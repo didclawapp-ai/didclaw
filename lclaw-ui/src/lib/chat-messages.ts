@@ -2,7 +2,7 @@
  * 聊天消息在 UI 层的类型：网关结构开放（passthrough），乐观 user 为本地构造的窄类型。
  */
 
-export const CHAT_OPTIMISTIC_KEY = "_lclawOptimistic" as const;
+export const CHAT_OPTIMISTIC_KEY = "_didclawOptimistic" as const;
 
 export type OptimisticUserMessage = {
   role: "user";

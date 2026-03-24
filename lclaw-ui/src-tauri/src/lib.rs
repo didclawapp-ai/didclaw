@@ -95,7 +95,7 @@ pub fn run() {
             }
 
             // 内置 https://tauri.localhost 等需在网关 allowedOrigins 中；若启动时尚无 openclaw.json，会在预检/拉起网关时再次合并。
-            if let Err(e) = openclaw_gateway_origins::ensure_lclaw_desktop_allowed_origins() {
+            if let Err(e) = openclaw_gateway_origins::ensure_didclaw_desktop_allowed_origins() {
                 launch_log::line(&format!(
                     "openclaw: 启动时合并 allowedOrigins 未成功（可忽略）: {e}"
                 ));
@@ -103,12 +103,12 @@ pub fn run() {
 
             #[cfg(not(debug_assertions))]
             {
-                // 可选：LCLAW_UI_HTTP_LOOPBACK=1 使用本机 axum + navigate 到 127.0.0.1（若仍白屏可对比排查；capabilities 已含 remote.urls）。
-                let http_loopback = std::env::var("LCLAW_UI_HTTP_LOOPBACK")
+                // 可选：DIDCLAW_HTTP_LOOPBACK=1 使用本机 axum + navigate 到 127.0.0.1（若仍白屏可对比排查；capabilities 已含 remote.urls）。
+                let http_loopback = std::env::var("DIDCLAW_HTTP_LOOPBACK")
                     .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                     .unwrap_or(false);
                 if http_loopback {
-                    launch_log::line("prod: LCLAW_UI_HTTP_LOOPBACK=1，使用本机 axum 静态页");
+                    launch_log::line("prod: DIDCLAW_HTTP_LOOPBACK=1，使用本机 axum 静态页");
                     if let Err(e) = prod_static_server_and_navigate(&*app) {
                         launch_log::line(&format!(
                             "setup: prod_static_server_and_navigate 返回错误: {e}"
@@ -120,11 +120,11 @@ pub fn run() {
                 }
             }
 
-            if std::env::var("LCLAW_UI_DEVTOOLS")
+            if std::env::var("DIDCLAW_DEVTOOLS")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false)
             {
-                launch_log::line("LCLAW_UI_DEVTOOLS: 已请求打开 WebView 开发者工具");
+                launch_log::line("DIDCLAW_DEVTOOLS: 已请求打开 WebView 开发者工具");
                 use tauri::Manager;
                 if let Some(w) = app.get_webview_window("main") {
                     w.open_devtools();

@@ -1,6 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
-const LS_INSTALL_ROOT = "lclaw.skillsInstallRoot";
+const LS_INSTALL_ROOT = "didclaw.skillsInstallRoot";
 
 export type InstalledSkillRow = {
   slug: string;

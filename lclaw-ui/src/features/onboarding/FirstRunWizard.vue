@@ -7,7 +7,7 @@ import {
 } from "@/composables/modelConfigDeferred";
 import { scheduleDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayAfterControlUiMerge";
-import { getLclawDesktopApi } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
@@ -72,7 +72,7 @@ const canRunEnsureInstall = computed(() => {
   if (typeof navigator === "undefined" || !/Win/i.test(navigator.userAgent)) {
     return false;
   }
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   return Boolean(api?.runEnsureOpenclawWindowsInstall);
 });
 
@@ -81,7 +81,7 @@ const dialogAriaLabel = computed(() =>
 );
 
 async function refreshStatus(): Promise<void> {
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.getOpenClawSetupStatus) {
     loading.value = false;
     visible.value = false;
@@ -159,7 +159,7 @@ watch(
 
 /** 执行打包内的 ensure-openclaw-windows.ps1（下载官方 install.ps1 + 非交互 onboard） */
 async function runEnsureInstallAndInit(): Promise<void> {
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.runEnsureOpenclawWindowsInstall) {
     return;
   }
@@ -173,7 +173,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
   if (isTauri()) {
     try {
       unlisten = await listen<{ stream?: string; line?: string }>(
-        "lclaw-ensure-install-log",
+        "didclaw-ensure-install-log",
         (ev) => {
           const line = ev.payload?.line;
           if (typeof line !== "string" || line.length === 0) {
@@ -222,7 +222,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
 
 /** 一键写入本机 Ollama（OpenAI 兼容接口 + 默认 qwen2.5:7b） */
 async function applyOllamaQuickSetup(): Promise<void> {
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   modelError.value = null;
   if (!api?.writeOpenClawProvidersPatch || !api?.writeOpenClawModelConfig) {
     modelError.value = "请使用桌面版完成此操作。";
@@ -288,11 +288,11 @@ function onRecheckFirstRunEvent(): void {
 
 onMounted(() => {
   void refreshStatus();
-  window.addEventListener("lclaw-first-run-recheck", onRecheckFirstRunEvent);
+  window.addEventListener("didclaw-first-run-recheck", onRecheckFirstRunEvent);
 });
 
 onUnmounted(() => {
-  window.removeEventListener("lclaw-first-run-recheck", onRecheckFirstRunEvent);
+  window.removeEventListener("didclaw-first-run-recheck", onRecheckFirstRunEvent);
 });
 </script>
 

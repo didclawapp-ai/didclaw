@@ -1,11 +1,11 @@
-# LCLAW UI（OpenClaw 顶层客户端）
+# DidClaw（OpenClaw 顶层客户端）
 
 > 方案：`../docs/OpenClaw-顶层界面-开发方案.md`（v1.5）  
-> 步骤：`../docs/lclaw-ui-开发步骤.md`  
+> 步骤：`../docs/didclaw-开发步骤.md`  
 > 协议笔记：`../docs/gateway-client-protocol-notes.md`  
-> 内网部署与冒烟：`../docs/lclaw-ui-内网部署.md`  
-> 桌面壳迁移与回归：`../docs/lclaw-ui-electron-to-tauri-迁移计划.md`  
-> 历史 Electron 与本地预览说明（仅供参考）：`../docs/lclaw-ui-electron-local-preview.md`
+> 内网部署与冒烟：`../docs/didclaw-内网部署.md`  
+> 桌面壳迁移与回归：`../docs/didclaw-electron-to-tauri-迁移计划.md`  
+> 历史 Electron 与本地预览说明（仅供参考）：`../docs/didclaw-electron-local-preview.md`
 
 **Vue 3 + TypeScript + Vite + Pinia**。布局：**左侧实时聊天**；**右侧文件预览**（PDF / 图片 / Markdown / 文本；Office 在桌面端经 **LibreOffice** 转 PDF）。**桌面版（Tauri 2 + WebView2）** 下本地 `file://` 由 Rust 侧读盘；纯浏览器打开时远程文本受 **CORS** 限制。
 
@@ -14,7 +14,7 @@
 - `pnpm dev:tauri`：启动 Vite + Tauri 窗口（`invoke` 桌面 API）。
 - `pnpm dev` / `pnpm dev:web`：仅 Vite，浏览器联调。
 - `pnpm dist:win`：`vite build` + **`tauri build`**，安装包在 `src-tauri/target/release/bundle/`（具体格式见 `src-tauri/tauri.conf.json`）。
-- 生产态界面由本机 **`http://127.0.0.1`** 静态服务加载（默认端口见 `static_server.rs` / 环境变量 `LCLAW_UI_STATIC_PORT`），避免 Gateway **origin 1008**。详见迁移计划 §2。
+- 生产态界面由本机 **`http://127.0.0.1`** 静态服务加载（默认端口见 `static_server.rs` / 环境变量 `DIDCLAW_STATIC_PORT`），避免 Gateway **origin 1008**。详见迁移计划 §2。
 
 ## 常用命令
 

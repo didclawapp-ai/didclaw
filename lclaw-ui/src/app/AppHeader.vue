@@ -4,7 +4,7 @@ import CronJobsDialog from "@/features/cron/CronJobsDialog.vue";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
@@ -103,7 +103,7 @@ const connLedAriaLabel = computed(() => {
 });
 
 async function onRestartGateway(): Promise<void> {
-  const desktop = getLclawDesktopApi();
+  const desktop = getDidClawDesktopApi();
   if (!desktop?.restartOpenClawGateway || restartGatewayBusy.value) {
     return;
   }
@@ -125,8 +125,8 @@ async function onRestartGateway(): Promise<void> {
 async function copyDiagnostics(): Promise<void> {
   let tokenConfigured = !!import.meta.env.VITE_GATEWAY_TOKEN?.trim();
   let passwordConfigured = !!import.meta.env.VITE_GATEWAY_PASSWORD?.trim();
-  const desktop = getLclawDesktopApi();
-  if (isLclawElectron() && desktop?.readGatewayLocalConfig) {
+  const desktop = getDidClawDesktopApi();
+  if (isDidClawElectron() && desktop?.readGatewayLocalConfig) {
     try {
       const c = await desktop.readGatewayLocalConfig();
       if (c.token?.trim()) {
@@ -174,7 +174,7 @@ function onRedoFirstRunWizard(): void {
     return;
   }
   resetFirstRunWizardLocalState();
-  window.dispatchEvent(new CustomEvent("lclaw-first-run-recheck"));
+  window.dispatchEvent(new CustomEvent("didclaw-first-run-recheck"));
 }
 </script>
 
@@ -183,7 +183,7 @@ function onRedoFirstRunWizard(): void {
     <div class="brand-row">
       <div class="brand">
         <span class="brand-glyph" aria-hidden="true" />
-        <h1 class="brand-title"><span class="brand-name">LCLAW</span> UI</h1>
+        <h1 class="brand-title"><span class="brand-name">DidClaw</span></h1>
       </div>
       <div class="brand-actions">
         <div class="header-toolbar" role="toolbar" aria-label="快捷功能">
@@ -241,7 +241,7 @@ function onRedoFirstRunWizard(): void {
           诊断
         </button>
         <button
-          v-if="isLclawElectron()"
+          v-if="isDidClawElectron()"
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
           title="清除本机首次引导状态并重新检测（便于测试安装流程）"
@@ -250,7 +250,7 @@ function onRedoFirstRunWizard(): void {
           引导
         </button>
         <button
-          v-if="isLclawElectron()"
+          v-if="isDidClawElectron()"
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
           title="本机设置：连接助手、填写 AI 账号与密钥、选择默认模型"
@@ -259,7 +259,7 @@ function onRedoFirstRunWizard(): void {
           设置
         </button>
         <button
-          v-if="isLclawElectron()"
+          v-if="isDidClawElectron()"
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs conn-tool-btn"
           title="执行 openclaw gateway restart（系统服务/计划任务），随后重新连接"

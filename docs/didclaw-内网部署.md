@@ -1,6 +1,6 @@
-# lclaw-ui 内网部署与联调冒烟
+# didclaw 内网部署与联调冒烟
 
-> 对应主方案 §5.2、阶段 E。构建产物为 **纯静态 SPA**（`lclaw-ui/dist`），由 Web 服务器托管；业务 API 为浏览器直连 **Gateway WebSocket**（非本站点同源）。
+> 对应主方案 §5.2、阶段 E。构建产物为 **纯静态 SPA**（`didclaw/dist`），由 Web 服务器托管；业务 API 为浏览器直连 **Gateway WebSocket**（非本站点同源）。
 
 ## 前置条件
 
@@ -8,7 +8,7 @@
 |----|------|
 | OpenClaw Gateway | 已启动，端口与前端环境变量 `VITE_GATEWAY_URL` 一致（构建时写入，见下文）。 |
 | 浏览器 | 推荐使用 Chromium / Edge / Firefox 最新稳定版；设备签名需 **HTTPS 或 localhost** 下的 Web Crypto（与官方 Control UI 一致）。 |
-| Node | 建议 **Node 22 LTS**，与 `lclaw-ui/package.json` 工具链一致。 |
+| Node | 建议 **Node 22 LTS**，与 `didclaw/package.json` 工具链一致。 |
 
 ## 环境变量（构建期注入）
 
@@ -18,20 +18,20 @@ Vite 将 `VITE_*` 在 **`pnpm build` 时** 打入静态包，部署后改 `.env`
 |------|------|
 | `VITE_GATEWAY_URL` | 网关 WebSocket 地址，如 `wss://gw.internal.example.com:18789`。注意浏览器 **混合内容**：HTTPS 页面不可连 `ws://`，需 `wss://` 或同页为 HTTP。 |
 | `VITE_GATEWAY_TOKEN` / `VITE_GATEWAY_PASSWORD` | 与网关配置一致，**勿**把含真实密钥的构建产物提交到公开仓库。 |
-| `VITE_LINK_ALLOWLIST` | 可选，Markdown 外链白名单，见 `lclaw-ui/.env.example`。 |
+| `VITE_LINK_ALLOWLIST` | 可选，Markdown 外链白名单，见 `didclaw/.env.example`。 |
 
-本地开发可复制 `lclaw-ui/.env.example` 为 `.env.development`。
+本地开发可复制 `didclaw/.env.example` 为 `.env.development`。
 
 ## 构建
 
 ```bash
-cd lclaw-ui
+cd didclaw
 pnpm install
 pnpm run typecheck
 pnpm run build
 ```
 
-产物目录：`lclaw-ui/dist/`。
+产物目录：`didclaw/dist/`。
 
 ## SPA History fallback（必选）
 
@@ -42,8 +42,8 @@ pnpm run build
 ```nginx
 server {
     listen 443 ssl;
-    server_name lclaw-ui.internal.example.com;
-    root /var/www/lclaw-ui/dist;
+    server_name didclaw.internal.example.com;
+    root /var/www/didclaw/dist;
     index index.html;
     location / {
         try_files $uri $uri/ /index.html;
@@ -54,8 +54,8 @@ server {
 ### Caddy 示例
 
 ```caddy
-lclaw-ui.internal.example.com {
-    root * /var/www/lclaw-ui/dist
+didclaw.internal.example.com {
+    root * /var/www/didclaw/dist
     file_server
     try_files {path} /index.html
 }

@@ -8,7 +8,7 @@ const appVersion = __APP_VERSION__;
   <div class="about">
     <header class="bar">
       <RouterLink to="/" class="lc-btn lc-btn-ghost lc-btn-sm back">← 返回会话</RouterLink>
-      <h1 class="title">关于 LCLAW UI</h1>
+      <h1 class="title">关于 DidClaw</h1>
     </header>
     <div class="card">
       <p class="ver">版本 <code>{{ appVersion }}</code></p>

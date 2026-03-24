@@ -1,4 +1,4 @@
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import {
   defaultFileNameForImageMime,
   findFirstEmbeddedDataImage,
@@ -151,7 +151,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     if (!s) {
       return { ok: false, error: "当前无可保存的内嵌图片" };
     }
-    const api = getLclawDesktopApi();
+    const api = getDidClawDesktopApi();
     if (api?.saveBase64FileAs) {
       try {
         const r = (await api.saveBase64FileAs(
@@ -228,7 +228,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     clearChatMessagePreview();
     clearSavableEmbeddedImage();
 
-    if (isLclawElectron() && u.startsWith("file:")) {
+    if (isDidClawElectron() && u.startsWith("file:")) {
       revokeBlobIfNeeded();
       clearTextPreview();
       pendingLocalFileUrl.value = u;
@@ -236,7 +236,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
       localLoading.value = true;
       localError.value = null;
       try {
-        const api = getLclawDesktopApi();
+        const api = getDidClawDesktopApi();
         if (!api) {
           throw new Error("桌面 API 不可用");
         }
@@ -317,7 +317,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
 
   async function openPendingLocalInSystemApp(): Promise<void> {
     const u = pendingLocalFileUrl.value;
-    const api = getLclawDesktopApi();
+    const api = getDidClawDesktopApi();
     if (!u || !api?.openFileUrlInSystem) {
       return;
     }
@@ -328,18 +328,18 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   }
 
   async function openLibreOfficeDownloadPage(): Promise<void> {
-    await getLclawDesktopApi()?.openLibreOfficeDownloadPage?.();
+    await getDidClawDesktopApi()?.openLibreOfficeDownloadPage?.();
   }
 
   async function showLibreOfficeInstallDialog(): Promise<void> {
-    await getLclawDesktopApi()?.showLibreOfficeInstallDialog?.();
+    await getDidClawDesktopApi()?.showLibreOfficeInstallDialog?.();
   }
 
   /** 安装 LibreOffice 后：先检测再重新走本地预览 */
   async function retryPendingLocalPreview(): Promise<void> {
     const u = pendingLocalFileUrl.value;
     const label = pendingLocalLabel.value ?? undefined;
-    const api = getLclawDesktopApi();
+    const api = getDidClawDesktopApi();
     if (!u || !api?.getLibreOfficeStatus) {
       return;
     }

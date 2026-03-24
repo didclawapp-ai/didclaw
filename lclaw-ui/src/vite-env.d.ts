@@ -21,7 +21,7 @@ interface ImportMeta {
 }
 
 /** Electron preload 注入；仅桌面壳存在 */
-interface LclawElectronApi {
+interface DidClawElectronApi {
   readonly isElectron: true;
   openLocalPreview(
     fileUrl: string,
@@ -162,5 +162,5 @@ interface LclawElectronApi {
 }
 
 interface Window {
-  lclawElectron?: LclawElectronApi;
+  didClawElectron?: DidClawElectronApi;
 }

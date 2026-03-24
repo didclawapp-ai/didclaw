@@ -12,7 +12,7 @@ import {
   type ClawhubPackageFamily,
   type ClawhubSkillDetail,
 } from "@/lib/clawhub-api";
-import { getLclawDesktopApi, isLclawDesktop } from "@/lib/desktop-api";
+import { getDidClawDesktopApi, isDidClawDesktop } from "@/lib/desktop-api";
 import {
   arrayBufferToBase64,
   getStoredSkillsInstallRoot,
@@ -256,11 +256,11 @@ async function installClawhubPluginFromSlug(slug: string | null | undefined): Pr
   if (!s) {
     return;
   }
-  if (!isLclawDesktop()) {
+  if (!isDidClawDesktop()) {
     installMessage.value = "安装插件需要桌面版。";
     return;
   }
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api?.openclawPluginsInstall) {
     installMessage.value =
       "当前桌面壳不支持插件一键安装，请在终端执行：openclaw plugins install " + pluginPackageSpec(s);
@@ -555,10 +555,10 @@ const canInstallDetail = computed(() => {
 });
 
 const canOneClickPluginInstall = computed(() => {
-  if (!isLclawDesktop()) {
+  if (!isDidClawDesktop()) {
     return false;
   }
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   return typeof api?.openclawPluginsInstall === "function";
 });
 

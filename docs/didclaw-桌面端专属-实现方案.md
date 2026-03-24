@@ -1,4 +1,4 @@
-# LCLAW UI 桌面端（Electron）专属 — 实现方案
+# DidClaw 桌面端（Electron）专属 — 实现方案
 
 > **状态**：已拍板，按本文实施。  
 > **结论前置**：产品 **仅交付 Electron**；设置 **全部收拢顶栏「本机」对话框**（连接已有，模型后续同入口）；**不做独立 `/settings` 路由**。
@@ -50,7 +50,7 @@
 
 ## 3. 架构原则（精简）
 
-1. 本机文件读写：**仅 main**；preload 白名单；渲染进程 **`window.lclawElectron`**。
+1. 本机文件读写：**仅 main**；preload 白名单；渲染进程 **`window.didClawElectron`**。
 2. 连接配置：仍以 **`gateway-local.json`** 为准（现有逻辑）。
 3. **`openclaw.json`**：**固定路径** `path.join(homedir(), '.openclaw', 'openclaw.json')`（Windows 即用户目录下等价路径）。**不解析 `OPENCLAW_CONFIG_PATH`**。
 4. 不写 Gateway 源码。
@@ -70,7 +70,7 @@
 | **路由** | **删除 `/settings`** 及 `SettingsView.vue`；`router` 中移除对应 route。 |
 | **存储** | **删除** `gateway-web-storage` 及所有引用；`gateway.ts` 中非 Electron 分支按团队是否保留「无壳 Vite 联调」二选一：**要么删光只留 Electron**，要么保留最简「仅 env URL」仅供开发（拍板：若无人无壳调试，可删光）。 |
 | **顶栏 / 关于** | 去掉指向 `/settings` 的链接；关于页改为 **仅桌面** 说明；任何「连接设置」引导指向 **「本机」**。 |
-| **文档** | 轻量更新 [`lclaw-ui-功能补全清单.md`](./lclaw-ui-功能补全清单.md)：正式形态 Electron；删掉或改写「Web 端连接设置页」等条目；误导性「Control UI」用语改为 webchat + 文档链。**不必大改全书**。 |
+| **文档** | 轻量更新 [`didclaw-功能补全清单.md`](./didclaw-功能补全清单.md)：正式形态 Electron；删掉或改写「Web 端连接设置页」等条目；误导性「Control UI」用语改为 webchat + 文档链。**不必大改全书**。 |
 | **README** | 以 **exe / 打包** 为主；浏览器部署标为 **不支持** 或不写。 |
 
 **验收**：安装包内只靠「本机」完成网关连接配置；无 `/settings`、无 localStorage 网关覆盖逻辑。
@@ -114,7 +114,7 @@
 | `writeOpenClawModelConfig(payload)` | 合并写入 ①②；**写前完整备份**。 |
 | `readOpenClawProviders()` | 返回 **`models.providers`** 对象（浅拷贝各 provider）。 |
 | `writeOpenClawProvidersPatch({ patch })` | 按 provider id **合并**写入 ③；`patch[id]=null` 删除该供应商；**写前完整备份**。 |
-| `restoreOpenClawConfigToLatestBackup()` | 用最新 `openclaw.json.lclaw-backup-*` 覆盖当前配置；**覆盖前再备份当前文件**。 |
+| `restoreOpenClawConfigToLatestBackup()` | 用最新 `openclaw.json.didclaw-backup-*`（或历史 `*.lclaw-backup-*`）覆盖当前配置；**覆盖前再备份当前文件**。 |
 
 **渲染进程不暴露** `listOpenClawConfigBackups()`；枚举与排序仅在 main 内为 `restore…` 服务。
 

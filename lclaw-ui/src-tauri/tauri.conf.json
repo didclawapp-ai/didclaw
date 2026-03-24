@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "LCLAW UI",
+  "productName": "DidClaw",
   "version": "0.2.1",
-  "identifier": "com.lclaw.ui",
+  "identifier": "com.didclaw.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "LCLAW UI",
+        "title": "DidClaw",
         "width": 570,
         "height": 920,
         "resizable": true,

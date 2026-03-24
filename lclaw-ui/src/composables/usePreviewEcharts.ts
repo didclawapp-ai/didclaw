@@ -26,7 +26,7 @@ function base64ToUtf8(b64: string): string {
 }
 
 /**
- * 在已消毒的预览 HTML 中挂载 `.lclaw-chart[data-lclaw-chart]` 占位节点上的 ECharts 实例。
+ * 在已消毒的预览 HTML 中挂载 `.didclaw-chart[data-didclaw-chart]` 占位节点上的 ECharts 实例。
  */
 export function usePreviewEcharts(container: Ref<HTMLElement | null>, html: Ref<string>): void {
   const instances = new Map<HTMLElement, ECharts>();
@@ -39,9 +39,9 @@ export function usePreviewEcharts(container: Ref<HTMLElement | null>, html: Ref<
   }
 
   function mountCharts(root: HTMLElement): void {
-    const nodes = root.querySelectorAll<HTMLElement>(".lclaw-chart[data-lclaw-chart]");
+    const nodes = root.querySelectorAll<HTMLElement>(".didclaw-chart[data-didclaw-chart]");
     nodes.forEach((el) => {
-      const b64 = el.dataset.lclawChart?.trim();
+      const b64 = el.dataset.didclawChart?.trim();
       if (!b64) {
         return;
       }

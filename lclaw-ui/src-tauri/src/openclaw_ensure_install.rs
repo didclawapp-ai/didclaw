@@ -12,7 +12,7 @@ const LOG_CAP: usize = 120_000;
 
 /// 前端 `listen` 此事件以流式追加安装日志（payload: `{ stream, line }`）。
 #[cfg(windows)]
-pub const ENSURE_INSTALL_LOG_EVENT: &str = "lclaw-ensure-install-log";
+pub const ENSURE_INSTALL_LOG_EVENT: &str = "didclaw-ensure-install-log";
 
 #[cfg(windows)]
 fn resolve_ensure_script_path(app: &AppHandle) -> Result<PathBuf, String> {

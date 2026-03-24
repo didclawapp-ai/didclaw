@@ -13,7 +13,7 @@ import {
   shouldHideDiagnosticChatLine,
 } from "@/lib/chat-message-format";
 import { messageToChatLine } from "@/lib/chat-line";
-import { getLclawDesktopApi, isLclawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useFilePreviewStore } from "@/stores/filePreview";
@@ -97,7 +97,7 @@ const otherSessions = computed(() => {
 /** 有注册表行或已有 primary 时显示下拉（纯空配置仅保留「管理模型」） */
 const showOpenClawModelSelect = computed(
   () =>
-    isLclawElectron() &&
+    isDidClawElectron() &&
     (openClawModelPickerRows.value.length > 0 || Boolean(openClawPrimaryModel.value?.trim())),
 );
 
@@ -111,14 +111,14 @@ function onDeferredBannerDismiss(): void {
 }
 
 onMounted(() => {
-  if (isLclawElectron()) {
+  if (isDidClawElectron()) {
     syncDeferredModelBannerFromStorage();
     void chat.refreshOpenClawModelPicker();
   }
   void nextTick(() => {
     void (async () => {
-      const api = getLclawDesktopApi();
-      if (!isLclawElectron()) {
+      const api = getDidClawDesktopApi();
+      if (!isDidClawElectron()) {
         window.setTimeout(() => {
           gw.connect();
         }, 150);
@@ -193,7 +193,7 @@ function onSelectMessage(index: number) {
 }
 
 async function pickLocalFileForPreview(): Promise<void> {
-  const api = getLclawDesktopApi();
+  const api = getDidClawDesktopApi();
   if (!api) {
     return;
   }
@@ -206,11 +206,11 @@ async function pickLocalFileForPreview(): Promise<void> {
 
 <template>
   <div class="shell">
-    <FirstRunWizard v-if="isLclawElectron()" />
-    <OpenClawUpdatePrompt v-if="isLclawElectron()" />
+    <FirstRunWizard v-if="isDidClawElectron()" />
+    <OpenClawUpdatePrompt v-if="isDidClawElectron()" />
     <AppHeader />
     <div
-      v-if="isLclawElectron() && showDeferredModelBanner"
+      v-if="isDidClawElectron() && showDeferredModelBanner"
       class="lc-deferred-model-banner"
       role="status"
     >
@@ -245,7 +245,7 @@ async function pickLocalFileForPreview(): Promise<void> {
             :class="{ 'session-active-chip--empty': !activeSessionKey }"
             :title="activeSessionKey ?? '当前会话'"
           >{{ activeSessionLabel || "—" }}</span>
-          <div v-if="isLclawElectron()" class="session-model-tools">
+          <div v-if="isDidClawElectron()" class="session-model-tools">
             <select
               v-if="showOpenClawModelSelect"
               class="session-model-select"
@@ -278,10 +278,10 @@ async function pickLocalFileForPreview(): Promise<void> {
             </button>
           </div>
         </div>
-        <p v-if="isLclawElectron() && openClawPrimaryPickerError" class="err small session-model-err">
+        <p v-if="isDidClawElectron() && openClawPrimaryPickerError" class="err small session-model-err">
           {{ openClawPrimaryPickerError }}
         </p>
-        <p v-if="isLclawElectron() && openClawConfigHint" class="muted small session-config-hint">
+        <p v-if="isDidClawElectron() && openClawConfigHint" class="muted small session-config-hint">
           {{ openClawConfigHint }}
         </p>
         <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
@@ -318,7 +318,7 @@ async function pickLocalFileForPreview(): Promise<void> {
               显示诊断/配置
             </label>
             <button
-              v-if="isLclawElectron() && !isPreviewPaneOpen"
+              v-if="isDidClawElectron() && !isPreviewPaneOpen"
               type="button"
               class="lc-btn lc-btn-ghost lc-btn-xs toolbar-mini"
               title="打开本地文件并在右侧预览（PDF / 图片 / Office / Markdown / 文本）"

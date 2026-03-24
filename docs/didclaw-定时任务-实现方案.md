@@ -1,6 +1,6 @@
-# lclaw-ui 定时任务实现方案
+# didclaw 定时任务实现方案
 
-> 本文档对应 **lclaw-ui** 中基于 OpenClaw Gateway **内置调度器（cron）** 的定时任务能力：界面形态、与网关 RPC 的映射、列表解析与排障要点。  
+> 本文档对应 **didclaw** 中基于 OpenClaw Gateway **内置调度器（cron）** 的定时任务能力：界面形态、与网关 RPC 的映射、列表解析与排障要点。  
 > 官方行为与字段语义以 [OpenClaw 定时任务（中文）](https://docs.openclaw.ai/zh-CN/automation/cron-jobs) 为准。
 
 ## 1. 目标与边界
@@ -14,7 +14,7 @@
 ## 2. 架构关系
 
 ```
-用户 ──► lclaw-ui（CronJobsDialog）
+用户 ──► didclaw（CronJobsDialog）
            │  WebSocket JSON-RPC：cron.list / cron.add / cron.update / cron.remove / cron.run
            ▼
       OpenClaw Gateway（cron 服务）
@@ -30,9 +30,9 @@
 
 | 路径 | 职责 |
 |------|------|
-| `lclaw-ui/src/features/cron/CronJobsDialog.vue` | 定时任务弹窗：列表、新建、RPC 调用与响应解析。 |
-| `lclaw-ui/src/app/AppHeader.vue` | 顶部工具栏「定时任务」按钮，`v-model` 控制弹窗开关。 |
-| `lclaw-ui/src/features/gateway/gateway-client.ts` | 通用 `request(method, params)`，成功时 `resolve(res.payload)`。 |
+| `didclaw/src/features/cron/CronJobsDialog.vue` | 定时任务弹窗：列表、新建、RPC 调用与响应解析。 |
+| `didclaw/src/app/AppHeader.vue` | 顶部工具栏「定时任务」按钮，`v-model` 控制弹窗开关。 |
+| `didclaw/src/features/gateway/gateway-client.ts` | 通用 `request(method, params)`，成功时 `resolve(res.payload)`。 |
 | `docs/gateway-client-protocol-notes.md` | 维护 `cron.*` 与客户端能力对照（升级网关时同步核对）。 |
 
 ## 4. 界面结构
@@ -83,7 +83,7 @@
 
 ### 5.1 已使用的方法
 
-| 方法 | 用途 | lclaw-ui 请求要点 |
+| 方法 | 用途 | didclaw 请求要点 |
 |------|------|-------------------|
 | `cron.list` | 拉取任务列表 | **`{ enabled: "all", limit: 200 }`**：网关默认分页接口往往只返回「已启用」任务；必须拉全量否则「未勾选已启用」的新建任务看起来像未持久化。 |
 | `cron.add` | 新建 | 正文为 §4.2 映射后的对象；成功后再 `refreshList()`。 |
