@@ -3,6 +3,7 @@ identifier = "invoke-all"
 description = "LCLAW UI 桌面端 invoke 命令（迁移自 Electron IPC）"
 commands.allow = [
   "get_open_claw_setup_status",
+  "check_openclaw_update",
   "run_ensure_openclaw_windows_install",
   "preview_open_local",
   "preview_libre_office_status",
@@ -17,6 +18,7 @@ commands.allow = [
   "write_gateway_local_config",
   "ensure_open_claw_gateway",
   "restart_open_claw_gateway",
+  "openclaw_plugins_install",
   "gateway_tunnel_open",
   "gateway_tunnel_send",
   "gateway_tunnel_close",

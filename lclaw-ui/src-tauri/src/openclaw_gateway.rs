@@ -9,6 +9,60 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+/// 供 `openclaw plugins install` 子进程使用，与 OpenClaw 内置 ClawHub 客户端一致（见 dist clawhub-*.js）。
+fn build_plugins_install_clawhub_env(
+    token: Option<&str>,
+    registry: Option<&str>,
+) -> Vec<(String, String)> {
+    let mut v = Vec::new();
+    if let Some(t) = token.map(str::trim).filter(|s| !s.is_empty()) {
+        v.push(("OPENCLAW_CLAWHUB_TOKEN".into(), t.to_string()));
+        v.push(("CLAWHUB_TOKEN".into(), t.to_string()));
+    }
+    if let Some(r) = registry.map(str::trim).filter(|s| !s.is_empty()) {
+        let base = r.trim_end_matches('/').to_string();
+        v.push(("OPENCLAW_CLAWHUB_URL".into(), base.clone()));
+        v.push(("CLAWHUB_URL".into(), base));
+    }
+    v
+}
+
+fn apply_extra_env(cmd: &mut Command, extra: &[(String, String)]) {
+    for (k, val) in extra {
+        cmd.env(k, val);
+    }
+}
+
+fn output_text_looks_like_clawhub_rate_limit(text: &str) -> bool {
+    let l = text.to_ascii_lowercase();
+    if l.contains("rate limit exceeded")
+        || l.contains("too many requests")
+        || (l.contains("429") && l.contains("rate limit"))
+    {
+        return true;
+    }
+    l.contains("(429)") && l.contains("clawhub")
+}
+
+fn rate_limit_backoff_seconds(text: &str, attempt: usize) -> u64 {
+    let lower = text.to_ascii_lowercase();
+    for needle in ["retry-after:", "retry-after "] {
+        if let Some(idx) = lower.find(needle) {
+            let rest = text[idx + needle.len()..]
+                .trim_start()
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect::<String>();
+            if let Ok(n) = rest.parse::<u64>() {
+                if (1..=300).contains(&n) {
+                    return n;
+                }
+            }
+        }
+    }
+    (12u64 + attempt as u64 * 14).min(78)
+}
 use tokio::sync::Mutex as AsyncMutex;
 use url::Url;
 
@@ -506,6 +560,132 @@ fn run_openclaw_gateway_restart_captured(exe: &str) -> io::Result<std::process::
         .output()
 }
 
+#[cfg(windows)]
+fn windows_cmd_inner_line_for_openclaw(exe: &str, forward_args: &[&str]) -> String {
+    fn quote_if_needed(s: &str) -> String {
+        let needs = s.chars().any(|c| {
+            c.is_whitespace() || matches!(c, '&' | '(' | ')' | '^' | '%')
+        });
+        if needs {
+            format!("\"{}\"", s.replace('\"', "\\\""))
+        } else {
+            s.to_string()
+        }
+    }
+    let mut line = quote_if_needed(exe.trim());
+    for a in forward_args {
+        line.push(' ');
+        line.push_str(&quote_if_needed(a));
+    }
+    line
+}
+
+/// 运行已解析的 `openclaw` 可执行文件并捕获输出（与 `plugins install` 相同的 Windows 启动策略）。
+pub fn run_open_claw_cli_captured(
+    exe: &str,
+    forward_args: &[&str],
+    extra_env: &[(String, String)],
+) -> io::Result<std::process::Output> {
+    #[cfg(windows)]
+    {
+        use base64::{engine::general_purpose, Engine as _};
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+        let exe = exe.trim();
+        let lower = exe.to_ascii_lowercase();
+        let path_env = windows_enhanced_path();
+
+        if lower.ends_with(".exe") && Path::new(exe).is_file() {
+            let mut c = Command::new(exe);
+            c.args(forward_args)
+                .env("PATH", &path_env)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .creation_flags(CREATE_NO_WINDOW);
+            apply_extra_env(&mut c, extra_env);
+            return c.output();
+        }
+
+        if let Some(mjs) = openclaw_entry_mjs_next_to_npm_shim(exe) {
+            if let Some(node) = resolve_node_exe_windows() {
+                let pkg_root = mjs
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| mjs.clone());
+                let mut c = Command::new(node);
+                c.arg(&mjs)
+                    .args(forward_args)
+                    .env("PATH", &path_env)
+                    .current_dir(pkg_root)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .creation_flags(CREATE_NO_WINDOW);
+                apply_extra_env(&mut c, extra_env);
+                return c.output();
+            }
+        }
+
+        let inner = windows_cmd_inner_line_for_openclaw(exe, forward_args);
+        let inner_b64 = general_purpose::STANDARD.encode(inner.as_bytes());
+        let script = format!(
+            concat!(
+                "$ErrorActionPreference='Stop';",
+                "$inner=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{inner_b64}'));",
+                "$argsLine='/c '+$inner;",
+                "$psi=New-Object System.Diagnostics.ProcessStartInfo;",
+                "$psi.FileName='cmd.exe';$psi.Arguments=$argsLine;",
+                "$psi.UseShellExecute=$false;",
+                "$psi.RedirectStandardOutput=$true;",
+                "$psi.RedirectStandardError=$true;",
+                "$psi.CreateNoWindow=$true;",
+                "$p=[System.Diagnostics.Process]::Start($psi);",
+                "$out=$p.StandardOutput.ReadToEnd();$err=$p.StandardError.ReadToEnd();",
+                "$p.WaitForExit()|Out-Null;",
+                "[Console]::Out.Write($out);[Console]::Error.Write($err);",
+                "exit $p.ExitCode",
+            ),
+            inner_b64 = inner_b64
+        );
+
+        let mut c = Command::new("powershell.exe");
+        c.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            &script,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .creation_flags(CREATE_NO_WINDOW);
+        apply_extra_env(&mut c, extra_env);
+        c.output()
+    }
+    #[cfg(not(windows))]
+    {
+        let mut c = Command::new(exe.trim());
+        c.args(forward_args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        apply_extra_env(&mut c, extra_env);
+        c.output()
+    }
+}
+
+fn run_openclaw_plugins_install_captured(
+    exe: &str,
+    spec: &str,
+    extra_env: &[(String, String)],
+) -> io::Result<std::process::Output> {
+    run_open_claw_cli_captured(exe, &["plugins", "install", spec.trim()], extra_env)
+}
+
 fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
     #[cfg(windows)]
     {
@@ -652,6 +832,111 @@ pub fn restart_open_claw_gateway_service(app: &tauri::AppHandle) -> Value {
         "ok": false,
         "error": format!("网关服务重启失败：{detail}")
     })
+}
+
+/// 调用 `openclaw plugins install <package_spec>`（如 `clawhub:@scope/name`），与官方 CLI 一致。
+/// `clawhub_token` / `clawhub_registry` 会写入子进程环境变量，供 OpenClaw 内置 ClawHub 客户端使用（与 UI 搜索共用 `VITE_CLAWHUB_*` 时可显著缓解匿名 IP 429）。
+pub fn run_open_claw_plugins_install_service(
+    app: &tauri::AppHandle,
+    package_spec: String,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Value {
+    let spec = package_spec.trim();
+    if spec.is_empty() {
+        return json!({
+            "ok": false,
+            "error": "package_spec 为空"
+        });
+    }
+
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => {
+            return json!({ "ok": false, "error": e });
+        }
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+
+    let extra_env = build_plugins_install_clawhub_env(
+        clawhub_token.as_deref(),
+        clawhub_registry.as_deref(),
+    );
+
+    const MAX_ATTEMPTS: usize = 4;
+
+    for attempt in 0..MAX_ATTEMPTS {
+        let output = match run_openclaw_plugins_install_captured(&exe, spec, &extra_env) {
+            Ok(o) => o,
+            Err(e) => {
+                return json!({
+                    "ok": false,
+                    "error": format!("执行 openclaw plugins install 失败：{e}")
+                });
+            }
+        };
+
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+        if output.status.success() {
+            return json!({
+                "ok": true,
+                "stdout": stdout,
+                "stderr": stderr
+            });
+        }
+
+        let combined = format!("{stdout}\n{stderr}");
+        let retryable = output_text_looks_like_clawhub_rate_limit(&combined);
+
+        if retryable && attempt + 1 < MAX_ATTEMPTS {
+            let wait = rate_limit_backoff_seconds(&combined, attempt);
+            std::thread::sleep(Duration::from_secs(wait));
+            continue;
+        }
+
+        let mut detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if detail.is_empty() {
+            detail = output
+                .status
+                .code()
+                .map(|c| format!("退出码 {c}"))
+                .unwrap_or_else(|| "进程异常退出".into());
+        }
+        let mut err_msg = format!("openclaw plugins install 失败：{detail}");
+        let no_clawhub_token = clawhub_token
+            .as_ref()
+            .map(|s| s.trim().is_empty())
+            .unwrap_or(true);
+        if output_text_looks_like_clawhub_rate_limit(&combined) && no_clawhub_token {
+            err_msg.push_str(
+                " 提示：ClawHub 对匿名请求限流较严，可在构建环境配置 VITE_CLAWHUB_TOKEN（与技能搜索相同），或在终端执行 clawhub login / 设置环境变量 OPENCLAW_CLAWHUB_TOKEN 后再试。",
+            );
+        }
+        return json!({
+            "ok": false,
+            "error": err_msg,
+            "stdout": stdout,
+            "stderr": stderr
+        });
+    }
+
+    unreachable!("openclaw plugins install: 每次循环均 return")
 }
 
 pub async fn ensure_open_claw_gateway_running(

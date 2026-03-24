@@ -2,12 +2,17 @@
 import {
   clawhubDefaultRegistry,
   clawhubDownloadSkillZip,
-  clawhubSearch,
+  clawhubPackageDetail,
+  clawhubOpenclawCliEnvFromVite,
+  clawhubPackagesSearch,
   clawhubSkillDetail,
   ClawhubHttpError,
-  type ClawhubSearchHit,
+  type ClawhubCatalogHit,
+  type ClawhubPackageDetail,
+  type ClawhubPackageFamily,
   type ClawhubSkillDetail,
 } from "@/lib/clawhub-api";
+import { getLclawDesktopApi, isLclawDesktop } from "@/lib/desktop-api";
 import {
   arrayBufferToBase64,
   getStoredSkillsInstallRoot,
@@ -45,15 +50,18 @@ const subTab = ref<SubTab>("browse");
 const installRoot = ref("");
 const searchQuery = ref("");
 const searchLoading = ref(false);
-const searchHits = ref<ClawhubSearchHit[]>([]);
+const searchHits = ref<ClawhubCatalogHit[]>([]);
 const searchError = ref<string | null>(null);
 
 /** ClawHub 主区域：卡片（默认）或列表 */
 const hubResultsView = ref<"cards" | "list">("cards");
 
 const hubSlug = ref<string | null>(null);
+/** 详情区：技能走 skills API，插件走 packages API */
+const hubDetailKind = ref<"skill" | "package" | null>(null);
 const detailLoading = ref(false);
 const hubDetail = ref<ClawhubSkillDetail | null>(null);
+const hubPkgDetail = ref<ClawhubPackageDetail | null>(null);
 const detailError = ref<string | null>(null);
 
 const installBusy = ref(false);
@@ -144,6 +152,7 @@ const CLAWHUB_QUICK_SEARCH_ITEMS: ReadonlyArray<{ label: string; query: string }
   { label: "数据库 · database", query: "database sql 数据库" },
   { label: "自动化 · automation", query: "automation workflow 自动化" },
   { label: "API · 接口", query: "API REST HTTP 接口" },
+  { label: "插件 · plugin", query: "plugin" },
 ];
 
 async function onSearch(): Promise<void> {
@@ -151,17 +160,21 @@ async function onSearch(): Promise<void> {
   if (!q) {
     searchHits.value = [];
     hubSlug.value = null;
+    hubDetailKind.value = null;
     hubDetail.value = null;
+    hubPkgDetail.value = null;
     detailError.value = null;
     return;
   }
   searchLoading.value = true;
   searchError.value = null;
   hubSlug.value = null;
+  hubDetailKind.value = null;
   hubDetail.value = null;
+  hubPkgDetail.value = null;
   detailError.value = null;
   try {
-    const r = await clawhubSearch(q, { limit: 30 });
+    const r = await clawhubPackagesSearch(q, { limit: 30 });
     searchHits.value = r.results ?? [];
   } catch (e) {
     searchError.value = formatClawhubErr(e);
@@ -180,13 +193,20 @@ async function onQuickSearch(keyword: string): Promise<void> {
   await onSearch();
 }
 
-async function selectHubSlug(slug: string): Promise<void> {
+async function selectHubSlug(slug: string, family: ClawhubPackageFamily): Promise<void> {
   hubSlug.value = slug;
   hubDetail.value = null;
+  hubPkgDetail.value = null;
   detailError.value = null;
   detailLoading.value = true;
+  const isPlugin = family === "code-plugin" || family === "bundle-plugin";
+  hubDetailKind.value = isPlugin ? "package" : "skill";
   try {
-    hubDetail.value = await clawhubSkillDetail(slug);
+    if (isPlugin) {
+      hubPkgDetail.value = await clawhubPackageDetail(slug);
+    } else {
+      hubDetail.value = await clawhubSkillDetail(slug);
+    }
   } catch (e) {
     detailError.value = formatClawhubErr(e);
   } finally {
@@ -194,10 +214,109 @@ async function selectHubSlug(slug: string): Promise<void> {
   }
 }
 
-/** 从搜索结果安装：拉取详情以解析版本并校验审核状态 */
-async function installFromSearchHit(hit: ClawhubSearchHit): Promise<void> {
+function familyLabel(f: ClawhubPackageFamily): string {
+  if (f === "code-plugin") {
+    return "插件";
+  }
+  if (f === "bundle-plugin") {
+    return "捆绑包";
+  }
+  return "技能";
+}
+
+function normalizePkgFamily(f: string | undefined | null): ClawhubPackageFamily {
+  if (f === "code-plugin" || f === "bundle-plugin" || f === "skill") {
+    return f;
+  }
+  return "skill";
+}
+
+function pluginPackageSpec(slug: string): string {
+  const s = slug.trim();
+  if (!s) {
+    return s;
+  }
+  if (s.toLowerCase().startsWith("clawhub:")) {
+    return s;
+  }
+  return `clawhub:${s}`;
+}
+
+function truncateInstallFeedback(msg: string, maxLen = 720): string {
+  const t = msg.trim();
+  if (t.length <= maxLen) {
+    return t;
+  }
+  return `${t.slice(0, maxLen)}…`;
+}
+
+/** 桌面端：调用本机 `openclaw plugins install`（ClawHub 规格 `clawhub:包名`） */
+async function installClawhubPluginFromSlug(slug: string | null | undefined): Promise<void> {
+  const s = slug?.trim();
+  if (!s) {
+    return;
+  }
+  if (!isLclawDesktop()) {
+    installMessage.value = "安装插件需要桌面版。";
+    return;
+  }
+  const api = getLclawDesktopApi();
+  if (!api?.openclawPluginsInstall) {
+    installMessage.value =
+      "当前桌面壳不支持插件一键安装，请在终端执行：openclaw plugins install " + pluginPackageSpec(s);
+    return;
+  }
+  if (installBusy.value) {
+    installMessage.value = "正在安装其他项，请等待完成后再试。";
+    return;
+  }
+  installBusy.value = true;
+  installingSlug.value = s;
+  installMessage.value = null;
+  try {
+    const ch = clawhubOpenclawCliEnvFromVite();
+    const r = await api.openclawPluginsInstall({
+      packageSpec: pluginPackageSpec(s),
+      clawhubToken: ch.token,
+      clawhubRegistry: ch.registry,
+    });
+    if (r && typeof r === "object" && "ok" in r && r.ok === true) {
+      installMessage.value = truncateInstallFeedback(
+        `「${s}」已通过 OpenClaw CLI 安装。若网关已在运行，请重启网关后加载插件。`,
+      );
+      return;
+    }
+    const err =
+      r && typeof r === "object" && "error" in r && typeof (r as { error?: string }).error === "string"
+        ? (r as { error: string }).error
+        : "安装失败。";
+    installMessage.value = truncateInstallFeedback(err);
+  } catch (e) {
+    installMessage.value = truncateInstallFeedback(formatClawhubErr(e));
+  } finally {
+    installBusy.value = false;
+    installingSlug.value = null;
+  }
+}
+
+function installButtonDisabledForHit(h: ClawhubCatalogHit): boolean {
+  if (installBusy.value) {
+    return true;
+  }
+  if (h.family === "code-plugin" || h.family === "bundle-plugin") {
+    return !canOneClickPluginInstall.value;
+  }
+  return !isTauri();
+}
+
+/** 从搜索结果安装：skill → skills ZIP；插件 → 本机 openclaw CLI */
+async function installFromSearchHit(hit: ClawhubCatalogHit): Promise<void> {
   const slug = hit.slug?.trim();
   if (!slug) {
+    return;
+  }
+  if (hit.family === "code-plugin" || hit.family === "bundle-plugin") {
+    await installClawhubPluginFromSlug(slug);
     return;
   }
   if (!isTauri()) {
@@ -425,11 +544,37 @@ onUnmounted(() => {
 });
 
 const canInstallDetail = computed(() => {
+  if (hubDetailKind.value !== "skill") {
+    return false;
+  }
   const d = hubDetail.value;
   if (!d?.moderation?.isMalwareBlocked && d?.latestVersion?.version) {
     return true;
   }
   return false;
+});
+
+const canOneClickPluginInstall = computed(() => {
+  if (!isLclawDesktop()) {
+    return false;
+  }
+  const api = getLclawDesktopApi();
+  return typeof api?.openclawPluginsInstall === "function";
+});
+
+const canInstallPluginDetail = computed(() => {
+  if (hubDetailKind.value !== "package" || !hubPkgDetail.value?.package) {
+    return false;
+  }
+  const slug = hubSlug.value?.trim();
+  if (!slug) {
+    return false;
+  }
+  const f = normalizePkgFamily(hubPkgDetail.value.package.family);
+  if (f !== "code-plugin" && f !== "bundle-plugin") {
+    return false;
+  }
+  return canOneClickPluginInstall.value;
 });
 </script>
 
@@ -452,7 +597,9 @@ const canInstallDetail = computed(() => {
 
         <div class="skills-panel-top">
           <p class="skills-lead muted small">
-            从 ClawHub 搜索/浏览并安装到本机 <code>.openclaw/workspace/skills</code>，或上传 ZIP / 文件夹。安装后新开会话一般会加载技能。
+            ClawHub 统一搜索（<code>/api/v1/packages/search</code>）可同时发现<strong>技能</strong>与<strong>插件</strong>。技能可安装到本机
+            <code>.openclaw/workspace/skills</code>；桌面版在已配置 openclaw 可执行文件时，插件可通过「安装」调用官方
+            <code>openclaw plugins install clawhub:…</code>。亦可上传 ZIP / 文件夹安装技能。
           </p>
 
           <div v-if="isTauri()" class="skills-root-row">
@@ -514,7 +661,7 @@ const canInstallDetail = computed(() => {
               v-model="searchQuery"
               type="search"
               class="skills-search"
-              placeholder="搜索技能…"
+              placeholder="搜索技能或插件…"
               @keydown.enter="onSearch"
             >
             <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" :disabled="searchLoading" @click="onSearch">
@@ -564,13 +711,14 @@ const canInstallDetail = computed(() => {
           <div class="hub-results-region" aria-live="polite">
             <p v-if="searchLoading" class="muted small hub-results-status">搜索中…</p>
             <p v-else-if="!searchHits.length" class="muted small hub-results-empty">
-              输入关键词或点击「快捷搜索」，结果将显示在此区域。
+              输入关键词或点击「快捷搜索」；结果含技能与插件（标签区分）。技能走 ZIP 安装目录；插件在桌面版且已配置 openclaw 时可一键 CLI 安装。
             </p>
             <template v-else>
               <div v-if="hubResultsView === 'cards'" class="hub-card-grid">
-                <article v-for="h in searchHits" :key="h.slug" class="hub-result-card">
+                <article v-for="h in searchHits" :key="`${h.family}:${h.slug}`" class="hub-result-card">
                   <header class="hub-card-head">
                     <h3 class="hub-card-title">{{ h.displayName?.trim() || h.slug }}</h3>
+                    <span class="hub-card-family">{{ familyLabel(h.family) }}</span>
                     <code class="hub-card-slug">{{ h.slug }}</code>
                   </header>
                   <p class="hub-card-summary">{{ truncateSummary(h.summary, 200) }}</p>
@@ -578,22 +726,27 @@ const canInstallDetail = computed(() => {
                     <button
                       type="button"
                       class="lc-btn lc-btn-sm"
-                      :disabled="installBusy || !isTauri()"
+                      :disabled="installButtonDisabledForHit(h)"
                       @click="installFromSearchHit(h)"
                     >
                       {{ installBusy && installingSlug === h.slug ? "安装中…" : "安装" }}
                     </button>
-                    <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="selectHubSlug(h.slug)">
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-sm"
+                      @click="() => void selectHubSlug(h.slug, h.family)"
+                    >
                       详情
                     </button>
                   </footer>
                 </article>
               </div>
               <ul v-else class="hub-result-list" role="list">
-                <li v-for="h in searchHits" :key="h.slug" class="hub-list-row">
+                <li v-for="h in searchHits" :key="`${h.family}:${h.slug}`" class="hub-list-row">
                   <div class="hub-list-text">
                     <div class="hub-list-title-row">
                       <span class="hub-list-name">{{ h.displayName?.trim() || h.slug }}</span>
+                      <span class="hub-list-family">{{ familyLabel(h.family) }}</span>
                       <code class="hub-list-slug">{{ h.slug }}</code>
                     </div>
                     <p class="hub-list-summary">{{ truncateSummary(h.summary, 280) }}</p>
@@ -602,12 +755,16 @@ const canInstallDetail = computed(() => {
                     <button
                       type="button"
                       class="lc-btn lc-btn-sm lc-btn-ghost"
-                      :disabled="installBusy || !isTauri()"
+                      :disabled="installButtonDisabledForHit(h)"
                       @click="installFromSearchHit(h)"
                     >
                       {{ installBusy && installingSlug === h.slug ? "安装中…" : "安装" }}
                     </button>
-                    <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="selectHubSlug(h.slug)">
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-sm"
+                      @click="() => void selectHubSlug(h.slug, h.family)"
+                    >
                       详情
                     </button>
                   </div>
@@ -620,7 +777,7 @@ const canInstallDetail = computed(() => {
             <h3 class="detail-title">详情：{{ hubSlug }}</h3>
             <p v-if="detailLoading" class="muted">加载中…</p>
             <p v-else-if="detailError" class="err small">{{ detailError }}</p>
-            <template v-else-if="hubDetail">
+            <template v-else-if="hubDetailKind === 'skill' && hubDetail">
               <p class="detail-summary">{{ hubDetail.skill?.summary ?? "—" }}</p>
               <p v-if="hubDetail.latestVersion" class="small muted">
                 最新版本：{{ hubDetail.latestVersion.version }}
@@ -638,6 +795,31 @@ const canInstallDetail = computed(() => {
               >
                 {{ installBusy && installingSlug === hubSlug ? "安装中…" : "安装到本机" }}
               </button>
+            </template>
+            <template v-else-if="hubDetailKind === 'package' && hubPkgDetail?.package">
+              <p v-if="hubPkgDetail.package.family" class="small muted">
+                类型：{{ familyLabel(normalizePkgFamily(hubPkgDetail.package.family)) }}
+              </p>
+              <p class="detail-summary">{{ hubPkgDetail.package.summary ?? "—" }}</p>
+              <p v-if="hubPkgDetail.package.latestVersion" class="small muted">
+                最新版本：{{ hubPkgDetail.package.latestVersion }}
+              </p>
+              <p v-if="hubPkgDetail.package.channel" class="small muted">通道：{{ hubPkgDetail.package.channel }}</p>
+              <p v-if="hubPkgDetail.package.ownerHandle" class="small muted">发布者：@{{ hubPkgDetail.package.ownerHandle }}</p>
+              <button
+                v-if="canInstallPluginDetail && hubSlug"
+                type="button"
+                class="lc-btn lc-btn-sm skills-install-btn"
+                :disabled="installBusy"
+                @click="installClawhubPluginFromSlug(hubSlug)"
+              >
+                {{ installBusy && installingSlug === hubSlug ? "安装中…" : "安装插件（OpenClaw CLI）" }}
+              </button>
+              <p class="muted small">
+                说明与配置见
+                <a href="https://docs.openclaw.ai/tools/plugin" target="_blank" rel="noopener noreferrer">官方插件文档</a>
+                。
+              </p>
             </template>
           </div>
             </div>
@@ -980,6 +1162,18 @@ const canInstallDetail = computed(() => {
   font-size: 11px;
   color: var(--lc-accent);
   font-family: var(--lc-mono);
+}
+.hub-card-family,
+.hub-list-family {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lc-text-dim);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
 }
 .hub-card-summary {
   margin: 0;

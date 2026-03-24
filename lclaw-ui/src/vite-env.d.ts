@@ -78,6 +78,17 @@ interface LclawElectronApi {
   >;
   /** 执行 `openclaw gateway restart`（系统已安装的服务/计划任务） */
   restartOpenClawGateway?(): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** 执行 `openclaw plugins install <spec>`（如 ClawHub：`clawhub:@scope/name`） */
+  openclawPluginsInstall?(payload: {
+    packageSpec: string;
+    /** 与 `VITE_CLAWHUB_TOKEN` 同源，注入子进程以走用户配额 */
+    clawhubToken?: string;
+    /** 与 `VITE_CLAWHUB_REGISTRY` 同源 */
+    clawhubRegistry?: string;
+  }): Promise<
+    | { ok: true; stdout?: string; stderr?: string }
+    | { ok: false; error: string; stdout?: string; stderr?: string }
+  >;
   readOpenClawModelConfig(): Promise<
     | { ok: true; model: Record<string, unknown>; models: Record<string, unknown> }
     | { ok: false; error: string }
@@ -96,6 +107,20 @@ interface LclawElectronApi {
   readOpenClawProviders(): Promise<
     | { ok: true; providers: Record<string, unknown>; defaultAgentId: string }
     | { ok: false; error: string }
+  >;
+  /** 对比本机 `openclaw --version` 与 npm 最新版（需联网） */
+  checkOpenclawUpdate?(): Promise<
+    | {
+        ok: true;
+        exeFound: boolean;
+        exePath?: string | null;
+        currentVersion: string;
+        latestVersion: string | null;
+        registryError: string | null;
+        updateAvailable: boolean;
+        platform: string;
+      }
+    | { ok: false; error: string; platform?: string }
   >;
   /** 首次安装向导预检（桌面端） */
   getOpenClawSetupStatus(): Promise<{

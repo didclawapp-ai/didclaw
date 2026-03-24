@@ -6,6 +6,7 @@ mod openclaw_common;
 mod openclaw_ensure_install;
 mod openclaw_gateway;
 mod openclaw_gateway_origins;
+mod openclaw_version_check;
 mod openclaw_model_config;
 mod openclaw_providers;
 mod paths;
@@ -145,11 +146,13 @@ pub fn run() {
             commands::shell_copy_local_file_for_share,
             commands::dialog_open_file,
             commands::get_open_claw_setup_status,
+            commands::check_openclaw_update,
             commands::run_ensure_openclaw_windows_install,
             commands::read_gateway_local_config,
             commands::write_gateway_local_config,
             commands::ensure_open_claw_gateway,
             commands::restart_open_claw_gateway,
+            commands::openclaw_plugins_install,
             commands::gateway_tunnel_open,
             commands::gateway_tunnel_send,
             commands::gateway_tunnel_close,

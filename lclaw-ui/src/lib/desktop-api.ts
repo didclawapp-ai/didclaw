@@ -32,6 +32,16 @@ function tauriApi(): LclawElectronApi {
     ensureOpenClawGateway: (payload) =>
       invoke("ensure_open_claw_gateway", { wsUrl: payload.wsUrl }),
     restartOpenClawGateway: () => invoke("restart_open_claw_gateway"),
+    openclawPluginsInstall: (payload: {
+      packageSpec: string;
+      clawhubToken?: string;
+      clawhubRegistry?: string;
+    }) =>
+      invoke("openclaw_plugins_install", {
+        packageSpec: payload.packageSpec,
+        clawhubToken: payload.clawhubToken?.trim() || null,
+        clawhubRegistry: payload.clawhubRegistry?.trim() || null,
+      }),
     readOpenClawModelConfig: () => invoke("read_open_claw_model_config"),
     writeOpenClawModelConfig: (payload) =>
       invoke("write_open_claw_model_config", { payload }),
@@ -40,6 +50,7 @@ function tauriApi(): LclawElectronApi {
     writeOpenClawProvidersPatch: (payload) =>
       invoke("write_open_claw_providers_patch", { payload }),
     getOpenClawSetupStatus: () => invoke("get_open_claw_setup_status"),
+    checkOpenclawUpdate: () => invoke("check_openclaw_update"),
     runEnsureOpenclawWindowsInstall: (payload: { skipOnboard: boolean }) =>
       invoke("run_ensure_openclaw_windows_install", {
         skipOnboard: payload.skipOnboard,

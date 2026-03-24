@@ -150,6 +150,15 @@ pub fn get_open_claw_setup_status(app: tauri::AppHandle) -> Result<Value, String
 }
 
 #[tauri::command]
+pub async fn check_openclaw_update(app: tauri::AppHandle) -> Result<Value, String> {
+    let app = app.clone();
+    let v = tokio::task::spawn_blocking(move || crate::openclaw_version_check::check_openclaw_update_impl(&app))
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(v)
+}
+
+#[tauri::command]
 pub async fn run_ensure_openclaw_windows_install(
     app: tauri::AppHandle,
     skip_onboard: bool,
@@ -193,6 +202,21 @@ pub async fn ensure_open_claw_gateway(
 #[tauri::command]
 pub fn restart_open_claw_gateway(app: tauri::AppHandle) -> Result<Value, String> {
     Ok(crate::openclaw_gateway::restart_open_claw_gateway_service(&app))
+}
+
+#[tauri::command]
+pub fn openclaw_plugins_install(
+    app: tauri::AppHandle,
+    package_spec: String,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Result<Value, String> {
+    Ok(crate::openclaw_gateway::run_open_claw_plugins_install_service(
+        &app,
+        package_spec,
+        clawhub_token,
+        clawhub_registry,
+    ))
 }
 
 #[tauri::command]

@@ -1,6 +1,7 @@
 /**
  * ClawHub Registry 公开 HTTP 接口（搜索 / 列表 / 详情 / 下载 zip）。
- * 与官方 CLI 行为对齐：{@link https://github.com/openclaw/clawhub/blob/main/packages/clawdhub/src/cli/commands/skills.ts}
+ * 统一目录搜索：`GET /api/v1/packages/search`（技能 + code/bundle 插件），见仓库 `docs/http-api.md`。
+ * 技能专用：`GET /api/v1/search`、`/api/v1/skills` 等仍保留。
  */
 
 const DEFAULT_REGISTRY = "https://clawhub.ai";
@@ -113,8 +114,51 @@ export type ClawhubSearchHit = {
   updatedAt?: number | null;
 };
 
+/** {@link clawhubPackagesSearch} 结果行：含 ClawHub 统一目录中的 family */
+export type ClawhubPackageFamily = "skill" | "code-plugin" | "bundle-plugin";
+
+export type ClawhubCatalogHit = ClawhubSearchHit & {
+  family: ClawhubPackageFamily;
+};
+
 export type ClawhubSearchResponse = {
   results: ClawhubSearchHit[];
+};
+
+/** `GET /api/v1/packages/search` 单行（与线上一致） */
+export type ClawhubPackageSearchRow = {
+  score: number;
+  package: {
+    name: string;
+    displayName?: string | null;
+    summary?: string | null;
+    family: ClawhubPackageFamily | string;
+    latestVersion?: string | null;
+    updatedAt?: number | null;
+    channel?: string | null;
+    executesCode?: boolean;
+    isOfficial?: boolean;
+    ownerHandle?: string | null;
+  };
+};
+
+export type ClawhubPackagesSearchResponse = {
+  results: ClawhubPackageSearchRow[];
+};
+
+/** `GET /api/v1/packages/{name}` 详情（字段随上游扩展，按需取用） */
+export type ClawhubPackageDetail = {
+  package?: {
+    name: string;
+    displayName?: string | null;
+    summary?: string | null;
+    family?: string | null;
+    latestVersion?: string | null;
+    channel?: string | null;
+    executesCode?: boolean;
+    isOfficial?: boolean;
+    ownerHandle?: string | null;
+  } | null;
 };
 
 export type ClawhubListItem = {
@@ -199,6 +243,43 @@ function assertSafeSlug(slug: string): string {
     throw new Error(`无效的 skill slug: ${slug}`);
   }
   return s;
+}
+
+/** 统一目录包名（含 `@scope/pkg`），仅禁止路径穿越 */
+function assertSafePackageName(name: string): string {
+  const s = name.trim();
+  if (!s || s.includes("..")) {
+    throw new Error(`无效的包名: ${name}`);
+  }
+  return s;
+}
+
+function clampPackagesSearchLimit(limit: number, fallback = 30): number {
+  if (!Number.isFinite(limit)) {
+    return fallback;
+  }
+  return Math.min(Math.max(1, Math.floor(limit)), 100);
+}
+
+function normalizePackageFamily(f: string | undefined): ClawhubPackageFamily {
+  if (f === "code-plugin" || f === "bundle-plugin" || f === "skill") {
+    return f;
+  }
+  return "skill";
+}
+
+function mapPackageSearchRow(row: ClawhubPackageSearchRow): ClawhubCatalogHit {
+  const p = row.package;
+  const family = normalizePackageFamily(p.family);
+  return {
+    score: row.score,
+    slug: p.name,
+    displayName: p.displayName,
+    summary: p.summary,
+    version: p.latestVersion ?? null,
+    updatedAt: p.updatedAt ?? null,
+    family,
+  };
 }
 
 async function fetchJson<T>(
@@ -292,7 +373,72 @@ export function clawhubAuthFromEnv(): Pick<ClawhubClientOptions, "token"> {
 }
 
 /**
- * 向量/关键词搜索技能。
+ * 与 {@link clawhubAuthFromEnv} 同源，并带上 Registry 根 URL（`VITE_CLAWHUB_REGISTRY`）。
+ * 供桌面端注入 `openclaw plugins install` 子进程环境变量（OpenClaw 读取 `OPENCLAW_CLAWHUB_TOKEN` / `OPENCLAW_CLAWHUB_URL` 等），可缓解匿名 IP 的 ClawHub 429。
+ */
+export function clawhubOpenclawCliEnvFromVite(): { token?: string; registry?: string } {
+  const { token } = clawhubAuthFromEnv();
+  const raw = import.meta.env.VITE_CLAWHUB_REGISTRY?.trim();
+  const registry =
+    raw && raw.length > 0 ? (raw.endsWith("/") ? raw.slice(0, -1) : raw) : undefined;
+  const out: { token?: string; registry?: string } = {};
+  if (token) {
+    out.token = token;
+  }
+  if (registry) {
+    out.registry = registry;
+  }
+  return out;
+}
+
+/**
+ * 统一目录搜索：技能 + code-plugin + bundle-plugin。
+ * `GET /api/v1/packages/search?q=...&limit=...`（limit 1–100）
+ */
+export async function clawhubPackagesSearch(
+  query: string,
+  opts: ClawhubClientOptions & {
+    limit?: number;
+    family?: ClawhubPackageFamily;
+    channel?: "official" | "community" | "private";
+  } = {},
+): Promise<{ results: ClawhubCatalogHit[] }> {
+  const q = query.trim();
+  if (!q) {
+    return { results: [] };
+  }
+  const params = new URLSearchParams();
+  params.set("q", q);
+  params.set("limit", String(clampPackagesSearchLimit(opts.limit ?? 30)));
+  if (opts.family) {
+    params.set("family", opts.family);
+  }
+  if (opts.channel) {
+    params.set("channel", opts.channel);
+  }
+  const url = apiUrl(opts.registry, "/api/v1/packages/search", params);
+  const token = opts.token ?? clawhubAuthFromEnv().token;
+  const raw = await fetchJson<ClawhubPackagesSearchResponse>(url, { method: "GET" }, token);
+  const rows = raw.results ?? [];
+  return { results: rows.map(mapPackageSearchRow) };
+}
+
+/**
+ * 包详情（插件或统一目录下的技能条目）。
+ * `GET /api/v1/packages/{name}`（name 需 URL 编码，含 `@scope/name`）
+ */
+export async function clawhubPackageDetail(
+  name: string,
+  opts: ClawhubClientOptions = {},
+): Promise<ClawhubPackageDetail> {
+  const n = assertSafePackageName(name);
+  const url = apiUrl(opts.registry, `/api/v1/packages/${encodeURIComponent(n)}`);
+  const token = opts.token ?? clawhubAuthFromEnv().token;
+  return fetchJson<ClawhubPackageDetail>(url, { method: "GET" }, token);
+}
+
+/**
+ * 向量/关键词搜索技能（仅 skills，不含插件）。
  * `GET /api/v1/search?q=...&limit=...`
  */
 export async function clawhubSearch(

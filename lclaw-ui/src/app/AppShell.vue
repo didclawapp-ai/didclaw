@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppHeader from "@/app/AppHeader.vue";
 import FirstRunWizard from "@/features/onboarding/FirstRunWizard.vue";
+import OpenClawUpdatePrompt from "@/features/openclaw/OpenClawUpdatePrompt.vue";
 import ChatRunStatusBar from "@/features/chat/ChatRunStatusBar.vue";
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import InlineToolTimeline from "@/features/chat/InlineToolTimeline.vue";
@@ -206,6 +207,7 @@ async function pickLocalFileForPreview(): Promise<void> {
 <template>
   <div class="shell">
     <FirstRunWizard v-if="isLclawElectron()" />
+    <OpenClawUpdatePrompt v-if="isLclawElectron()" />
     <AppHeader />
     <div
       v-if="isLclawElectron() && showDeferredModelBanner"
