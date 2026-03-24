@@ -32,8 +32,8 @@ import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowS
 import { storeToRefs } from "pinia";
 import { computed, nextTick, onMounted, ref } from "vue";
 
-/** 与参考「流式占位」一致：首包 delta 到达前也显示助手行 */
-const STREAMING_PENDING_LABEL = "正在生成回复…";
+/** 与参考「流式占位」一致：首包 delta 到达前也显示助手行（长任务常处于推理/工具阶段，无文本增量） */
+const STREAMING_PENDING_LABEL = "正在处理（推理或工具调用中，请稍候）…";
 
 const session = useSessionStore();
 const chat = useChatStore();

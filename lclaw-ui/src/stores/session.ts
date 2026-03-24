@@ -21,14 +21,20 @@ export const useSessionStore = defineStore("session", () => {
 
   const activeSession = computed(() => sessions.value.find((s) => s.key === activeSessionKey.value) ?? null);
 
-  async function refresh(): Promise<void> {
+  /**
+   * 刷新会话列表。
+   * @returns 若因当前会话切换而已触发 `loadHistory`，返回 `true`；否则 `false`。
+   *   避免每次 refresh 都拉历史：否则会清空进行中的 `runId`/`streamText`，表现为「AI 像停住了」。
+   */
+  async function refresh(): Promise<boolean> {
     const gw = useGatewayStore();
     const c = gw.client;
     if (!c?.connected) {
-      return;
+      return false;
     }
     loading.value = true;
     error.value = null;
+    let historyReloaded = false;
     try {
       const res = await c.request<unknown>("sessions.list", {
         includeGlobal: true,
@@ -38,7 +44,7 @@ export const useSessionStore = defineStore("session", () => {
       if (!parsed.success) {
         error.value = `会话列表格式异常：${formatZodIssues(parsed.error)}`;
         sessions.value = [];
-        return;
+        return false;
       }
       const list = parsed.data.sessions ?? [];
       sessions.value = list.filter((s) => typeof s.key === "string");
@@ -50,23 +56,25 @@ export const useSessionStore = defineStore("session", () => {
         sessions.value = [{ key: DEFAULT_MAIN_SESSION_KEY, label: "main" }];
       }
 
-      const cur = activeSessionKey.value;
+      const prevKey = activeSessionKey.value;
       if (
         sessions.value.length > 0 &&
-        (!cur || !sessions.value.some((s) => s.key === cur))
+        (!prevKey || !sessions.value.some((s) => s.key === prevKey))
       ) {
         activeSessionKey.value = sessions.value[0]?.key ?? null;
       }
       const key = activeSessionKey.value;
-      if (key) {
+      if (key && key !== prevKey) {
         const { useChatStore } = await import("./chat");
         await useChatStore().loadHistory();
+        historyReloaded = true;
       }
     } catch (e) {
       error.value = describeGatewayError(e);
     } finally {
       loading.value = false;
     }
+    return historyReloaded;
   }
 
   /**

@@ -141,8 +141,12 @@ export const useGatewayStore = defineStore("gateway", () => {
             helloInfo.value = "Connected";
           }
           status.value = "connected";
-          void import("./session").then(({ useSessionStore }) => {
-            void useSessionStore().refresh();
+          void import("./session").then(async ({ useSessionStore }) => {
+            const reloaded = await useSessionStore().refresh();
+            if (!reloaded) {
+              const { useChatStore } = await import("./chat");
+              await useChatStore().loadHistory({ silent: true });
+            }
           });
           void import("./chat").then(({ useChatStore }) => {
             void useChatStore().refreshOpenClawModelPicker();

@@ -84,7 +84,7 @@ const phaseLabel = computed(() => {
   }
   const n = toolEntriesThisRun.value.length;
   if (composerPhase.value === "waiting") {
-    return n > 0 ? "正在调用工具…" : "思考或等待首包…";
+    return n > 0 ? "正在调用工具…" : "推理或工具中，等待输出…";
   }
   if (n > 0) {
     return `正在生成…（含 ${n} 条工具事件）`;
