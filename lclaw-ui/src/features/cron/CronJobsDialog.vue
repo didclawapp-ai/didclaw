@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { extractCronRunsEntries, normalizeCronPageMeta } from "@/lib/cron-gateway";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
@@ -23,9 +24,36 @@ const sessions = useSessionStore();
 type PanelTab = "list" | "create";
 const panelTab = ref<PanelTab>("list");
 
+const JOBS_PAGE_LIMIT = 50;
+const RUNS_PAGE_LIMIT = 40;
+
 const jobs = ref<Record<string, unknown>[]>([]);
 const listError = ref<string | null>(null);
 const listLoading = ref(false);
+const jobsLoadingMore = ref(false);
+const jobsTotal = ref(0);
+const jobsHasMore = ref(false);
+const jobsNextOffset = ref<number | null>(null);
+const jobsSortBy = ref<"nextRunAtMs" | "updatedAtMs" | "name">("nextRunAtMs");
+const jobsSortDir = ref<"asc" | "desc">("asc");
+
+const cronStatus = ref<{
+  enabled?: boolean;
+  jobs?: number;
+  nextWakeAtMs?: number | null;
+} | null>(null);
+const statusLoading = ref(false);
+
+const runsScope = ref<"all" | "job">("all");
+const runsJobId = ref<string | null>(null);
+const runs = ref<Record<string, unknown>[]>([]);
+const runsError = ref<string | null>(null);
+const runsLoading = ref(false);
+const runsLoadingMore = ref(false);
+const runsTotal = ref(0);
+const runsHasMore = ref(false);
+const runsNextOffset = ref<number | null>(null);
+const runsSortDir = ref<"asc" | "desc">("desc");
 
 /** 调度：一次性 / 固定间隔 / Cron（与官方「调度」一致） */
 const scheduleKind = ref<"at" | "every" | "cron">("every");
@@ -114,8 +142,55 @@ watch(jobAgentChoice, (c) => {
  * 网关 `cron.list` 常见形态：
  * - 分页：`{ jobs, total, offset, limit, hasMore }`（OpenClaw main）
  * - 或直出数组 / `{ jobs: [] }`
- * 另：对 `jobs` 为「id → 任务」的对象做兼容。
+ * 另：对 `jobs` 为「id → 任务」的对象做兼容；部分版本可能用 `rows` / `records` 或再包一层 `payload`。
  */
+const CRON_LIST_ARRAY_KEYS = [
+  "jobs",
+  "items",
+  "list",
+  "entries",
+  "rows",
+  "records",
+  "values",
+] as const;
+
+function isCronJobLike(x: unknown): boolean {
+  if (!x || typeof x !== "object" || Array.isArray(x)) {
+    return false;
+  }
+  const r = x as Record<string, unknown>;
+  if (r.schedule && typeof r.schedule === "object" && !Array.isArray(r.schedule)) {
+    return true;
+  }
+  if (typeof r.jobId === "string" && r.jobId.trim()) {
+    return true;
+  }
+  if (typeof r.id === "string" && r.id.trim() && (r.name !== undefined || r.payload !== undefined)) {
+    return true;
+  }
+  return false;
+}
+
+/** 结构化解析失败后，浅层扫描对象树中的「任务对象」数组（兼容未文档化的字段名）。 */
+function extractJobsHeuristic(res: unknown, depth = 0): Record<string, unknown>[] {
+  if (depth > 4 || !res || typeof res !== "object") {
+    return [];
+  }
+  const o = res as Record<string, unknown>;
+  for (const v of Object.values(o)) {
+    if (Array.isArray(v) && v.length > 0 && v.every(isCronJobLike)) {
+      return v as Record<string, unknown>[];
+    }
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const nested = extractJobsHeuristic(v, depth + 1);
+      if (nested.length > 0) {
+        return nested;
+      }
+    }
+  }
+  return [];
+}
+
 function extractJobs(res: unknown): Record<string, unknown>[] {
   if (Array.isArray(res)) {
     return res.filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x));
@@ -124,7 +199,7 @@ function extractJobs(res: unknown): Record<string, unknown>[] {
     return [];
   }
   const o = res as Record<string, unknown>;
-  for (const key of ["jobs", "items", "list", "entries"] as const) {
+  for (const key of CRON_LIST_ARRAY_KEYS) {
     const raw = o[key];
     if (Array.isArray(raw)) {
       return raw.filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x));
@@ -139,7 +214,14 @@ function extractJobs(res: unknown): Record<string, unknown>[] {
       }
     }
   }
-  for (const wrap of ["data", "result"] as const) {
+  const nestedCron = o.cron;
+  if (nestedCron && typeof nestedCron === "object" && !Array.isArray(nestedCron)) {
+    const fromCron = extractJobs(nestedCron);
+    if (fromCron.length > 0) {
+      return fromCron;
+    }
+  }
+  for (const wrap of ["data", "result", "payload"] as const) {
     const inner = o[wrap];
     if (inner) {
       const nested = extractJobs(inner);
@@ -148,7 +230,7 @@ function extractJobs(res: unknown): Record<string, unknown>[] {
       }
     }
   }
-  return [];
+  return extractJobsHeuristic(res);
 }
 
 function jobIdOf(j: Record<string, unknown>): string {
@@ -193,24 +275,306 @@ function isJobEnabled(j: Record<string, unknown>): boolean {
   return j.enabled !== false;
 }
 
-async function refreshList(): Promise<void> {
-  listError.value = null;
+function formatMsLocal(ms: unknown): string {
+  if (typeof ms !== "number" || !Number.isFinite(ms)) {
+    return "—";
+  }
+  try {
+    return new Date(ms).toLocaleString();
+  } catch {
+    return String(ms);
+  }
+}
+
+function jobStateSummary(j: Record<string, unknown>): string {
+  const st = j.state;
+  if (!st || typeof st !== "object" || Array.isArray(st)) {
+    return "—";
+  }
+  const s = st as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof s.lastStatus === "string" && s.lastStatus) {
+    parts.push(`最近：${s.lastStatus}`);
+  }
+  if (typeof s.nextRunAtMs === "number") {
+    parts.push(`下次 ${formatMsLocal(s.nextRunAtMs)}`);
+  }
+  if (typeof s.lastRunAtMs === "number") {
+    parts.push(`上次 ${formatMsLocal(s.lastRunAtMs)}`);
+  }
+  return parts.length ? parts.join(" · ") : "—";
+}
+
+function runEntryTitle(r: Record<string, unknown>): string {
+  const name = typeof r.jobName === "string" && r.jobName.trim() ? r.jobName.trim() : null;
+  const id = typeof r.jobId === "string" && r.jobId.trim() ? r.jobId.trim() : "";
+  return name ? `${name}（${id || "?"}）` : id || "—";
+}
+
+function runEntryStatus(r: Record<string, unknown>): string {
+  const st = r.status;
+  return typeof st === "string" && st ? st : "—";
+}
+
+function runEntrySummaryLine(r: Record<string, unknown>): string {
+  if (typeof r.summary === "string" && r.summary.trim()) {
+    return r.summary.trim();
+  }
+  if (typeof r.error === "string" && r.error.trim()) {
+    return r.error.trim();
+  }
+  return "（无摘要）";
+}
+
+function runSessionKey(r: Record<string, unknown>): string {
+  const k = r.sessionKey;
+  return typeof k === "string" && k.trim() ? k.trim() : "";
+}
+
+function runDeliveryLabel(r: Record<string, unknown>): string {
+  const d = r.deliveryStatus;
+  return typeof d === "string" && d ? d : "—";
+}
+
+async function loadCronStatusOnly(): Promise<void> {
+  const c = gw.client;
+  if (!c?.connected) {
+    cronStatus.value = null;
+    return;
+  }
+  try {
+    const res = await c.request<unknown>("cron.status", {});
+    if (res && typeof res === "object" && !Array.isArray(res)) {
+      cronStatus.value = res as {
+        enabled?: boolean;
+        jobs?: number;
+        nextWakeAtMs?: number | null;
+      };
+    } else {
+      cronStatus.value = null;
+    }
+  } catch {
+    cronStatus.value = null;
+  }
+}
+
+async function loadCronJobsPage(append: boolean): Promise<void> {
   const c = gw.client;
   if (!c?.connected) {
     jobs.value = [];
+    jobsTotal.value = 0;
+    jobsHasMore.value = false;
+    jobsNextOffset.value = null;
     return;
   }
-  listLoading.value = true;
+  const baseOffset = append ? Math.max(0, jobsNextOffset.value ?? jobs.value.length) : 0;
+  if (append) {
+    if (!jobsHasMore.value) {
+      return;
+    }
+    jobsLoadingMore.value = true;
+  } else {
+    listLoading.value = true;
+  }
+  listError.value = null;
   try {
-    // 网关默认只返回「已启用」任务；未勾选「已启用」创建的任务会被持久化但此前列表为空，易误判为未保存。
-    const res = await c.request<unknown>("cron.list", { enabled: "all", limit: 200 });
-    jobs.value = extractJobs(res);
+    let res: unknown;
+    try {
+      res = await c.request<unknown>("cron.list", {
+        enabled: "all",
+        includeDisabled: true,
+        limit: JOBS_PAGE_LIMIT,
+        offset: baseOffset,
+        sortBy: jobsSortBy.value,
+        sortDir: jobsSortDir.value,
+      });
+    } catch {
+      res = await c.request<unknown>("cron.list", {
+        enabled: "all",
+        limit: 200,
+        ...(baseOffset > 0 ? { offset: baseOffset } : {}),
+      });
+    }
+    const pageJobs = extractJobs(res);
+    jobs.value = append ? [...jobs.value, ...pageJobs] : pageJobs;
+    if (res && typeof res === "object" && !Array.isArray(res)) {
+      const o = res as Record<string, unknown>;
+      const meta = normalizeCronPageMeta({
+        totalRaw: o.total,
+        limitRaw: o.limit,
+        offsetRaw: o.offset,
+        nextOffsetRaw: o.nextOffset,
+        hasMoreRaw: o.hasMore,
+        pageCount: pageJobs.length,
+        currentOffset: baseOffset,
+      });
+      jobsTotal.value = Math.max(meta.total, jobs.value.length);
+      jobsHasMore.value = meta.hasMore;
+      jobsNextOffset.value = meta.nextOffset;
+    } else {
+      jobsTotal.value = jobs.value.length;
+      jobsHasMore.value = false;
+      jobsNextOffset.value = null;
+    }
   } catch (e) {
-    jobs.value = [];
+    if (!append) {
+      jobs.value = [];
+      jobsTotal.value = 0;
+      jobsHasMore.value = false;
+      jobsNextOffset.value = null;
+    }
     listError.value = describeGatewayError(e);
   } finally {
-    listLoading.value = false;
+    if (append) {
+      jobsLoadingMore.value = false;
+    } else {
+      listLoading.value = false;
+    }
   }
+}
+
+async function loadMoreJobs(): Promise<void> {
+  await loadCronJobsPage(true);
+}
+
+async function loadCronRuns(append: boolean): Promise<void> {
+  const c = gw.client;
+  if (!c?.connected) {
+    runs.value = [];
+    return;
+  }
+  const scope = runsScope.value;
+  const activeId = runsJobId.value?.trim() || null;
+  if (scope === "job" && !activeId) {
+    runs.value = [];
+    runsTotal.value = 0;
+    runsHasMore.value = false;
+    runsNextOffset.value = null;
+    return;
+  }
+  if (append && !runsHasMore.value) {
+    return;
+  }
+  const offset = append ? Math.max(0, runsNextOffset.value ?? runs.value.length) : 0;
+  if (append) {
+    runsLoadingMore.value = true;
+  } else {
+    runsLoading.value = true;
+  }
+  runsError.value = null;
+  try {
+    const res = await c.request<unknown>("cron.runs", {
+      scope,
+      id: scope === "job" ? activeId ?? undefined : undefined,
+      limit: RUNS_PAGE_LIMIT,
+      offset,
+      sortDir: runsSortDir.value,
+    });
+    const entries = extractCronRunsEntries(res);
+    const sameJob =
+      scope === "all" || (activeId != null && runsJobId.value != null && runsJobId.value === activeId);
+    runs.value = append && sameJob ? [...runs.value, ...entries] : entries;
+    if (res && typeof res === "object" && !Array.isArray(res)) {
+      const o = res as Record<string, unknown>;
+      const meta = normalizeCronPageMeta({
+        totalRaw: o.total,
+        limitRaw: o.limit,
+        offsetRaw: o.offset,
+        nextOffsetRaw: o.nextOffset,
+        hasMoreRaw: o.hasMore,
+        pageCount: entries.length,
+        currentOffset: offset,
+      });
+      runsTotal.value = Math.max(meta.total, runs.value.length);
+      runsHasMore.value = meta.hasMore;
+      runsNextOffset.value = meta.nextOffset;
+    } else {
+      runsTotal.value = runs.value.length;
+      runsHasMore.value = false;
+      runsNextOffset.value = null;
+    }
+  } catch (e) {
+    if (!append) {
+      runs.value = [];
+      runsTotal.value = 0;
+      runsHasMore.value = false;
+      runsNextOffset.value = null;
+    }
+    runsError.value = describeGatewayError(e);
+  } finally {
+    if (append) {
+      runsLoadingMore.value = false;
+    } else {
+      runsLoading.value = false;
+    }
+  }
+}
+
+async function loadMoreRuns(): Promise<void> {
+  await loadCronRuns(true);
+}
+
+async function refreshOverview(): Promise<void> {
+  const c = gw.client;
+  if (!c?.connected) {
+    jobs.value = [];
+    cronStatus.value = null;
+    runs.value = [];
+    return;
+  }
+  listError.value = null;
+  runsError.value = null;
+  statusLoading.value = true;
+  await loadCronStatusOnly();
+  statusLoading.value = false;
+  await loadCronJobsPage(false);
+  await loadCronRuns(false);
+}
+
+async function refreshList(): Promise<void> {
+  await refreshOverview();
+}
+
+function onJobsSortChange(): void {
+  if (!connected.value) {
+    return;
+  }
+  void loadCronJobsPage(false).then(() => {
+    void loadCronRuns(false);
+  });
+}
+
+function onRunsFiltersChange(): void {
+  if (!connected.value) {
+    return;
+  }
+  void loadCronRuns(false);
+}
+
+function onRunsJobSelect(event: Event): void {
+  const el = event.target as HTMLSelectElement;
+  runsJobId.value = el.value.trim() || null;
+  onRunsFiltersChange();
+}
+
+function selectJobForRuns(jobId: string): void {
+  if (!jobId) {
+    return;
+  }
+  runsScope.value = "job";
+  runsJobId.value = jobId;
+  if (connected.value) {
+    void loadCronRuns(false);
+  }
+}
+
+async function openRunInChat(sessionKey: string): Promise<void> {
+  const k = sessionKey.trim();
+  if (!k) {
+    return;
+  }
+  await sessions.selectSession(k);
+  open.value = false;
 }
 
 watch(
@@ -219,7 +583,7 @@ watch(
     if (v) {
       createError.value = null;
       createOk.value = null;
-      void refreshList();
+      void refreshOverview();
       if (gw.client?.connected) {
         void sessions.refresh();
       }
@@ -231,11 +595,12 @@ watch(
   () => gw.status,
   (s) => {
     if (open.value && s === "connected") {
-      void refreshList();
+      void refreshOverview();
       void sessions.refresh();
     }
   },
 );
+
 
 function buildSchedule():
   | { kind: "at"; at: string }
@@ -377,7 +742,7 @@ async function submitCreate(): Promise<void> {
 
     await c.request("cron.add", body);
     createOk.value = "任务已创建。";
-    await refreshList();
+    await refreshOverview();
     panelTab.value = "list";
   } catch (e) {
     createError.value = describeGatewayError(e);
@@ -394,8 +759,8 @@ async function runJobNow(jobId: string): Promise<void> {
   rowBusyId.value = jobId;
   listError.value = null;
   try {
-    await c.request("cron.run", { jobId, mode: "force" });
-    await refreshList();
+    await c.request("cron.run", { id: jobId, mode: "force" });
+    await refreshOverview();
   } catch (e) {
     listError.value = describeGatewayError(e);
   } finally {
@@ -413,8 +778,8 @@ async function toggleEnabled(j: Record<string, unknown>): Promise<void> {
   rowBusyId.value = jobId;
   listError.value = null;
   try {
-    await c.request("cron.update", { jobId, patch: { enabled: next } });
-    await refreshList();
+    await c.request("cron.update", { id: jobId, patch: { enabled: next } });
+    await refreshOverview();
   } catch (e) {
     listError.value = describeGatewayError(e);
   } finally {
@@ -436,8 +801,8 @@ async function removeJob(jobId: string): Promise<void> {
   rowBusyId.value = jobId;
   listError.value = null;
   try {
-    await c.request("cron.remove", { jobId });
-    await refreshList();
+    await c.request("cron.remove", { id: jobId });
+    await refreshOverview();
   } catch (e) {
     listError.value = describeGatewayError(e);
   } finally {
@@ -467,6 +832,8 @@ async function removeJob(jobId: string): Promise<void> {
           由<strong>当前已连接的 Gateway</strong> 调度；任务文件在该网关进程所在机器的用户目录下
           <code>~/.openclaw/cron/</code>（Windows 多为
           <code>%USERPROFILE%\.openclaw\cron\</code>）。网关需保持运行。若任务为一次性且勾选「运行成功后删除」，执行成功后会从列表消失，属正常。
+          <strong>DidClaw 客户端的 SQLite</strong>（本机配置/KV）<strong>不参与</strong>定时任务存储；摘要来自
+          <code>cron.status</code>，任务来自 <code>cron.list</code>，下方运行记录来自 <code>cron.runs</code>（与官方 Control UI 一致）。聊天里出现的「提醒」若未持久化为 cron 任务，列表可能仍为空。
           详见
           <a
             href="https://docs.openclaw.ai/zh-CN/automation/cron-jobs"
@@ -503,25 +870,75 @@ async function removeJob(jobId: string): Promise<void> {
         </div>
 
         <div v-else-if="panelTab === 'list'" class="cron-body" role="tabpanel">
-          <div class="cron-toolbar">
+          <section class="cron-status-strip muted small" aria-label="调度器状态">
+            <div class="cron-status-item">
+              <span class="cron-status-label">调度器</span>
+              <span class="cron-status-value">{{
+                cronStatus == null
+                  ? statusLoading
+                    ? "…"
+                    : "—"
+                  : cronStatus.enabled === false
+                    ? "已关闭"
+                    : "运行中"
+              }}</span>
+            </div>
+            <div class="cron-status-item">
+              <span class="cron-status-label">任务数（网关）</span>
+              <span class="cron-status-value">{{
+                cronStatus != null && typeof cronStatus.jobs === "number" ? cronStatus.jobs : "—"
+              }}</span>
+            </div>
+            <div class="cron-status-item cron-status-item--wide">
+              <span class="cron-status-label">下次唤醒</span>
+              <span class="cron-status-value" :title="formatMsLocal(cronStatus?.nextWakeAtMs ?? undefined)">{{
+                formatMsLocal(cronStatus?.nextWakeAtMs ?? undefined)
+              }}</span>
+            </div>
+          </section>
+
+          <div class="cron-toolbar cron-toolbar-row">
             <button
               type="button"
               class="lc-btn lc-btn-ghost lc-btn-sm"
-              :disabled="listLoading"
+              :disabled="listLoading || statusLoading"
               @click="refreshList"
             >
-              {{ listLoading ? "刷新中…" : "刷新" }}
+              {{ listLoading || statusLoading ? "刷新中…" : "刷新" }}
             </button>
+            <label class="cron-toolbar-field muted small">
+              <span>排序字段</span>
+              <select v-model="jobsSortBy" class="cron-select cron-select-compact" @change="onJobsSortChange">
+                <option value="nextRunAtMs">下次运行</option>
+                <option value="updatedAtMs">最近更新</option>
+                <option value="name">名称</option>
+              </select>
+            </label>
+            <label class="cron-toolbar-field muted small">
+              <span>顺序</span>
+              <select v-model="jobsSortDir" class="cron-select cron-select-compact" @change="onJobsSortChange">
+                <option value="asc">升序</option>
+                <option value="desc">降序</option>
+              </select>
+            </label>
+            <span v-if="jobs.length || jobsTotal > 0" class="muted small cron-toolbar-meta">
+              已加载 {{ jobs.length }} / 总计约 {{ jobsTotal }}
+            </span>
           </div>
           <p v-if="listError" class="err small">{{ listError }}</p>
-          <p v-if="!listLoading && !jobs.length && !listError" class="muted small">暂无任务。切换到「新建」添加任务（一次性或周期调度 + 执行方式 + 可选投递）。</p>
+          <p v-if="!listLoading && !jobs.length && !listError" class="muted small">
+            暂无任务。切换到「新建」添加任务（一次性或周期调度 + 执行方式 + 可选投递）。下方可查看
+            <code>cron.runs</code>
+            运行记录。若曾创建<strong>一次性且运行成功后删除</strong>的任务，执行成功后条目会消失。
+          </p>
           <div v-if="jobs.length" class="cron-table-wrap">
             <table class="cron-table">
               <thead>
                 <tr>
                   <th>名称</th>
                   <th>调度</th>
-                  <th>状态</th>
+                  <th>启用</th>
+                  <th>运行态</th>
                   <th class="cron-th-actions">操作</th>
                 </tr>
               </thead>
@@ -533,7 +950,16 @@ async function removeJob(jobId: string): Promise<void> {
                   </td>
                   <td class="cron-sched">{{ formatScheduleSummary(j.schedule) }}</td>
                   <td>{{ isJobEnabled(j) ? "启用" : "暂停" }}</td>
+                  <td class="cron-sched">{{ jobStateSummary(j) }}</td>
                   <td class="cron-actions">
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-xs"
+                      :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
+                      @click="selectJobForRuns(jobIdOf(j))"
+                    >
+                      运行记录
+                    </button>
                     <button
                       type="button"
                       class="lc-btn lc-btn-ghost lc-btn-xs"
@@ -563,6 +989,105 @@ async function removeJob(jobId: string): Promise<void> {
               </tbody>
             </table>
           </div>
+          <div v-if="jobsHasMore" class="cron-load-more">
+            <button
+              type="button"
+              class="lc-btn lc-btn-ghost lc-btn-sm"
+              :disabled="jobsLoadingMore"
+              @click="loadMoreJobs"
+            >
+              {{ jobsLoadingMore ? "加载中…" : "加载更多任务" }}
+            </button>
+          </div>
+
+          <fieldset class="cron-fieldset cron-runs-fieldset">
+            <legend class="cron-legend">运行记录</legend>
+            <p class="cron-section-desc muted small">
+              网关 <code>cron.runs</code>；可选查看全部任务或单一任务的历次执行（与官方 Control UI 同源）。
+            </p>
+            <div class="cron-runs-toolbar">
+              <label class="cron-field cron-field-inline cron-runs-field">
+                <span class="cron-label">范围</span>
+                <select
+                  v-model="runsScope"
+                  class="cron-select cron-select-compact"
+                  @change="onRunsFiltersChange"
+                >
+                  <option value="all">全部任务</option>
+                  <option value="job">指定任务</option>
+                </select>
+              </label>
+              <label class="cron-field cron-field-inline cron-runs-field cron-runs-field-grow">
+                <span class="cron-label">任务</span>
+                <select
+                  class="cron-select"
+                  :disabled="runsScope !== 'job'"
+                  :value="runsJobId ?? ''"
+                  @change="onRunsJobSelect"
+                >
+                  <option value="">选择任务…</option>
+                  <option v-for="(j, idx) in jobs" :key="jobIdOf(j) || `opt-${idx}`" :value="jobIdOf(j)">
+                    {{ typeof j.name === 'string' ? j.name : jobIdOf(j) || '—' }}
+                  </option>
+                </select>
+              </label>
+              <label class="cron-field cron-field-inline cron-runs-field">
+                <span class="cron-label">时间顺序</span>
+                <select
+                  v-model="runsSortDir"
+                  class="cron-select cron-select-compact"
+                  @change="onRunsFiltersChange"
+                >
+                  <option value="desc">新的在前</option>
+                  <option value="asc">旧的在前</option>
+                </select>
+              </label>
+            </div>
+            <p v-if="runsError" class="err small">{{ runsError }}</p>
+            <p
+              v-if="runsScope === 'job' && !runsJobId && !runsLoading"
+              class="muted small"
+            >
+              请选择上方任务，或点击表格中的「运行记录」。
+            </p>
+            <p v-else-if="runsLoading" class="muted small">运行记录加载中…</p>
+            <p v-else-if="!runs.length && !runsError" class="muted small">暂无匹配的运行记录。</p>
+            <ul v-else class="cron-run-list">
+              <li v-for="(r, ridx) in runs" :key="ridx" class="cron-run-entry">
+                <div class="cron-run-entry__head">
+                  <span class="cron-run-entry__title">{{ runEntryTitle(r) }}</span>
+                  <span class="muted cron-run-entry__status">{{ runEntryStatus(r) }}</span>
+                </div>
+                <div class="cron-run-entry__summary muted small">{{ runEntrySummaryLine(r) }}</div>
+                <div class="cron-run-entry__meta muted small">
+                  <span>{{ formatMsLocal(r.ts) }}</span>
+                  <span v-if="typeof r.durationMs === 'number'"> · {{ r.durationMs }}ms</span>
+                  <span> · 投递 {{ runDeliveryLabel(r) }}</span>
+                  <span v-if="typeof r.model === 'string' && r.model"> · {{ r.model }}</span>
+                </div>
+                <div v-if="runSessionKey(r)" class="cron-run-entry__actions">
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-xs"
+                    @click="openRunInChat(runSessionKey(r))"
+                  >
+                    打开会话
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <div v-if="runsHasMore && (runsScope === 'all' || runsJobId)" class="cron-load-more">
+              <button
+                type="button"
+                class="lc-btn lc-btn-ghost lc-btn-sm"
+                :disabled="runsLoadingMore"
+                @click="loadMoreRuns"
+              >
+                {{ runsLoadingMore ? "加载中…" : "加载更多记录" }}
+              </button>
+              <span class="muted small cron-runs-total">已加载 {{ runs.length }} / 约 {{ runsTotal }}</span>
+            </div>
+          </fieldset>
         </div>
 
         <div v-else class="cron-body cron-create" role="tabpanel">
@@ -678,11 +1203,27 @@ async function removeJob(jobId: string): Promise<void> {
             <label class="cron-field">
               <span class="cron-label">会话 <span class="cron-req">*</span></span>
               <select v-model="sessionTarget" class="cron-select">
-                <option value="main">主会话（系统事件，随心跳处理）</option>
-                <option value="isolated">隔离会话（独立助手轮次）</option>
+                <option value="main">主会话（写入主聊天时间线 · 系统事件）</option>
+                <option value="isolated">隔离会话（cron: 独立轮次，与主时间线分离）</option>
               </select>
               <span class="muted small cron-field-hint">
-                主会话发布系统事件；隔离会话在独立会话中运行助手。
+                与
+                <a
+                  href="https://docs.openclaw.ai/automation/cron-jobs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="cron-doc-link"
+                  >官方定时任务说明</a>
+                一致：<strong>主会话</strong>把 <code>systemEvent</code> 排进主会话，在下一次心跳用主上下文处理，适合要在<strong>当前聊天窗</strong>里延续的对话；
+                <strong>隔离</strong>在 <code>cron:&lt;jobId&gt;</code> 会话单独跑一轮（见
+                <a
+                  href="https://docs.openclaw.ai/concepts/session"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="cron-doc-link"
+                  >Session</a>
+                ），主列表里需切换到对应会话才看得到全文；若开「投递 → 发布摘要」，可向渠道发摘要并在主会话出现短摘要（视网关与
+                <code>wakeMode</code>）。
               </span>
             </label>
             <label class="cron-field">
@@ -805,8 +1346,8 @@ async function removeJob(jobId: string): Promise<void> {
 .cron-panel {
   display: flex;
   flex-direction: column;
-  width: min(720px, 100%);
-  max-height: min(90vh, 920px);
+  width: min(960px, 100%);
+  max-height: min(90vh, 960px);
   overflow: hidden;
   background: var(--lc-surface-panel);
   border: 1px solid var(--lc-border);
@@ -873,6 +1414,121 @@ async function removeJob(jobId: string): Promise<void> {
 .cron-toolbar {
   margin-bottom: 10px;
 }
+.cron-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+.cron-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+.cron-toolbar-meta {
+  align-self: center;
+}
+.cron-status-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 10px 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-elevated);
+  line-height: 1.35;
+}
+.cron-status-item {
+  min-width: 0;
+}
+.cron-status-item--wide {
+  grid-column: 1 / -1;
+}
+@media (min-width: 560px) {
+  .cron-status-item--wide {
+    grid-column: auto;
+  }
+}
+.cron-status-label {
+  display: block;
+  font-size: 11px;
+  color: var(--lc-text-muted);
+  margin-bottom: 2px;
+}
+.cron-status-value {
+  font-weight: 600;
+  color: var(--lc-text);
+  word-break: break-word;
+}
+.cron-select-compact {
+  min-width: 7.5rem;
+  max-width: 12rem;
+}
+.cron-load-more {
+  margin: 10px 0 16px;
+}
+.cron-runs-fieldset {
+  margin-top: 4px;
+}
+.cron-runs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+.cron-runs-field {
+  margin-bottom: 0;
+}
+.cron-runs-field-grow {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+.cron-runs-total {
+  margin-left: 10px;
+}
+.cron-run-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cron-run-entry {
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--lc-bg-raised);
+}
+.cron-run-entry__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.cron-run-entry__title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.cron-run-entry__status {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.cron-run-entry__summary {
+  margin-top: 6px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.cron-run-entry__meta {
+  margin-top: 6px;
+  font-size: 11px;
+}
+.cron-run-entry__actions {
+  margin-top: 8px;
+}
 .cron-table-wrap {
   overflow-x: auto;
 }
@@ -935,6 +1591,14 @@ async function removeJob(jobId: string): Promise<void> {
   display: block;
   margin-top: 4px;
   line-height: 1.35;
+}
+.cron-doc-link {
+  color: var(--lc-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cron-doc-link:hover {
+  opacity: 0.9;
 }
 .cron-field-grow {
   flex: 1 1 160px;

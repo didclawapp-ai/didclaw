@@ -7,8 +7,8 @@
 
 | 项 | 说明 |
 |----|------|
-| **目标** | 在已连接 Gateway 的前提下，提供定时任务的**列表、新建、启用/暂停、立即运行、删除**；新建表单对齐「调度 → 执行 → 投递」心智，并支持选择常见代理 ID。 |
-| **不负责** | 不在 UI 内编辑 `openclaw.json` 的 `cron.store` 路径；不替代网关侧调度执行与运行历史文件格式；**任务编辑（除启用状态外）** 当前未做完整表单，需 CLI 或后续迭代。 |
+| **目标** | 在已连接 Gateway 的前提下，提供定时任务的**列表、新建、启用/暂停、立即运行、删除**；**`cron.status` 摘要**、**`cron.runs` 运行记录**（与官方 Control UI 同源 RPC）；新建表单对齐「调度 → 执行 → 投递」心智，并支持选择常见代理 ID。 |
+| **不负责** | 不在 UI 内编辑 `openclaw.json` 的 `cron.store` 路径；不替代网关侧持久化文件格式；**任务完整编辑**（除启用状态外）当前未做表单，需 CLI 或后续迭代。 |
 | **依赖** | `GatewayClient` WebSocket、`useGatewayStore` 已连接；网关需开启 cron（默认开启；完全禁用见官方文档 `cron.enabled` / `OPENCLAW_SKIP_CRON`）。 |
 
 ## 2. 架构关系
@@ -30,7 +30,8 @@
 
 | 路径 | 职责 |
 |------|------|
-| `didclaw/src/features/cron/CronJobsDialog.vue` | 定时任务弹窗：列表、新建、RPC 调用与响应解析。 |
+| `didclaw/src/features/cron/CronJobsDialog.vue` | 定时任务弹窗：列表、新建、`cron.status` / `cron.runs`、RPC 与响应解析。 |
+| `didclaw/src/lib/cron-gateway.ts` | `cron.list` / `cron.runs` 分页 meta、`entries` 宽松解析。 |
 | `didclaw/src/app/AppHeader.vue` | 顶部工具栏「定时任务」按钮，`v-model` 控制弹窗开关。 |
 | `didclaw/src/features/gateway/gateway-client.ts` | 通用 `request(method, params)`，成功时 `resolve(res.payload)`。 |
 | `docs/gateway-client-protocol-notes.md` | 维护 `cron.*` 与客户端能力对照（升级网关时同步核对）。 |
@@ -85,11 +86,13 @@
 
 | 方法 | 用途 | didclaw 请求要点 |
 |------|------|-------------------|
-| `cron.list` | 拉取任务列表 | **`{ enabled: "all", limit: 200 }`**：网关默认分页接口往往只返回「已启用」任务；必须拉全量否则「未勾选已启用」的新建任务看起来像未持久化。 |
-| `cron.add` | 新建 | 正文为 §4.2 映射后的对象；成功后再 `refreshList()`。 |
-| `cron.update` | 更新 | 当前仅用于 `patch: { enabled }` 切换暂停/启用；参数使用 `jobId`（见 §5.3）。 |
-| `cron.remove` | 删除 | `jobId`；删除前 `confirm`。 |
-| `cron.run` | 立即运行 | `{ jobId, mode: "force" }`。 |
+| `cron.status` | 调度器摘要 | `{}`；用于弹窗顶部「调度器 / 任务数 / 下次唤醒」。 |
+| `cron.list` | 拉取任务列表 | 与官方对齐：优先 `enabled: "all"`、`includeDisabled: true`、`limit`、`offset`、`sortBy`、`sortDir`；不支持的网关回退 `{ enabled: "all", limit: 200 }`（可选 `offset`）。 |
+| `cron.runs` | 运行历史 | `scope`、`id`（按任务时）、`limit`、`offset`、`sortDir`；支持「加载更多」。 |
+| `cron.add` | 新建 | 正文为 §4.2 映射后的对象；成功后再 `refreshOverview()`。 |
+| `cron.update` | 更新 | 当前仅用于 `patch: { enabled }`；参数使用 **`id`**（与官方 UI 一致，§5.3）。 |
+| `cron.remove` | 删除 | **`id`**；删除前 `confirm`。 |
+| `cron.run` | 立即运行 | `{ id, mode: "force" }`。 |
 
 网关侧较新版本对 `id` / `jobId` 多已做兼容；客户端统一用列表里解析出的字符串作为 `jobId` 传参即可。
 
@@ -104,16 +107,18 @@ OpenClaw 当前主线常见返回为**分页对象**：
 实现上还对以下形态做了宽松兼容，以降低网关版本差异带来的空列表：
 
 - 顶层即为任务数组；  
-- `jobs` / `items` / `list` / `entries` 为数组；  
+- `jobs` / `items` / `list` / `entries` / `rows` / `records` / `values` 为数组；  
 - `jobs` 为「id → 任务对象」的字典（`Object.values`）；  
-- 外层再包一层 `data` / `result`。
+- 外层再包一层 `data` / `result` / `payload`，或 `cron` 下再嵌套上述结构；  
+- 以上均不匹配时，对返回对象做**有限深度**扫描，取首个「元素均含 `schedule` 或 `jobId` 等 cron 特征」的数组（兼容未文档化字段名）。
 
 ### 5.3 任务主键展示与 RPC
 
 列表行内展示与 `cron.run` / `cron.update` / `cron.remove` 使用的标识符由 **`jobIdOf`** 解析：
 
 - 优先非空字符串 **`jobId`**（兼容旧数据）；  
-- 否则使用 **`id`**（新存储常见字段）。
+- 否则使用 **`id`**（新存储常见字段）。  
+- 发往网关的 **`cron.update` / `cron.remove` / `cron.run`** 使用 **`id`** 字段（与 `openclaw-src/ui` 一致）。
 
 ## 6. 代理（agentId）选择策略
 
@@ -147,14 +152,15 @@ OpenClaw 当前主线常见返回为**分页对象**：
 
 1. **Zod**：为 `cron.list` 响应与 `cron.add` 成功回包增加可选校验，便于升级网关时快速失败并记录原始 payload。  
 2. **编辑任务**：对选中任务打开表单，调用 `cron.update` 提交 `patch`（调度、payload、delivery 等）。  
-3. **运行历史**：只读展示 `cron.runs`（若产品需要）。  
+3. **运行历史**：已接 `cron.runs`；可再对齐官方的多状态 / 投递筛选项与搜索。  
 4. **代理列表**：读取 `openclaw.json` 的 `agents.list`（桌面 IPC 已具备读配置能力时）或网关未来 RPC，替代纯会话推断。  
-5. **分页**：任务数超过 `limit: 200` 时，根据 `hasMore` / `nextOffset` 翻页或加载更多。
+5. **分页**：界面已支持「加载更多任务」；若单页上限需与网关策略再调，可改 `CronJobsDialog` 内 `JOBS_PAGE_LIMIT`。
 
 ## 10. 文档与版本
 
 | 日期 | 说明 |
 |------|------|
 | 2026-03-24 | 初稿：与当前 `CronJobsDialog` / `AppHeader` 实现及 `cron.list` 全量列表修复对齐。 |
+| 2026-03-24 | 对齐官方 Control UI：`cron.status`、`cron.runs`、列表排序/分页、`cron.*` 使用 `id`；`src/lib/cron-gateway.ts` 分页 meta 与 runs 解析。 |
 
 维护时请同步更新：`docs/gateway-client-protocol-notes.md` 中 `cron.*` 行、以及官方 OpenClaw 文档链接。

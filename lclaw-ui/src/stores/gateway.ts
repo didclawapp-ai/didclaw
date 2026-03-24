@@ -9,6 +9,12 @@ import { isDidClawDesktop } from "@/lib/desktop-api";
 import { isTauri } from "@tauri-apps/api/core";
 import { cancelDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import { describeGatewayError } from "@/lib/gateway-errors";
+import {
+  agentEventWarrantsChatHistorySync,
+  isGatewayPushDebugEnabled,
+  logGatewayPush,
+  summarizeGatewayEvent,
+} from "@/lib/gateway-debug-log";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
@@ -131,6 +137,7 @@ export const useGatewayStore = defineStore("gateway", () => {
         url: opts.url,
         token: opts.token,
         password: opts.password,
+        clientVersion: `didclaw/${__APP_VERSION__}`,
         clientMode: isDidClawDesktop() ? GATEWAY_CLIENT_MODE_UI : GATEWAY_CLIENT_MODE,
         useTauriTunnel: isTauri(),
         onHello: (hello) => {
@@ -153,8 +160,74 @@ export const useGatewayStore = defineStore("gateway", () => {
           });
         },
         onEvent: (evt) => {
-          if (import.meta.env.DEV && evt.event !== "chat") {
+          if (isGatewayPushDebugEnabled()) {
+            const s = summarizeGatewayEvent(evt);
+            logGatewayPush("WS event → store", {
+              ...s,
+              note: "chat / sessions.changed / cron·agent→history 等",
+            });
+          } else if (import.meta.env.DEV && evt.event !== "chat") {
             console.debug("[didclaw][gateway event]", evt.event, evt.payload);
+          }
+          /**
+           * 与官方 Control UI `app-gateway.ts` 一致：会话列表或消息在网关侧变化时广播
+           * `sessions.changed`。若不处理，仅依赖 `chat` 流式事件，会出现定时任务等写入主会话后
+           * 界面不刷新、重连后 `chat.history` 才对齐的现象。
+           */
+          if (evt.event === "sessions.changed") {
+            if (isGatewayPushDebugEnabled()) {
+              logGatewayPush("sessions.changed → sessions.refresh + chat.loadHistory(silent)");
+            }
+            void import("./session").then(async ({ useSessionStore }) => {
+              await useSessionStore().refresh();
+            });
+            void import("./chat").then(({ useChatStore }) => {
+              void useChatStore().loadHistory({ silent: true });
+            });
+          }
+          /**
+           * 排障见用户日志：定时任务期间有 `cron`/`agent` 而无 `chat`。网关仍会把落库消息写在 transcript，
+           * 节流 `chat.history` 即可实时对齐，无需等重连。
+           */
+          if (evt.event === "cron") {
+            if (isGatewayPushDebugEnabled()) {
+              const pl = evt.payload;
+              const keys =
+                pl && typeof pl === "object" && !Array.isArray(pl)
+                  ? Object.keys(pl as object).slice(0, 14)
+                  : [];
+              logGatewayPush("cron WS event → scheduleDebouncedSilentHistoryFromGateway", { keys });
+            }
+            void import("./chat").then(({ useChatStore }) => {
+              useChatStore().scheduleDebouncedSilentHistoryFromGateway("cron");
+            });
+          }
+          if (evt.event === "agent") {
+            const p = evt.payload as { sessionKey?: unknown } | undefined;
+            const sk = p && typeof p.sessionKey === "string" ? p.sessionKey : null;
+            void import("./session").then(({ useSessionStore }) => {
+              const active = useSessionStore().activeSessionKey;
+              if (!sk || !active || sk !== active) {
+                return;
+              }
+              if (!agentEventWarrantsChatHistorySync(evt.payload)) {
+                if (isGatewayPushDebugEnabled()) {
+                  logGatewayPush("agent WS event 跳过 history 同步（多为 tool start/update）", {
+                    sessionKey: sk,
+                  });
+                }
+                return;
+              }
+              if (isGatewayPushDebugEnabled()) {
+                logGatewayPush(
+                  "agent WS event（sessionKey=当前选中）→ scheduleDebouncedSilentHistoryFromGateway",
+                  { sessionKey: sk },
+                );
+              }
+              void import("./chat").then(({ useChatStore }) => {
+                useChatStore().scheduleDebouncedSilentHistoryFromGateway("agent");
+              });
+            });
           }
           void import("./chat").then(({ useChatStore }) => {
             useChatStore().handleGatewayEvent(evt);

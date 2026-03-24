@@ -13,6 +13,11 @@ import { messageToChatLine } from "@/lib/chat-line";
 import { OPENCLAW_AFTER_WRITE_HINT } from "@/lib/openclaw-config-hint";
 import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
+import {
+  isGatewayPushDebugEnabled,
+  logGatewayPush,
+  summarizeChatEventPayload,
+} from "@/lib/gateway-debug-log";
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
 import { formatZodIssues } from "@/lib/zod-format";
@@ -316,12 +321,20 @@ export const useChatStore = defineStore("chat", () => {
     const session = useSessionStore();
     const key = session.activeSessionKey;
     if (!c?.connected || !key) {
+      logGatewayPush("loadHistory 跳过（未连接或无当前会话）", {
+        silent,
+        connected: !!c?.connected,
+        sessionKey: key,
+      });
       messages.value = [];
       streamText.value = null;
       runId.value = null;
       runStartedAtMs.value = null;
       lastDeltaAtMs.value = null;
       return;
+    }
+    if (silent && isGatewayPushDebugEnabled()) {
+      logGatewayPush("loadHistory(silent) 请求 chat.history", { sessionKey: key, limit: 200 });
     }
     if (!silent) {
       historyLoading.value = true;
@@ -351,13 +364,50 @@ export const useChatStore = defineStore("chat", () => {
       runId.value = null;
       runStartedAtMs.value = null;
       lastDeltaAtMs.value = null;
+      if (silent && isGatewayPushDebugEnabled()) {
+        logGatewayPush("loadHistory(silent) 完成", {
+          sessionKey: key,
+          incomingCount: incoming.length,
+          mergedCount: messages.value.length,
+        });
+      }
     } catch (e) {
       lastError.value = describeGatewayError(e);
+      logGatewayPush("loadHistory 失败", {
+        silent,
+        sessionKey: key,
+        error: describeGatewayError(e),
+      });
     } finally {
       if (!silent) {
         historyLoading.value = false;
       }
     }
+  }
+
+  /**
+   * 实测部分网关版本在定时任务 / 后台 run 时大量推送 `cron` 与 `agent`，却**不一定**下发 `chat`。
+   * 仅靠 `handleGatewayEvent(chat)` 时主时间线不会实时更新；在**本机未在发送且未有 runId** 时节流拉
+   * `chat.history` 与 transcript 对齐（与重连后行为一致）。
+   */
+  const GATEWAY_CHAT_SYNC_DEBOUNCE_MS = 750;
+  let gatewayChatSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function scheduleDebouncedSilentHistoryFromGateway(source: string): void {
+    if (gatewayChatSyncTimer !== null) {
+      clearTimeout(gatewayChatSyncTimer);
+    }
+    gatewayChatSyncTimer = window.setTimeout(() => {
+      gatewayChatSyncTimer = null;
+      if (sending.value || runId.value != null) {
+        logGatewayPush("cron/agent → debounced loadHistory 跳过（本机发送或流式 runId 占用）", {
+          source,
+        });
+        return;
+      }
+      logGatewayPush("cron/agent → debounced loadHistory(silent)", { source });
+      void loadHistory({ silent: true });
+    }, GATEWAY_CHAT_SYNC_DEBOUNCE_MS);
   }
 
   async function sendMessage(): Promise<void> {
@@ -492,48 +542,154 @@ export const useChatStore = defineStore("chat", () => {
     clearRunTiming();
   }
 
+  /**
+   * `chat` 事件载荷若因网关新增字段/状态未入 Zod 枚举而解析失败，仍可能对当前会话有新消息
+   *（例如主会话 systemEvent / 定时任务）。对**当前选中会话**节流拉 `chat.history`，避免只靠重连。
+   */
+  let lastChatHistoryFallbackMs = 0;
+  function scheduleHistoryReloadForUnparsedChatEvent(raw: unknown, hint: string): void {
+    const p = raw as { sessionKey?: unknown };
+    const key = typeof p.sessionKey === "string" ? p.sessionKey : null;
+    const sessionStore = useSessionStore();
+    const active = sessionStore.activeSessionKey;
+    if (!key) {
+      logGatewayPush("chat schema miss: 无 sessionKey，跳过 history 兜底", { hint });
+      return;
+    }
+    if (key !== active) {
+      logGatewayPush("chat schema miss: sessionKey≠当前选中，跳过 history 兜底", {
+        hint,
+        eventSessionKey: key,
+        activeSessionKey: active,
+      });
+      return;
+    }
+    const now = Date.now();
+    if (now - lastChatHistoryFallbackMs < 900) {
+      logGatewayPush("chat schema miss: 兜底 loadHistory 节流中，跳过", { hint, msSinceLast: now - lastChatHistoryFallbackMs });
+      return;
+    }
+    lastChatHistoryFallbackMs = now;
+    console.warn("[didclaw] chat event payload skipped by schema, history fallback:", hint);
+    logGatewayPush("chat schema miss → loadHistory(silent)", { hint, sessionKey: key });
+    void loadHistory({ silent: true });
+  }
+
+  /** 非当前会话的 chat 事件：节流刷新会话列表（例如定时任务新建的隔离会话） */
+  let lastSessionsRefreshForOtherSessionMs = 0;
+  function scheduleSessionsListRefreshForOtherSession(): void {
+    const now = Date.now();
+    if (now - lastSessionsRefreshForOtherSessionMs < 1500) {
+      return;
+    }
+    lastSessionsRefreshForOtherSessionMs = now;
+    void useSessionStore().refresh();
+  }
+
+  /**
+   * 网关下行 chat 事件：仅当 `sessionKey` 与当前选中会话一致时更新流式与历史。
+   * 定时任务等在**其它会话**运行时，若本机输入区空闲则自动切换到该会话并展示；否则节流刷新侧栏列表。
+   */
   function handleGatewayEvent(evt: GatewayEventFrame): void {
     if (evt.event !== "chat") {
       return;
+    }
+    if (isGatewayPushDebugEnabled()) {
+      const sessionStore = useSessionStore();
+      logGatewayPush("chat.handle 收到", {
+        ...summarizeChatEventPayload(evt.payload),
+        activeSessionKey: sessionStore.activeSessionKey,
+        localRunId: runId.value ?? null,
+        sending: sending.value,
+        streamTextLen: streamText.value ? String(streamText.value).length : 0,
+      });
     }
     const parsed = chatEventPayloadSchema.safeParse(evt.payload);
     if (!parsed.success) {
       if (import.meta.env.DEV) {
         console.warn("[didclaw] chat event payload invalid:", formatZodIssues(parsed.error));
       }
+      scheduleHistoryReloadForUnparsedChatEvent(evt.payload, formatZodIssues(parsed.error));
       return;
     }
     const payload = parsed.data;
-    const session = useSessionStore();
-    if (payload.sessionKey !== session.activeSessionKey) {
-      return;
-    }
 
-    if (payload.state === "delta") {
-      lastDeltaAtMs.value = Date.now();
-      if (payload.runId) {
-        runId.value = payload.runId;
+    void (async () => {
+      const sessionStore = useSessionStore();
+      const activeKey = sessionStore.activeSessionKey;
+      if (payload.sessionKey !== activeKey) {
+        const composerIdle =
+          !sending.value &&
+          runId.value == null &&
+          (streamText.value == null || !String(streamText.value).trim());
+        const shouldFollow =
+          composerIdle &&
+          (payload.state === "delta" ||
+            payload.state === "final" ||
+            payload.state === "aborted" ||
+            payload.state === "error");
+        logGatewayPush("chat.handle 会话不一致", {
+          eventSessionKey: payload.sessionKey,
+          activeSessionKey: activeKey,
+          state: payload.state,
+          composerIdle,
+          shouldFollow,
+          action: shouldFollow ? "selectSession → 继续处理" : "仅 sessions.refresh（可能丢弃本条 UI 更新）",
+        });
+        if (shouldFollow) {
+          await sessionStore.selectSession(payload.sessionKey);
+        } else {
+          scheduleSessionsListRefreshForOtherSession();
+        }
+        if (payload.sessionKey !== useSessionStore().activeSessionKey) {
+          logGatewayPush("chat.handle 会话仍不一致，结束（未更新当前聊天区）", {
+            eventSessionKey: payload.sessionKey,
+            activeAfter: useSessionStore().activeSessionKey,
+          });
+          return;
+        }
       }
-      const chunk = extractChatDeltaText(payload as Record<string, unknown>);
-      if (chunk) {
-        streamText.value = mergeAssistantStreamDelta(streamText.value, chunk);
+
+      if (payload.state === "delta") {
+        logGatewayPush("chat.handle → delta", { runId: payload.runId ?? null });
+        lastDeltaAtMs.value = Date.now();
+        if (payload.runId) {
+          runId.value = payload.runId;
+        }
+        const chunk = extractChatDeltaText(payload as Record<string, unknown>);
+        if (chunk) {
+          streamText.value = mergeAssistantStreamDelta(streamText.value, chunk);
+        } else {
+          logGatewayPush("chat.handle delta 无文本 chunk（可能仅结构化 message）", {
+            runId: payload.runId ?? null,
+          });
+        }
+      } else if (payload.state === "final") {
+        logGatewayPush("chat.handle → final → loadHistory(silent)", {
+          runId: payload.runId ?? null,
+          localRunIdBefore: runId.value,
+        });
+        snapshotRunDuration();
+        streamText.value = null;
+        runId.value = null;
+        void loadHistory({ silent: true });
+      } else if (payload.state === "aborted") {
+        logGatewayPush("chat.handle → aborted → loadHistory(silent)", { runId: payload.runId ?? null });
+        clearRunTiming();
+        streamText.value = null;
+        runId.value = null;
+        void loadHistory({ silent: true });
+      } else if (payload.state === "error") {
+        logGatewayPush("chat.handle → error", {
+          runId: payload.runId ?? null,
+          errorMessage: payload.errorMessage ?? null,
+        });
+        clearRunTiming();
+        streamText.value = null;
+        runId.value = null;
+        lastError.value = payload.errorMessage?.trim() || "对话出错（网关返回 error 状态）";
       }
-    } else if (payload.state === "final") {
-      snapshotRunDuration();
-      streamText.value = null;
-      runId.value = null;
-      void loadHistory({ silent: true });
-    } else if (payload.state === "aborted") {
-      clearRunTiming();
-      streamText.value = null;
-      runId.value = null;
-      void loadHistory({ silent: true });
-    } else if (payload.state === "error") {
-      clearRunTiming();
-      streamText.value = null;
-      runId.value = null;
-      lastError.value = payload.errorMessage?.trim() || "对话出错（网关返回 error 状态）";
-    }
+    })();
   }
 
   return {
@@ -559,6 +715,7 @@ export const useChatStore = defineStore("chat", () => {
     sendMessage,
     abortIfStreaming,
     handleGatewayEvent,
+    scheduleDebouncedSilentHistoryFromGateway,
     openClawPrimaryModel,
     openClawModelPickerRows,
     openClawPrimaryBusy,

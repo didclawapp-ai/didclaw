@@ -347,7 +347,7 @@ export class GatewayClient {
       maxProtocol: PROTOCOL_VERSION,
       client: {
         id: GATEWAY_CLIENT_ID,
-        version: this.opts.clientVersion ?? "didclaw/0.2.1",
+        version: this.opts.clientVersion ?? `didclaw/${__APP_VERSION__}`,
         platform: platformOs,
         deviceFamily,
         mode: clientMode,
@@ -355,7 +355,13 @@ export class GatewayClient {
       role,
       scopes: OPERATOR_SCOPES,
       device,
-      caps: ["tool-events"],
+      /**
+       * OpenClaw `connect` 里 `caps` 默认为 `[]`（见协议文档）。
+       * 仅填 `["tool-events"]` 时，网关可能只推送工具相关事件，**不下发 `chat` 的 delta/final**，
+       * 表现为定时任务等在其它会话（如 `cron:<jobId>`，见 [Session 概念](https://docs.openclaw.ai/concepts/session)）跑完后，
+       * 界面不更新，直到重连触发 `chat.history`。
+       */
+      caps: [],
       auth,
       userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
       locale: typeof navigator !== "undefined" ? navigator.language : "",
