@@ -1,4 +1,8 @@
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
+
+import { getDidClawDesktopApi } from "@/lib/electron-bridge";
+
+import { didclawKvGetDirect, didclawKvSetDirect } from "./didclaw-kv";
 import { getSafeLocalStorage } from "./local-storage";
 
 type StoredIdentity = {
@@ -62,10 +66,25 @@ async function generateIdentity(): Promise<DeviceIdentity> {
   };
 }
 
+async function persistIdentity(stored: StoredIdentity): Promise<void> {
+  const body = JSON.stringify(stored);
+  const api = getDidClawDesktopApi();
+  if (api?.didclawKvSet) {
+    await didclawKvSetDirect(STORAGE_KEY, body);
+    return;
+  }
+  getSafeLocalStorage()?.setItem(STORAGE_KEY, body);
+}
+
 export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
   const storage = getSafeLocalStorage();
+  let raw: string | null = null;
   try {
-    const raw = storage?.getItem(STORAGE_KEY);
+    if (getDidClawDesktopApi()?.didclawKvGet) {
+      raw = await didclawKvGetDirect(STORAGE_KEY);
+    } else {
+      raw = storage?.getItem(STORAGE_KEY) ?? null;
+    }
     if (raw) {
       const parsed = JSON.parse(raw) as StoredIdentity;
       if (
@@ -77,7 +96,7 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
         const derivedId = await fingerprintPublicKey(base64UrlDecode(parsed.publicKey));
         if (derivedId !== parsed.deviceId) {
           const updated: StoredIdentity = { ...parsed, deviceId: derivedId };
-          storage?.setItem(STORAGE_KEY, JSON.stringify(updated));
+          await persistIdentity(updated);
           return {
             deviceId: derivedId,
             publicKey: parsed.publicKey,
@@ -103,7 +122,7 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
     privateKey: identity.privateKey,
     createdAtMs: Date.now(),
   };
-  storage?.setItem(STORAGE_KEY, JSON.stringify(stored));
+  await persistIdentity(stored);
   return identity;
 }
 

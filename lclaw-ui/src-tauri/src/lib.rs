@@ -1,4 +1,5 @@
 mod commands;
+mod didclaw_db;
 mod gateway_local;
 mod gateway_tunnel;
 mod launch_log;
@@ -150,6 +151,9 @@ pub fn run() {
             commands::run_ensure_openclaw_windows_install,
             commands::read_gateway_local_config,
             commands::write_gateway_local_config,
+            commands::didclaw_kv_get,
+            commands::didclaw_kv_set,
+            commands::didclaw_kv_remove,
             commands::ensure_open_claw_gateway,
             commands::restart_open_claw_gateway,
             commands::openclaw_plugins_install,

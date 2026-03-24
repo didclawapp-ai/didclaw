@@ -192,6 +192,21 @@ pub fn write_gateway_local_config(app: tauri::AppHandle, data: Value) -> Result<
 }
 
 #[tauri::command]
+pub fn didclaw_kv_get(app: tauri::AppHandle, key: String) -> Result<Option<String>, String> {
+    crate::didclaw_db::user_kv_get(&app, key.trim())
+}
+
+#[tauri::command]
+pub fn didclaw_kv_set(app: tauri::AppHandle, key: String, value: String) -> Result<(), String> {
+    crate::didclaw_db::user_kv_set(&app, key.trim(), &value)
+}
+
+#[tauri::command]
+pub fn didclaw_kv_remove(app: tauri::AppHandle, key: String) -> Result<(), String> {
+    crate::didclaw_db::user_kv_remove(&app, key.trim())
+}
+
+#[tauri::command]
 pub async fn ensure_open_claw_gateway(
     app: tauri::AppHandle,
     ws_url: String,

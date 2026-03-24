@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.2.1"
+version = "0.3.0"
 description = "DidClaw"
 authors = ["DidClaw"]
 edition = "2021"
@@ -35,3 +35,4 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 regex = "1"
 ureq = { version = "2.10", features = ["json"] }
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
+rusqlite = { version = "0.32", features = ["bundled"] }

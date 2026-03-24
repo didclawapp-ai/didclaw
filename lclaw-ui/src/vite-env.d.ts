@@ -72,6 +72,10 @@ interface DidClawElectronApi {
     stopManagedGatewayOnQuit?: boolean;
     openclawExecutable?: string;
   }): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** DidClaw 应用 KV（SQLite）；键名由 Rust 白名单校验 */
+  didclawKvGet(key: string): Promise<string | null>;
+  didclawKvSet(key: string, value: string): Promise<void>;
+  didclawKvRemove(key: string): Promise<void>;
   /** 本机环回地址且端口未监听时，无窗口启动 openclaw gateway（由主进程 spawn，windowsHide） */
   ensureOpenClawGateway(payload: { wsUrl: string }): Promise<
     { ok: true; started: boolean } | { ok: false; error: string }

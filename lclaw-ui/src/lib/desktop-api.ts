@@ -29,6 +29,9 @@ function tauriApi(): DidClawElectronApi {
     pickLocalFile: () => invoke("dialog_open_file"),
     readGatewayLocalConfig: () => invoke("read_gateway_local_config"),
     writeGatewayLocalConfig: (data) => invoke("write_gateway_local_config", { data }),
+    didclawKvGet: (key: string) => invoke<string | null>("didclaw_kv_get", { key }),
+    didclawKvSet: (key: string, value: string) => invoke("didclaw_kv_set", { key, value }),
+    didclawKvRemove: (key: string) => invoke("didclaw_kv_remove", { key }),
     ensureOpenClawGateway: (payload) =>
       invoke("ensure_open_claw_gateway", { wsUrl: payload.wsUrl }),
     restartOpenClawGateway: () => invoke("restart_open_claw_gateway"),

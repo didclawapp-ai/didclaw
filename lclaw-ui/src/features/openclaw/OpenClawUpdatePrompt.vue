@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { didclawKvReadSync, didclawKvWriteSync } from "@/lib/didclaw-kv";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { onMounted, ref } from "vue";
 
@@ -36,7 +37,7 @@ async function checkOnce(): Promise<void> {
     }
     const lv = raw.latestVersion.trim();
     try {
-      if (typeof localStorage !== "undefined" && localStorage.getItem(DISMISS_KEY) === lv) {
+      if (didclawKvReadSync(DISMISS_KEY) === lv) {
         return;
       }
     } catch {
@@ -59,7 +60,7 @@ function dismissForThisRelease(): void {
   const lv = latestVersion.value.trim();
   if (lv) {
     try {
-      localStorage.setItem(DISMISS_KEY, lv);
+      didclawKvWriteSync(DISMISS_KEY, lv);
     } catch {
       /* ignore */
     }

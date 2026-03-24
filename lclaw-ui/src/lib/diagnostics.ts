@@ -44,7 +44,7 @@ export function buildDiagnosticsSnapshot(input: {
   sessionCount: number;
   chatLastError: string | null;
   messageCount: number;
-  /** 含 Electron gateway-local.json 等非 env 来源时传入 */
+  /** 含桌面端本地库（didclaw.db）等非 env 来源时传入 */
   gatewayTokenConfigured?: boolean;
   gatewayPasswordConfigured?: boolean;
 }): DiagnosticsSnapshot {

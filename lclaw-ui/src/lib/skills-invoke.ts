@@ -1,5 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
+import { didclawKvReadSync, didclawKvWriteSync } from "@/lib/didclaw-kv";
+
 const LS_INSTALL_ROOT = "didclaw.skillsInstallRoot";
 
 export type InstalledSkillRow = {
@@ -12,7 +14,7 @@ export type InstalledSkillRow = {
 
 export function getStoredSkillsInstallRoot(): string | null {
   try {
-    return localStorage.getItem(LS_INSTALL_ROOT);
+    return didclawKvReadSync(LS_INSTALL_ROOT);
   } catch {
     return null;
   }
@@ -20,7 +22,7 @@ export function getStoredSkillsInstallRoot(): string | null {
 
 export function setStoredSkillsInstallRoot(path: string): void {
   try {
-    localStorage.setItem(LS_INSTALL_ROOT, path);
+    didclawKvWriteSync(LS_INSTALL_ROOT, path);
   } catch {
     /* ignore */
   }

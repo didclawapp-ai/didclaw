@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DidClaw",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "identifier": "com.didclaw.app",
   "build": {
     "frontendDist": "../dist",
@@ -14,7 +14,8 @@
     "windows": [
       {
         "label": "main",
-        "title": "DidClaw",
+        "title": "\u200b",
+        "hiddenTitle": true,
         "width": 570,
         "height": 920,
         "resizable": true,

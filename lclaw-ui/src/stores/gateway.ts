@@ -67,7 +67,7 @@ export const useGatewayStore = defineStore("gateway", () => {
   const status = ref<GatewayConnectionStatus>("disconnected");
   const lastError = ref<string | null>(null);
   const helloInfo = ref<string | null>(null);
-  /** 当前用于展示与诊断的 WS 地址（含 Electron 本地配置覆盖） */
+  /** 当前用于展示与诊断的 WS 地址（含桌面端本地配置覆盖，存于 didclaw.db） */
   const url = ref(gatewayUrlFromEnv());
 
   function disconnect(): void {
@@ -78,7 +78,7 @@ export const useGatewayStore = defineStore("gateway", () => {
     status.value = "disconnected";
   }
 
-  /** 按当前环境变量 / Electron 本地文件刷新顶栏展示的 WS 地址（不自动重连） */
+  /** 按当前环境变量 / 桌面本地库刷新顶栏展示的 WS 地址（不自动重连） */
   async function refreshResolvedUrl(): Promise<void> {
     const o = await loadGatewayConnectOptions();
     url.value = o.url;

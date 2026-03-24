@@ -1,3 +1,4 @@
+import { hydrateDidClawKvCache } from "@/lib/didclaw-kv";
 import { createPinia } from "pinia";
 import { createApp } from "vue";
 import App from "./App.vue";
@@ -43,7 +44,10 @@ if (import.meta.env.DEV) {
   );
 }
 
-const app = createApp(App);
-app.use(createPinia());
-app.use(router);
-app.mount("#app");
+void (async () => {
+  await hydrateDidClawKvCache();
+  const app = createApp(App);
+  app.use(createPinia());
+  app.use(router);
+  app.mount("#app");
+})();

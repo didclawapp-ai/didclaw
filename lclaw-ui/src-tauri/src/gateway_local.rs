@@ -1,28 +1,14 @@
-//! `gateway-local.json`：与 `electron/main.ts` 中 `readGatewayLocalMerged` / `writeLocalConfig` 行为对齐。
+//! 网关本机合并配置：存于 `didclaw.db`。
+//! 行为与历史 Electron `readGatewayLocalMerged` / `writeLocalConfig` 对齐。
 
+use crate::didclaw_db;
 use serde_json::{json, Map, Value};
-use std::fs;
-use std::path::PathBuf;
-use tauri::Manager;
-
-pub fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("gateway-local.json"))
-}
 
 pub fn read_merged_map(app: &tauri::AppHandle) -> Result<Map<String, Value>, String> {
-    let p = config_path(app)?;
-    if !p.is_file() {
-        return Ok(Map::new());
-    }
-    let raw = fs::read_to_string(&p).map_err(|e| e.to_string())?;
-    let j: Value = serde_json::from_str(&raw).unwrap_or(json!({}));
-    match j {
-        Value::Object(m) => Ok(m),
-        _ => Ok(Map::new()),
-    }
+    didclaw_db::read_gateway_merged_map(app)
 }
 
-/// 供前端读取的字段子集（与 Electron `LocalGatewayFile` 一致）。
+/// 供前端读取的字段子集（与历史 `LocalGatewayFile` 一致）。
 pub fn merged_to_frontend_value(m: &Map<String, Value>) -> Value {
     let mut out = Map::new();
     if let Some(Value::String(s)) = m.get("url") {
@@ -62,10 +48,7 @@ pub fn merged_to_frontend_value(m: &Map<String, Value>) -> Value {
     Value::Object(out)
 }
 
-pub fn write_merged_from_payload(
-    app: &tauri::AppHandle,
-    data: &Value,
-) -> Result<(), String> {
+pub fn write_merged_from_payload(app: &tauri::AppHandle, data: &Value) -> Result<(), String> {
     if !data.is_object() {
         return Err("参数无效".into());
     }
@@ -119,16 +102,5 @@ pub fn write_merged_from_payload(
         }
     }
 
-    let p = config_path(app)?;
-    let dir = p.parent().ok_or_else(|| "无效配置路径".to_string())?;
-    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-
-    if merged.is_empty() {
-        let _ = fs::remove_file(&p);
-        return Ok(());
-    }
-    let out = merged;
-    let body = format!("{}\n", serde_json::to_string_pretty(&Value::Object(out)).map_err(|e| e.to_string())?);
-    fs::write(&p, body).map_err(|e| e.to_string())?;
-    Ok(())
+    didclaw_db::write_gateway_merged_map(app, &merged)
 }

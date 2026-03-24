@@ -1,5 +1,6 @@
 import { ref } from "vue";
 
+import { didclawKvReadSync, didclawKvWriteSync } from "@/lib/didclaw-kv";
 import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 
 const LS_MODEL_COMPLETE = "didclaw_first_run_model_complete";
@@ -9,12 +10,12 @@ const LS_ENV_SNOOZE = "didclaw_setup_wizard_snooze_until";
 
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
-/** 主界面「稍后配置模型」提示条是否显示（与 localStorage 同步） */
+/** 主界面「稍后配置模型」提示条是否显示（与 DidClaw KV / localStorage 同步） */
 export const showDeferredModelBanner = ref(false);
 
 export function syncDeferredModelBannerFromStorage(): void {
   try {
-    showDeferredModelBanner.value = localStorage.getItem(LS_DEFERRED) === "1";
+    showDeferredModelBanner.value = didclawKvReadSync(LS_DEFERRED) === "1";
   } catch {
     showDeferredModelBanner.value = false;
   }
@@ -23,9 +24,9 @@ export function syncDeferredModelBannerFromStorage(): void {
 export function setModelConfigDeferred(v: boolean): void {
   try {
     if (v) {
-      localStorage.setItem(LS_DEFERRED, "1");
+      didclawKvWriteSync(LS_DEFERRED, "1");
     } else {
-      localStorage.removeItem(LS_DEFERRED);
+      didclawKvWriteSync(LS_DEFERRED, null);
     }
   } catch {
     /* ignore */
@@ -35,7 +36,7 @@ export function setModelConfigDeferred(v: boolean): void {
 
 export function isFirstRunModelStepComplete(): boolean {
   try {
-    return localStorage.getItem(LS_MODEL_COMPLETE) === "1";
+    return didclawKvReadSync(LS_MODEL_COMPLETE) === "1";
   } catch {
     return false;
   }
@@ -43,8 +44,8 @@ export function isFirstRunModelStepComplete(): boolean {
 
 export function markFirstRunModelStepComplete(): void {
   try {
-    localStorage.setItem(LS_MODEL_COMPLETE, "1");
-    localStorage.removeItem(LS_MODEL_SNOOZE);
+    didclawKvWriteSync(LS_MODEL_COMPLETE, "1");
+    didclawKvWriteSync(LS_MODEL_SNOOZE, null);
   } catch {
     /* ignore */
   }
@@ -52,7 +53,7 @@ export function markFirstRunModelStepComplete(): void {
 
 export function readModelWizardSnoozeExpired(): boolean {
   try {
-    const raw = localStorage.getItem(LS_MODEL_SNOOZE);
+    const raw = didclawKvReadSync(LS_MODEL_SNOOZE);
     if (!raw) {
       return true;
     }
@@ -68,19 +69,19 @@ export function readModelWizardSnoozeExpired(): boolean {
 
 export function snoozeModelWizard24h(): void {
   try {
-    localStorage.setItem(LS_MODEL_SNOOZE, String(Date.now() + SNOOZE_MS));
+    didclawKvWriteSync(LS_MODEL_SNOOZE, String(Date.now() + SNOOZE_MS));
   } catch {
     /* ignore */
   }
 }
 
-/** 测试/排错：清除首次引导相关 localStorage 并刷新横幅状态 */
+/** 测试/排错：清除首次引导相关状态并刷新横幅 */
 export function resetFirstRunWizardLocalState(): void {
   try {
-    localStorage.removeItem(LS_MODEL_COMPLETE);
-    localStorage.removeItem(LS_DEFERRED);
-    localStorage.removeItem(LS_MODEL_SNOOZE);
-    localStorage.removeItem(LS_ENV_SNOOZE);
+    didclawKvWriteSync(LS_MODEL_COMPLETE, null);
+    didclawKvWriteSync(LS_DEFERRED, null);
+    didclawKvWriteSync(LS_MODEL_SNOOZE, null);
+    didclawKvWriteSync(LS_ENV_SNOOZE, null);
   } catch {
     /* ignore */
   }
