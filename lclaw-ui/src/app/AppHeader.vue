@@ -11,7 +11,7 @@ import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useSessionStore } from "@/stores/session";
 import { useThemeStore } from "@/stores/theme";
 import { storeToRefs } from "pinia";
-import { computed, ref } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { i18n, type LocaleCode } from "@/i18n";
@@ -30,6 +30,7 @@ const cronDialogOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
 const moreMenuOpen = ref(false);
+const moreWrapRef = ref<HTMLElement | null>(null);
 /** 内联操作错误（替代 window.alert） */
 const inlineError = ref<string | null>(null);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -174,6 +175,25 @@ function toggleMoreMenu(): void {
   moreMenuOpen.value = !moreMenuOpen.value;
 }
 
+function handleMoreMenuOutsideClick(e: MouseEvent): void {
+  if (!moreWrapRef.value?.contains(e.target as Node)) {
+    moreMenuOpen.value = false;
+  }
+}
+
+watch(moreMenuOpen, (open) => {
+  if (open) {
+    // nextTick 防止开启菜单的同一次 click 事件立即触发关闭
+    void nextTick(() => document.addEventListener("click", handleMoreMenuOutsideClick));
+  } else {
+    document.removeEventListener("click", handleMoreMenuOutsideClick);
+  }
+});
+
+onUnmounted(() => {
+  document.removeEventListener("click", handleMoreMenuOutsideClick);
+});
+
 function closeMoreMenu(): void {
   moreMenuOpen.value = false;
 }
@@ -264,15 +284,7 @@ function closeMoreMenu(): void {
         </div>
 
         <!-- 更多菜单 -->
-        <Teleport to="body">
-          <div
-            v-if="moreMenuOpen"
-            class="more-menu-scrim"
-            aria-hidden="true"
-            @pointerdown="closeMoreMenu"
-          />
-        </Teleport>
-        <div class="more-wrap">
+        <div ref="moreWrapRef" class="more-wrap">
           <button
             type="button"
             class="lc-btn lc-btn-ghost lc-btn-xs more-btn"
@@ -603,16 +615,6 @@ function closeMoreMenu(): void {
   top: calc(100% + 6px);
   right: 0;
   z-index: 10; /* 在 header 层叠上下文（z-index:100）内部，任意正值即可 */
-}
-.more-menu-scrim {
-  position: fixed;
-  inset: 0;
-  /* header 的 z-index 为 100（position:relative 建立了独立层叠上下文），
-     scrim 须低于 100 否则会覆盖 header 内的菜单，导致菜单项点击无效。
-     50 足以盖住页面正文区域（z-index 默认为 0），又不影响 header 层。 */
-  z-index: 50;
-  background: transparent;
-  cursor: default;
 }
 .more-menu-list {
   min-width: 200px;

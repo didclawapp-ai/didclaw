@@ -8,7 +8,7 @@
 
 ### 修复
 
-- **顶栏「···」菜单点击无效**：`.more-menu-scrim`（Teleport 到 body，z-index 9990）覆盖了 header 内部的下拉菜单（header 建立了独立层叠上下文 z-index:100），导致所有菜单项点击均被 scrim 拦截。修复：scrim z-index 改为 50（低于 header 层，仍高于页面正文区）。
+- **顶栏「···」菜单点击无效**：`#app` 有 `position:relative; z-index:1` 建立了层叠上下文，Teleport 到 body 的 scrim（z-index 50）位于 `#app`（z-index 1）之上，导致整个菜单被 scrim 遮盖，所有点击都被拦截。彻底修复：移除 Teleport scrim，改用 `document.addEventListener('click', ...)` 监听区域外点击来关闭菜单，不再依赖 z-index。
 
 - **生产构建 CSP 错误**：`dist/index.html` 注入的 CSP 缺少三项必要指令，导致 Tauri IPC 全部失败、主题初始化脚本被拦截、界面空白。修复：`script-src` 补加 `'unsafe-inline'`（内联主题脚本）和 `'unsafe-eval'`（vue-i18n v9 运行时消息编译），`connect-src` 补加 `http://ipc.localhost`（Tauri 2 IPC 协议）。
 
