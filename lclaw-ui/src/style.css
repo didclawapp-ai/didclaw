@@ -67,8 +67,8 @@
   --lc-bg-raised: #111e33;
   --lc-bg-elevated: #162035;
   --lc-bg-hover: rgba(6, 182, 212, 0.1);
-  --lc-border: rgba(255, 255, 255, 0.08);
-  --lc-border-strong: rgba(6, 182, 212, 0.45);
+  --lc-border: rgba(255, 255, 255, 0.13);
+  --lc-border-strong: rgba(6, 182, 212, 0.5);
   --lc-text: #e2e8f0;
   --lc-text-muted: #94a3b8;
   --lc-text-dim: #64748b;
@@ -85,8 +85,8 @@
   --lc-warning-bg: rgba(251, 191, 36, 0.12);
   --lc-warning-text: #fcd34d;
   --lc-surface: #111e33;
-  --lc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2);
-  --lc-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --lc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --lc-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
   --lc-surface-top: linear-gradient(180deg, #111e33 0%, #0c1526 100%);
   --lc-surface-panel: rgba(11, 20, 38, 0.92);
   --lc-surface-composer: linear-gradient(180deg, #111e33 0%, #0c1526 100%);
@@ -229,6 +229,20 @@ body::before {
 .lc-btn-xs {
   font-size: 11px;
   padding: 4px 10px;
+}
+
+/* ── 暗色模式：对话框/面板边框与阴影增强 ─────────────────────────── */
+[data-theme="dark"] .cron-panel,
+[data-theme="dark"] .skills-panel {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 0 0 1px rgba(6, 182, 212, 0.12),
+    0 8px 32px rgba(0, 0, 0, 0.55),
+    0 24px 64px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] .cron-backdrop,
+[data-theme="dark"] .skills-backdrop {
+  background: rgba(0, 0, 0, 0.6);
 }
 
 /* ── 暗色模式下代码高亮主题覆盖（github-dark 配色） ──────────────── */

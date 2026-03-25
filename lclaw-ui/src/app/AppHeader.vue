@@ -214,7 +214,7 @@ function closeMoreMenu(): void {
           :aria-expanded="cronDialogOpen"
           @click="cronDialogOpen = true"
         >
-          定时任务
+          定时
         </button>
         <button
           type="button"
@@ -223,15 +223,6 @@ function closeMoreMenu(): void {
           @click="skillsDialogOpen = true"
         >
           技能
-        </button>
-        <button
-          v-if="isDidClawElectron()"
-          type="button"
-          class="lc-btn lc-btn-ghost lc-btn-xs"
-          title="本机设置：连接助手、AI 账号与密钥、默认模型"
-          @click="localSettings.open('gateway')"
-        >
-          ⚙ 设置
         </button>
 
         <!-- 夜间模式切换 -->
@@ -247,6 +238,14 @@ function closeMoreMenu(): void {
         </button>
 
         <!-- 更多菜单 -->
+        <Teleport to="body">
+          <div
+            v-if="moreMenuOpen"
+            class="more-menu-scrim"
+            aria-hidden="true"
+            @pointerdown="closeMoreMenu"
+          />
+        </Teleport>
         <div class="more-wrap">
           <button
             type="button"
@@ -265,11 +264,6 @@ function closeMoreMenu(): void {
               role="menu"
               @keydown.escape="closeMoreMenu"
             >
-              <div
-                class="more-menu-scrim"
-                aria-hidden="true"
-                @pointerdown="closeMoreMenu"
-              />
               <ul class="more-menu-list">
                 <li role="none">
                   <button
@@ -324,6 +318,7 @@ function closeMoreMenu(): void {
         </div>
       </div>
     </div>
+
 
     <!-- 内联错误/状态提示 -->
     <transition name="err-fade">
@@ -553,12 +548,14 @@ function closeMoreMenu(): void {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 9999;
+  z-index: 9991;
 }
 .more-menu-scrim {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 9990;
+  background: transparent;
+  cursor: default;
 }
 .more-menu-list {
   min-width: 200px;
