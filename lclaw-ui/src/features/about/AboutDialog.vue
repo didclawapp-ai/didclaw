@@ -1,27 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useGatewayStore } from "@/stores/gateway";
-import { storeToRefs } from "pinia";
-
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ "update:modelValue": [v: boolean] }>();
 
 const { t } = useI18n();
-const gw = useGatewayStore();
-const { helloInfo, status } = storeToRefs(gw);
 
 const open = computed({
   get: () => props.modelValue,
   set: (v) => emit("update:modelValue", v),
-});
-
-/** 从 "Gateway 2026.3.23-2" 提取版本号部分 */
-const gatewayVersion = computed(() => {
-  const info = helloInfo.value;
-  if (!info) return null;
-  const m = info.match(/Gateway\s+(.+)/i);
-  return m ? m[1].trim() : info;
 });
 
 const appVersion = __APP_VERSION__;
@@ -64,15 +51,6 @@ const techStack = [
             <div class="about-row">
               <span class="about-label">{{ t('about.appVersion') }}</span>
               <code class="about-value">{{ appVersion }}</code>
-            </div>
-            <div class="about-row">
-              <span class="about-label">{{ t('about.gatewayVersion') }}</span>
-              <code
-                class="about-value"
-                :class="{ 'about-value--muted': !gatewayVersion }"
-              >
-                {{ gatewayVersion ?? t('about.gatewayNotConnected') }}
-              </code>
             </div>
           </div>
 
