@@ -187,21 +187,21 @@ export const useGatewayStore = defineStore("gateway", () => {
             }).catch((e) => { console.error("[didclaw] sessions.changed error", e); });
           }
           /**
-           * 排障见用户日志：定时任务期间有 `cron`/`agent` 而无 `chat`。网关仍会把落库消息写在 transcript，
-           * 节流 `chat.history` 即可实时对齐，无需等重连。
+           * cron 事件在任务状态变化时立即发出，早于 delivery/announce 落库。
+           * 若此处直接触发 loadHistory，会以旧快照覆盖界面上已流式显示的投递消息（消息闪现后消失）。
+           * 正确的同步时机：
+           *   - 隔离任务 announce 投递 → 网关发出 agent 事件（sessionKey = 主会话）→ 下方 agent 分支处理
+           *   - 主会话任务 → 心跳处理后 agent 事件（sessionKey = 主会话）→ 下方 agent 分支处理
+           *   - sessions.changed → 兜底刷新（上方已处理）
+           * 因此 cron 事件本身不需要触发 loadHistory。
            */
-          if (evt.event === "cron") {
-            if (isGatewayPushDebugEnabled()) {
-              const pl = evt.payload;
-              const keys =
-                pl && typeof pl === "object" && !Array.isArray(pl)
-                  ? Object.keys(pl as object).slice(0, 14)
-                  : [];
-              logGatewayPush("cron WS event → scheduleDebouncedSilentHistoryFromGateway", { keys });
-            }
-            void import("./chat").then(({ useChatStore }) => {
-              useChatStore().scheduleDebouncedSilentHistoryFromGateway("cron");
-            }).catch((e) => { console.error("[didclaw] cron event error", e); });
+          if (evt.event === "cron" && isGatewayPushDebugEnabled()) {
+            const pl = evt.payload;
+            const keys =
+              pl && typeof pl === "object" && !Array.isArray(pl)
+                ? Object.keys(pl as object).slice(0, 14)
+                : [];
+            logGatewayPush("cron WS event（仅记录，不触发 loadHistory，由后续 agent 事件处理）", { keys });
           }
           if (evt.event === "agent") {
             const p = evt.payload as { sessionKey?: unknown } | undefined;

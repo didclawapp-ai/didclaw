@@ -390,7 +390,7 @@ export const useChatStore = defineStore("chat", () => {
    * 仅靠 `handleGatewayEvent(chat)` 时主时间线不会实时更新；在**本机未在发送且未有 runId** 时节流拉
    * `chat.history` 与 transcript 对齐（与重连后行为一致）。
    */
-  const GATEWAY_CHAT_SYNC_DEBOUNCE_MS = 750;
+  const GATEWAY_CHAT_SYNC_DEBOUNCE_MS = 1500;
   let gatewayChatSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
   function scheduleDebouncedSilentHistoryFromGateway(source: string): void {
