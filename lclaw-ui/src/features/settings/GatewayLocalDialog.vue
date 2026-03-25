@@ -19,7 +19,6 @@ import { useLocalSettingsStore } from "@/stores/localSettings";
 import { computed, ref, watch } from "vue";
 import AiProviderSetup from "@/features/settings/AiProviderSetup.vue";
 import DoctorPanel from "@/features/settings/DoctorPanel.vue";
-import { i18n, type LocaleCode } from "@/i18n";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -33,11 +32,6 @@ const { t } = useI18n();
 const gw = useGatewayStore();
 const localSettings = useLocalSettingsStore();
 const chat = useChatStore();
-
-const currentLocale = computed({
-  get: () => (i18n.global.locale as { value: LocaleCode }).value,
-  set: (v: LocaleCode) => localSettings.switchLocale(v),
-});
 
 type TabId = "gateway" | "ai" | "model" | "providers";
 
@@ -670,23 +664,7 @@ async function onRestoreModel(): Promise<void> {
         role="dialog"
         aria-labelledby="local-settings-title"
       >
-        <div class="settings-header">
-          <h2 id="local-settings-title">{{ t('settings.title') }}</h2>
-          <div class="locale-switcher">
-            <button
-              type="button"
-              class="locale-btn"
-              :class="{ active: currentLocale === 'zh' }"
-              @click="currentLocale = 'zh'"
-            >中</button>
-            <button
-              type="button"
-              class="locale-btn"
-              :class="{ active: currentLocale === 'en' }"
-              @click="currentLocale = 'en'"
-            >EN</button>
-          </div>
-        </div>
+        <h2 id="local-settings-title">{{ t('settings.title') }}</h2>
         <p class="dialog-lead muted small">
           {{ t('settings.lead') }}
         </p>
@@ -1106,42 +1084,6 @@ async function onRestoreModel(): Promise<void> {
 </template>
 
 <style scoped>
-.settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-.settings-header h2 {
-  margin: 0;
-}
-.locale-switcher {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.locale-btn {
-  padding: 3px 9px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-border);
-  background: transparent;
-  color: var(--lc-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.locale-btn.active {
-  background: var(--lc-accent-soft);
-  border-color: var(--lc-accent);
-  color: var(--lc-accent);
-}
-.locale-btn:hover:not(.active) {
-  border-color: var(--lc-border-strong);
-  color: var(--lc-text);
-}
 .doctor-section {
   margin-top: 16px;
   border-top: 1px solid var(--lc-border);

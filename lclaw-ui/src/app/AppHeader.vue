@@ -14,6 +14,7 @@ import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { i18n, type LocaleCode } from "@/i18n";
 
 const { t } = useI18n();
 const gw = useGatewayStore();
@@ -39,6 +40,11 @@ const showGatewayLocal = computed({
   set: (v: boolean) => {
     if (!v) localSettings.close();
   },
+});
+
+const currentLocale = computed({
+  get: () => (i18n.global.locale as { value: LocaleCode }).value,
+  set: (v: LocaleCode) => localSettings.switchLocale(v),
 });
 
 const connSwitchOn = computed(
@@ -238,6 +244,24 @@ function closeMoreMenu(): void {
         >
           <span class="theme-icon" aria-hidden="true">{{ themeStore.mode === 'dark' ? '☀' : '🌙' }}</span>
         </button>
+
+        <!-- 语言切换 -->
+        <div class="locale-switcher" :aria-label="t('settings.languageLabel')">
+          <button
+            type="button"
+            class="locale-btn"
+            :class="{ active: currentLocale === 'zh' }"
+            :aria-pressed="currentLocale === 'zh'"
+            @click="currentLocale = 'zh'"
+          >中</button>
+          <button
+            type="button"
+            class="locale-btn"
+            :class="{ active: currentLocale === 'en' }"
+            :aria-pressed="currentLocale === 'en'"
+            @click="currentLocale = 'en'"
+          >EN</button>
+        </div>
 
         <!-- 更多菜单 -->
         <Teleport to="body">
@@ -530,6 +554,34 @@ function closeMoreMenu(): void {
   line-height: 1;
   display: block;
   transition: transform 0.35s ease;
+}
+
+/* 语言切换 */
+.locale-switcher {
+  display: flex;
+  gap: 2px;
+}
+.locale-btn {
+  padding: 2px 7px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.6;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.locale-btn.active {
+  background: var(--lc-accent-soft);
+  border-color: var(--lc-accent);
+  color: var(--lc-accent);
+}
+.locale-btn:hover:not(.active) {
+  border-color: var(--lc-border-strong);
+  color: var(--lc-text);
 }
 
 /* More menu */
