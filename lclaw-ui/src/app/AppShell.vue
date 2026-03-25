@@ -290,7 +290,7 @@ async function pickLocalFileForPreview(): Promise<void> {
               type="button"
               class="lc-btn lc-btn-ghost lc-btn-xs session-model-manage"
               title="打开本机设置，可改密钥、接口地址或恢复备份"
-              @click="localSettings.open('model')"
+              @click="localSettings.open('ai')"
             >
               更多设置
             </button>

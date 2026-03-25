@@ -16,6 +16,7 @@ import { gatewayUrlFromEnv, useGatewayStore } from "@/stores/gateway";
 import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { computed, ref, watch } from "vue";
+import AiProviderSetup from "@/features/settings/AiProviderSetup.vue";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -29,7 +30,7 @@ const gw = useGatewayStore();
 const localSettings = useLocalSettingsStore();
 const chat = useChatStore();
 
-type TabId = "gateway" | "model" | "providers";
+type TabId = "gateway" | "ai" | "model" | "providers";
 
 const tab = ref<TabId>("gateway");
 const wsUrl = ref("");
@@ -660,19 +661,13 @@ async function onRestoreModel(): Promise<void> {
     <div v-if="open" class="backdrop" @click.self="open = false">
       <div
         class="panel"
-        :class="{ 'panel--wide': tab === 'providers' }"
+        :class="{ 'panel--wide': tab === 'providers' || tab === 'ai' }"
         role="dialog"
         aria-labelledby="local-settings-title"
       >
         <h2 id="local-settings-title">本机设置</h2>
         <p class="dialog-lead muted small">
-          按 ①→②→③ 完成连接与账号。
-          <span
-            class="help-tip"
-            title="① 连接本机助手；② 填写各 AI 的接口与密钥；③ 选择默认对话模型。保存在本机，无需手写配置文件。"
-            tabindex="0"
-            role="note"
-          >?</span>
+          ① 连接助手网关，② 选择 AI 服务商填入 Key，一步完成配置。
         </p>
 
         <div class="tabs" role="tablist">
@@ -690,22 +685,28 @@ async function onRestoreModel(): Promise<void> {
             type="button"
             role="tab"
             class="tab"
-            :class="{ active: tab === 'providers' }"
-            :aria-selected="tab === 'providers'"
-            @click="tab = 'providers'"
+            :class="{ active: tab === 'ai' }"
+            :aria-selected="tab === 'ai'"
+            @click="tab = 'ai'"
           >
-            ② AI 账号
+            ② AI 配置
           </button>
           <button
             type="button"
             role="tab"
-            class="tab"
-            :class="{ active: tab === 'model' }"
-            :aria-selected="tab === 'model'"
-            @click="tab = 'model'"
+            class="tab tab--advanced"
+            :class="{ active: tab === 'providers' || tab === 'model' }"
+            :aria-selected="tab === 'providers' || tab === 'model'"
+            :title="'高级：手动管理 Provider 与模型别名'"
+            @click="tab = tab === 'providers' ? 'model' : 'providers'"
           >
-            ③ 选模型
+            高级 ···
           </button>
+        </div>
+
+        <!-- ② AI 配置（新卡片式界面） -->
+        <div v-if="tab === 'ai'" class="tab-panel">
+          <AiProviderSetup :open="open && tab === 'ai'" />
         </div>
 
         <div v-show="tab === 'gateway'" class="tab-panel">
@@ -1312,6 +1313,13 @@ h2 {
   background: var(--lc-bg-raised);
   box-shadow: var(--lc-shadow-sm);
 }
+.tab--advanced {
+  flex: 0 0 auto;
+  opacity: 0.6;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+.tab--advanced:hover, .tab--advanced.active { opacity: 1; }
 .tab-panel {
   min-height: 120px;
 }

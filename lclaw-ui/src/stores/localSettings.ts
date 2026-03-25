@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-export type LocalSettingsTab = "gateway" | "model" | "providers";
+export type LocalSettingsTab = "gateway" | "ai" | "model" | "providers";
 
 /** 顶栏「设置」对话框：可从多处打开并指定初始 Tab */
 export const useLocalSettingsStore = defineStore("localSettings", () => {

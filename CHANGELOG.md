@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 新增
+
+- **卡片式 AI 配置界面**：新增"② AI 配置"Tab，用卡片替代原有的"② AI 账号 + ③ 选模型"两步流程。用户在对应服务商卡片填入 API Key 后点"应用并设为主力"，即可自动完成 Provider 写入 + 主力模型设置，无需手动填写接口地址或模型列表。预置 11 家主流服务商（智谱/DeepSeek/MiniMax/Kimi/Qwen/小米/Anthropic/OpenAI/OpenRouter/xAI/Mistral/Ollama），含国内/国际节点切换。原高级 Tab 保留供需要精细控制的用户使用。
+
 ### 修复
 
 - **OpenClaw 升级按钮实际上不执行升级的 Bug**：原脚本在 openclaw 已安装时进入 "already installed" 分支直接跳过 `npm install`，再命中 `-SkipOnboard` 立刻退出，导致点击"升级"后什么都没发生。修复：在 `ensure-openclaw-windows.ps1` 中新增 `-Upgrade` 开关，当该开关启用时，强制执行 `npm install -g openclaw@latest`，再自动运行 `openclaw doctor`（配置迁移），与 OpenClaw 官方推荐更新流程对齐。
