@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { didclawKvReadSync, didclawKvWriteSync } from "@/lib/didclaw-kv";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
+import { useGatewayStore } from "@/stores/gateway";
 import { onMounted, ref } from "vue";
 
 /** 用户点「稍后」后，对该 npm 版本不再提示，直至出现更新的 latest */
@@ -12,6 +13,13 @@ const latestVersion = ref("");
 const registryError = ref<string | null>(null);
 const platform = ref("");
 const upgradeBusy = ref(false);
+/** upgrade done — show restart prompt instead of the update notice */
+const upgradeSuccess = ref(false);
+const upgradeError = ref<string | null>(null);
+const restartBusy = ref(false);
+const restartDone = ref(false);
+
+const gw = useGatewayStore();
 
 onMounted(() => {
   if (!isDidClawElectron()) {
@@ -66,6 +74,9 @@ function dismissForThisRelease(): void {
     }
   }
   open.value = false;
+  upgradeSuccess.value = false;
+  upgradeError.value = null;
+  restartDone.value = false;
 }
 
 async function onWindowsScriptUpgrade(): Promise<void> {
@@ -75,24 +86,41 @@ async function onWindowsScriptUpgrade(): Promise<void> {
     return;
   }
   upgradeBusy.value = true;
+  upgradeError.value = null;
   try {
-    const res = await api.runEnsureOpenclawWindowsInstall({ skipOnboard: true });
+    // upgrade: true → -Upgrade -SkipOnboard → always runs npm install + openclaw doctor
+    const res = await api.runEnsureOpenclawWindowsInstall({ skipOnboard: true, upgrade: true });
     if (res.ok) {
       dismissForThisRelease();
-      window.alert(
-        "升级脚本已执行完成。请重启 OpenClaw 网关（或系统内的 OpenClaw 服务）后再继续使用。",
-      );
+      upgradeSuccess.value = true;
+      open.value = true;
     } else {
       const err =
         typeof res.error === "string" && res.error.trim()
           ? res.error.trim()
           : `退出码 ${res.exitCode}`;
-      window.alert(
-        `升级未成功：${err}。可在终端查看 npm 输出，或参阅官方文档；本机配置与技能一般在用户目录 .openclaw 下，通常不会被覆盖。`,
-      );
+      upgradeError.value = err;
     }
   } finally {
     upgradeBusy.value = false;
+  }
+}
+
+async function onRestartGateway(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (!api?.restartOpenClawGateway) {
+    return;
+  }
+  restartBusy.value = true;
+  try {
+    await api.restartOpenClawGateway();
+    restartDone.value = true;
+    gw.disconnect();
+    window.setTimeout(() => {
+      gw.connect();
+    }, 2_000);
+  } finally {
+    restartBusy.value = false;
   }
 }
 </script>
@@ -104,47 +132,80 @@ async function onWindowsScriptUpgrade(): Promise<void> {
         class="ocu-panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="ocu-title"
+        :aria-labelledby="upgradeSuccess ? 'ocu-title-done' : 'ocu-title'"
         @click.stop
       >
-        <h2 id="ocu-title" class="ocu-title">发现 OpenClaw 新版本</h2>
-        <p class="ocu-versions">
-          当前：<strong>{{ currentVersion }}</strong>
-          · npm 最新：<strong>{{ latestVersion }}</strong>
-        </p>
-        <p v-if="registryError" class="ocu-warn small">
-          版本查询附注：{{ registryError }}
-        </p>
-        <p class="ocu-note small muted">
-          官方 CLI 升级一般只替换全局/服务中的 <code>openclaw</code> 程序；用户目录下的
-          <code>.openclaw</code>（含 <code>openclaw.json</code>、技能、各厂商 API Key 等）通常保留。重大版本仍建议先自行备份该目录。
-        </p>
-        <p class="ocu-cli small">
-          通用方式（需已安装 Node/npm）：在终端执行
-          <code class="ocu-code">npm install -g openclaw@latest</code>
-        </p>
-        <p class="ocu-doc small">
-          <a
-            href="https://docs.openclaw.ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="ocu-link"
-          >OpenClaw 官方文档</a>
-        </p>
-        <div class="ocu-actions">
-          <button
-            v-if="platform === 'windows'"
-            type="button"
-            class="lc-btn lc-btn-primary lc-btn-sm"
-            :disabled="upgradeBusy"
-            @click="onWindowsScriptUpgrade"
-          >
-            {{ upgradeBusy ? "执行中…" : "使用内置脚本升级（Windows）" }}
-          </button>
-          <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismissForThisRelease">
-            稍后提醒
-          </button>
-        </div>
+        <!-- ── 升级成功：重启网关面板 ── -->
+        <template v-if="upgradeSuccess">
+          <div class="ocu-done-icon">✓</div>
+          <h2 id="ocu-title-done" class="ocu-title">升级完成</h2>
+          <p class="ocu-note small muted">
+            OpenClaw 已更新至最新版本，配置迁移（<code>openclaw doctor</code>）已自动执行。
+            需要<strong>重启网关</strong>才能使新版本生效。
+          </p>
+          <p v-if="restartDone" class="ocu-restart-ok small">
+            网关正在重启，连接将在几秒后自动恢复。
+          </p>
+          <div class="ocu-actions">
+            <button
+              v-if="!restartDone"
+              type="button"
+              class="lc-btn lc-btn-primary lc-btn-sm"
+              :disabled="restartBusy"
+              @click="onRestartGateway"
+            >
+              {{ restartBusy ? "重启中…" : "立即重启网关" }}
+            </button>
+            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismissForThisRelease">
+              {{ restartDone ? "关闭" : "稍后手动重启" }}
+            </button>
+          </div>
+        </template>
+
+        <!-- ── 发现新版本：升级提示面板 ── -->
+        <template v-else>
+          <h2 id="ocu-title" class="ocu-title">发现 OpenClaw 新版本</h2>
+          <p class="ocu-versions">
+            当前：<strong>{{ currentVersion }}</strong>
+            · 最新：<strong>{{ latestVersion }}</strong>
+          </p>
+          <p v-if="registryError" class="ocu-warn small">
+            版本查询附注：{{ registryError }}
+          </p>
+          <p class="ocu-note small muted">
+            升级只替换程序文件；你的配置、技能与 API Key（<code>~/.openclaw/</code>）不会被覆盖。
+            升级后会自动运行 <code>openclaw doctor</code> 完成配置迁移，再重启网关即可。
+          </p>
+          <p v-if="upgradeError" class="ocu-error small">
+            升级失败：{{ upgradeError }}。可在终端手动执行
+            <code class="ocu-code">npm install -g openclaw@latest</code>
+          </p>
+          <p v-if="!upgradeError" class="ocu-cli small">
+            手动方式：<code class="ocu-code">npm install -g openclaw@latest</code>
+          </p>
+          <p class="ocu-doc small">
+            <a
+              href="https://docs.openclaw.ai/zh-CN/install/updating"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="ocu-link"
+            >查看官方更新文档</a>
+          </p>
+          <div class="ocu-actions">
+            <button
+              v-if="platform === 'windows'"
+              type="button"
+              class="lc-btn lc-btn-primary lc-btn-sm"
+              :disabled="upgradeBusy"
+              @click="onWindowsScriptUpgrade"
+            >
+              {{ upgradeBusy ? "升级中，请稍候…" : "一键升级（Windows）" }}
+            </button>
+            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismissForThisRelease">
+              稍后提醒
+            </button>
+          </div>
+        </template>
       </div>
     </div>
   </Teleport>
@@ -219,5 +280,30 @@ async function onWindowsScriptUpgrade(): Promise<void> {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.ocu-done-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  font-size: 1.25rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.65rem;
+}
+
+.ocu-restart-ok {
+  color: #22c55e;
+  margin: 0 0 0.35rem;
+}
+
+.ocu-error {
+  color: #f87171;
+  margin: 0 0 0.55rem;
+  line-height: 1.5;
 }
 </style>

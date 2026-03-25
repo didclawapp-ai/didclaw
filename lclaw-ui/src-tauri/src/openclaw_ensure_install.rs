@@ -46,13 +46,15 @@ fn resolve_ensure_script_path(app: &AppHandle) -> Result<PathBuf, String> {
     ))
 }
 
-/// `skip_onboard`: true 等价于 `-SkipOnboard`（只装 CLI）；false 时追加 `-OnboardAuthChoice skip -SkipHealth`，与 LCLaw 默认「先骨架、模型后进应用」一致。
+/// `skip_onboard`: true = `-SkipOnboard`（仅装 CLI）；false 时追加 onboard 参数。
+/// `upgrade`: true = `-Upgrade`（强制 npm 升级 + openclaw doctor，跳过 onboard）。
 #[cfg(not(windows))]
 pub async fn run_ensure_openclaw_windows_install_impl(
     _app: AppHandle,
     skip_onboard: bool,
+    upgrade: bool,
 ) -> Result<Value, String> {
-    let _ = skip_onboard;
+    let _ = (skip_onboard, upgrade);
     Ok(json!({
         "ok": false,
         "exitCode": -1,
@@ -65,6 +67,7 @@ pub async fn run_ensure_openclaw_windows_install_impl(
 pub async fn run_ensure_openclaw_windows_install_impl(
     app: AppHandle,
     skip_onboard: bool,
+    upgrade: bool,
 ) -> Result<Value, String> {
     use std::sync::{Arc, Mutex};
     use tauri::Emitter;
@@ -95,7 +98,9 @@ pub async fn run_ensure_openclaw_windows_install_impl(
         "-File",
         script_str,
     ]);
-    if skip_onboard {
+    if upgrade {
+        cmd.args(["-Upgrade", "-SkipOnboard"]);
+    } else if skip_onboard {
         cmd.arg("-SkipOnboard");
     } else {
         cmd.args(["-OnboardAuthChoice", "skip", "-SkipHealth"]);

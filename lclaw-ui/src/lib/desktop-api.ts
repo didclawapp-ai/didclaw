@@ -54,9 +54,10 @@ function tauriApi(): DidClawElectronApi {
       invoke("write_open_claw_providers_patch", { payload }),
     getOpenClawSetupStatus: () => invoke("get_open_claw_setup_status"),
     checkOpenclawUpdate: () => invoke("check_openclaw_update"),
-    runEnsureOpenclawWindowsInstall: (payload: { skipOnboard: boolean }) =>
+    runEnsureOpenclawWindowsInstall: (payload: { skipOnboard: boolean; upgrade?: boolean }) =>
       invoke("run_ensure_openclaw_windows_install", {
         skipOnboard: payload.skipOnboard,
+        upgrade: payload.upgrade ?? false,
       }),
   };
 }

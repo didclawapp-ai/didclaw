@@ -8,6 +8,9 @@
 
 ### 修复
 
+- **OpenClaw 升级按钮实际上不执行升级的 Bug**：原脚本在 openclaw 已安装时进入 "already installed" 分支直接跳过 `npm install`，再命中 `-SkipOnboard` 立刻退出，导致点击"升级"后什么都没发生。修复：在 `ensure-openclaw-windows.ps1` 中新增 `-Upgrade` 开关，当该开关启用时，强制执行 `npm install -g openclaw@latest`，再自动运行 `openclaw doctor`（配置迁移），与 OpenClaw 官方推荐更新流程对齐。
+- **升级后缺少网关重启步骤**：升级完成后现在展示"升级完成"面板，提供"立即重启网关"按钮，点击后自动重启网关并重新连接，无需手动操作。
+
 - **定时任务触发后消息在会话中出现后消失**：根因是 `cron` WS 事件在 delivery/announce 落库前就触发 `loadHistory`，导致以旧快照覆盖了界面上已流式显示的投递消息。修复：移除 `cron` 事件 → `loadHistory` 的直接触发，让后续 `agent` 事件（携带 `sessionKey`，在 delivery 完成后发出）来负责同步；同时将防抖延迟从 750ms 提高到 1500ms，给落库留足余量。
 
 ### 改进

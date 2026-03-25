@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 # Must be saved as UTF-8 with BOM; Windows PowerShell 5.1 defaults to ANSI which breaks
 # non-ASCII characters in string literals and can trigger a ParserError.
 <#
@@ -34,6 +34,9 @@
 [CmdletBinding()]
 param(
     [switch]$SkipOnboard,
+    # When set, always run `npm install -g openclaw@latest` even if openclaw is already
+    # installed, then run `openclaw doctor`, then exit — skipping onboard entirely.
+    [switch]$Upgrade,
     [string]$OllamaModelId = 'glm-4.7-flash',
     [string]$OllamaBaseUrl = 'http://127.0.0.1:11434',
     [int]$GatewayPort = 18789,
@@ -300,6 +303,61 @@ try {
 } catch {
     Write-Output '[ensure-openclaw] ui=node_not_found'
 }
+
+# ── Upgrade mode ─────────────────────────────────────────────────────────────
+# When -Upgrade is set we always run `npm install -g openclaw@latest` (even if
+# openclaw is already present) and then run `openclaw doctor` for migrations.
+# Onboard is never repeated in this path.
+if ($Upgrade) {
+    Write-Output '[ensure-openclaw] ui=upgrade_begin'
+    $upgNpm = $null
+    try {
+        $uc = @(Get-Command npm -CommandType Application -ErrorAction SilentlyContinue)
+        if ($uc.Count -ge 1 -and -not [string]::IsNullOrWhiteSpace($uc[0].Source)) {
+            $upgNpm = [string]$uc[0].Source
+        }
+    } catch { }
+
+    if (-not $upgNpm) {
+        Write-UiLine '[ensure-openclaw] Upgrade failed: npm not found in PATH. Please ensure Node.js is installed.' -ForegroundColor Red
+        exit 2
+    }
+
+    Write-UiLine '[ensure-openclaw] Upgrading openclaw to latest via npm...' -ForegroundColor Yellow
+    Write-Output '[ensure-openclaw] ui=upgrade_npm_begin'
+    try {
+        & $upgNpm install -g openclaw@latest
+        if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            throw ('npm install -g openclaw@latest exited with code: {0}' -f $LASTEXITCODE)
+        }
+        Write-UiLine '[ensure-openclaw] npm upgrade complete.' -ForegroundColor Green
+        Write-Output '[ensure-openclaw] ui=upgrade_npm_done'
+    } catch {
+        Write-UiLine ('[ensure-openclaw] npm upgrade failed: {0}' -f $_) -ForegroundColor Red
+        exit 1
+    }
+
+    Sync-PathFromRegistry
+    $upgExe = Test-OpenclawOnPath
+    if ($upgExe) {
+        Write-UiLine '[ensure-openclaw] Running openclaw doctor (config migrations)...' -ForegroundColor Yellow
+        Write-Output '[ensure-openclaw] ui=upgrade_doctor_begin'
+        try {
+            & $upgExe doctor 2>&1 | ForEach-Object { Write-Output $_ }
+            Write-UiLine '[ensure-openclaw] openclaw doctor complete.' -ForegroundColor Green
+        } catch {
+            Write-UiLine ('[ensure-openclaw] openclaw doctor warning: {0}' -f $_) -ForegroundColor Yellow
+        }
+    } else {
+        Write-UiLine '[ensure-openclaw] Warning: openclaw not found in PATH after upgrade; skipping doctor.' -ForegroundColor Yellow
+    }
+
+    Write-Output '[ensure-openclaw] ui=upgrade_done'
+    Write-UiLine '[ensure-openclaw] Upgrade complete. Please restart the OpenClaw gateway.' -ForegroundColor Green
+    exit 0
+}
+# ─────────────────────────────────────────────────────────────────────────────
+
 $openclawExe = Test-OpenclawOnPath
 
 if (-not $openclawExe) {

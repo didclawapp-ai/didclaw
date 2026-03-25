@@ -136,9 +136,10 @@ interface DidClawElectronApi {
     /** 本次预检是否刚把桌面 WebView Origin 写入 openclaw.json；为 true 时应重启网关后重连 */
     controlUiAllowedOriginsMerged?: boolean;
   }>;
-  /** Windows：执行打包内的 ensure-openclaw-windows.ps1；`skipOnboard` 为 true 时等价 -SkipOnboard */
+  /** Windows：执行打包内的 ensure-openclaw-windows.ps1；`upgrade: true` 时等价 -Upgrade -SkipOnboard（强制 npm 升级 + doctor）；`skipOnboard: true` 等价 -SkipOnboard（仅首次装 CLI）。 */
   runEnsureOpenclawWindowsInstall(payload: {
     skipOnboard: boolean;
+    upgrade?: boolean;
   }): Promise<{
     ok: boolean;
     exitCode: number;
