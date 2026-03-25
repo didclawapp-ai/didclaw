@@ -48,3 +48,30 @@ export const chatEventPayloadSchema = z
   .passthrough();
 
 export type ChatEventPayloadValidated = z.infer<typeof chatEventPayloadSchema>;
+
+/** 下行事件帧（`type: "event"`）结构校验；payload 保持 unknown 由上层按事件名解析 */
+export const gatewayEventFrameSchema = z
+  .object({
+    type: z.literal("event"),
+    event: z.string(),
+    seq: z.number().optional(),
+    payload: z.unknown().optional(),
+  })
+  .passthrough();
+
+/** 下行响应帧（`type: "res"`）结构校验 */
+export const gatewayResponseFrameSchema = z
+  .object({
+    type: z.literal("res"),
+    id: z.string(),
+    ok: z.boolean(),
+    payload: z.unknown().optional(),
+    error: z
+      .object({
+        code: z.string().optional(),
+        message: z.string().optional(),
+        details: z.unknown().optional(),
+      })
+      .optional(),
+  })
+  .passthrough();

@@ -16,9 +16,9 @@ function productionCspMeta(): string {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: blob: https: http:",
-    "connect-src 'self' ws: wss: http: https:",
-    "frame-src 'self' data: blob: https:",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' ws://127.0.0.1:* wss://127.0.0.1:* http://127.0.0.1:* https:",
+    "frame-src 'self' blob: https:",
     "worker-src 'self' blob:",
   ].join("; ");
   return `    <meta http-equiv="Content-Security-Policy" content="${csp}" />\n`;

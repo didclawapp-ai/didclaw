@@ -154,10 +154,10 @@ export const useGatewayStore = defineStore("gateway", () => {
               const { useChatStore } = await import("./chat");
               await useChatStore().loadHistory({ silent: true });
             }
-          });
+          }).catch((e) => { console.error("[didclaw] onHello session refresh error", e); });
           void import("./chat").then(({ useChatStore }) => {
             void useChatStore().refreshOpenClawModelPicker();
-          });
+          }).catch((e) => { console.error("[didclaw] onHello model picker error", e); });
         },
         onEvent: (evt) => {
           if (isGatewayPushDebugEnabled()) {
@@ -184,7 +184,7 @@ export const useGatewayStore = defineStore("gateway", () => {
                 const { useChatStore } = await import("./chat");
                 await useChatStore().loadHistory({ silent: true });
               }
-            });
+            }).catch((e) => { console.error("[didclaw] sessions.changed error", e); });
           }
           /**
            * 排障见用户日志：定时任务期间有 `cron`/`agent` 而无 `chat`。网关仍会把落库消息写在 transcript，
@@ -201,7 +201,7 @@ export const useGatewayStore = defineStore("gateway", () => {
             }
             void import("./chat").then(({ useChatStore }) => {
               useChatStore().scheduleDebouncedSilentHistoryFromGateway("cron");
-            });
+            }).catch((e) => { console.error("[didclaw] cron event error", e); });
           }
           if (evt.event === "agent") {
             const p = evt.payload as { sessionKey?: unknown } | undefined;
@@ -227,15 +227,15 @@ export const useGatewayStore = defineStore("gateway", () => {
               }
               void import("./chat").then(({ useChatStore }) => {
                 useChatStore().scheduleDebouncedSilentHistoryFromGateway("agent");
-              });
-            });
+              }).catch((e) => { console.error("[didclaw] agent history sync error", e); });
+            }).catch((e) => { console.error("[didclaw] agent session check error", e); });
           }
           void import("./chat").then(({ useChatStore }) => {
             useChatStore().handleGatewayEvent(evt);
-          });
+          }).catch((e) => { console.error("[didclaw] handleGatewayEvent dispatch error", e); });
           void import("./toolTimeline").then(({ useToolTimelineStore }) => {
             useToolTimelineStore().ingest(evt);
-          });
+          }).catch((e) => { console.error("[didclaw] toolTimeline ingest error", e); });
         },
         onClose: ({ code, reason, error }) => {
           /**

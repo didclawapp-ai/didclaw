@@ -6,6 +6,24 @@
 
 ## [未发布]
 
+## [0.3.2] - 2026-03-25
+
+### 安全与加固
+
+- **Capabilities 拆分**：将 `src-tauri/capabilities/default.json` 的开发 Vite 端口（5173）移至独立的 `capabilities/dev.json`；生产构建通过 `tauri.build.conf.json` 仅加载 `default`，`tauri dev` 通过 `tauri.dev.conf.json` 同时加载二者，消除生产包内开发端口可信来源。
+- **Gateway 帧 Zod 验证**：`gateway-client.ts` 的 `handleMessage` 对所有 `event` / `res` 帧在使用前经 `gatewayEventFrameSchema` / `gatewayResponseFrameSchema` 做 safeParse，不再依赖裸 `as` 断言。
+- **异步错误可见性**：`chat.ts` 的 async IIFE 及 `gateway.ts` 所有 `void import().then()` 均补充 `.catch(e => console.error(...))` ，消除静默吞错。
+- **输入大小前置检查**：`dialog_save_base64_file` 在 base64 过滤前限制 68MB 输入；`install_zip_base64` 在解码前限制 110MB 输入，均早于内存分配。
+- **openclawExecutable 路径校验**：写入前校验长度上限与 shell 元字符，拒绝 `|`、`;`、`` ` `` 等注入字符。
+- **mXSS 防护**：将 `applyExternalLinkTargets` 中的 `innerHTML` 二次解析改为 DOMPurify `afterSanitizeAttributes` hook 直接操作 DOM 节点，消除净化后二次解析的 mutation XSS 向量。
+- **CSP 收紧**：`vite.config.ts` 中移除 `img-src http:`；`connect-src` 的 WebSocket 限收到 `ws://127.0.0.1:*` 与 `wss://127.0.0.1:*`；`frame-src` 移除 `data:`。
+
+### 改进
+
+- **static_server.rs**：移除 `sleep(200ms)` 的脆弱时机假设；`TcpListener::bind` 成功后端口已在 OS 层处于 LISTEN 状态，无需等待 axum accept 循环预热。
+- **Mutex 毒化显式化**：`openclaw_gateway.rs` 三处 `MANAGED_CHILD` 锁操作从 `unwrap_or_else(|e| e.into_inner())` 改为 `expect("MANAGED_CHILD mutex poisoned")`，使异常状态可见而非静默恢复。
+- **skills.rs zip 安装**：`install_zip_path` 不再将文件内容 base64 编码后再解码，直接将文件字节传入公用函数 `extract_zip_bytes_to_dest`，消除约 2.33x 的内存峰值。
+
 ### 修复
 
 - **一次性定时任务**等结束后，网关从 `sessions.list` 移除对应会话时，不再把当前选中强行改回 `sessions[0]`（主会话），避免聊天区**刚切到定时会话又立刻消失**；对已从列表消失的当前键在本地挂一条 **「…（已结束）」** 占位行，切走其它会话后下次刷新即与网关列表对齐。

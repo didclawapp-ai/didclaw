@@ -153,32 +153,27 @@ if (!g.__didclawDomPurifyHooks) {
       }
     }
   });
-}
-
-function applyExternalLinkTargets(html: string): string {
-  if (typeof document === "undefined") {
-    return html;
-  }
-  const tpl = document.createElement("template");
-  tpl.innerHTML = html;
-  tpl.content.querySelectorAll("a[href]").forEach((a) => {
-    const href = a.getAttribute("href");
-    if (href && /^https?:\/\//i.test(href)) {
-      a.setAttribute("target", "_blank");
-      a.setAttribute("rel", "noopener noreferrer");
+  // 在 DOMPurify 净化完属性后直接操作 DOM 节点，避免二次 innerHTML 解析带来的 mXSS 风险
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if (String(node.nodeName).toLowerCase() === "a") {
+      const href = node.getAttribute("href");
+      if (href && /^https?:\/\//i.test(href)) {
+        node.setAttribute("target", "_blank");
+        node.setAttribute("rel", "noopener noreferrer");
+      }
     }
   });
-  return tpl.innerHTML;
 }
 
 /**
  * Markdown → HTML，经 DOMPurify 白名单消毒（禁用原始 HTML 注入）。
+ * 外部链接的 target/_blank/rel 通过 afterSanitizeAttributes hook 在净化阶段内完成，
+ * 无需二次 innerHTML 解析。
  */
 export function renderMarkdownToSafeHtml(source: string): string {
   const raw = md.render(source);
-  const sanitized = DOMPurify.sanitize(raw, {
+  return DOMPurify.sanitize(raw, {
     ALLOWED_TAGS: SAFE_TAGS,
     ALLOWED_ATTR: ["href", "target", "rel", "class", "data-didclaw-chart", "role", "aria-label"],
   });
-  return applyExternalLinkTargets(sanitized);
 }

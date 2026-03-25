@@ -614,7 +614,7 @@ export const useChatStore = defineStore("chat", () => {
     }
     const payload = parsed.data;
 
-    void (async () => {
+    (async () => {
       const sessionStore = useSessionStore();
       const activeKey = sessionStore.activeSessionKey;
       if (payload.sessionKey !== activeKey) {
@@ -689,7 +689,9 @@ export const useChatStore = defineStore("chat", () => {
         runId.value = null;
         lastError.value = payload.errorMessage?.trim() || "对话出错（网关返回 error 状态）";
       }
-    })();
+    })().catch((e) => {
+      console.error("[didclaw] handleGatewayEvent async error", e);
+    });
   }
 
   return {

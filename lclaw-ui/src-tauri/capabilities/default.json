@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "默认权限；生产默认从 http://127.0.0.1:34127 加载时需 remote 以注入 IPC（与 static_server 端口一致）",
+  "description": "生产权限；仅允许本机静态服务端口（与 static_server.rs DEFAULT_BASE_PORT 一致）注入 IPC",
   "windows": [
     "main"
   ],
@@ -9,13 +9,7 @@
     "urls": [
       "http://127.0.0.1:34127/*",
       "http://127.0.0.1:34127/",
-      "http://127.0.0.1:34127",
-      "http://localhost:5173/*",
-      "http://localhost:5173/",
-      "http://localhost:5173",
-      "http://127.0.0.1:5173/*",
-      "http://127.0.0.1:5173/",
-      "http://127.0.0.1:5173"
+      "http://127.0.0.1:34127"
     ]
   },
   "permissions": [

@@ -4,6 +4,20 @@
 use crate::didclaw_db;
 use serde_json::{json, Map, Value};
 
+/// 对用户提供的可执行文件路径做基础安全校验（深度防御；Command::new 不走 shell，
+/// 但拒绝明显的注入字符可防止路径混淆及日志污染）。
+fn validate_executable_path(p: &str) -> Result<(), String> {
+    if p.len() > 4096 {
+        return Err("可执行文件路径过长".into());
+    }
+    for ch in ['|', ';', '`', '$', '>', '<', '\n', '\r'] {
+        if p.contains(ch) {
+            return Err(format!("可执行文件路径包含非法字符 '{ch}'"));
+        }
+    }
+    Ok(())
+}
+
 pub fn read_merged_map(app: &tauri::AppHandle) -> Result<Map<String, Value>, String> {
     didclaw_db::read_gateway_merged_map(app)
 }
@@ -98,6 +112,7 @@ pub fn write_merged_from_payload(app: &tauri::AppHandle, data: &Value) -> Result
         if t.is_empty() {
             merged.remove("openclawExecutable");
         } else {
+            validate_executable_path(t)?;
             merged.insert("openclawExecutable".into(), json!(t));
         }
     }

@@ -116,9 +116,9 @@ pub async fn start_server(dist: PathBuf, tx: Sender<Result<u16, String>>) {
                     log::error!("本地静态服务退出: {e}");
                 }
             });
-            // 主线程在 recv 后会立刻 navigate；若 serve 尚未开始 accept，首包可能失败 → 白屏。
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-            crate::launch_log::line("static_server: 已等待 accept 就绪，通知主线程 navigate");
+            // TcpListener::bind 成功后端口已在 OS 层进入 LISTEN 状态（TCP backlog 可接受初始连接），
+            // 无需等待 axum accept 循环预热；移除原 sleep(200ms) 的脆弱时机假设。
+            crate::launch_log::line("static_server: 端口已 LISTEN，通知主线程 navigate");
             if tx.send(Ok(base)).is_err() {
                 crate::launch_log::line("static_server: 发送端口到主线程失败（通道关闭）");
                 serve_task.abort();

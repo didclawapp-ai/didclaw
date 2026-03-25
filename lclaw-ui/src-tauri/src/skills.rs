@@ -165,25 +165,15 @@ pub fn list_installed(install_root: String) -> Result<Value, String> {
     Ok(Value::Array(items))
 }
 
-pub fn install_zip_base64(
-    install_root: String,
-    slug: String,
-    zip_base64: String,
-    origin: Option<Value>,
-) -> Result<Value, String> {
-    let root = normalize_install_root(&install_root)?;
-    let slug = normalize_slug(&slug)?;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(zip_base64.trim())
-        .map_err(|e| format!("zip Base64 解码失败: {e}"))?;
+/// 将已读取的 zip 字节解压到目标技能目录（内部公用）。
+fn extract_zip_bytes_to_dest(bytes: Vec<u8>, dest: &PathBuf, origin: Option<Value>) -> Result<Value, String> {
     if bytes.len() > 80 * 1024 * 1024 {
         return Err("zip 超过 80MB，请改用本机 zip 文件安装".to_string());
     }
-    let dest = root.join(&slug);
     if dest.exists() {
-        fs::remove_dir_all(&dest).map_err(|e| format!("覆盖已有技能失败: {e}"))?;
+        fs::remove_dir_all(dest).map_err(|e| format!("覆盖已有技能失败: {e}"))?;
     }
-    fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+    fs::create_dir_all(dest).map_err(|e| e.to_string())?;
 
     let cursor = Cursor::new(bytes);
     let mut archive = zip::ZipArchive::new(cursor).map_err(|e| format!("zip 解析失败: {e}"))?;
@@ -206,16 +196,35 @@ pub fn install_zip_base64(
         fs::write(&out, buf).map_err(|e| e.to_string())?;
     }
 
-    if !tree_has_skill_md(&dest, 3) {
-        let _ = fs::remove_dir_all(&dest);
+    if !tree_has_skill_md(dest, 3) {
+        let _ = fs::remove_dir_all(dest);
         return Err("zip 解压后未找到 SKILL.md（已在子目录中递归检测）".to_string());
     }
 
     if let Some(o) = origin {
-        write_origin_json(&dest, &o)?;
+        write_origin_json(dest, &o)?;
     }
 
     Ok(json!({"ok": true, "path": dest.to_string_lossy()}))
+}
+
+pub fn install_zip_base64(
+    install_root: String,
+    slug: String,
+    zip_base64: String,
+    origin: Option<Value>,
+) -> Result<Value, String> {
+    let root = normalize_install_root(&install_root)?;
+    let slug = normalize_slug(&slug)?;
+    // 80MB zip 对应约 110MB base64；提前检查避免在解码前就分配超量内存
+    const MAX_ZIP_BASE64_INPUT: usize = 110 * 1024 * 1024;
+    if zip_base64.len() > MAX_ZIP_BASE64_INPUT {
+        return Err("zip 超过 80MB，请改用本机 zip 文件安装".to_string());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(zip_base64.trim())
+        .map_err(|e| format!("zip Base64 解码失败: {e}"))?;
+    extract_zip_bytes_to_dest(bytes, &root.join(&slug), origin)
 }
 
 pub fn install_from_folder(install_root: String, slug: String, source_path: String) -> Result<Value, String> {
@@ -247,13 +256,7 @@ pub fn install_zip_path(install_root: String, slug: String, zip_path: String) ->
         return Err("zip 路径不是文件".to_string());
     }
     let bytes = fs::read(&zp).map_err(|e| e.to_string())?;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-    install_zip_base64(
-        root.to_string_lossy().to_string(),
-        slug,
-        b64,
-        None,
-    )
+    extract_zip_bytes_to_dest(bytes, &root.join(&slug), None)
 }
 
 pub fn delete_skill(install_root: String, slug: String) -> Result<(), String> {

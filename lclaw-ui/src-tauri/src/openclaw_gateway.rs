@@ -493,7 +493,7 @@ fn read_didclaw_gateway_err_log_tail(max_bytes: usize) -> String {
 }
 
 fn kill_managed_gateway_process() {
-    let mut g = MANAGED_CHILD.lock().unwrap_or_else(|e| e.into_inner());
+    let mut g = MANAGED_CHILD.lock().expect("MANAGED_CHILD mutex poisoned");
     if let Some(mut c) = g.take() {
         let _ = c.kill();
         let _ = c.wait();
@@ -1029,7 +1029,7 @@ pub async fn ensure_open_claw_gateway_running(
     })?;
 
     {
-        let mut g = MANAGED_CHILD.lock().unwrap_or_else(|e| e.into_inner());
+        let mut g = MANAGED_CHILD.lock().expect("MANAGED_CHILD mutex poisoned");
         if let Some(mut old) = g.take() {
             let _ = old.kill();
             let _ = old.wait();
@@ -1039,7 +1039,7 @@ pub async fn ensure_open_claw_gateway_running(
 
     tokio::time::sleep(Duration::from_millis(1200)).await;
     {
-        let mut g = MANAGED_CHILD.lock().unwrap_or_else(|e| e.into_inner());
+        let mut g = MANAGED_CHILD.lock().expect("MANAGED_CHILD mutex poisoned");
         if let Some(ref mut c) = *g {
             match c.try_wait() {
                 Ok(Some(status)) => {

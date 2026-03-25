@@ -43,6 +43,11 @@ pub fn dialog_save_base64_file(
     default_file_name: String,
 ) -> Result<Value, String> {
     use base64::Engine;
+    // base64 膨胀比约 1.37x；限制 50MB 二进制对应约 68MB base64 输入
+    const MAX_BASE64_INPUT: usize = 68 * 1024 * 1024;
+    if base64_data.len() > MAX_BASE64_INPUT {
+        return Err("文件过大（超过 50MB 限制）".into());
+    }
     let cleaned: String = base64_data.chars().filter(|c| !c.is_whitespace()).collect();
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(cleaned.as_bytes())

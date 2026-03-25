@@ -16,6 +16,7 @@ import {
   type GatewayEventFrame,
   type GatewayResponseFrame,
 } from "./gateway-types";
+import { gatewayEventFrameSchema, gatewayResponseFrameSchema } from "./schemas";
 
 /** 与 `WebSocket.OPEN` 一致；隧道实现未必继承 WebSocket，故用数值比较 */
 const WS_OPEN = typeof WebSocket !== "undefined" ? WebSocket.OPEN : 1;
@@ -204,9 +205,19 @@ export class GatewayClient {
       return;
     }
 
+    if (typeof parsed !== "object" || parsed === null) {
+      return;
+    }
+
     const frame = parsed as { type?: unknown };
+
     if (frame.type === "event") {
-      const evt = parsed as GatewayEventFrame;
+      const result = gatewayEventFrameSchema.safeParse(parsed);
+      if (!result.success) {
+        console.warn("[didclaw] invalid gateway event frame", result.error.issues);
+        return;
+      }
+      const evt = result.data as GatewayEventFrame;
       if (evt.event === "connect.challenge") {
         const payload = evt.payload as { nonce?: unknown } | undefined;
         const nonce = payload && typeof payload.nonce === "string" ? payload.nonce : null;
@@ -236,7 +247,12 @@ export class GatewayClient {
     }
 
     if (frame.type === "res") {
-      const res = parsed as GatewayResponseFrame;
+      const result = gatewayResponseFrameSchema.safeParse(parsed);
+      if (!result.success) {
+        console.warn("[didclaw] invalid gateway res frame", result.error.issues);
+        return;
+      }
+      const res = result.data as GatewayResponseFrame;
       const pending = this.pending.get(res.id);
       if (!pending) {
         return;
