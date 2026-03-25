@@ -28,6 +28,7 @@
   --lc-error-bg: rgba(220, 38, 38, 0.08);
   --lc-warning: #d97706;
   --lc-warning-bg: rgba(217, 119, 6, 0.1);
+  --lc-warning-text: #92400e;
   --lc-radius: 12px;
   --lc-radius-sm: 8px;
   --lc-radius-md: 10px;
@@ -51,6 +52,48 @@
   --lc-surface-top: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
   --lc-surface-panel: rgba(255, 255, 255, 0.85);
   --lc-surface-composer: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  /* body 背景色（提取为 token 便于暗色覆盖） */
+  --lc-body-bg-from: #e8eef5;
+  --lc-body-bg-mid: #f4f7fb;
+  --lc-body-bg-to: #f1f5f9;
+  --lc-body-grid-color: rgba(15, 23, 42, 0.035);
+}
+
+/* ── 暗色主题覆盖 ─────────────────────────────────────────────── */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --lc-bg-deep: #060d1a;
+  --lc-bg-base: #0c1526;
+  --lc-bg-raised: #111e33;
+  --lc-bg-elevated: #162035;
+  --lc-bg-hover: rgba(6, 182, 212, 0.1);
+  --lc-border: rgba(255, 255, 255, 0.08);
+  --lc-border-strong: rgba(6, 182, 212, 0.45);
+  --lc-text: #e2e8f0;
+  --lc-text-muted: #94a3b8;
+  --lc-text-dim: #64748b;
+  --lc-accent: #22d3ee;
+  --lc-accent-soft: rgba(6, 182, 212, 0.12);
+  --lc-accent-glow: rgba(6, 182, 212, 0.3);
+  --lc-violet: #a78bfa;
+  --lc-violet-soft: rgba(139, 92, 246, 0.15);
+  --lc-success: #10b981;
+  --lc-success-bg: rgba(16, 185, 129, 0.12);
+  --lc-error: #f87171;
+  --lc-error-bg: rgba(239, 68, 68, 0.12);
+  --lc-warning: #fbbf24;
+  --lc-warning-bg: rgba(251, 191, 36, 0.12);
+  --lc-warning-text: #fcd34d;
+  --lc-surface: #111e33;
+  --lc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2);
+  --lc-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --lc-surface-top: linear-gradient(180deg, #111e33 0%, #0c1526 100%);
+  --lc-surface-panel: rgba(11, 20, 38, 0.92);
+  --lc-surface-composer: linear-gradient(180deg, #111e33 0%, #0c1526 100%);
+  --lc-body-bg-from: #040b18;
+  --lc-body-bg-mid: #060d1a;
+  --lc-body-bg-to: #081120;
+  --lc-body-grid-color: rgba(6, 182, 212, 0.04);
 }
 
 html,
@@ -68,12 +111,13 @@ body {
   background-image:
     radial-gradient(ellipse 100% 65% at 50% -25%, rgba(6, 182, 212, 0.11), transparent 52%),
     radial-gradient(ellipse 55% 45% at 100% 0%, rgba(99, 102, 241, 0.07), transparent),
-    linear-gradient(180deg, #e8eef5 0%, var(--lc-bg-base) 42%, #f1f5f9 100%);
+    linear-gradient(180deg, var(--lc-body-bg-from) 0%, var(--lc-body-bg-mid) 42%, var(--lc-body-bg-to) 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* 浅色底上的淡网格 */
+/* 背景装饰网格 */
 body::before {
   content: "";
   pointer-events: none;
@@ -82,8 +126,8 @@ body::before {
   z-index: 0;
   opacity: 0.55;
   background-image:
-    linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+    linear-gradient(var(--lc-body-grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lc-body-grid-color) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: radial-gradient(ellipse 90% 80% at 50% 35%, black 15%, transparent 72%);
 }
@@ -185,4 +229,83 @@ body::before {
 .lc-btn-xs {
   font-size: 11px;
   padding: 4px 10px;
+}
+
+/* ── 暗色模式下代码高亮主题覆盖（github-dark 配色） ──────────────── */
+[data-theme="dark"] .hljs {
+  background: #161b22;
+  color: #c9d1d9;
+}
+[data-theme="dark"] .hljs-doctag,
+[data-theme="dark"] .hljs-keyword,
+[data-theme="dark"] .hljs-meta .hljs-keyword,
+[data-theme="dark"] .hljs-template-tag,
+[data-theme="dark"] .hljs-template-variable,
+[data-theme="dark"] .hljs-type,
+[data-theme="dark"] .hljs-variable.language_ {
+  color: #ff7b72;
+}
+[data-theme="dark"] .hljs-title,
+[data-theme="dark"] .hljs-title.class_,
+[data-theme="dark"] .hljs-title.class_.inherited__,
+[data-theme="dark"] .hljs-title.function_ {
+  color: #d2a8ff;
+}
+[data-theme="dark"] .hljs-attr,
+[data-theme="dark"] .hljs-attribute,
+[data-theme="dark"] .hljs-literal,
+[data-theme="dark"] .hljs-meta,
+[data-theme="dark"] .hljs-number,
+[data-theme="dark"] .hljs-operator,
+[data-theme="dark"] .hljs-variable,
+[data-theme="dark"] .hljs-selector-attr,
+[data-theme="dark"] .hljs-selector-class,
+[data-theme="dark"] .hljs-selector-id {
+  color: #79c0ff;
+}
+[data-theme="dark"] .hljs-regexp,
+[data-theme="dark"] .hljs-string,
+[data-theme="dark"] .hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+[data-theme="dark"] .hljs-built_in,
+[data-theme="dark"] .hljs-symbol {
+  color: #ffa657;
+}
+[data-theme="dark"] .hljs-comment,
+[data-theme="dark"] .hljs-code,
+[data-theme="dark"] .hljs-formula {
+  color: #8b949e;
+}
+[data-theme="dark"] .hljs-name,
+[data-theme="dark"] .hljs-quote,
+[data-theme="dark"] .hljs-selector-tag,
+[data-theme="dark"] .hljs-selector-pseudo {
+  color: #7ee787;
+}
+[data-theme="dark"] .hljs-subst {
+  color: #c9d1d9;
+}
+[data-theme="dark"] .hljs-section {
+  color: #1f6feb;
+  font-weight: bold;
+}
+[data-theme="dark"] .hljs-bullet {
+  color: #f2cc60;
+}
+[data-theme="dark"] .hljs-emphasis {
+  color: #c9d1d9;
+  font-style: italic;
+}
+[data-theme="dark"] .hljs-strong {
+  color: #c9d1d9;
+  font-weight: bold;
+}
+[data-theme="dark"] .hljs-addition {
+  color: #aff5b4;
+  background-color: #033a16;
+}
+[data-theme="dark"] .hljs-deletion {
+  color: #ffdcd7;
+  background-color: #67060c;
 }

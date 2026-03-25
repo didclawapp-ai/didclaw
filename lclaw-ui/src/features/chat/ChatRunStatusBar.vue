@@ -172,7 +172,7 @@ const barVisible = computed(() => agentBusy.value || showLastRun.value);
 .stall {
   flex: 1 1 100%;
   font-size: 11px;
-  color: #b45309;
+  color: var(--lc-warning-text);
 }
 .done {
   color: var(--lc-text-muted);

@@ -9,6 +9,7 @@ import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useSessionStore } from "@/stores/session";
+import { useThemeStore } from "@/stores/theme";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
@@ -20,6 +21,7 @@ const { status, lastError, helloInfo, url } = storeToRefs(gw);
 const { sessions, error: sessionsError, activeSessionKey } = storeToRefs(session);
 const { messages, lastError: chatError } = storeToRefs(chat);
 
+const themeStore = useThemeStore();
 const skillsDialogOpen = ref(false);
 const cronDialogOpen = ref(false);
 const copiedDiag = ref(false);
@@ -230,6 +232,18 @@ function closeMoreMenu(): void {
           @click="localSettings.open('gateway')"
         >
           ⚙ 设置
+        </button>
+
+        <!-- 夜间模式切换 -->
+        <button
+          type="button"
+          class="lc-btn lc-btn-ghost theme-toggle"
+          :title="themeStore.mode === 'dark' ? '切换到日间模式' : '切换到夜间模式'"
+          :aria-label="themeStore.mode === 'dark' ? '切换到日间模式' : '切换到夜间模式'"
+          :aria-pressed="themeStore.mode === 'dark'"
+          @click="themeStore.toggle()"
+        >
+          <span class="theme-icon" aria-hidden="true">{{ themeStore.mode === 'dark' ? '☀' : '🌙' }}</span>
         </button>
 
         <!-- 更多菜单 -->
@@ -494,6 +508,31 @@ function closeMoreMenu(): void {
 .conn-switch--on .conn-switch-thumb {
   transform: translateX(14px);
   background: var(--lc-success);
+}
+
+/* Theme toggle */
+.theme-toggle {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: unset;
+  transition:
+    background 0.2s ease,
+    transform 0.3s ease,
+    border-color 0.2s ease;
+}
+.theme-toggle:hover:not(:disabled) {
+  transform: rotate(20deg) translateY(-1px);
+}
+.theme-icon {
+  font-size: 15px;
+  line-height: 1;
+  display: block;
+  transition: transform 0.35s ease;
 }
 
 /* More menu */

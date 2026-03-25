@@ -556,7 +556,7 @@ async function pickLocalFileForPreview(): Promise<void> {
   border-radius: var(--lc-radius-sm);
   border: 1px solid var(--lc-accent);
   background: var(--lc-accent-soft);
-  color: #0c4a6e;
+  color: var(--lc-accent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
