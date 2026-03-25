@@ -20,7 +20,7 @@ const forRun = computed(() => {
 
 const displayList = computed(() => [...forRun.value].reverse());
 
-const visible = computed(() => runId.value != null && forRun.value.length > 0);
+const visible = computed(() => false && runId.value != null && forRun.value.length > 0);
 </script>
 
 <template>
