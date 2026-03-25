@@ -176,16 +176,40 @@ async function applyProvider(entry: ProviderCatalogEntry, setPrimary: boolean) {
       return;
     }
 
-    if (setPrimary) {
-      const primaryRef = `${entry.id}/${entry.defaultModel}`;
-      const mr = await api.writeOpenClawModelConfig({
-        model: { primary: primaryRef },
-        models: {},
-      });
-      if (!mr.ok) {
-        error.value = String(mr.error || "设置主力模型失败");
-        return;
+    // Read current model config to preserve models from other providers
+    const existingConfig = await api.readOpenClawModelConfig?.();
+    const existingModels: Record<string, Record<string, unknown>> = {};
+    if (existingConfig?.ok) {
+      const em = existingConfig.models as Record<string, unknown> | undefined;
+      if (em && typeof em === "object") {
+        for (const [k, v] of Object.entries(em)) {
+          // Keep models that belong to other providers
+          if (!k.startsWith(`${entry.id}/`)) {
+            existingModels[k] = (v && typeof v === "object" && !Array.isArray(v))
+              ? (v as Record<string, unknown>)
+              : {};
+          }
+        }
       }
+    }
+
+    // Build model refs for this provider: "providerId/modelId"
+    const thisProviderModels: Record<string, Record<string, unknown>> = {};
+    for (const mid of editedModels(entry)) {
+      thisProviderModels[`${entry.id}/${mid}`] = {};
+    }
+    const mergedModels = { ...existingModels, ...thisProviderModels };
+
+    const primaryRef = `${entry.id}/${entry.defaultModel}`;
+    const mr = await api.writeOpenClawModelConfig({
+      model: setPrimary ? { primary: primaryRef } : undefined,
+      models: mergedModels,
+    });
+    if (!mr.ok) {
+      error.value = String(mr.error || "设置模型失败");
+      return;
+    }
+    if (setPrimary) {
       currentPrimary.value = primaryRef;
     }
 
