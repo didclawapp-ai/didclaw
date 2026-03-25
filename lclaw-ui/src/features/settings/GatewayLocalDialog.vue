@@ -18,8 +18,6 @@ import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { computed, ref, watch } from "vue";
 import AiProviderSetup from "@/features/settings/AiProviderSetup.vue";
-import DoctorPanel from "@/features/settings/DoctorPanel.vue";
-
 const props = defineProps<{
   modelValue: boolean;
 }>();
@@ -709,15 +707,6 @@ async function onRestoreModel(): Promise<void> {
         </div>
 
         <div v-show="tab === 'gateway'" class="tab-panel">
-          <p class="help-intro muted small">
-            {{ t('settings.gatewayHelp') }}
-            <span
-              class="help-tip"
-              :title="t('settings.gatewayHelpTip')"
-              tabindex="0"
-              role="note"
-            >?</span>
-          </p>
           <label class="field">
             <span class="field-label-row">
               {{ t('settings.wsUrlLabel') }}
@@ -728,12 +717,7 @@ async function onRestoreModel(): Promise<void> {
           <label class="field">
             <span class="field-label-row">
               {{ t('settings.tokenLabel') }}
-              <span
-                class="help-tip"
-                :title="t('settings.tokenTip')"
-                tabindex="0"
-                role="note"
-              >?</span>
+              <span class="help-tip" :title="t('settings.tokenTip')" tabindex="0" role="note">?</span>
             </span>
             <input v-model="token" type="password" autocomplete="off" :placeholder="t('settings.tokenPlaceholder')">
           </label>
@@ -741,34 +725,35 @@ async function onRestoreModel(): Promise<void> {
             <span>{{ t('settings.passwordLabel') }}</span>
             <input v-model="password" type="password" autocomplete="off" :placeholder="t('settings.passwordPlaceholder')">
           </label>
-          <label class="field field--checkbox-row">
-            <input v-model="autoStartOpenClaw" type="checkbox">
-            <span>{{ t('settings.autoStartLabel') }}</span>
-          </label>
-          <p class="hint small muted gateway-auto-hint">
-            {{ t('settings.autoStartHint') }}
-          </p>
-          <label class="field field--checkbox-row">
-            <input v-model="stopManagedGatewayOnQuit" type="checkbox">
-            <span>{{ t('settings.stopOnQuitLabel') }}</span>
-          </label>
-          <label class="field">
-            <span class="field-label-row">
-              {{ t('settings.executableLabel') }}
-              <span
-                class="help-tip"
-                :title="t('settings.executableTip')"
-                tabindex="0"
-                role="note"
-              >?</span>
-            </span>
-            <input
-              v-model="openclawExecutable"
-              type="text"
-              autocomplete="off"
-              :placeholder="t('settings.executablePlaceholder')"
-            >
-          </label>
+
+          <div class="gateway-checkbox-group">
+            <label class="field field--checkbox-row">
+              <input v-model="autoStartOpenClaw" type="checkbox">
+              <span>{{ t('settings.autoStartLabel') }}</span>
+            </label>
+            <p class="hint small muted gateway-auto-hint">{{ t('settings.autoStartHint') }}</p>
+            <label class="field field--checkbox-row">
+              <input v-model="stopManagedGatewayOnQuit" type="checkbox">
+              <span>{{ t('settings.stopOnQuitLabel') }}</span>
+            </label>
+          </div>
+
+          <details class="gateway-advanced">
+            <summary class="gateway-advanced-summary muted small">{{ t('settings.gatewayAdvanced') }}</summary>
+            <label class="field" style="margin-top:10px">
+              <span class="field-label-row">
+                {{ t('settings.executableLabel') }}
+                <span class="help-tip" :title="t('settings.executableTip')" tabindex="0" role="note">?</span>
+              </span>
+              <input
+                v-model="openclawExecutable"
+                type="text"
+                autocomplete="off"
+                :placeholder="t('settings.executablePlaceholder')"
+              >
+            </label>
+          </details>
+
           <p v-if="saveError" class="err">{{ saveError }}</p>
           <div class="actions">
             <button type="button" class="ghost" @click="open = false">{{ t('common.close') }}</button>
@@ -776,13 +761,6 @@ async function onRestoreModel(): Promise<void> {
               {{ saving ? t('common.saving') : t('settings.saveAndReconnect') }}
             </button>
           </div>
-
-          <details class="doctor-section">
-            <summary class="doctor-section-summary muted small">
-              🩺 {{ t('doctor.title') }}
-            </summary>
-            <DoctorPanel :executable="openclawExecutable" />
-          </details>
         </div>
 
         <div v-show="tab === 'model'" class="tab-panel">
@@ -1084,30 +1062,6 @@ async function onRestoreModel(): Promise<void> {
 </template>
 
 <style scoped>
-.doctor-section {
-  margin-top: 16px;
-  border-top: 1px solid var(--lc-border);
-  padding-top: 10px;
-}
-.doctor-section-summary {
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.doctor-section-summary::-webkit-details-marker {
-  display: none;
-}
-.doctor-section[open] > .doctor-section-summary::before {
-  content: "▼ ";
-  font-size: 10px;
-}
-.doctor-section:not([open]) > .doctor-section-summary::before {
-  content: "▶ ";
-  font-size: 10px;
-}
 .backdrop {
   position: fixed;
   inset: 0;
@@ -1382,7 +1336,40 @@ h2 {
   line-height: 1.45;
 }
 .gateway-auto-hint {
-  margin: -6px 0 14px;
+  margin: 2px 0 6px 22px;
+}
+.gateway-checkbox-group {
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gateway-advanced {
+  margin: 4px 0 14px;
+}
+.gateway-advanced-summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+.gateway-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+.gateway-advanced[open] > .gateway-advanced-summary::before {
+  content: "▼ ";
+  font-size: 9px;
+}
+.gateway-advanced:not([open]) > .gateway-advanced-summary::before {
+  content: "▶ ";
+  font-size: 9px;
 }
 .field {
   display: flex;

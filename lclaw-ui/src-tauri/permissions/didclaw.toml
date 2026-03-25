@@ -5,6 +5,7 @@ commands.allow = [
   "get_open_claw_setup_status",
   "check_openclaw_update",
   "run_ensure_openclaw_windows_install",
+  "run_openclaw_doctor",
   "preview_open_local",
   "preview_libre_office_status",
   "preview_open_libre_office_download_page",

@@ -2,6 +2,7 @@
 import { resetFirstRunWizardLocalState } from "@/composables/modelConfigDeferred";
 import AboutDialog from "@/features/about/AboutDialog.vue";
 import CronJobsDialog from "@/features/cron/CronJobsDialog.vue";
+import DoctorDialog from "@/features/settings/DoctorDialog.vue";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
@@ -28,6 +29,7 @@ const themeStore = useThemeStore();
 const skillsDialogOpen = ref(false);
 const cronDialogOpen = ref(false);
 const aboutDialogOpen = ref(false);
+const doctorDialogOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
 const moreMenuOpen = ref(false);
@@ -331,6 +333,17 @@ function closeMoreMenu(): void {
                     type="button"
                     role="menuitem"
                     class="more-menu-item"
+                    @click="closeMoreMenu(); doctorDialogOpen = true"
+                  >
+                    <span class="more-menu-icon" aria-hidden="true">🩺</span>
+                    {{ t('header.doctorBtn') }}
+                  </button>
+                </li>
+                <li v-if="isDidClawElectron()" role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="more-menu-item"
                     :title="t('header.redoOnboardingTitle')"
                     @click="onRedoFirstRunWizard"
                   >
@@ -371,6 +384,7 @@ function closeMoreMenu(): void {
     <CronJobsDialog v-model="cronDialogOpen" />
     <SkillsManagerDialog v-model="skillsDialogOpen" />
     <AboutDialog v-model="aboutDialogOpen" />
+    <DoctorDialog v-model="doctorDialogOpen" />
   </header>
 </template>
 
