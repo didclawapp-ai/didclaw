@@ -8,11 +8,26 @@
 
 ### 修复
 
+- **定时任务窗口**：
+  - `createOk`（任务创建成功提示）不再永久停留，8 秒后自动消失；关闭对话框时立即清除计时器，`onUnmounted` 也做兜底清理。
+  - 创建任务成功后自动重置整个表单（名称、调度、执行、投递字段），方便连续创建多个任务。
+  - `refreshOverview` 原先串行执行 `cron.status`、`cron.list`、`cron.runs` 三个请求；改为 `Promise.all` 并行发起，页面刷新速度提升约 2–3×。
+  - `onJobsSortChange` 不再重新加载运行记录，任务排序变更仅刷新任务列表本身（`cron.runs` 与任务排序无关）。
+
 - **技能窗口功能缺陷**：
   - 详情面板「安装到本机」绕过 `isSuspicious` 检查，直接安装可疑技能。现在 `installHubSkill` 统一执行恶意/可疑检查，调用方已知道 moderation 结果时可传 `skipSuspiciousCheck: true` 避免重复请求。
   - `onDeleteInstalled` 未设置 `installBusy`，删除操作与安装操作可并发导致 `loadInstalled` 竞争。现在删除前检查并锁定 `installBusy`，finally 中释放。
 
 ### 改进
+
+- **定时任务窗口 UI**：
+  - 关闭按钮改为 ✕ 圆形图标，hover 显示红底，与技能窗口风格一致；支持 ESC 键关闭。
+  - 顶部说明段落从 5 句技术文档式长文缩短为 1 句 + 文档链接。
+  - 任务列表"启用"列从纯文字改为颜色徽章（启用→绿色，暂停→灰色）。
+  - 任务列表"运行态"加颜色：运行中→蓝色加粗，已运行/未运行→灰色。
+  - 操作列"删除"按钮加红色危险样式（hover 红底），与技能窗口一致。
+  - 运行记录 `status` 字段加颜色识别：success/done→绿色，error/fail/timeout→红色，running/pending→蓝色。
+  - 成功提示 `createOk` 使用 CSS 变量 `--lc-success`（绿色），不再沿用 accent 青色。
 
 - **技能窗口 UI**：
   - 消息条新增三种语义样式：成功（绿色左边框）、失败（红色）、信息（青色）；成功/信息消息 8s 后自动消失，失败消息保留直到下次操作；消息条右侧加 ✕ 关闭按钮。

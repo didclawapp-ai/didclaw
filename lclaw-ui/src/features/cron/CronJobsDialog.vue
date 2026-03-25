@@ -3,7 +3,7 @@ import { extractCronRunsEntries, normalizeCronPageMeta } from "@/lib/cron-gatewa
 import { describeGatewayError } from "@/lib/gateway-errors";
 import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
-import { computed, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -90,6 +90,40 @@ const deliveryBestEffort = ref(true);
 const createBusy = ref(false);
 const createError = ref<string | null>(null);
 const createOk = ref<string | null>(null);
+let createOkTimer: ReturnType<typeof setTimeout> | null = null;
+
+function setCreateOk(msg: string): void {
+  createOk.value = msg;
+  if (createOkTimer !== null) clearTimeout(createOkTimer);
+  createOkTimer = window.setTimeout(() => {
+    createOk.value = null;
+    createOkTimer = null;
+  }, 8000);
+}
+
+function resetCreateForm(): void {
+  jobName.value = "";
+  jobDescription.value = "";
+  jobAgentChoice.value = "";
+  jobAgentCustom.value = "";
+  createJobEnabled.value = true;
+  scheduleKind.value = "every";
+  scheduleAtLocal.value = "";
+  scheduleEveryValue.value = 30;
+  scheduleEveryUnit.value = "minutes";
+  scheduleCronExpr.value = "0 9 * * *";
+  scheduleCronTz.value = "";
+  sessionTarget.value = "isolated";
+  wakeMode.value = "next-heartbeat";
+  systemEventText.value = "";
+  agentMessage.value = "";
+  timeoutSecondsInput.value = "";
+  deleteAfterRun.value = true;
+  deliveryMode.value = "announce";
+  deliveryChannel.value = "last";
+  deliveryTo.value = "";
+  deliveryBestEffort.value = true;
+}
 
 const rowBusyId = ref<string | null>(null);
 
@@ -554,10 +588,8 @@ async function refreshOverview(): Promise<void> {
   listError.value = null;
   runsError.value = null;
   statusLoading.value = true;
-  await loadCronStatusOnly();
+  await Promise.all([loadCronStatusOnly(), loadCronJobsPage(false), loadCronRuns(false)]);
   statusLoading.value = false;
-  await loadCronJobsPage(false);
-  await loadCronRuns(false);
 }
 
 async function refreshList(): Promise<void> {
@@ -568,9 +600,7 @@ function onJobsSortChange(): void {
   if (!connected.value) {
     return;
   }
-  void loadCronJobsPage(false).then(() => {
-    void loadCronRuns(false);
-  });
+  void loadCronJobsPage(false);
 }
 
 function onRunsFiltersChange(): void {
@@ -616,8 +646,36 @@ watch(
       if (gw.client?.connected) {
         void sessions.refresh();
       }
+    } else {
+      if (createOkTimer !== null) {
+        clearTimeout(createOkTimer);
+        createOkTimer = null;
+      }
     }
   },
+);
+
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === "Escape" && open.value) {
+    open.value = false;
+  }
+}
+
+onUnmounted(() => {
+  if (createOkTimer !== null) clearTimeout(createOkTimer);
+  window.removeEventListener("keydown", onKeydown);
+});
+
+watch(
+  () => open.value,
+  (v) => {
+    if (v) {
+      window.addEventListener("keydown", onKeydown);
+    } else {
+      window.removeEventListener("keydown", onKeydown);
+    }
+  },
+  { immediate: true },
 );
 
 watch(
@@ -770,7 +828,8 @@ async function submitCreate(): Promise<void> {
     }
 
     await c.request("cron.add", body);
-    createOk.value = "任务已创建。";
+    setCreateOk("任务已创建。");
+    resetCreateForm();
     await refreshOverview();
     panelTab.value = "list";
   } catch (e) {
@@ -852,23 +911,16 @@ async function removeJob(jobId: string): Promise<void> {
       >
         <div class="cron-head">
           <h2 id="cron-dialog-title">定时任务</h2>
-          <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm cron-close" @click="open = false">
-            关闭
-          </button>
+          <button type="button" class="cron-close" aria-label="关闭" @click="open = false">✕</button>
         </div>
 
         <p class="cron-lead muted small">
-          由<strong>当前已连接的 Gateway</strong> 调度；任务文件在该网关进程所在机器的用户目录下
-          <code>~/.openclaw/cron/</code>（Windows 多为
-          <code>%USERPROFILE%\.openclaw\cron\</code>）。网关需保持运行。若任务为一次性且勾选「运行成功后删除」，执行成功后会从列表消失，属正常。
-          <strong>DidClaw 客户端的 SQLite</strong>（本机配置/KV）<strong>不参与</strong>定时任务存储；摘要来自
-          <code>cron.status</code>，任务来自 <code>cron.list</code>，下方运行记录来自 <code>cron.runs</code>（与官方 Control UI 一致）。聊天里出现的「提醒」若未持久化为 cron 任务，列表可能仍为空。
-          详见
+          由当前已连接的 Gateway 调度，任务持久化在网关所在机器。网关需保持运行。
           <a
             href="https://docs.openclaw.ai/zh-CN/automation/cron-jobs"
             target="_blank"
             rel="noreferrer"
-          >OpenClaw 定时任务文档</a>。
+          >查看文档 →</a>
         </p>
 
         <nav class="cron-tabs" role="tablist" aria-label="定时任务">
@@ -978,12 +1030,18 @@ async function removeJob(jobId: string): Promise<void> {
                     <code class="cron-id">{{ jobIdOf(j) || "—" }}</code>
                   </td>
                   <td class="cron-sched">{{ formatScheduleSummary(j.schedule) }}</td>
-                  <td>{{ isJobEnabled(j) ? "启用" : "暂停" }}</td>
+                  <td>
+                    <span :class="isJobEnabled(j) ? 'cron-badge cron-badge--on' : 'cron-badge cron-badge--off'">
+                      {{ isJobEnabled(j) ? "启用" : "暂停" }}
+                    </span>
+                  </td>
                   <td
                     class="cron-sched"
                     :title="jobStateDetailTooltip(j) || undefined"
                   >
-                    {{ jobRunPhaseLabel(j) }}
+                    <span :class="'cron-phase cron-phase--' + jobRunPhaseLabel(j)">
+                      {{ jobRunPhaseLabel(j) }}
+                    </span>
                   </td>
                   <td class="cron-actions">
                     <button
@@ -992,7 +1050,7 @@ async function removeJob(jobId: string): Promise<void> {
                       :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
                       @click="selectJobForRuns(jobIdOf(j))"
                     >
-                      运行记录
+                      记录
                     </button>
                     <button
                       type="button"
@@ -1012,7 +1070,7 @@ async function removeJob(jobId: string): Promise<void> {
                     </button>
                     <button
                       type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-xs"
+                      class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
                       :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
                       @click="removeJob(jobIdOf(j))"
                     >
@@ -1090,7 +1148,14 @@ async function removeJob(jobId: string): Promise<void> {
               <li v-for="(r, ridx) in runs" :key="ridx" class="cron-run-entry">
                 <div class="cron-run-entry__head">
                   <span class="cron-run-entry__title">{{ runEntryTitle(r) }}</span>
-                  <span class="muted cron-run-entry__status">{{ runEntryStatus(r) }}</span>
+                  <span
+                    class="cron-run-entry__status"
+                    :class="{
+                      'cron-run-status--ok': /^(ok|success|done|completed)$/i.test(runEntryStatus(r)),
+                      'cron-run-status--err': /^(error|fail|failed|timeout)$/i.test(runEntryStatus(r)),
+                      'cron-run-status--run': /^(running|active|pending)$/i.test(runEntryStatus(r)),
+                    }"
+                  >{{ runEntryStatus(r) }}</span>
                 </div>
                 <div class="cron-run-entry__summary muted small">{{ runEntrySummaryLine(r) }}</div>
                 <div class="cron-run-entry__meta muted small">
@@ -1401,6 +1466,26 @@ async function removeJob(jobId: string): Promise<void> {
   margin: 0;
   font-size: 1.1rem;
 }
+.cron-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.cron-close:hover {
+  background: var(--lc-error-bg);
+  color: var(--lc-error);
+}
 .cron-lead {
   margin: 0 0 12px;
   line-height: 1.45;
@@ -1546,11 +1631,6 @@ async function removeJob(jobId: string): Promise<void> {
   font-weight: 600;
   font-size: 13px;
 }
-.cron-run-entry__status {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
 .cron-run-entry__summary {
   margin-top: 6px;
   line-height: 1.4;
@@ -1609,6 +1689,65 @@ async function removeJob(jobId: string): Promise<void> {
 .cron-actions .lc-btn {
   margin-right: 6px;
   margin-bottom: 4px;
+}
+.cron-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.cron-badge--on {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+.cron-badge--off {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--lc-text-muted);
+}
+[data-theme="dark"] .cron-badge--on {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+.cron-phase {
+  font-size: 12px;
+}
+.cron-phase--运行中 {
+  color: #2563eb;
+  font-weight: 600;
+}
+.cron-phase--已运行 {
+  color: var(--lc-text-muted);
+}
+.cron-phase--未运行 {
+  color: var(--lc-text-muted);
+  opacity: 0.6;
+}
+.btn-danger {
+  color: var(--lc-error) !important;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--lc-error-bg) !important;
+  border-color: transparent !important;
+}
+.cron-run-entry__status {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--lc-text-muted);
+}
+.cron-run-status--ok {
+  color: #16a34a;
+}
+[data-theme="dark"] .cron-run-status--ok {
+  color: #4ade80;
+}
+.cron-run-status--err {
+  color: var(--lc-error);
+}
+.cron-run-status--run {
+  color: #2563eb;
 }
 .cron-section-note {
   margin: 0 0 10px;
@@ -1721,7 +1860,7 @@ async function removeJob(jobId: string): Promise<void> {
   margin-top: 8px;
 }
 .cron-ok {
-  color: var(--lc-accent);
+  color: var(--lc-success, #22c55e);
 }
 .err {
   color: var(--lc-error);
