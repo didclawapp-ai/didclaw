@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { resetFirstRunWizardLocalState } from "@/composables/modelConfigDeferred";
+import AboutDialog from "@/features/about/AboutDialog.vue";
 import CronJobsDialog from "@/features/cron/CronJobsDialog.vue";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
@@ -12,7 +13,6 @@ import { useSessionStore } from "@/stores/session";
 import { useThemeStore } from "@/stores/theme";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
-import { RouterLink } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { i18n, type LocaleCode } from "@/i18n";
 
@@ -27,6 +27,7 @@ const { messages, lastError: chatError } = storeToRefs(chat);
 const themeStore = useThemeStore();
 const skillsDialogOpen = ref(false);
 const cronDialogOpen = ref(false);
+const aboutDialogOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
 const moreMenuOpen = ref(false);
@@ -340,15 +341,15 @@ function closeMoreMenu(): void {
                 </li>
                 <li class="more-menu-sep" role="separator" />
                 <li role="none">
-                  <RouterLink
-                    to="/about"
+                  <button
+                    type="button"
                     role="menuitem"
                     class="more-menu-item"
-                    @click="closeMoreMenu"
+                    @click="closeMoreMenu(); aboutDialogOpen = true"
                   >
                     <span class="more-menu-icon" aria-hidden="true">ℹ</span>
                     {{ t('header.aboutApp') }}
-                  </RouterLink>
+                  </button>
                 </li>
               </ul>
             </div>
@@ -370,6 +371,7 @@ function closeMoreMenu(): void {
     <GatewayLocalDialog v-model="showGatewayLocal" />
     <CronJobsDialog v-model="cronDialogOpen" />
     <SkillsManagerDialog v-model="skillsDialogOpen" />
+    <AboutDialog v-model="aboutDialogOpen" />
   </header>
 </template>
 

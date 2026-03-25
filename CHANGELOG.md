@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 变更
+
+- **「关于」改为弹窗**：点击顶栏「···」菜单中「关于」改为弹出小对话框，不再跳转整页。对话框展示：DidClaw 版本号、OpenClaw 网关版本号（已连接时）、软件简介、主要开源技术栈（Tauri 2、Vue 3、TypeScript、OpenClaw、Vite）和版权信息。原 `/about` 路由保留但自动重定向到首页。
+
 ### 修复
 
 - **顶栏「···」菜单点击无效**：`#app` 有 `position:relative; z-index:1` 建立了层叠上下文，Teleport 到 body 的 scrim（z-index 50）位于 `#app`（z-index 1）之上，导致整个菜单被 scrim 遮盖，所有点击都被拦截。彻底修复：移除 Teleport scrim，改用 `document.addEventListener('click', ...)` 监听区域外点击来关闭菜单，不再依赖 z-index。

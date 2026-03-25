@@ -399,15 +399,21 @@ export default {
     repairHint: "Errors found — try Auto-Repair",
   },
 
-  // ─── About page ───────────────────────────────────────
+  // ─── About dialog ─────────────────────────────────────
   about: {
     backToChat: "← Back to chat",
     title: "About DidClaw",
     version: "Version",
-    desc: "This client connects to the OpenClaw Gateway for session management, chat, local/link preview and diagnostics.",
+    desc: "An AI desktop client for everyday users, powered by OpenClaw.",
     desktopNote: "For production use, use the Electron desktop app: connect the assistant, enter your AI key and select a default model — just click Settings in the top bar.",
     devNote: "For dev, use pnpm dev:web to start Vite only; set VITE_GATEWAY_URL etc. to connect to a gateway — the Settings dialog is not available in this mode.",
     envNote: "See .env.example in the repo for external link allow-list and other settings.",
+    appVersion: "DidClaw",
+    gatewayVersion: "OpenClaw",
+    gatewayNotConnected: "Not connected",
+    techStack: "Tech stack",
+    copyright: "Copyright",
+    close: "Close",
   },
 
   // ─── Skills manager ───────────────────────────────────

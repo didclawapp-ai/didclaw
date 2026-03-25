@@ -399,15 +399,21 @@ export default {
     repairHint: "发现错误，可尝试「自动修复」",
   },
 
-  // ─── 关于页 AboutView ────────────────────────────────
+  // ─── 关于对话框 AboutDialog ──────────────────────────
   about: {
     backToChat: "← 返回会话",
     title: "关于 DidClaw",
     version: "版本",
-    desc: "本客户端用于连接 OpenClaw Gateway：会话列表、聊天、本地/链接预览与诊断信息。",
+    desc: "一款基于 OpenClaw，面向普通用户的 AI 桌面客户端。",
     desktopNote: "正式使用请用 Electron 桌面版：连接助手、填写 AI 密钥、选默认模型等，点顶栏「设置」即可，一般不必自己改配置文件。",
     devNote: "开发联调可用 pnpm dev:web 仅起 Vite，此时通过环境变量 VITE_GATEWAY_URL 等连接网关；无顶栏「设置」对话框。",
     envNote: "外链白名单等见仓库 .env.example 说明。",
+    appVersion: "DidClaw 版本",
+    gatewayVersion: "OpenClaw 版本",
+    gatewayNotConnected: "未连接",
+    techStack: "主要技术栈",
+    copyright: "版权",
+    close: "关闭",
   },
 
   // ─── 技能管理 SkillsManagerDialog ───────────────────
