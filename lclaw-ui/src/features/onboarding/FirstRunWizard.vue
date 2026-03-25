@@ -43,21 +43,125 @@ const cliError = ref<string | null>(null);
 
 const installBusy = ref(false);
 const installLog = ref("");
-/** 安装脚本已运行秒数（每秒 +1，用于进度区展示） */
+/** 安装脚本已运行秒数（每秒 +1，仅作参考） */
 const installElapsedSec = ref(0);
 
-const INSTALL_PROGRESS_HINTS = ["安装进行中…", "下载组件时可能需数分钟。"] as const;
+/** 与 `ensure-openclaw-windows.ps1` / Rust `didclaw-ensure-install-phase` 约定一致 */
+const ENSURE_UI_LINE_RE = /^\[ensure-openclaw\] ui=(\S+)/;
 
-const installProgressHint = computed(() => {
-  if (!installBusy.value) {
-    return "";
+type InstallStepId = "env" | "node" | "cli" | "onboard" | "finish";
+type InstallStepStatus = "pending" | "active" | "done" | "error";
+
+type InstallStepRow = {
+  id: InstallStepId;
+  label: string;
+  status: InstallStepStatus;
+  detail?: string;
+};
+
+function defaultInstallStepRows(): InstallStepRow[] {
+  return [
+    { id: "env", label: "检测安装环境", status: "pending" },
+    { id: "node", label: "Node.js", status: "pending" },
+    { id: "cli", label: "安装 OpenClaw CLI", status: "pending" },
+    { id: "onboard", label: "初始化配置（onboard）", status: "pending" },
+    { id: "finish", label: "完成", status: "pending" },
+  ];
+}
+
+const installStepRows = ref<InstallStepRow[]>(defaultInstallStepRows());
+
+function installStepRow(id: InstallStepId): InstallStepRow | undefined {
+  return installStepRows.value.find((r) => r.id === id);
+}
+
+function setInstallStep(
+  id: InstallStepId,
+  status: InstallStepStatus,
+  detail?: string,
+): void {
+  const r = installStepRow(id);
+  if (!r) {
+    return;
   }
-  const idx = Math.min(
-    Math.floor(installElapsedSec.value / 14),
-    INSTALL_PROGRESS_HINTS.length - 1,
-  );
-  return INSTALL_PROGRESS_HINTS[idx] ?? INSTALL_PROGRESS_HINTS[INSTALL_PROGRESS_HINTS.length - 1];
-});
+  r.status = status;
+  if (detail !== undefined) {
+    r.detail = detail;
+  }
+}
+
+function resetInstallStepRows(): void {
+  installStepRows.value = defaultInstallStepRows();
+}
+
+function markInstallStepErrorOnActive(): void {
+  for (const r of installStepRows.value) {
+    if (r.status === "active") {
+      r.status = "error";
+      return;
+    }
+  }
+  const env = installStepRow("env");
+  if (env?.status === "pending") {
+    env.status = "error";
+    env.detail = "未能进入安装脚本";
+  }
+}
+
+/** 解析脚本 `ui=…` 与 Rust 下发的 `precheck_ok` */
+function ingestEnsureInstallUiKey(key: string): void {
+  switch (key) {
+    case "precheck_ok":
+      setInstallStep("env", "active", "PowerShell 与脚本已就绪…");
+      break;
+    case "env_begin":
+      setInstallStep("env", "active");
+      break;
+    case "env_path_ok":
+      setInstallStep("env", "done");
+      setInstallStep("node", "active", "正在检测…");
+      break;
+    case "node_ok":
+      setInstallStep("node", "done", "已在 PATH 中检测到 node");
+      break;
+    case "node_not_found":
+      setInstallStep("node", "active", "未在 PATH 中检测到 node（官方脚本通常会安装 Node）");
+      break;
+    case "stage_cli_install_begin":
+      setInstallStep("cli", "active", "准备下载官方 install.ps1");
+      break;
+    case "downloading_official_install_ps1":
+      setInstallStep("cli", "active", "正在下载 install.ps1…");
+      break;
+    case "running_official_install_ps1_wait":
+      setInstallStep("cli", "active", "执行官方安装中（可能含 Node / npm / openclaw，需数分钟）…");
+      break;
+    case "official_install_ps1_finished":
+      setInstallStep("cli", "done");
+      setInstallStep("node", "done", "已就绪");
+      break;
+    case "openclaw_already_installed":
+      setInstallStep("cli", "done", "已安装，跳过 CLI 下载");
+      setInstallStep("onboard", "active", "等待执行 onboard…");
+      break;
+    case "onboard_prepare":
+      setInstallStep("onboard", "active", "准备非交互 onboard…");
+      break;
+    case "onboard_exec":
+      setInstallStep("onboard", "active", "正在写入本机配置…");
+      break;
+    case "script_finished_ok":
+      setInstallStep("onboard", "done");
+      setInstallStep("finish", "done");
+      break;
+    case "skip_onboard_exit":
+      setInstallStep("onboard", "done", "已跳过 onboard");
+      setInstallStep("finish", "done");
+      break;
+    default:
+      break;
+  }
+}
 
 function formatInstallElapsed(totalSec: number): string {
   const m = Math.floor(totalSec / 60);
@@ -165,12 +269,32 @@ async function runEnsureInstallAndInit(): Promise<void> {
   }
   installBusy.value = true;
   installElapsedSec.value = 0;
+  resetInstallStepRows();
   installLog.value = "正在执行：安装并初始化…\n";
 
   let streamReceived = false;
   let unlisten: UnlistenFn | undefined;
+  let unlistenPhase: UnlistenFn | undefined;
   let tick: ReturnType<typeof setInterval> | undefined;
   if (isTauri()) {
+    try {
+      unlistenPhase = await listen<{ key?: string; detail?: string }>(
+        "didclaw-ensure-install-phase",
+        (ev) => {
+          const k = ev.payload?.key;
+          if (typeof k === "string" && k.length > 0) {
+            ingestEnsureInstallUiKey(k);
+          }
+          const d = ev.payload?.detail;
+          const envR = installStepRow("env");
+          if (typeof d === "string" && d.length > 0 && envR && envR.status === "active") {
+            envR.detail = d;
+          }
+        },
+      );
+    } catch {
+      /* 与日志监听一致 */
+    }
     try {
       unlisten = await listen<{ stream?: string; line?: string }>(
         "didclaw-ensure-install-log",
@@ -180,6 +304,10 @@ async function runEnsureInstallAndInit(): Promise<void> {
             return;
           }
           streamReceived = true;
+          const m = line.match(ENSURE_UI_LINE_RE);
+          if (m?.[1]) {
+            ingestEnsureInstallUiKey(m[1]);
+          }
           const prefix = ev.payload?.stream === "stderr" ? "[stderr] " : "";
           installLog.value += `${prefix}${line}\n`;
         },
@@ -196,6 +324,12 @@ async function runEnsureInstallAndInit(): Promise<void> {
     const r = await api.runEnsureOpenclawWindowsInstall({ skipOnboard: false });
     if (!isTauri() || !streamReceived) {
       installLog.value = "正在执行：安装并初始化…\n" + (r.log ?? "");
+      for (const line of (r.log ?? "").split("\n")) {
+        const m = line.match(ENSURE_UI_LINE_RE);
+        if (m?.[1]) {
+          ingestEnsureInstallUiKey(m[1]);
+        }
+      }
     } else {
       const tail =
         typeof r.error === "string" && r.error.length > 0
@@ -204,17 +338,24 @@ async function runEnsureInstallAndInit(): Promise<void> {
       installLog.value += `\n--- 完成（退出码 ${r.exitCode}）${r.ok ? "" : tail} ---\n`;
     }
     if (r.ok) {
+      setInstallStep("onboard", "done");
+      setInstallStep("finish", "done");
       await refreshStatus();
-    } else if (r.error && !streamReceived) {
-      installLog.value += `\n[结果] ${r.error}（退出码 ${r.exitCode}）`;
+    } else {
+      markInstallStepErrorOnActive();
+      if (r.error && !streamReceived) {
+        installLog.value += `\n[结果] ${r.error}（退出码 ${r.exitCode}）`;
+      }
     }
   } catch (e) {
+    markInstallStepErrorOnActive();
     installLog.value += `\n${e instanceof Error ? e.message : String(e)}`;
   } finally {
     if (tick !== undefined) {
       clearInterval(tick);
     }
     unlisten?.();
+    unlistenPhase?.();
     installBusy.value = false;
     installElapsedSec.value = 0;
   }
@@ -324,13 +465,22 @@ onUnmounted(() => {
               role="status"
               aria-live="polite"
             >
-              <div class="first-run-install-progress-row">
-                <span class="first-run-install-elapsed">已用时 {{ formatInstallElapsed(installElapsedSec) }}</span>
-                <div class="first-run-install-bar" aria-hidden="true">
-                  <div class="first-run-install-bar-fill" />
-                </div>
-              </div>
-              <p class="first-run-install-progress-hint">{{ installProgressHint }}</p>
+              <ol class="first-run-install-steps" aria-label="安装进度">
+                <li
+                  v-for="s in installStepRows"
+                  :key="s.id"
+                  class="first-run-install-step"
+                  :data-status="s.status"
+                >
+                  <span class="first-run-install-step-body">
+                    <span class="first-run-install-step-label">{{ s.label }}</span>
+                    <span v-if="s.detail" class="first-run-install-step-detail">{{ s.detail }}</span>
+                  </span>
+                </li>
+              </ol>
+              <p class="first-run-install-elapsed-note">
+                已用时 {{ formatInstallElapsed(installElapsedSec) }} · 下载与 npm 安装可能较慢，属正常现象
+              </p>
             </div>
             <pre
               v-if="canRunEnsureInstall && installLog.trim()"
@@ -504,48 +654,44 @@ onUnmounted(() => {
   background: #0d1117;
   border: 1px solid var(--lc-border);
 }
-.first-run-install-progress-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.first-run-install-elapsed {
-  flex: 0 0 auto;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.7rem;
-  color: #9ecbff;
-}
-.first-run-install-bar {
-  flex: 1;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(158, 203, 255, 0.15);
-  overflow: hidden;
-}
-.first-run-install-bar-fill {
-  height: 100%;
-  width: 35%;
-  border-radius: 2px;
-  background: linear-gradient(90deg, #238636, #58a6ff, #238636);
-  background-size: 200% 100%;
-  animation: first-run-indeterminate 1.2s ease-in-out infinite;
-}
-@keyframes first-run-indeterminate {
-  0% {
-    transform: translateX(-100%);
-    background-position: 0% 0;
-  }
-  100% {
-    transform: translateX(280%);
-    background-position: 100% 0;
-  }
-}
-.first-run-install-progress-hint {
+.first-run-install-steps {
   margin: 0;
-  font-size: 0.68rem;
+  padding: 0 0 0 1.35rem;
+  list-style: decimal;
+  font-size: 0.72rem;
   line-height: 1.45;
   color: var(--lc-text-muted, #8b9cb0);
+}
+.first-run-install-step {
+  margin: 0 0 6px;
+  padding-left: 2px;
+}
+.first-run-install-step[data-status="done"] {
+  color: #3fb950;
+}
+.first-run-install-step[data-status="active"] {
+  color: #9ecbff;
+}
+.first-run-install-step[data-status="error"] {
+  color: var(--lc-error, #f87171);
+}
+.first-run-install-step-label {
+  font-weight: 600;
+  color: inherit;
+}
+.first-run-install-step-detail {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+  font-size: 0.65rem;
+  opacity: 0.92;
+}
+.first-run-install-elapsed-note {
+  margin: 8px 0 0;
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: var(--lc-text-muted, #8b9cb0);
+  font-family: ui-monospace, Consolas, monospace;
 }
 .first-run-install-log {
   margin: 10px 0 0;

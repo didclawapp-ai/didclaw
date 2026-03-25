@@ -14,6 +14,10 @@ const LOG_CAP: usize = 120_000;
 #[cfg(windows)]
 pub const ENSURE_INSTALL_LOG_EVENT: &str = "didclaw-ensure-install-log";
 
+/// 安装流程阶段（payload: `{ key: string, detail?: string }`），在首行脚本输出前即可提示「环境已就绪」。
+#[cfg(windows)]
+pub const ENSURE_INSTALL_PHASE_EVENT: &str = "didclaw-ensure-install-phase";
+
 #[cfg(windows)]
 fn resolve_ensure_script_path(app: &AppHandle) -> Result<PathBuf, String> {
     let res = app
@@ -71,7 +75,16 @@ pub async fn run_ensure_openclaw_windows_install_impl(
     let script = resolve_ensure_script_path(&app)?;
     let script_str = script.to_str().ok_or_else(|| "脚本路径含非 UTF-8 字符".to_string())?;
 
-    let mut cmd = tokio::process::Command::new("powershell.exe");
+    // 桌面快捷方式启动的 GUI 常继承残缺 PATH，`powershell.exe` 无法解析；用 SystemRoot 下绝对路径并补全 PATH。
+    let path_env = crate::openclaw_gateway::windows_enhanced_path();
+    let ps = crate::openclaw_gateway::windows_powershell_exe();
+    let program = if ps.is_file() {
+        ps
+    } else {
+        PathBuf::from("powershell.exe")
+    };
+
+    let mut cmd = tokio::process::Command::new(&program);
     cmd.args([
         "-NoProfile",
         "-NonInteractive",
@@ -87,9 +100,18 @@ pub async fn run_ensure_openclaw_windows_install_impl(
     } else {
         cmd.args(["-OnboardAuthChoice", "skip", "-SkipHealth"]);
     }
+    cmd.env("PATH", &path_env);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
     cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let _ = app.emit(
+        ENSURE_INSTALL_PHASE_EVENT,
+        json!({
+            "key": "precheck_ok",
+            "detail": "PowerShell 与安装脚本已就绪，正在启动…"
+        }),
+    );
 
     let mut child = cmd
         .spawn()

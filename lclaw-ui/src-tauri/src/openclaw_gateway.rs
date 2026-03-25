@@ -226,9 +226,22 @@ fn first_resolved_openclaw_from_where(args: &[&str]) -> Option<String> {
     None
 }
 
-/// 从资源管理器启动的 GUI 进程往往拿不到完整 PATH，补全常见 Node/npm 目录后再 `where` / 起子进程。
+/// 与 `System32\WindowsPowerShell\v1.0\powershell.exe` 一致；不依赖 PATH（从桌面快捷方式启动时 PATH 常缺 System32）。
 #[cfg(windows)]
-fn windows_enhanced_path() -> String {
+pub(crate) fn windows_powershell_exe() -> PathBuf {
+    let root = std::env::var("SystemRoot")
+        .or_else(|_| std::env::var("WINDIR"))
+        .unwrap_or_else(|_| "C:\\Windows".to_string());
+    Path::new(&root)
+        .join("System32")
+        .join("WindowsPowerShell")
+        .join("v1.0")
+        .join("powershell.exe")
+}
+
+/// 从资源管理器启动的 GUI 进程往往拿不到完整 PATH：先补 **System32 / PowerShell / Wbem**，再保留原 PATH，并补常见 Node/npm 目录后再 `where` / 起子进程。
+#[cfg(windows)]
+pub(crate) fn windows_enhanced_path() -> String {
     fn push_unique(seen: &mut BTreeSet<String>, out: &mut Vec<String>, s: String) {
         let k = s.to_lowercase();
         if seen.insert(k) {
@@ -237,6 +250,24 @@ fn windows_enhanced_path() -> String {
     }
     let mut seen = BTreeSet::new();
     let mut out: Vec<String> = Vec::new();
+
+    let system_root = std::env::var("SystemRoot")
+        .or_else(|_| std::env::var("WINDIR"))
+        .unwrap_or_else(|_| "C:\\Windows".to_string());
+    let sys32 = Path::new(&system_root).join("System32");
+    let ps_v1 = sys32.join("WindowsPowerShell").join("v1.0");
+    let wbem = sys32.join("Wbem");
+    for d in [
+        sys32.clone(),
+        ps_v1,
+        wbem,
+        Path::new(&system_root).to_path_buf(),
+    ] {
+        if d.is_dir() {
+            push_unique(&mut seen, &mut out, d.to_string_lossy().to_string());
+        }
+    }
+
     if let Ok(base) = std::env::var("PATH") {
         for p in base.split(';') {
             let t = p.trim();
@@ -544,7 +575,14 @@ fn run_openclaw_gateway_restart_captured(exe: &str) -> io::Result<std::process::
         b64 = b64
     );
 
-    Command::new("powershell.exe")
+    let path_env = windows_enhanced_path();
+    let ps = windows_powershell_exe();
+    let ps_prog = if ps.is_file() {
+        ps
+    } else {
+        PathBuf::from("powershell.exe")
+    };
+    Command::new(&ps_prog)
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -553,6 +591,7 @@ fn run_openclaw_gateway_restart_captured(exe: &str) -> io::Result<std::process::
             "-Command",
             &script,
         ])
+        .env("PATH", &path_env)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -650,7 +689,13 @@ pub fn run_open_claw_cli_captured(
             inner_b64 = inner_b64
         );
 
-        let mut c = Command::new("powershell.exe");
+        let ps = windows_powershell_exe();
+        let ps_prog = if ps.is_file() {
+            ps
+        } else {
+            PathBuf::from("powershell.exe")
+        };
+        let mut c = Command::new(&ps_prog);
         c.args([
             "-NoProfile",
             "-NonInteractive",
@@ -659,6 +704,7 @@ pub fn run_open_claw_cli_captured(
             "-Command",
             &script,
         ])
+        .env("PATH", &path_env)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

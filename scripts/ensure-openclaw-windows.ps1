@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 # 须以 UTF-8 **带 BOM** 保存：否则 Windows PowerShell 5.1 用系统 ANSI 解析，中文会乱码并触发 ParserError。
 <#
 .SYNOPSIS
@@ -201,7 +201,19 @@ function Invoke-OpenclawOnboardNonInteractive {
     }
 }
 
+Write-Output '[ensure-openclaw] ui=env_begin'
 Sync-PathFromRegistry
+Write-Output '[ensure-openclaw] ui=env_path_ok'
+try {
+    $nc = @(Get-Command node -CommandType Application -ErrorAction SilentlyContinue)
+    if ($nc.Count -ge 1 -and -not [string]::IsNullOrWhiteSpace($nc[0].Source)) {
+        Write-Output '[ensure-openclaw] ui=node_ok'
+    } else {
+        Write-Output '[ensure-openclaw] ui=node_not_found'
+    }
+} catch {
+    Write-Output '[ensure-openclaw] ui=node_not_found'
+}
 $openclawExe = Test-OpenclawOnPath
 
 if (-not $openclawExe) {
@@ -254,11 +266,13 @@ if (-not $openclawExe) {
 
     Write-UiLine ('[ensure-openclaw] CLI 安装完成: {0}' -f $openclawExe) -ForegroundColor Green
 } else {
+    Write-Output '[ensure-openclaw] ui=openclaw_already_installed'
     Write-UiLine ('[ensure-openclaw] 已检测到 openclaw: {0} — 跳过 CLI 安装。' -f $openclawExe) -ForegroundColor Green
 }
 
 if ($SkipOnboard) {
     Write-UiLine '[ensure-openclaw] 已指定 -SkipOnboard，跳过 onboard。' -ForegroundColor DarkGray
+    Write-Output '[ensure-openclaw] ui=skip_onboard_exit'
     exit 0
 }
 
@@ -313,5 +327,6 @@ try {
     exit 3
 }
 
+Write-Output '[ensure-openclaw] ui=script_finished_ok'
 Write-UiLine '[ensure-openclaw] onboard 已完成。' -ForegroundColor Green
 exit 0
