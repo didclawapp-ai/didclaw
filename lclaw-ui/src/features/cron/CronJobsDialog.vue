@@ -1147,10 +1147,10 @@ async function removeJob(jobId: string): Promise<void> {
               </div>
               <div class="cron-job-card__meta">
                 <span class="cron-job-card__sched">{{ formatScheduleSummary(j.schedule) }}</span>
-                <span v-if="jobNextRunAtMs(j) !== null" class="muted">
-                  · 下次 {{ formatRelativeTime(jobNextRunAtMs(j)) }}
+                <span v-if="jobNextRunAtMs(j) !== null" class="muted" style="font-size:11px">
+                  下次 {{ formatRelativeTime(jobNextRunAtMs(j)) }}
                 </span>
-                <span v-if="!isJobEnabled(j)" class="cron-badge cron-badge--off" style="margin-left:6px">已暂停</span>
+                <span v-else-if="!isJobEnabled(j)" class="muted" style="font-size:11px">已暂停</span>
               </div>
               <div class="cron-job-card__actions">
                 <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
@@ -2138,37 +2138,41 @@ async function removeJob(jobId: string): Promise<void> {
 
 /* ── 任务卡片 ── */
 .cron-job-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 10px;
   margin-bottom: 12px;
 }
 .cron-job-card {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--lc-border);
-  border-left-width: 4px;
+  border-top-width: 3px;
   border-radius: var(--lc-radius-sm);
   padding: 12px 14px;
   background: var(--lc-bg-raised);
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, transform 0.1s;
+  min-height: 120px;
 }
 .cron-job-card:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.09);
+  transform: translateY(-1px);
 }
-/* 颜色编码 */
+/* 颜色编码（顶部边框） */
 .cron-job-card--running {
-  border-left-color: #22c55e;
+  border-top-color: #22c55e;
   background: rgba(34, 197, 94, 0.03);
 }
 .cron-job-card--done {
-  border-left-color: #f59e0b;
+  border-top-color: #f59e0b;
   background: rgba(245, 158, 11, 0.03);
 }
 .cron-job-card--pending {
-  border-left-color: #ef4444;
+  border-top-color: #ef4444;
   background: rgba(239, 68, 68, 0.03);
 }
 .cron-job-card--disabled {
-  border-left-color: var(--lc-border);
+  border-top-color: var(--lc-border);
   opacity: 0.55;
 }
 [data-theme="dark"] .cron-job-card--running  { background: rgba(34, 197, 94, 0.06); }
@@ -2223,19 +2227,23 @@ async function removeJob(jobId: string): Promise<void> {
   font-size: 12px;
   color: var(--lc-text-muted);
   margin-bottom: 10px;
+  flex: 1;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
+  flex-direction: column;
+  gap: 3px;
 }
 .cron-job-card__sched {
   color: var(--lc-text);
   font-weight: 500;
+  font-size: 12px;
 }
 .cron-job-card__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--lc-border);
+  margin-top: auto;
 }
 
 /* ── 执行历史区块 ── */
