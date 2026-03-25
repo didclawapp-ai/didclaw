@@ -1,4 +1,5 @@
 import { hydrateDidClawKvCache } from "@/lib/didclaw-kv";
+import { i18n } from "@/i18n";
 import { createPinia } from "pinia";
 import { createApp } from "vue";
 import App from "./App.vue";
@@ -49,5 +50,6 @@ void (async () => {
   const app = createApp(App);
   app.use(createPinia());
   app.use(router);
+  app.use(i18n);
   app.mount("#app");
 })();

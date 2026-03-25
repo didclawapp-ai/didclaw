@@ -1,3 +1,4 @@
+import { setLocale, type LocaleCode } from "@/i18n";
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
@@ -17,5 +18,9 @@ export const useLocalSettingsStore = defineStore("localSettings", () => {
     visible.value = false;
   }
 
-  return { visible, initialTab, open, close };
+  function switchLocale(locale: LocaleCode) {
+    setLocale(locale);
+  }
+
+  return { visible, initialTab, open, close, switchLocale };
 });

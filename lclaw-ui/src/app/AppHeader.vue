@@ -13,7 +13,9 @@ import { useThemeStore } from "@/stores/theme";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
+import { useI18n } from "vue-i18n";
 
+const { t } = useI18n();
 const gw = useGatewayStore();
 const session = useSessionStore();
 const chat = useChatStore();
@@ -45,10 +47,10 @@ const connSwitchOn = computed(
 
 const connSwitchLabel = computed(() => {
   switch (status.value) {
-    case "connected":  return "已连接网关，点击断开";
-    case "connecting": return "正在连接，点击取消";
-    case "error":      return "连接异常，点击重连";
-    default:           return "未连接，点击连接";
+    case "connected":  return t("conn.connected");
+    case "connecting": return t("conn.connecting");
+    case "error":      return t("conn.error");
+    default:           return t("conn.disconnected");
   }
 });
 
@@ -63,10 +65,10 @@ function onConnSwitchClick(): void {
 const connLedTitle = computed(() => {
   const base = `${url.value}\n`;
   switch (status.value) {
-    case "connected":  return base + "状态：已连接";
-    case "connecting": return base + "状态：正在连接…";
-    case "error":      return base + "状态：连接异常";
-    default:           return base + "状态：未连接";
+    case "connected":  return base + t("conn.statusConnected");
+    case "connecting": return base + t("conn.statusConnecting");
+    case "error":      return base + t("conn.statusError");
+    default:           return base + t("conn.statusDisconnected");
   }
 });
 
@@ -80,10 +82,10 @@ const connLedClass = computed(() => {
 
 const connLedAriaLabel = computed(() => {
   switch (status.value) {
-    case "connected":  return `网关已连接，${url.value}`;
-    case "connecting": return `正在连接网关，${url.value}`;
-    case "error":      return `网关连接异常，${url.value}`;
-    default:           return `网关未连接，${url.value}`;
+    case "connected":  return t("conn.ledConnected", { url: url.value });
+    case "connecting": return t("conn.ledConnecting", { url: url.value });
+    case "error":      return t("conn.ledError", { url: url.value });
+    default:           return t("conn.ledDisconnected", { url: url.value });
   }
 });
 
@@ -104,7 +106,7 @@ async function onRestartGateway(): Promise<void> {
   try {
     const r = await desktop.restartOpenClawGateway();
     if (r && "ok" in r && r.ok === false) {
-      showInlineError((r as { error?: string }).error ?? "重启网关失败");
+      showInlineError((r as { error?: string }).error ?? t("header.restartFailed"));
       return;
     }
     await gw.reloadConnection();
@@ -151,13 +153,13 @@ async function copyDiagnostics(): Promise<void> {
       copyTimer = null;
     }, 2000);
   } catch {
-    showInlineError("复制失败：请在 https 或 localhost 下打开，并允许浏览器剪贴板权限。");
+    showInlineError(t("header.copyFailed"));
   }
 }
 
 function onRedoFirstRunWizard(): void {
   moreMenuOpen.value = false;
-  if (!window.confirm("将清除「首次引导」本地记录并重新检测，是否继续？")) return;
+  if (!window.confirm(t("header.redoOnboardingConfirm"))) return;
   resetFirstRunWizardLocalState();
   window.dispatchEvent(new CustomEvent("didclaw-first-run-recheck"));
 }
@@ -206,15 +208,15 @@ function closeMoreMenu(): void {
       </div>
 
       <!-- 右侧：主功能 + 更多菜单 -->
-      <div class="right-group" role="toolbar" aria-label="快捷功能">
+      <div class="right-group" role="toolbar" :aria-label="t('header.toolbarLabel')">
         <button
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs"
-          title="定时任务：一次性与周期性本机任务"
+          :title="t('header.cronTitle')"
           :aria-expanded="cronDialogOpen"
           @click="cronDialogOpen = true"
         >
-          定时
+          {{ t('header.cronBtn') }}
         </button>
         <button
           type="button"
@@ -222,15 +224,15 @@ function closeMoreMenu(): void {
           :aria-expanded="skillsDialogOpen"
           @click="skillsDialogOpen = true"
         >
-          技能
+          {{ t('header.skillsBtn') }}
         </button>
 
         <!-- 夜间模式切换 -->
         <button
           type="button"
           class="lc-btn lc-btn-ghost theme-toggle"
-          :title="themeStore.mode === 'dark' ? '切换到日间模式' : '切换到夜间模式'"
-          :aria-label="themeStore.mode === 'dark' ? '切换到日间模式' : '切换到夜间模式'"
+          :title="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
+          :aria-label="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
           :aria-pressed="themeStore.mode === 'dark'"
           @click="themeStore.toggle()"
         >
@@ -251,7 +253,7 @@ function closeMoreMenu(): void {
             type="button"
             class="lc-btn lc-btn-ghost lc-btn-xs more-btn"
             :class="{ 'more-btn--open': moreMenuOpen }"
-            aria-label="更多选项"
+            :aria-label="t('header.moreOptions')"
             :aria-expanded="moreMenuOpen"
             @click="toggleMoreMenu"
           >
@@ -273,7 +275,7 @@ function closeMoreMenu(): void {
                     @click="copyDiagnostics"
                   >
                     <span class="more-menu-icon" aria-hidden="true">📋</span>
-                    {{ copiedDiag ? "已复制！" : "复制诊断信息" }}
+                    {{ copiedDiag ? t('header.copyDiagDone') : t('header.copyDiag') }}
                   </button>
                 </li>
                 <li v-if="isDidClawElectron()" role="none">
@@ -285,7 +287,7 @@ function closeMoreMenu(): void {
                     @click="onRestartGateway"
                   >
                     <span class="more-menu-icon" aria-hidden="true">🔄</span>
-                    {{ restartGatewayBusy ? "重启中…" : "重启网关" }}
+                    {{ restartGatewayBusy ? t('header.restartingGateway') : t('header.restartGateway') }}
                   </button>
                 </li>
                 <li v-if="isDidClawElectron()" role="none">
@@ -293,11 +295,11 @@ function closeMoreMenu(): void {
                     type="button"
                     role="menuitem"
                     class="more-menu-item"
-                    title="清除首次引导状态，重新检测（便于测试安装流程）"
+                    :title="t('header.redoOnboardingTitle')"
                     @click="onRedoFirstRunWizard"
                   >
                     <span class="more-menu-icon" aria-hidden="true">🔧</span>
-                    重新引导
+                    {{ t('header.redoOnboarding') }}
                   </button>
                 </li>
                 <li class="more-menu-sep" role="separator" />
@@ -309,7 +311,7 @@ function closeMoreMenu(): void {
                     @click="closeMoreMenu"
                   >
                     <span class="more-menu-icon" aria-hidden="true">ℹ</span>
-                    关于 DidClaw
+                    {{ t('header.aboutApp') }}
                   </RouterLink>
                 </li>
               </ul>
@@ -324,7 +326,7 @@ function closeMoreMenu(): void {
     <transition name="err-fade">
       <p v-if="inlineError" class="inline-err" role="alert">
         {{ inlineError }}
-        <button type="button" class="inline-err-close" aria-label="关闭" @click="inlineError = null">✕</button>
+        <button type="button" class="inline-err-close" :aria-label="t('common.close')" @click="inlineError = null">✕</button>
       </p>
       <p v-else-if="lastError" class="inline-err inline-err--conn" role="alert">{{ lastError }}</p>
     </transition>

@@ -4,6 +4,7 @@ import { describeGatewayError } from "@/lib/gateway-errors";
 import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
 import { computed, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -18,6 +19,7 @@ const open = computed({
   set: (v: boolean) => emit("update:modelValue", v),
 });
 
+const { t } = useI18n();
 const gw = useGatewayStore();
 const sessions = useSessionStore();
 
@@ -136,8 +138,8 @@ const runsCollapsed = ref(true);
 function jobCardClass(j: Record<string, unknown>): string {
   if (!isJobEnabled(j)) return "cron-job-card--disabled";
   const phase = jobRunPhaseLabel(j);
-  if (phase === "运行中") return "cron-job-card--running";
-  if (phase === "已运行") return "cron-job-card--done";
+  if (phase === t("cron.jobPhaseRunning")) return "cron-job-card--running";
+  if (phase === t("cron.jobPhaseDone")) return "cron-job-card--done";
   return "cron-job-card--pending";
 }
 
@@ -159,23 +161,23 @@ const showAdvancedCreate = ref(false);
 /** 简化版"投递"开关：true → announce，false → none */
 const simpleNotify = ref(true);
 
-const freqOptions: { value: QuickSchedule; label: string }[] = [
-  { value: "daily", label: "每天" },
-  { value: "weekly", label: "每周" },
-  { value: "monthly", label: "每月" },
-  { value: "once", label: "只运行一次" },
-  { value: "custom", label: "自定义" },
-];
+const freqOptions = computed((): { value: QuickSchedule; label: string }[] => [
+  { value: "daily", label: t("cron.freqDaily") },
+  { value: "weekly", label: t("cron.freqWeekly") },
+  { value: "monthly", label: t("cron.freqMonthly") },
+  { value: "once", label: t("cron.freqOnce") },
+  { value: "custom", label: t("cron.freqCustom") },
+]);
 
-const dowOptions: { value: number; label: string }[] = [
-  { value: 1, label: "周一" },
-  { value: 2, label: "周二" },
-  { value: 3, label: "周三" },
-  { value: 4, label: "周四" },
-  { value: 5, label: "周五" },
-  { value: 6, label: "周六" },
-  { value: 0, label: "周日" },
-];
+const dowOptions = computed((): { value: number; label: string }[] => [
+  { value: 1, label: t("cron.dowMon") },
+  { value: 2, label: t("cron.dowTue") },
+  { value: 3, label: t("cron.dowWed") },
+  { value: 4, label: t("cron.dowThu") },
+  { value: 5, label: t("cron.dowFri") },
+  { value: 6, label: t("cron.dowSat") },
+  { value: 0, label: t("cron.dowSun") },
+]);
 
 const connected = computed(() => gw.status === "connected" && !!gw.client?.connected);
 
@@ -331,14 +333,17 @@ function parseFriendlyCron(expr: string): string | null {
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
   const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
   if (min !== "*" && hour !== "*" && dom === "*" && dow === "*") {
-    return `每天 ${timeStr}`;
+    return t("cron.parsedCronDaily", { time: timeStr });
   }
   if (min !== "*" && hour !== "*" && dom === "*" && dow !== "*" && /^\d$/.test(dow)) {
-    const dowNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-    return `每${dowNames[parseInt(dow, 10)] ?? "周" + dow} ${timeStr}`;
+    const dowNames = [
+      t("cron.dowSun"), t("cron.dowMon"), t("cron.dowTue"),
+      t("cron.dowWed"), t("cron.dowThu"), t("cron.dowFri"), t("cron.dowSat"),
+    ];
+    return t("cron.parsedCronWeekly", { dow: dowNames[parseInt(dow, 10)] ?? dow, time: timeStr });
   }
   if (min !== "*" && hour !== "*" && dom !== "*" && /^\d+$/.test(dom) && dow === "*") {
-    return `每月 ${dom} 日 ${timeStr}`;
+    return t("cron.parsedCronMonthly", { day: dom, time: timeStr });
   }
   return null;
 }
@@ -350,17 +355,17 @@ function formatScheduleSummary(s: unknown): string {
   if (kind === "at" && typeof sch.at === "string") {
     try {
       const d = new Date(sch.at);
-      return `一次性：${d.toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+      return t("cron.schedOnce", { time: d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) });
     } catch {
-      return `一次性 ${sch.at}`;
+      return t("cron.schedOnceRaw", { time: sch.at });
     }
   }
   if (kind === "every" && typeof sch.everyMs === "number") {
     const ms = sch.everyMs;
-    if (ms % 86400000 === 0) return `每 ${ms / 86400000} 天`;
-    if (ms % 3600000 === 0) return `每 ${ms / 3600000} 小时`;
-    if (ms % 60000 === 0) return `每 ${ms / 60000} 分钟`;
-    return `每 ${ms} ms`;
+    if (ms % 86400000 === 0) return t("cron.schedEveryDay", { n: ms / 86400000 });
+    if (ms % 3600000 === 0) return t("cron.schedEveryHour", { n: ms / 3600000 });
+    if (ms % 60000 === 0) return t("cron.schedEveryMinute", { n: ms / 60000 });
+    return t("cron.schedEveryMs", { n: ms });
   }
   if (kind === "cron" && typeof sch.expr === "string") {
     const friendly = parseFriendlyCron(sch.expr);
@@ -376,19 +381,19 @@ function formatRelativeTime(ms: unknown): string {
   const diff = ms - Date.now();
   const abs = Math.abs(diff);
   const past = diff < 0;
-  if (abs < 60_000) return past ? "刚刚" : "即将执行";
+  if (abs < 60_000) return past ? t("cron.timeJustNow") : t("cron.timeSoon");
   if (abs < 3_600_000) {
     const mn = Math.round(abs / 60_000);
-    return past ? `${mn} 分钟前` : `${mn} 分钟后`;
+    return past ? t("cron.timeMinutesBefore", { n: mn }) : t("cron.timeMinutesAfter", { n: mn });
   }
   if (abs < 86_400_000) {
     const hr = Math.round(abs / 3_600_000);
-    return past ? `${hr} 小时前` : `${hr} 小时后`;
+    return past ? t("cron.timeHoursBefore", { n: hr }) : t("cron.timeHoursAfter", { n: hr });
   }
   const d = Math.round(abs / 86_400_000);
-  if (d <= 14) return past ? `${d} 天前` : `${d} 天后`;
+  if (d <= 14) return past ? t("cron.timeDaysBefore", { n: d }) : t("cron.timeDaysAfter", { n: d });
   try {
-    return new Date(ms).toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   } catch {
     return formatMsLocal(ms);
   }
@@ -455,13 +460,13 @@ function jobStateDetailTooltip(j: Record<string, unknown>): string {
     (typeof s.lastRunStatus === "string" && s.lastRunStatus.trim()) ||
     (typeof s.lastStatus === "string" && s.lastStatus.trim());
   if (lastOutcome) {
-    parts.push(`最近：${lastOutcome}`);
+    parts.push(`${t("cron.jobPhaseDone")}：${lastOutcome}`);
   }
   if (typeof s.nextRunAtMs === "number") {
-    parts.push(`下次 ${formatMsLocal(s.nextRunAtMs)}`);
+    parts.push(`${t("cron.statusNextWake")} ${formatMsLocal(s.nextRunAtMs)}`);
   }
   if (typeof s.lastRunAtMs === "number") {
-    parts.push(`上次 ${formatMsLocal(s.lastRunAtMs)}`);
+    parts.push(`${t("cron.sortUpdated")} ${formatMsLocal(s.lastRunAtMs)}`);
   }
   return parts.length ? parts.join(" · ") : "";
 }
@@ -475,20 +480,20 @@ function jobStateDetailTooltip(j: Record<string, unknown>): string {
 function jobRunPhaseLabel(j: Record<string, unknown>): string {
   const st = j.state;
   if (!st || typeof st !== "object" || Array.isArray(st)) {
-    return "未运行";
+    return t("cron.jobPhasePending");
   }
   const s = st as Record<string, unknown>;
   if (typeof s.runningAtMs === "number" && Number.isFinite(s.runningAtMs)) {
-    return "运行中";
+    return t("cron.jobPhaseRunning");
   }
   const hasLastRun =
     (typeof s.lastRunAtMs === "number" && Number.isFinite(s.lastRunAtMs)) ||
     (typeof s.lastStatus === "string" && s.lastStatus.trim() !== "") ||
     (typeof s.lastRunStatus === "string" && s.lastRunStatus.trim() !== "");
   if (hasLastRun) {
-    return "已运行";
+    return t("cron.jobPhaseDone");
   }
-  return "未运行";
+  return t("cron.jobPhasePending");
 }
 
 function runEntryTitle(r: Record<string, unknown>): string {
@@ -509,7 +514,7 @@ function runEntrySummaryLine(r: Record<string, unknown>): string {
   if (typeof r.error === "string" && r.error.trim()) {
     return r.error.trim();
   }
-  return "（无摘要）";
+  return t("cron.runNoSummary");
 }
 
 function runSessionKey(r: Record<string, unknown>): string {
@@ -864,40 +869,40 @@ async function submitCreate(): Promise<void> {
   createOk.value = null;
   const c = gw.client;
   if (!c?.connected) {
-    createError.value = "请先连接网关。";
+    createError.value = t("cron.errNoGateway");
     return;
   }
   if (!jobName.value.trim()) {
-    createError.value = "请填写任务名称。";
+    createError.value = t("cron.errNoName");
     return;
   }
   if (jobAgentChoice.value === "__custom__" && !jobAgentCustom.value.trim()) {
-    createError.value = "已选择「自定义 ID…」时请填写代理 ID，或改选默认/列表中的代理。";
+    createError.value = t("cron.errNoCustomAgent");
     return;
   }
   const schedule = buildSchedule();
   if (!schedule) {
     if (scheduleKind.value === "at") {
-      createError.value = scheduleAtLocal.value ? "执行时间无效。" : "请选择执行时间。";
+      createError.value = scheduleAtLocal.value ? t("cron.errInvalidTime") : t("cron.errNoTime");
     } else {
-      createError.value = "请填写 Cron 表达式（五段）。";
+      createError.value = t("cron.errNoCronExpr");
     }
     return;
   }
   if (sessionTarget.value === "main") {
     if (!systemEventText.value.trim()) {
-      createError.value = "主会话任务请填写系统事件内容。";
+      createError.value = t("cron.errNoSystemEvent");
       return;
     }
   } else if (!agentMessage.value.trim()) {
-    createError.value = "隔离任务请填写助手任务提示。";
+    createError.value = t("cron.errNoAgentMessage");
     return;
   }
   const tRaw = timeoutSecondsInput.value.trim();
   if (tRaw) {
-    const t = Math.floor(Number(tRaw));
-    if (!Number.isFinite(t) || t <= 0) {
-      createError.value = "超时（秒）须为正整数，或留空。";
+    const tVal = Math.floor(Number(tRaw));
+    if (!Number.isFinite(tVal) || tVal <= 0) {
+      createError.value = t("cron.errInvalidTimeout");
       return;
     }
   }
@@ -955,7 +960,7 @@ async function submitCreate(): Promise<void> {
     }
 
     await c.request("cron.add", body);
-    setCreateOk("任务已创建。");
+    setCreateOk(t("cron.createOk"));
     resetCreateForm();
     await refreshOverview();
     panelTab.value = "list";
@@ -1006,7 +1011,7 @@ async function removeJob(jobId: string): Promise<void> {
   if (!jobId) {
     return;
   }
-  if (!window.confirm(`确定删除定时任务？\n${jobId}`)) {
+  if (!window.confirm(t("cron.jobDeleteConfirm", { id: jobId }))) {
     return;
   }
   const c = gw.client;
@@ -1037,20 +1042,20 @@ async function removeJob(jobId: string): Promise<void> {
         tabindex="-1"
       >
         <div class="cron-head">
-          <h2 id="cron-dialog-title">定时任务</h2>
-          <button type="button" class="cron-close" aria-label="关闭" @click="open = false">✕</button>
+          <h2 id="cron-dialog-title">{{ t('cron.dialogTitle') }}</h2>
+          <button type="button" class="cron-close" :aria-label="t('cron.closeLabel')" @click="open = false">✕</button>
         </div>
 
         <p class="cron-lead muted small">
-          由当前已连接的 Gateway 调度，任务持久化在网关所在机器。网关需保持运行。
+          {{ t('cron.lead') }}
           <a
             href="https://docs.openclaw.ai/zh-CN/automation/cron-jobs"
             target="_blank"
             rel="noreferrer"
-          >查看文档 →</a>
+          >{{ t('common.docs') }}</a>
         </p>
 
-        <nav class="cron-tabs" role="tablist" aria-label="定时任务">
+        <nav class="cron-tabs" role="tablist" :aria-label="t('cron.navLabel')">
           <button
             type="button"
             role="tab"
@@ -1059,7 +1064,7 @@ async function removeJob(jobId: string): Promise<void> {
             :aria-selected="panelTab === 'list'"
             @click="panelTab = 'list'"
           >
-            已有任务
+            {{ t('cron.tabList') }}
           </button>
           <button
             type="button"
@@ -1069,30 +1074,30 @@ async function removeJob(jobId: string): Promise<void> {
             :aria-selected="panelTab === 'create'"
             @click="panelTab = 'create'"
           >
-            新建
+            {{ t('cron.tabCreate') }}
           </button>
         </nav>
 
         <div v-if="!connected" class="cron-offline muted small">
-          请先连接网关后再管理定时任务。
+          {{ t('cron.offlineHint') }}
         </div>
 
         <div v-else-if="panelTab === 'list'" class="cron-body" role="tabpanel">
 
           <!-- 状态栏 -->
-          <section class="cron-status-strip" aria-label="调度器状态">
+          <section class="cron-status-strip" :aria-label="t('cron.statusScheduler')">
             <div class="cron-status-item">
-              <span class="cron-status-label">调度器</span>
+              <span class="cron-status-label">{{ t('cron.statusScheduler') }}</span>
               <span class="cron-status-value" :class="cronStatus?.enabled !== false ? 'cron-status--on' : 'cron-status--off'">
-                {{ cronStatus == null ? (statusLoading ? "…" : "—") : cronStatus.enabled === false ? "已关闭" : "运行中" }}
+                {{ cronStatus == null ? (statusLoading ? "…" : "—") : cronStatus.enabled === false ? t('cron.schedulerOff') : t('cron.schedulerOn') }}
               </span>
             </div>
             <div class="cron-status-item">
-              <span class="cron-status-label">任务数</span>
+              <span class="cron-status-label">{{ t('cron.statusJobs') }}</span>
               <span class="cron-status-value">{{ cronStatus != null && typeof cronStatus.jobs === "number" ? cronStatus.jobs : "—" }}</span>
             </div>
             <div class="cron-status-item">
-              <span class="cron-status-label">下次唤醒</span>
+              <span class="cron-status-label">{{ t('cron.statusNextWake') }}</span>
               <span class="cron-status-value cron-status-value--sm" :title="formatMsLocal(cronStatus?.nextWakeAtMs ?? undefined)">
                 {{ cronStatus?.nextWakeAtMs ? formatRelativeTime(cronStatus.nextWakeAtMs) : "—" }}
               </span>
@@ -1103,21 +1108,21 @@ async function removeJob(jobId: string): Promise<void> {
           <div class="cron-toolbar-compact">
             <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
               :disabled="listLoading || statusLoading" @click="refreshList">
-              {{ listLoading || statusLoading ? "刷新中…" : "↻ 刷新" }}
+              {{ listLoading || statusLoading ? t('common.refreshing') : t('common.refresh') }}
             </button>
             <span class="cron-toolbar-sep">|</span>
-            <span class="muted small">排序</span>
+            <span class="muted small">{{ t('cron.sortLabel') }}</span>
             <select v-model="jobsSortBy" class="cron-select cron-select-xs" @change="onJobsSortChange">
-              <option value="nextRunAtMs">下次运行</option>
-              <option value="updatedAtMs">最近更新</option>
-              <option value="name">名称</option>
+              <option value="nextRunAtMs">{{ t('cron.sortNextRun') }}</option>
+              <option value="updatedAtMs">{{ t('cron.sortUpdated') }}</option>
+              <option value="name">{{ t('cron.sortName') }}</option>
             </select>
             <select v-model="jobsSortDir" class="cron-select cron-select-xs" @change="onJobsSortChange">
-              <option value="asc">升序</option>
-              <option value="desc">降序</option>
+              <option value="asc">{{ t('cron.sortAsc') }}</option>
+              <option value="desc">{{ t('cron.sortDesc') }}</option>
             </select>
             <span v-if="jobs.length || jobsTotal > 0" class="muted small" style="margin-left:auto">
-              {{ jobs.length }} / {{ jobsTotal }} 条
+              {{ t('cron.itemsCount', { shown: jobs.length, total: jobsTotal }) }}
             </span>
           </div>
 
@@ -1126,10 +1131,10 @@ async function removeJob(jobId: string): Promise<void> {
           <!-- 空状态 -->
           <div v-if="!listLoading && !jobs.length && !listError" class="cron-empty-state">
             <div class="cron-empty-icon">⏰</div>
-            <div class="cron-empty-title">还没有定时任务</div>
-            <div class="cron-empty-desc muted small">切换到「新建」，让 AI 按计划自动执行任务。</div>
+            <div class="cron-empty-title">{{ t('cron.emptyTitle') }}</div>
+            <div class="cron-empty-desc muted small">{{ t('cron.emptyDesc') }}</div>
             <button type="button" class="lc-btn lc-btn-sm" style="margin-top:12px" @click="panelTab = 'create'">
-              + 新建任务
+              {{ t('cron.emptyCreate') }}
             </button>
           </div>
 
@@ -1140,7 +1145,7 @@ async function removeJob(jobId: string): Promise<void> {
               :class="jobCardClass(j)"
               :title="jobStateDetailTooltip(j) || undefined">
               <div class="cron-job-card__head">
-                <div class="cron-job-card__name">{{ typeof j.name === "string" ? j.name : "未命名" }}</div>
+                <div class="cron-job-card__name">{{ typeof j.name === "string" ? j.name : t('cron.jobUnnamed') }}</div>
                 <div class="cron-job-card__phase-badge" :class="'cron-job-card__phase-badge--' + jobCardClass(j).replace('cron-job-card--', '')">
                   {{ jobRunPhaseLabel(j) }}
                 </div>
@@ -1148,23 +1153,23 @@ async function removeJob(jobId: string): Promise<void> {
               <div class="cron-job-card__meta">
                 <span class="cron-job-card__sched">{{ formatScheduleSummary(j.schedule) }}</span>
                 <span v-if="jobNextRunAtMs(j) !== null" class="muted" style="font-size:11px">
-                  下次 {{ formatRelativeTime(jobNextRunAtMs(j)) }}
+                  {{ t('cron.jobNextRun', { time: formatRelativeTime(jobNextRunAtMs(j)) }) }}
                 </span>
-                <span v-else-if="!isJobEnabled(j)" class="muted" style="font-size:11px">已暂停</span>
+                <span v-else-if="!isJobEnabled(j)" class="muted" style="font-size:11px">{{ t('cron.jobPaused') }}</span>
               </div>
               <div class="cron-job-card__actions">
                 <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
                   :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                  @click="selectJobForRuns(jobIdOf(j))">执行历史</button>
+                  @click="selectJobForRuns(jobIdOf(j))">{{ t('cron.jobHistory') }}</button>
                 <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
                   :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                  @click="runJobNow(jobIdOf(j))">▶ 立即运行</button>
+                  @click="runJobNow(jobIdOf(j))">{{ t('cron.jobRunNow') }}</button>
                 <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
                   :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                  @click="toggleEnabled(j)">{{ isJobEnabled(j) ? "⏸ 暂停" : "▶ 启用" }}</button>
+                  @click="toggleEnabled(j)">{{ isJobEnabled(j) ? t('cron.jobPause') : t('cron.jobResume') }}</button>
                 <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
                   :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                  @click="removeJob(jobIdOf(j))">删除</button>
+                  @click="removeJob(jobIdOf(j))">{{ t('cron.jobDelete') }}</button>
               </div>
             </div>
           </div>
@@ -1172,15 +1177,15 @@ async function removeJob(jobId: string): Promise<void> {
           <div v-if="jobsHasMore" class="cron-load-more">
             <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
               :disabled="jobsLoadingMore" @click="loadMoreJobs">
-              {{ jobsLoadingMore ? "加载中…" : "加载更多任务" }}
+              {{ jobsLoadingMore ? t('cron.loadingMore') : t('cron.loadMoreJobs') }}
             </button>
           </div>
 
           <!-- 执行历史（可折叠） -->
           <div class="cron-runs-section">
             <button type="button" class="cron-runs-header" @click="runsCollapsed = !runsCollapsed">
-              <span class="cron-runs-header__title">执行历史</span>
-              <span v-if="runs.length" class="muted small">{{ runs.length }} 条</span>
+              <span class="cron-runs-header__title">{{ t('cron.runsTitle') }}</span>
+              <span v-if="runs.length" class="muted small">{{ t('cron.runsCount', { count: runs.length }) }}</span>
               <span class="cron-runs-header__arrow">{{ runsCollapsed ? "▼" : "▲" }}</span>
             </button>
 
@@ -1188,28 +1193,28 @@ async function removeJob(jobId: string): Promise<void> {
               <!-- 筛选栏 -->
               <div class="cron-runs-filter-row">
                 <select v-model="runsScope" class="cron-select cron-select-xs" @change="onRunsFiltersChange">
-                  <option value="all">全部任务</option>
-                  <option value="job">指定任务</option>
+                  <option value="all">{{ t('cron.runsFilterAll') }}</option>
+                  <option value="job">{{ t('cron.runsFilterJob') }}</option>
                 </select>
                 <select v-if="runsScope === 'job'" class="cron-select cron-select-sm"
                   :value="runsJobId ?? ''" @change="onRunsJobSelect">
-                  <option value="">选择任务…</option>
+                  <option value="">{{ t('cron.runsSelectJob') }}</option>
                   <option v-for="(j, jidx) in jobs" :key="jobIdOf(j) || `opt-${jidx}`" :value="jobIdOf(j)">
                     {{ typeof j.name === "string" ? j.name : jobIdOf(j) || "—" }}
                   </option>
                 </select>
                 <select v-model="runsSortDir" class="cron-select cron-select-xs" @change="onRunsFiltersChange">
-                  <option value="desc">新的在前</option>
-                  <option value="asc">旧的在前</option>
+                  <option value="desc">{{ t('cron.runsNewest') }}</option>
+                  <option value="asc">{{ t('cron.runsOldest') }}</option>
                 </select>
               </div>
 
               <p v-if="runsError" class="err small">{{ runsError }}</p>
               <p v-if="runsScope === 'job' && !runsJobId && !runsLoading" class="muted small">
-                请选择上方任务，或点击任务卡片的「执行历史」。
+                {{ t('cron.runsSelectHint') }}
               </p>
-              <p v-else-if="runsLoading" class="muted small">加载中…</p>
-              <p v-else-if="!runs.length && !runsError" class="muted small">暂无执行记录。</p>
+              <p v-else-if="runsLoading" class="muted small">{{ t('common.loading') }}</p>
+              <p v-else-if="!runs.length && !runsError" class="muted small">{{ t('cron.runsEmpty') }}</p>
 
               <ul v-else class="cron-run-list">
                 <li v-for="(r, ridx) in runs" :key="ridx" class="cron-run-entry" :class="runCardClass(r)">
@@ -1230,7 +1235,7 @@ async function removeJob(jobId: string): Promise<void> {
                   </div>
                   <div v-if="runSessionKey(r)" class="cron-run-entry__actions">
                     <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
-                      @click="openRunInChat(runSessionKey(r))">打开会话</button>
+                      @click="openRunInChat(runSessionKey(r))">{{ t('cron.runOpenSession') }}</button>
                   </div>
                 </li>
               </ul>
@@ -1238,7 +1243,7 @@ async function removeJob(jobId: string): Promise<void> {
               <div v-if="runsHasMore && (runsScope === 'all' || runsJobId)" class="cron-load-more">
                 <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
                   :disabled="runsLoadingMore" @click="loadMoreRuns">
-                  {{ runsLoadingMore ? "加载中…" : "加载更多记录" }}
+                  {{ runsLoadingMore ? t('cron.loadingMore') : t('cron.loadMoreRuns') }}
                 </button>
                 <span class="muted small" style="margin-left:8px">{{ runs.length }} / {{ runsTotal }}</span>
               </div>
@@ -1251,19 +1256,19 @@ async function removeJob(jobId: string): Promise<void> {
           <!-- 任务名称 -->
           <div class="cron-create-card">
             <label class="cron-field" style="margin-bottom:0">
-              <span class="cron-create-card-title">任务名称 <span class="cron-req">*</span></span>
+              <span class="cron-create-card-title">{{ t('cron.jobNameLabel') }} <span class="cron-req">{{ t('common.required') }}</span></span>
               <input
                 v-model="jobName"
                 type="text"
                 class="cron-input cron-create-name-input"
-                placeholder="例如：每日新闻摘要、每周工作总结"
+                :placeholder="t('cron.jobNamePlaceholder')"
               />
             </label>
           </div>
 
           <!-- 执行频率 -->
           <div class="cron-create-card">
-            <div class="cron-create-card-title">⏰ 什么时候执行？</div>
+            <div class="cron-create-card-title">{{ t('cron.scheduleTitle') }}</div>
             <div class="cron-freq-pills">
               <button
                 v-for="f in freqOptions"
@@ -1277,7 +1282,7 @@ async function removeJob(jobId: string): Promise<void> {
             <!-- 每天：选时间 -->
             <div v-if="quickSchedule === 'daily'" class="cron-schedule-detail">
               <label class="cron-field" style="margin-bottom:0">
-                <span class="cron-label">每天几点执行？</span>
+                <span class="cron-label">{{ t('cron.schedTimeDailyLabel') }}</span>
                 <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
               </label>
             </div>
@@ -1285,7 +1290,7 @@ async function removeJob(jobId: string): Promise<void> {
             <!-- 每周：选星期 + 时间 -->
             <div v-else-if="quickSchedule === 'weekly'" class="cron-schedule-detail">
               <div class="cron-field">
-                <span class="cron-label">每周几？</span>
+                <span class="cron-label">{{ t('cron.schedTimeWeeklyDow') }}</span>
                 <div class="cron-dow-pills">
                   <button
                     v-for="d in dowOptions"
@@ -1297,7 +1302,7 @@ async function removeJob(jobId: string): Promise<void> {
                 </div>
               </div>
               <label class="cron-field" style="margin-bottom:0">
-                <span class="cron-label">几点执行？</span>
+                <span class="cron-label">{{ t('cron.schedTimeWeeklyTime') }}</span>
                 <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
               </label>
             </div>
@@ -1305,11 +1310,11 @@ async function removeJob(jobId: string): Promise<void> {
             <!-- 每月：选几号 + 时间 -->
             <div v-else-if="quickSchedule === 'monthly'" class="cron-schedule-detail">
               <label class="cron-field">
-                <span class="cron-label">每月几号？<span class="muted">（建议 1–28，避免月末差异）</span></span>
+                <span class="cron-label">{{ t('cron.schedTimeMonthlyDay') }}<span class="muted">{{ t('cron.schedTimeMonthlyDayHint') }}</span></span>
                 <input v-model.number="quickScheduleDay" type="number" min="1" max="28" class="cron-input cron-input-narrow" />
               </label>
               <label class="cron-field" style="margin-bottom:0">
-                <span class="cron-label">几点执行？</span>
+                <span class="cron-label">{{ t('cron.schedTimeMonthlyTime') }}</span>
                 <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
               </label>
             </div>
@@ -1317,12 +1322,12 @@ async function removeJob(jobId: string): Promise<void> {
             <!-- 只运行一次 -->
             <div v-else-if="quickSchedule === 'once'" class="cron-schedule-detail">
               <label class="cron-field">
-                <span class="cron-label">执行时间 <span class="cron-req">*</span></span>
+                <span class="cron-label">{{ t('cron.schedOnceTimeLabel') }} <span class="cron-req">{{ t('common.required') }}</span></span>
                 <input v-model="scheduleAtLocal" type="datetime-local" class="cron-input" />
               </label>
               <label class="cron-check" style="margin-bottom:0">
                 <input v-model="deleteAfterRun" type="checkbox" />
-                执行完成后自动删除任务
+                {{ t('cron.schedOnceDeleteAfter') }}
               </label>
             </div>
 
@@ -1330,15 +1335,15 @@ async function removeJob(jobId: string): Promise<void> {
             <div v-else-if="quickSchedule === 'custom'" class="cron-schedule-detail">
               <div class="cron-row2">
                 <label class="cron-field cron-field-inline">
-                  <span class="cron-label">每隔 <span class="cron-req">*</span></span>
+                  <span class="cron-label">{{ t('cron.schedCustomEveryLabel') }} <span class="cron-req">{{ t('common.required') }}</span></span>
                   <input v-model.number="scheduleEveryValue" type="number" min="1" class="cron-input cron-input-narrow" />
                 </label>
                 <label class="cron-field cron-field-inline cron-field-grow">
-                  <span class="cron-label">单位</span>
+                  <span class="cron-label">{{ t('cron.schedCustomUnit') }}</span>
                   <select v-model="scheduleEveryUnit" class="cron-select">
-                    <option value="minutes">分钟</option>
-                    <option value="hours">小时</option>
-                    <option value="days">天</option>
+                    <option value="minutes">{{ t('cron.schedUnitMinutes') }}</option>
+                    <option value="hours">{{ t('cron.schedUnitHours') }}</option>
+                    <option value="days">{{ t('cron.schedUnitDays') }}</option>
                   </select>
                 </label>
               </div>
@@ -1347,80 +1352,80 @@ async function removeJob(jobId: string): Promise<void> {
 
           <!-- 告诉 AI 要做什么 -->
           <div class="cron-create-card">
-            <div class="cron-create-card-title">💬 告诉 AI 要做什么 <span class="cron-req">*</span></div>
+            <div class="cron-create-card-title">{{ t('cron.taskTitle') }} <span class="cron-req">{{ t('common.required') }}</span></div>
             <textarea
               v-model="agentMessage"
               class="cron-textarea cron-create-task-textarea"
               rows="4"
-              placeholder="例如：帮我整理今天的科技新闻，以 5 条简洁要点的形式输出，附带每条的信息来源。"
+              :placeholder="t('cron.taskPlaceholder')"
             />
           </div>
 
           <!-- 通知 -->
           <label class="cron-check cron-create-notify">
             <input v-model="simpleNotify" type="checkbox" />
-            <span>任务完成后，将结果发送到聊天窗口</span>
+            <span>{{ t('cron.notifyLabel') }}</span>
           </label>
 
           <!-- 高级设置折叠 -->
           <button type="button" class="cron-advanced-toggle" @click="showAdvancedCreate = !showAdvancedCreate">
             <span class="cron-advanced-toggle-icon">{{ showAdvancedCreate ? '▲' : '▼' }}</span>
-            {{ showAdvancedCreate ? '收起高级设置' : '高级设置（代理 / 超时 / 频道等）' }}
+            {{ showAdvancedCreate ? t('cron.advancedToggleHide') : t('cron.advancedToggleShow') }}
           </button>
 
           <div v-if="showAdvancedCreate" class="cron-advanced-wrap">
             <fieldset class="cron-fieldset">
-              <legend class="cron-legend">高级设置</legend>
+              <legend class="cron-legend">{{ t('cron.advancedTitle') }}</legend>
               <label class="cron-field">
-                <span class="cron-label">描述（可选）</span>
-                <input v-model="jobDescription" type="text" class="cron-input" placeholder="此任务的备注说明" />
+                <span class="cron-label">{{ t('cron.descLabel') }}</span>
+                <input v-model="jobDescription" type="text" class="cron-input" :placeholder="t('cron.descPlaceholder')" />
               </label>
               <label class="cron-field">
-                <span class="cron-label">代理</span>
+                <span class="cron-label">{{ t('cron.agentLabel') }}</span>
                 <select v-model="jobAgentChoice" class="cron-select">
-                  <option value="">默认智能体</option>
+                  <option value="">{{ t('cron.agentDefault') }}</option>
                   <option v-for="a in knownAgents" :key="a.id" :value="a.id">
                     {{ a.label === a.id ? a.id : `${a.label}（${a.id}）` }}
                   </option>
-                  <option value="__custom__">自定义 ID…</option>
+                  <option value="__custom__">{{ t('cron.agentCustom') }}</option>
                 </select>
                 <input
                   v-if="jobAgentChoice === '__custom__'"
                   v-model="jobAgentCustom"
                   type="text"
                   class="cron-input cron-agent-custom-input"
-                  placeholder="输入代理 ID，如 ops"
+                  :placeholder="t('cron.agentCustomPlaceholder')"
                 />
               </label>
               <label class="cron-field">
-                <span class="cron-label">会话模式</span>
+                <span class="cron-label">{{ t('cron.sessionModeLabel') }}</span>
                 <select v-model="sessionTarget" class="cron-select">
-                  <option value="isolated">隔离会话（推荐：在独立会话运行，不影响主聊天）</option>
-                  <option value="main">主会话（将系统事件写入主聊天时间线）</option>
+                  <option value="isolated">{{ t('cron.sessionIsolated') }}</option>
+                  <option value="main">{{ t('cron.sessionMain') }}</option>
                 </select>
               </label>
               <template v-if="sessionTarget === 'main'">
                 <label class="cron-field">
-                  <span class="cron-label">系统事件内容 <span class="cron-req">*</span></span>
+                  <span class="cron-label">{{ t('cron.systemEventLabel') }} <span class="cron-req">{{ t('common.required') }}</span></span>
                   <textarea v-model="systemEventText" class="cron-textarea" rows="3"
-                    placeholder="入队到主会话的系统事件文本" />
+                    :placeholder="t('cron.systemEventPlaceholder')" />
                 </label>
               </template>
               <label class="cron-field">
-                <span class="cron-label">超时（秒，留空则使用默认）</span>
+                <span class="cron-label">{{ t('cron.timeoutLabel') }}</span>
                 <input
                   v-model="timeoutSecondsInput"
                   type="text"
                   inputmode="numeric"
                   class="cron-input cron-input-narrow"
-                  placeholder="如 90"
+                  :placeholder="t('cron.timeoutPlaceholder')"
                 />
               </label>
               <template v-if="simpleNotify && sessionTarget === 'isolated'">
                 <label class="cron-field">
-                  <span class="cron-label">发送频道</span>
+                  <span class="cron-label">{{ t('cron.deliveryChannelLabel') }}</span>
                   <select v-model="deliveryChannel" class="cron-select">
-                    <option value="last">自动（最后使用的渠道）</option>
+                    <option value="last">{{ t('cron.deliveryChannelLast') }}</option>
                     <option value="slack">Slack</option>
                     <option value="telegram">Telegram</option>
                     <option value="discord">Discord</option>
@@ -1431,26 +1436,26 @@ async function removeJob(jobId: string): Promise<void> {
                   </select>
                 </label>
                 <label class="cron-field">
-                  <span class="cron-label">收件人 / 目标（可选）</span>
+                  <span class="cron-label">{{ t('cron.deliveryToLabel') }}</span>
                   <input v-model="deliveryTo" type="text" class="cron-input"
-                    placeholder="留空则自动回退到最后活跃路由" />
+                    :placeholder="t('cron.deliveryToPlaceholder')" />
                 </label>
                 <label class="cron-check">
                   <input v-model="deliveryBestEffort" type="checkbox" />
-                  投递失败时不影响任务状态
+                  {{ t('cron.deliveryBestEffort') }}
                 </label>
               </template>
               <label class="cron-check">
                 <input v-model="createJobEnabled" type="checkbox" />
-                立即启用任务
+                {{ t('cron.jobEnabledLabel') }}
               </label>
               <!-- Cron 表达式直接编辑（高级） -->
               <label v-if="quickSchedule !== 'once' && quickSchedule !== 'custom'" class="cron-field">
-                <span class="cron-label">Cron 表达式（自动生成，可手动覆盖）</span>
-                <input v-model="scheduleCronExpr" type="text" class="cron-input cron-mono" placeholder="0 9 * * *" />
-                <span class="muted small cron-field-hint">修改后将以此表达式为准。时区：
+                <span class="cron-label">{{ t('cron.cronExprLabel') }}</span>
+                <input v-model="scheduleCronExpr" type="text" class="cron-input cron-mono" :placeholder="t('cron.cronExprPlaceholder')" />
+                <span class="muted small cron-field-hint">{{ t('cron.cronTzHint') }}
                   <input v-model="scheduleCronTz" type="text" class="cron-input cron-input-tz"
-                    placeholder="留空则使用网关主机本地时区" /></span>
+                    :placeholder="t('cron.cronTzPlaceholder')" /></span>
               </label>
             </fieldset>
           </div>
@@ -1464,7 +1469,7 @@ async function removeJob(jobId: string): Promise<void> {
               :disabled="!connected || createBusy"
               @click="submitCreate"
             >
-              {{ createBusy ? "创建中…" : "创建任务" }}
+              {{ createBusy ? t('cron.loadingMore') : t('cron.createBtn') }}
             </button>
           </div>
         </div>

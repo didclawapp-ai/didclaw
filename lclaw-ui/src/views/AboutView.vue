@@ -1,30 +1,25 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
+import { useI18n } from "vue-i18n";
 
+const { t } = useI18n();
 const appVersion = __APP_VERSION__;
 </script>
 
 <template>
   <div class="about">
     <header class="bar">
-      <RouterLink to="/" class="lc-btn lc-btn-ghost lc-btn-sm back">← 返回会话</RouterLink>
-      <h1 class="title">关于 DidClaw</h1>
+      <RouterLink to="/" class="lc-btn lc-btn-ghost lc-btn-sm back">{{ t('about.backToChat') }}</RouterLink>
+      <h1 class="title">{{ t('about.title') }}</h1>
     </header>
     <div class="card">
-      <p class="ver">版本 <code>{{ appVersion }}</code></p>
+      <p class="ver">{{ t('about.version') }} <code>{{ appVersion }}</code></p>
       <p>
-        本客户端用于连接 <strong>OpenClaw Gateway</strong>：会话列表、聊天、本地/链接预览与诊断信息。
+        {{ t('about.desc') }}
       </p>
-      <p class="muted">
-        正式使用请用 <strong>Electron 桌面版</strong>：连接助手、填写 AI 密钥、选默认模型等，点顶栏
-        <strong>「设置」</strong> 即可，一般不必自己改配置文件。
-      </p>
-      <p class="muted">
-        开发联调可用 <code>pnpm dev:web</code> 仅起 Vite，此时通过环境变量 <code>VITE_GATEWAY_URL</code> 等连接网关；无顶栏「设置」对话框。
-      </p>
-      <p class="muted">
-        外链白名单等见仓库 <code>.env.example</code> 说明。
-      </p>
+      <p class="muted">{{ t('about.desktopNote') }}</p>
+      <p class="muted">{{ t('about.devNote') }}</p>
+      <p class="muted">{{ t('about.envNote') }}</p>
     </div>
   </div>
 </template>

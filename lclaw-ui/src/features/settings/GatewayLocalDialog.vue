@@ -5,6 +5,7 @@ import {
   afterOpenClawProvidersSaved,
 } from "@/composables/modelConfigDeferred";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
+import { useI18n } from "vue-i18n";
 import {
   PRIMARY_MODEL_QUICK_PICKS,
   PROVIDER_SETUP_PRESETS,
@@ -17,6 +18,7 @@ import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { computed, ref, watch } from "vue";
 import AiProviderSetup from "@/features/settings/AiProviderSetup.vue";
+import { i18n, type LocaleCode } from "@/i18n";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -26,9 +28,15 @@ const emit = defineEmits<{
   "update:modelValue": [v: boolean];
 }>();
 
+const { t } = useI18n();
 const gw = useGatewayStore();
 const localSettings = useLocalSettingsStore();
 const chat = useChatStore();
+
+const currentLocale = computed({
+  get: () => (i18n.global.locale as { value: LocaleCode }).value,
+  set: (v: LocaleCode) => localSettings.switchLocale(v),
+});
 
 type TabId = "gateway" | "ai" | "model" | "providers";
 
@@ -256,9 +264,9 @@ function applyProviderPreset(preset: ProviderSetupPreset): void {
   pvModelRows.value =
     preset.modelIds.length > 0 ? preset.modelIds.map((id) => ({ id })) : [{ id: "" }];
   pvProviderExtras.value = { ...preset.extras };
-  provToast.value = exists
-    ? `已套用「${preset.label}」到表单（密钥未改），满意请点「保存」。`
-    : `已填入「${preset.label}」：请粘贴密钥后点「保存」。`;
+    provToast.value = exists
+      ? t("settings.providerPresetApplied", { label: preset.label })
+      : t("settings.providerPresetFilled", { label: preset.label });
 }
 
 function applyPrimaryModelQuickPick(ref: string): void {
@@ -384,15 +392,15 @@ function formatProvidersWriteError(
 ): string {
   const bits = [r.error];
   if (r.agentModelsBackupPath) {
-    bits.push(`配置备份（模型）：${r.agentModelsBackupPath}`);
+    bits.push(t("settings.configBackupModel", { path: r.agentModelsBackupPath }));
   }
   if (r.authProfilesBackupPath) {
-    bits.push(`配置备份（登录信息）：${r.authProfilesBackupPath}`);
+    bits.push(t("settings.configBackupAuth", { path: r.authProfilesBackupPath }));
   }
   if (r.backupPath) {
-    bits.push(`总配置备份：${r.backupPath}`);
+    bits.push(t("settings.configBackupTotal", { path: r.backupPath }));
   }
-  bits.push("若看不懂，可把整段文字复制给客服。");
+  bits.push(t("settings.configContactSupport"));
   return bits.join(" — ");
 }
 
@@ -405,10 +413,10 @@ function formatProviderSaveToast(
     defaultAgentId: string;
   },
 ): string {
-  const head = `「${id}」已保存。若对话仍提示无密钥或连不上，可先重启助手网关再试。`;
+  const head = t("settings.providerSaved", { id });
   const tails: string[] = [];
   if (r.agentModelsBackupPath || r.authProfilesBackupPath || r.backupPath) {
-    tails.push("原配置已自动备份到同文件夹（文件名含「备份」）");
+    tails.push(t("settings.providerBackupNote"));
   }
   return tails.length > 0 ? `${head} ${tails.join("。")}。` : head;
 }
@@ -418,13 +426,12 @@ async function onSaveProvider(): Promise<void> {
   provToast.value = null;
   const api = getDidClawDesktopApi();
   if (!api?.writeOpenClawProvidersPatch) {
-    provError.value = "请使用桌面版打开本设置。";
+    provError.value = t("settings.desktopOnlyProviders");
     return;
   }
   const id = creatingNewProvider.value ? newProviderKeyDraft.value.trim() : selectedProviderKey.value;
   if (!OPENCLAW_PROVIDER_ID_RE.test(id)) {
-    provError.value =
-      "服务代号只能用小写英文、数字和短横线（例如 minimax、moonshot），不要用中文或空格。";
+    provError.value = t("settings.providerIdInvalid");
     return;
   }
   const snap = providerSnapshots.value[id];
@@ -440,8 +447,7 @@ async function onSaveProvider(): Promise<void> {
       continue;
     }
     if (mid.includes("/")) {
-      provError.value =
-        "「模型 ID」里不要写斜杠 /。下面每一行只填模型名字（如 MiniMax-M2.7、OpenRouter 免费路由填 free）；斜杠前面的服务代号在左侧列表里已经选好了。";
+      provError.value = t("settings.modelIdNoSlash");
       return;
     }
     const pe = prevModels[mid];
@@ -484,9 +490,7 @@ async function onDeleteProvider(): Promise<void> {
     return;
   }
   if (
-    !window.confirm(
-      `确定删除「${id}」这项 AI 服务配置？删除后无法用该线路的模型，除非重新添加。已自动备份原配置。`,
-    )
+    !window.confirm(t("settings.deleteProviderConfirm", { id }))
   ) {
     return;
   }
@@ -494,7 +498,7 @@ async function onDeleteProvider(): Promise<void> {
   provToast.value = null;
   const api = getDidClawDesktopApi();
   if (!api?.writeOpenClawProvidersPatch) {
-    provError.value = "请使用桌面版打开本设置。";
+    provError.value = t("settings.desktopOnlyProviders");
     return;
   }
   provBusy.value = true;
@@ -504,7 +508,7 @@ async function onDeleteProvider(): Promise<void> {
       provError.value = formatProvidersWriteError(r);
       return;
     }
-    provToast.value = `已删除「${id}」。若列表没更新，可稍等或重启助手后再看。`;
+    provToast.value = t("settings.providerDeleted", { id });
     selectedProviderKey.value = "";
     await loadProvidersForm();
     await chat.refreshOpenClawModelPicker();
@@ -537,7 +541,7 @@ async function onSaveGateway(): Promise<void> {
   saveError.value = null;
   const api = getDidClawDesktopApi();
   if (!api?.writeGatewayLocalConfig) {
-    saveError.value = "请使用桌面版保存连接设置。";
+    saveError.value = t("settings.desktopOnlySave");
     return;
   }
   saving.value = true;
@@ -579,12 +583,12 @@ async function onSaveModel(): Promise<void> {
   modelToast.value = null;
   const api = getDidClawDesktopApi();
   if (!api?.writeOpenClawModelConfig) {
-    modelError.value = "请使用桌面版保存模型设置。";
+    modelError.value = t("settings.desktopOnlyModel");
     return;
   }
   const p = primaryModel.value.trim();
   if (!p) {
-    modelError.value = "请先填写「默认使用的模型」那一栏。";
+    modelError.value = t("settings.primaryModelRequired");
     return;
   }
   const primaryBlock = describeOpenClawPrimaryModelIncompatibility(p);
@@ -614,8 +618,8 @@ async function onSaveModel(): Promise<void> {
       return;
     }
     modelToast.value = r.backupPath
-      ? "已保存。上一份配置已自动备份（文件名含「备份」）。"
-      : "已保存。";
+      ? t("settings.modelSavedWithBackup")
+      : t("settings.modelSaved");
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
     afterOpenClawModelConfigSaved();
@@ -631,7 +635,7 @@ async function onRestoreModel(): Promise<void> {
   modelToast.value = null;
   const api = getDidClawDesktopApi();
   if (!api?.restoreOpenClawConfigToLatestBackup) {
-    modelError.value = "请使用桌面版恢复备份。";
+    modelError.value = t("settings.desktopOnlyRestore");
     return;
   }
   modelBusy.value = true;
@@ -643,7 +647,7 @@ async function onRestoreModel(): Promise<void> {
         : r.error;
       return;
     }
-    modelToast.value = `已从备份恢复：${r.backupUsed}`;
+    modelToast.value = t("settings.modelRestoredFrom", { path: r.backupUsed });
     await loadModelForm();
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
@@ -665,9 +669,25 @@ async function onRestoreModel(): Promise<void> {
         role="dialog"
         aria-labelledby="local-settings-title"
       >
-        <h2 id="local-settings-title">本机设置</h2>
+        <div class="settings-header">
+          <h2 id="local-settings-title">{{ t('settings.title') }}</h2>
+          <div class="locale-switcher">
+            <button
+              type="button"
+              class="locale-btn"
+              :class="{ active: currentLocale === 'zh' }"
+              @click="currentLocale = 'zh'"
+            >中</button>
+            <button
+              type="button"
+              class="locale-btn"
+              :class="{ active: currentLocale === 'en' }"
+              @click="currentLocale = 'en'"
+            >EN</button>
+          </div>
+        </div>
         <p class="dialog-lead muted small">
-          ① 连接助手网关，② 选择 AI 服务商填入 Key，一步完成配置。
+          {{ t('settings.lead') }}
         </p>
 
         <div class="tabs" role="tablist">
@@ -679,7 +699,7 @@ async function onRestoreModel(): Promise<void> {
             :aria-selected="tab === 'gateway'"
             @click="tab = 'gateway'"
           >
-            ① 连助手
+            {{ t('settings.tabGateway') }}
           </button>
           <button
             type="button"
@@ -689,7 +709,7 @@ async function onRestoreModel(): Promise<void> {
             :aria-selected="tab === 'ai'"
             @click="tab = 'ai'"
           >
-            ② AI 配置
+            {{ t('settings.tabAi') }}
           </button>
           <button
             type="button"
@@ -697,10 +717,10 @@ async function onRestoreModel(): Promise<void> {
             class="tab tab--advanced"
             :class="{ active: tab === 'providers' || tab === 'model' }"
             :aria-selected="tab === 'providers' || tab === 'model'"
-            :title="'高级：手动管理 Provider 与模型别名'"
+            :title="t('settings.tabAdvancedTitle')"
             @click="tab = tab === 'providers' ? 'model' : 'providers'"
           >
-            高级 ···
+            {{ t('settings.tabAdvanced') }}
           </button>
         </div>
 
@@ -711,55 +731,54 @@ async function onRestoreModel(): Promise<void> {
 
         <div v-show="tab === 'gateway'" class="tab-panel">
           <p class="help-intro muted small">
-            一般无需修改。
+            {{ t('settings.gatewayHelp') }}
             <span
               class="help-tip"
-              title="装好助手后地址与口令通常已正确；仅当教程或客服要求时再改。"
+              :title="t('settings.gatewayHelpTip')"
               tabindex="0"
               role="note"
             >?</span>
           </p>
           <label class="field">
             <span class="field-label-row">
-              连接地址
-              <span class="help-tip" title="WebSocket 地址，多为 ws://127.0.0.1:端口" tabindex="0" role="note">?</span>
+              {{ t('settings.wsUrlLabel') }}
+              <span class="help-tip" :title="t('settings.wsUrlTip')" tabindex="0" role="note">?</span>
             </span>
-            <input v-model="wsUrl" type="text" autocomplete="off" placeholder="ws://127.0.0.1:18789">
+            <input v-model="wsUrl" type="text" autocomplete="off" :placeholder="t('settings.wsUrlPlaceholder')">
           </label>
           <label class="field">
             <span class="field-label-row">
-              口令（Token）
+              {{ t('settings.tokenLabel') }}
               <span
                 class="help-tip"
-                title="与下方密码二选一。留空时启动连接会自动读取 ~/.openclaw/openclaw.json 中 gateway.auth.token（mode 为 token 时）。"
+                :title="t('settings.tokenTip')"
                 tabindex="0"
                 role="note"
               >?</span>
             </span>
-            <input v-model="token" type="password" autocomplete="off" placeholder="可选（可自动从 openclaw.json 读取）">
+            <input v-model="token" type="password" autocomplete="off" :placeholder="t('settings.tokenPlaceholder')">
           </label>
           <label class="field">
-            <span>密码</span>
-            <input v-model="password" type="password" autocomplete="off" placeholder="可选">
+            <span>{{ t('settings.passwordLabel') }}</span>
+            <input v-model="password" type="password" autocomplete="off" :placeholder="t('settings.passwordPlaceholder')">
           </label>
           <label class="field field--checkbox-row">
             <input v-model="autoStartOpenClaw" type="checkbox">
-            <span>连接时自动在后台启动本机 OpenClaw 网关（无黑窗）</span>
+            <span>{{ t('settings.autoStartLabel') }}</span>
           </label>
           <p class="hint small muted gateway-auto-hint">
-            仅当地址为 127.0.0.1 / localhost 且对应端口尚未监听时，由本应用代为执行
-            <code>openclaw gateway</code>。远程网关不受影响。
+            {{ t('settings.autoStartHint') }}
           </p>
           <label class="field field--checkbox-row">
             <input v-model="stopManagedGatewayOnQuit" type="checkbox">
-            <span>退出本应用时，结束由本应用启动的网关进程</span>
+            <span>{{ t('settings.stopOnQuitLabel') }}</span>
           </label>
           <label class="field">
             <span class="field-label-row">
-              openclaw 可执行文件
+              {{ t('settings.executableLabel') }}
               <span
                 class="help-tip"
-                title="一般留空即可。若终端能运行 openclaw 但此处找不到，可填 npm 全局目录下的 openclaw.cmd 完整路径。"
+                :title="t('settings.executableTip')"
                 tabindex="0"
                 role="note"
               >?</span>
@@ -768,24 +787,24 @@ async function onRestoreModel(): Promise<void> {
               v-model="openclawExecutable"
               type="text"
               autocomplete="off"
-              placeholder="留空则从 PATH 查找（Windows 可用 where openclaw 看路径）"
+              :placeholder="t('settings.executablePlaceholder')"
             >
           </label>
           <p v-if="saveError" class="err">{{ saveError }}</p>
           <div class="actions">
-            <button type="button" class="ghost" @click="open = false">关闭</button>
+            <button type="button" class="ghost" @click="open = false">{{ t('common.close') }}</button>
             <button type="button" :disabled="saving" @click="onSaveGateway">
-              {{ saving ? "保存中…" : "保存并重新连接" }}
+              {{ saving ? t('common.saving') : t('settings.saveAndReconnect') }}
             </button>
           </div>
         </div>
 
         <div v-show="tab === 'model'" class="tab-panel">
           <p class="help-intro muted small">
-            选好默认模型后点保存。
+            {{ t('settings.modelHelp') }}
             <span
               class="help-tip"
-              title="格式为「服务名/模型名」，须与②中已添加的服务一致，例如 minimax/MiniMax-M2.5。"
+              :title="t('settings.modelHelpTip')"
               tabindex="0"
               role="note"
             >?</span>
@@ -793,16 +812,16 @@ async function onRestoreModel(): Promise<void> {
           <div class="preset-dropdown-row">
             <label class="field preset-field">
               <span class="field-label-row">
-                国内快捷
+                {{ t('settings.presetCn') }}
                 <span
                   class="help-tip"
-                  title="选一项填入下方「默认模型」，再点保存。"
+                  :title="t('settings.presetCnTip')"
                   tabindex="0"
                   role="note"
                 >?</span>
               </span>
-              <select aria-label="国内默认模型模板" @change="onModelPresetSelect('cn', $event)">
-                <option value="">选择…</option>
+              <select :aria-label="t('settings.presetCnAriaLabel')" @change="onModelPresetSelect('cn', $event)">
+                <option value="">{{ t('settings.presetSelectPrompt') }}</option>
                 <option
                   v-for="(p, i) in primaryModelQuickPicksCn"
                   :key="p.ref"
@@ -814,16 +833,16 @@ async function onRestoreModel(): Promise<void> {
             </label>
             <label class="field preset-field">
               <span class="field-label-row">
-                国外快捷
+                {{ t('settings.presetIntl') }}
                 <span
                   class="help-tip"
-                  title="与 OpenClaw 常见默认 ref 一致；选后填入下方并保存。"
+                  :title="t('settings.presetIntlTip')"
                   tabindex="0"
                   role="note"
                 >?</span>
               </span>
-              <select aria-label="国外默认模型模板" @change="onModelPresetSelect('intl', $event)">
-                <option value="">选择…</option>
+              <select :aria-label="t('settings.presetIntlAriaLabel')" @change="onModelPresetSelect('intl', $event)">
+                <option value="">{{ t('settings.presetSelectPrompt') }}</option>
                 <option
                   v-for="(p, i) in primaryModelQuickPicksIntl"
                   :key="p.ref"
@@ -836,10 +855,10 @@ async function onRestoreModel(): Promise<void> {
           </div>
           <label class="field">
             <span class="field-label-row">
-              默认模型
+              {{ t('settings.primaryModelLabel') }}
               <span
                 class="help-tip"
-                title="须与② 左侧列表中的服务名对应，中间为英文斜杠 /。"
+                :title="t('settings.primaryModelTip')"
                 tabindex="0"
                 role="note"
               >?</span>
@@ -848,32 +867,32 @@ async function onRestoreModel(): Promise<void> {
               v-model="primaryModel"
               type="text"
               autocomplete="off"
-              placeholder="如 minimax/MiniMax-M2.5"
+              :placeholder="t('settings.primaryModelPlaceholder')"
             >
           </label>
 
           <p class="subhead field-label-row">
-            显示别名（可选）
+            {{ t('settings.aliasTitle') }}
             <span
               class="help-tip"
-              title="在会话侧下拉框里显示更好记的名称；不填则显示完整模型名。"
+              :title="t('settings.aliasTip')"
               tabindex="0"
               role="note"
             >?</span>
           </p>
           <div class="alias-toolbar">
-            <button type="button" class="add-model-btn" @click="addAliasRow">添加一行</button>
+            <button type="button" class="add-model-btn" @click="addAliasRow">{{ t('settings.addAliasRow') }}</button>
           </div>
           <div class="alias-list">
             <div v-for="(row, i) in aliasRows" :key="i" class="alias-row">
               <input
                 v-model="row.ref"
                 type="text"
-                placeholder="与上面格式相同，如 minimax/MiniMax-M2.5"
+                :placeholder="t('settings.aliasRefPlaceholder')"
                 class="mono"
               >
-              <input v-model="row.alias" type="text" placeholder="例如：我的 MiniMax">
-              <button type="button" class="ghost sm" @click="removeAliasRow(i)">删</button>
+              <input v-model="row.alias" type="text" :placeholder="t('settings.aliasNamePlaceholder')">
+              <button type="button" class="ghost sm" @click="removeAliasRow(i)">{{ t('settings.removeAliasRow') }}</button>
             </div>
           </div>
 
@@ -882,20 +901,20 @@ async function onRestoreModel(): Promise<void> {
 
           <div class="actions wrap">
             <button type="button" class="ghost" :disabled="modelBusy" @click="onRestoreModel">
-              用备份还原模型设置
+              {{ t('settings.restoreModel') }}
             </button>
             <button type="button" :disabled="modelBusy" @click="onSaveModel">
-              {{ modelBusy ? "处理中…" : "保存" }}
+              {{ modelBusy ? t('common.processing') : t('common.save') }}
             </button>
           </div>
         </div>
 
         <div v-show="tab === 'providers'" class="tab-panel providers-tab">
           <p class="help-intro muted small">
-            填密钥后保存。
+            {{ t('settings.providerHelp') }}
             <span
               class="help-tip"
-              title="可从下方下拉选模板，自动填写接口地址与模型列表；密钥需在服务商网站获取。保存后写入本机。"
+              :title="t('settings.providerHelpTip')"
               tabindex="0"
               role="note"
             >?</span>
@@ -903,16 +922,16 @@ async function onRestoreModel(): Promise<void> {
           <div class="preset-dropdown-row">
             <label class="field preset-field">
               <span class="field-label-row">
-                国内模板
+                {{ t('settings.presetCnProvider') }}
                 <span
                   class="help-tip"
-                  title="自动填写国内节点地址与常用模型；已有同名服务时会保留原密钥，只更新地址与模型行。"
+                  :title="t('settings.presetCnProviderTip')"
                   tabindex="0"
                   role="note"
                 >?</span>
               </span>
-              <select aria-label="国内服务商模板" @change="onProviderPresetSelect('cn', $event)">
-                <option value="">选择…</option>
+              <select :aria-label="t('settings.presetCnProviderAriaLabel')" @change="onProviderPresetSelect('cn', $event)">
+                <option value="">{{ t('settings.presetSelectPrompt') }}</option>
                 <option
                   v-for="(preset, i) in providerPresetsCn"
                   :key="preset.label"
@@ -924,16 +943,16 @@ async function onRestoreModel(): Promise<void> {
             </label>
             <label class="field preset-field">
               <span class="field-label-row">
-                国外模板
+                {{ t('settings.presetIntlProvider') }}
                 <span
                   class="help-tip"
-                  title="与 OpenClaw 安装向导中的国际节点配置一致。"
+                  :title="t('settings.presetIntlProviderTip')"
                   tabindex="0"
                   role="note"
                 >?</span>
               </span>
-              <select aria-label="国外服务商模板" @change="onProviderPresetSelect('intl', $event)">
-                <option value="">选择…</option>
+              <select :aria-label="t('settings.presetIntlProviderAriaLabel')" @change="onProviderPresetSelect('intl', $event)">
+                <option value="">{{ t('settings.presetSelectPrompt') }}</option>
                 <option
                   v-for="(preset, i) in providerPresetsIntl"
                   :key="preset.label"
@@ -947,9 +966,9 @@ async function onRestoreModel(): Promise<void> {
           <div class="providers-split">
             <aside class="providers-list-col">
               <div class="providers-list-head">
-                <span class="subhead tight">已添加的服务</span>
+                <span class="subhead tight">{{ t('settings.providersAdded') }}</span>
                 <button type="button" class="ghost sm" :disabled="provBusy" @click="startNewProvider">
-                  ＋ 新建
+                  {{ t('settings.newProvider') }}
                 </button>
               </div>
               <ul class="providers-key-list">
@@ -964,17 +983,17 @@ async function onRestoreModel(): Promise<void> {
                   </button>
                 </li>
               </ul>
-              <p v-if="providerKeyList.length === 0" class="hint small muted">还没有，点「新建」按教程加一个。</p>
+              <p v-if="providerKeyList.length === 0" class="hint small muted">{{ t('settings.noProviders') }}</p>
             </aside>
 
             <div class="providers-editor">
               <template v-if="creatingNewProvider">
                 <label class="field">
                   <span class="field-label-row">
-                    服务代号
+                    {{ t('settings.providerCodeLabel') }}
                     <span
                       class="help-tip"
-                      title="英文小写与数字、短横线，与教程一致，如 minimax、moonshot。"
+                      :title="t('settings.providerCodeTip')"
                       tabindex="0"
                       role="note"
                     >?</span>
@@ -983,25 +1002,25 @@ async function onRestoreModel(): Promise<void> {
                     v-model="newProviderKeyDraft"
                     type="text"
                     autocomplete="off"
-                    placeholder="如 minimax"
+                    :placeholder="t('settings.providerCodePlaceholder')"
                     class="mono"
                   >
                 </label>
               </template>
               <template v-else-if="selectedProviderKey">
-                <p class="subhead tight">编辑：{{ selectedProviderKey }}</p>
+                <p class="subhead tight">{{ t('settings.editingProvider', { key: selectedProviderKey }) }}</p>
               </template>
               <template v-else>
-                <p class="hint small">左侧选择服务，或「新建」。</p>
+                <p class="hint small">{{ t('settings.selectOrNew') }}</p>
               </template>
 
               <template v-if="creatingNewProvider || selectedProviderKey">
                 <label class="field">
                   <span class="field-label-row">
-                    接口地址
+                    {{ t('settings.baseUrlLabel') }}
                     <span
                       class="help-tip"
-                      title="服务商提供的 API 根地址，按官网或教程复制。"
+                      :title="t('settings.baseUrlTip')"
                       tabindex="0"
                       role="note"
                     >?</span>
@@ -1015,14 +1034,10 @@ async function onRestoreModel(): Promise<void> {
                 </label>
                 <label class="field api-key-field">
                   <span class="field-label-row">
-                    密钥
+                    {{ t('settings.apiKeyLabel') }}
                     <span
                       class="help-tip"
-                      :title="
-                        isEditingOllamaProvider
-                          ? '本机 Ollama 通常无真实 API Key，可留空；保存后本应用会写入网关所需的占位凭据（ollama-local）。若使用需密钥的 Ollama 云端再粘贴。'
-                          : '在服务商控制台创建 API Key 后粘贴；高级用法可填环境变量引用。'
-                      "
+                      :title="isEditingOllamaProvider ? t('settings.apiKeyTipOllama') : t('settings.apiKeyTip')"
                       tabindex="0"
                       role="note"
                     >?</span>
@@ -1032,30 +1047,30 @@ async function onRestoreModel(): Promise<void> {
                       v-model="pvApiKey"
                       :type="showPvApiKey ? 'text' : 'password'"
                       autocomplete="off"
-                      :placeholder="isEditingOllamaProvider ? '本机可留空' : '粘贴 API Key'"
+                      :placeholder="isEditingOllamaProvider ? t('settings.apiKeyPlaceholderOllama') : t('settings.apiKeyPlaceholder')"
                     >
                     <button type="button" class="ghost sm" @click="showPvApiKey = !showPvApiKey">
-                      {{ showPvApiKey ? "隐藏" : "显示" }}
+                      {{ showPvApiKey ? t('common.hide') : t('common.show') }}
                     </button>
                   </div>
                 </label>
 
                 <p class="subhead tight field-label-row">
-                  模型 ID（每行一个）
+                  {{ t('settings.modelIdsLabel') }}
                   <span
                     class="help-tip"
-                    title="只填模型名，不要带斜杠 /，例如 MiniMax-M2.5。"
+                    :title="t('settings.modelIdsTip')"
                     tabindex="0"
                     role="note"
                   >?</span>
                 </p>
                 <div class="pv-models">
                   <div v-for="(row, i) in pvModelRows" :key="i" class="pv-model-row">
-                    <input v-model="row.id" type="text" class="mono" placeholder="如 MiniMax-M2.5">
-                    <button type="button" class="ghost sm" @click="removePvModelRow(i)">删</button>
+                    <input v-model="row.id" type="text" class="mono" :placeholder="t('settings.modelIdPlaceholder')">
+                    <button type="button" class="ghost sm" @click="removePvModelRow(i)">{{ t('settings.removeModelRow') }}</button>
                   </div>
                 </div>
-                <button type="button" class="ghost add-row-inline" @click="addPvModelRow">＋ 再加一个模型</button>
+                <button type="button" class="ghost add-row-inline" @click="addPvModelRow">{{ t('settings.addModelRow') }}</button>
 
                 <p v-if="provError" class="err">{{ provError }}</p>
                 <p v-if="provToast" class="toast">{{ provToast }}</p>
@@ -1067,10 +1082,10 @@ async function onRestoreModel(): Promise<void> {
                     :disabled="provBusy || creatingNewProvider || !selectedProviderKey"
                     @click="onDeleteProvider"
                   >
-                    删除这项服务
+                    {{ t('settings.deleteProvider') }}
                   </button>
                   <button type="button" :disabled="provBusy" @click="onSaveProvider">
-                    {{ provBusy ? "保存中…" : "保存" }}
+                    {{ provBusy ? t('common.saving') : t('common.save') }}
                   </button>
                 </div>
               </template>
@@ -1083,6 +1098,42 @@ async function onRestoreModel(): Promise<void> {
 </template>
 
 <style scoped>
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.settings-header h2 {
+  margin: 0;
+}
+.locale-switcher {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.locale-btn {
+  padding: 3px 9px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.locale-btn.active {
+  background: var(--lc-accent-soft);
+  border-color: var(--lc-accent);
+  color: var(--lc-accent);
+}
+.locale-btn:hover:not(.active) {
+  border-color: var(--lc-border-strong);
+  color: var(--lc-text);
+}
 .backdrop {
   position: fixed;
   inset: 0;

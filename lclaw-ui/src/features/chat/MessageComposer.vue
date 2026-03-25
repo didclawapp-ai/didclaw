@@ -4,7 +4,9 @@ import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 
+const { t } = useI18n();
 const chat = useChatStore();
 const gw = useGatewayStore();
 const { draft, sending, agentBusy, lastError: chatError, pendingComposerFiles } =
@@ -28,15 +30,15 @@ const sendVisualState = computed<"offline" | "busy" | "ready">(() => {
 
 const sendButtonTitle = computed(() => {
   if (sendVisualState.value === "offline") {
-    return "未连接网关";
+    return t("composer.sendOffline");
   }
   if (sendVisualState.value === "busy") {
-    return "助手回复进行中，结束后按钮会变绿";
+    return t("composer.sendBusy");
   }
   if (!draft.value.trim() && !hasSendableAttachments.value) {
-    return "输入内容或添加待发附件后发送";
+    return t("composer.sendEmpty");
   }
-  return "发送（会话空闲）";
+  return t("composer.sendReady");
 });
 
 const attachRef = ref<InstanceType<typeof ComposerAttachments> | null>(null);
@@ -142,7 +144,7 @@ function onDrop(ev: DragEvent): void {
     <textarea
       v-model="draft"
       rows="3"
-      placeholder="输入消息…（截图可 Ctrl+V 粘贴为图片）"
+      :placeholder="t('composer.placeholder')"
       :disabled="sending || status !== 'connected'"
       @keydown.enter="onComposerEnter"
       @paste="onPaste"
@@ -164,7 +166,7 @@ function onDrop(ev: DragEvent): void {
           "
           @click="chat.sendMessage()"
         >
-          发送
+          {{ t('common.send') }}
         </button>
         <button
           type="button"
@@ -172,13 +174,13 @@ function onDrop(ev: DragEvent): void {
           :disabled="status !== 'connected'"
           @click="chat.abortIfStreaming()"
         >
-          中断
+          {{ t('common.abort') }}
         </button>
         <button
           type="button"
           class="lc-btn lc-btn-ghost hint-btn"
-          title="Enter 发送，Shift+Enter 换行&#10;助手回复进行中时「发送」禁用，可先编辑下一条&#10;Ctrl+V 粘贴截图为图片，拖入文件自动识别&#10;「随信发送」与「仅预览」见附件区"
-          aria-label="快捷键提示"
+          :title="t('composer.shortcutTip')"
+          aria-label="?"
         >
           ?
         </button>
@@ -186,11 +188,11 @@ function onDrop(ev: DragEvent): void {
       <button
         type="button"
         class="lc-btn lc-btn-ghost attach-btn"
-        title="选择文件（图片、PDF、Office…）"
+        :title="t('composer.attachTitle')"
         :disabled="sending || status !== 'connected'"
         @click="openAttachmentPicker"
       >
-        附件
+        {{ t('common.attach') }}
       </button>
     </div>
     <p v-if="chatError" class="err small">{{ chatError }}</p>
