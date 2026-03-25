@@ -167,10 +167,9 @@ pub async fn check_openclaw_update(app: tauri::AppHandle) -> Result<Value, Strin
 pub async fn run_ensure_openclaw_windows_install(
     app: tauri::AppHandle,
     skip_onboard: bool,
-    #[serde(default)]
-    upgrade: bool,
+    upgrade: Option<bool>,
 ) -> Result<Value, String> {
-    crate::openclaw_ensure_install::run_ensure_openclaw_windows_install_impl(app, skip_onboard, upgrade).await
+    crate::openclaw_ensure_install::run_ensure_openclaw_windows_install_impl(app, skip_onboard, upgrade.unwrap_or(false)).await
 }
 
 #[tauri::command]
