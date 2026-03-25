@@ -602,12 +602,15 @@ function closeMoreMenu(): void {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 9991;
+  z-index: 10; /* 在 header 层叠上下文（z-index:100）内部，任意正值即可 */
 }
 .more-menu-scrim {
   position: fixed;
   inset: 0;
-  z-index: 9990;
+  /* header 的 z-index 为 100（position:relative 建立了独立层叠上下文），
+     scrim 须低于 100 否则会覆盖 header 内的菜单，导致菜单项点击无效。
+     50 足以盖住页面正文区域（z-index 默认为 0），又不影响 header 层。 */
+  z-index: 50;
   background: transparent;
   cursor: default;
 }
