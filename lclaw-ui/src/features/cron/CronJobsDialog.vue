@@ -131,7 +131,7 @@ function resetCreateForm(): void {
 }
 
 const rowBusyId = ref<string | null>(null);
-const runsCollapsed = ref(false);
+const runsCollapsed = ref(true);
 
 function jobCardClass(j: Record<string, unknown>): string {
   if (!isJobEnabled(j)) return "cron-job-card--disabled";
@@ -2139,9 +2139,9 @@ async function removeJob(jobId: string): Promise<void> {
 /* ── 任务卡片 ── */
 .cron-job-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
 }
 .cron-job-card {
   display: flex;
@@ -2149,10 +2149,9 @@ async function removeJob(jobId: string): Promise<void> {
   border: 1px solid var(--lc-border);
   border-top-width: 3px;
   border-radius: var(--lc-radius-sm);
-  padding: 12px 14px;
+  padding: 8px 10px;
   background: var(--lc-bg-raised);
   transition: box-shadow 0.15s, transform 0.1s;
-  min-height: 120px;
 }
 .cron-job-card:hover {
   box-shadow: 0 4px 12px rgba(0,0,0,0.09);
@@ -2183,12 +2182,12 @@ async function removeJob(jobId: string): Promise<void> {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 6px;
+  margin-bottom: 4px;
 }
 .cron-job-card__name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -2196,9 +2195,9 @@ async function removeJob(jobId: string): Promise<void> {
   white-space: nowrap;
 }
 .cron-job-card__phase-badge {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 20px;
   letter-spacing: 0.02em;
   flex-shrink: 0;
@@ -2224,23 +2223,23 @@ async function removeJob(jobId: string): Promise<void> {
 [data-theme="dark"] .cron-job-card__phase-badge--pending { color: #f87171; }
 
 .cron-job-card__meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--lc-text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 .cron-job-card__sched {
   color: var(--lc-text);
   font-weight: 500;
-  font-size: 12px;
+  font-size: 11px;
 }
 .cron-job-card__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
   padding-top: 4px;
   border-top: 1px solid var(--lc-border);
   margin-top: auto;
