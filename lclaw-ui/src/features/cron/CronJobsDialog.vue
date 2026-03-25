@@ -123,9 +123,42 @@ function resetCreateForm(): void {
   deliveryChannel.value = "last";
   deliveryTo.value = "";
   deliveryBestEffort.value = true;
+  quickSchedule.value = "daily";
+  quickScheduleTime.value = "09:00";
+  quickScheduleDay.value = 1;
+  showAdvancedCreate.value = false;
+  simpleNotify.value = true;
 }
 
 const rowBusyId = ref<string | null>(null);
+
+/** 快频选择 */
+type QuickSchedule = "daily" | "weekly" | "monthly" | "once" | "custom";
+const quickSchedule = ref<QuickSchedule>("daily");
+const quickScheduleTime = ref("09:00");
+const quickScheduleDay = ref(1);
+
+const showAdvancedCreate = ref(false);
+/** 简化版"投递"开关：true → announce，false → none */
+const simpleNotify = ref(true);
+
+const freqOptions: { value: QuickSchedule; label: string }[] = [
+  { value: "daily", label: "每天" },
+  { value: "weekly", label: "每周" },
+  { value: "monthly", label: "每月" },
+  { value: "once", label: "只运行一次" },
+  { value: "custom", label: "自定义" },
+];
+
+const dowOptions: { value: number; label: string }[] = [
+  { value: 1, label: "周一" },
+  { value: 2, label: "周二" },
+  { value: 3, label: "周三" },
+  { value: 4, label: "周四" },
+  { value: 5, label: "周五" },
+  { value: 6, label: "周六" },
+  { value: 0, label: "周日" },
+];
 
 const connected = computed(() => gw.status === "connected" && !!gw.client?.connected);
 
@@ -272,36 +305,109 @@ function jobIdOf(j: Record<string, unknown>): string {
   return typeof id === "string" ? id : "";
 }
 
-function formatScheduleSummary(s: unknown): string {
-  if (!s || typeof s !== "object") {
-    return "—";
+function parseFriendlyCron(expr: string): string | null {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [min, hour, dom, , dow] = parts;
+  const h = parseInt(hour, 10);
+  const m = parseInt(min, 10);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  if (min !== "*" && hour !== "*" && dom === "*" && dow === "*") {
+    return `每天 ${timeStr}`;
   }
+  if (min !== "*" && hour !== "*" && dom === "*" && dow !== "*" && /^\d$/.test(dow)) {
+    const dowNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+    return `每${dowNames[parseInt(dow, 10)] ?? "周" + dow} ${timeStr}`;
+  }
+  if (min !== "*" && hour !== "*" && dom !== "*" && /^\d+$/.test(dom) && dow === "*") {
+    return `每月 ${dom} 日 ${timeStr}`;
+  }
+  return null;
+}
+
+function formatScheduleSummary(s: unknown): string {
+  if (!s || typeof s !== "object") return "—";
   const sch = s as Record<string, unknown>;
   const kind = sch.kind;
   if (kind === "at" && typeof sch.at === "string") {
-    return `一次性 ${sch.at}`;
+    try {
+      const d = new Date(sch.at);
+      return `一次性：${d.toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+    } catch {
+      return `一次性 ${sch.at}`;
+    }
   }
   if (kind === "every" && typeof sch.everyMs === "number") {
     const ms = sch.everyMs;
-    if (ms % 86400000 === 0) {
-      return `每 ${ms / 86400000} 天`;
-    }
-    if (ms % 3600000 === 0) {
-      return `每 ${ms / 3600000} 小时`;
-    }
-    if (ms % 60000 === 0) {
-      return `每 ${ms / 60000} 分钟`;
-    }
+    if (ms % 86400000 === 0) return `每 ${ms / 86400000} 天`;
+    if (ms % 3600000 === 0) return `每 ${ms / 3600000} 小时`;
+    if (ms % 60000 === 0) return `每 ${ms / 60000} 分钟`;
     return `每 ${ms} ms`;
   }
   if (kind === "cron" && typeof sch.expr === "string") {
+    const friendly = parseFriendlyCron(sch.expr);
+    if (friendly) return friendly;
     const tz = typeof sch.tz === "string" && sch.tz.trim() ? ` (${sch.tz})` : "";
-    return `Cron ${sch.expr}${tz}`;
+    return `Cron: ${sch.expr}${tz}`;
   }
+  try { return JSON.stringify(sch); } catch { return String(kind ?? "—"); }
+}
+
+function formatRelativeTime(ms: unknown): string {
+  if (typeof ms !== "number" || !Number.isFinite(ms)) return "—";
+  const diff = ms - Date.now();
+  const abs = Math.abs(diff);
+  const past = diff < 0;
+  if (abs < 60_000) return past ? "刚刚" : "即将执行";
+  if (abs < 3_600_000) {
+    const mn = Math.round(abs / 60_000);
+    return past ? `${mn} 分钟前` : `${mn} 分钟后`;
+  }
+  if (abs < 86_400_000) {
+    const hr = Math.round(abs / 3_600_000);
+    return past ? `${hr} 小时前` : `${hr} 小时后`;
+  }
+  const d = Math.round(abs / 86_400_000);
+  if (d <= 14) return past ? `${d} 天前` : `${d} 天后`;
   try {
-    return JSON.stringify(sch);
+    return new Date(ms).toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   } catch {
-    return String(kind ?? "—");
+    return formatMsLocal(ms);
+  }
+}
+
+function jobNextRunAtMs(j: Record<string, unknown>): number | null {
+  const st = j.state;
+  if (!st || typeof st !== "object" || Array.isArray(st)) return null;
+  const s = st as Record<string, unknown>;
+  return typeof s.nextRunAtMs === "number" && Number.isFinite(s.nextRunAtMs) ? s.nextRunAtMs : null;
+}
+
+/** 把快频 UI 的值同步到 scheduleKind / scheduleCronExpr / scheduleEveryUnit */
+function syncQuickSchedule(): void {
+  const parts = quickScheduleTime.value.split(":");
+  const h = Math.max(0, Math.min(23, parseInt(parts[0] ?? "9", 10) || 0));
+  const m = Math.max(0, Math.min(59, parseInt(parts[1] ?? "0", 10) || 0));
+  switch (quickSchedule.value) {
+    case "daily":
+      scheduleKind.value = "cron";
+      scheduleCronExpr.value = `${m} ${h} * * *`;
+      break;
+    case "weekly":
+      scheduleKind.value = "cron";
+      scheduleCronExpr.value = `${m} ${h} * * ${quickScheduleDay.value}`;
+      break;
+    case "monthly":
+      scheduleKind.value = "cron";
+      scheduleCronExpr.value = `${m} ${h} ${Math.max(1, Math.min(28, quickScheduleDay.value))} * *`;
+      break;
+    case "once":
+      scheduleKind.value = "at";
+      break;
+    case "custom":
+      scheduleKind.value = "every";
+      break;
   }
 }
 
@@ -688,6 +794,14 @@ watch(
   },
 );
 
+watch([quickSchedule, quickScheduleTime, quickScheduleDay], () => {
+  syncQuickSchedule();
+}, { immediate: true });
+
+watch(simpleNotify, (v) => {
+  deliveryMode.value = v ? "announce" : "none";
+}, { immediate: true });
+
 
 function buildSchedule():
   | { kind: "at"; at: string }
@@ -1029,7 +1143,13 @@ async function removeJob(jobId: string): Promise<void> {
                     <div class="cron-name">{{ typeof j.name === "string" ? j.name : "—" }}</div>
                     <code class="cron-id">{{ jobIdOf(j) || "—" }}</code>
                   </td>
-                  <td class="cron-sched">{{ formatScheduleSummary(j.schedule) }}</td>
+                  <td class="cron-sched">
+                    <div>{{ formatScheduleSummary(j.schedule) }}</div>
+                    <div v-if="jobNextRunAtMs(j) !== null" class="cron-next-run muted small"
+                      :title="formatMsLocal(jobNextRunAtMs(j))">
+                      下次：{{ formatRelativeTime(jobNextRunAtMs(j)) }}
+                    </div>
+                  </td>
                   <td>
                     <span :class="isJobEnabled(j) ? 'cron-badge cron-badge--on' : 'cron-badge cron-badge--off'">
                       {{ isJobEnabled(j) ? "启用" : "暂停" }}
@@ -1190,227 +1310,213 @@ async function removeJob(jobId: string): Promise<void> {
         </div>
 
         <div v-else class="cron-body cron-create" role="tabpanel">
-          <p class="muted small cron-section-note"><span class="cron-req">*</span> 必填</p>
 
-          <fieldset class="cron-fieldset">
-            <legend class="cron-legend">基本信息</legend>
-            <p class="cron-section-desc muted small">命名、绑定智能体并设置启用状态。</p>
-            <label class="cron-field">
-              <span class="cron-label">名称 <span class="cron-req">*</span></span>
-              <input v-model="jobName" type="text" class="cron-input" placeholder="例如：晨间简报" />
-            </label>
-            <label class="cron-field">
-              <span class="cron-label">描述</span>
+          <!-- 任务名称 -->
+          <div class="cron-create-card">
+            <label class="cron-field" style="margin-bottom:0">
+              <span class="cron-create-card-title">任务名称 <span class="cron-req">*</span></span>
               <input
-                v-model="jobDescription"
+                v-model="jobName"
                 type="text"
-                class="cron-input"
-                placeholder="此任务的可选说明"
+                class="cron-input cron-create-name-input"
+                placeholder="例如：每日新闻摘要、每周工作总结"
               />
             </label>
-            <label class="cron-field">
-              <span class="cron-label">代理</span>
-              <select v-model="jobAgentChoice" class="cron-select">
-                <option value="">默认（网关默认智能体）</option>
-                <option v-for="a in knownAgents" :key="a.id" :value="a.id">
-                  {{ a.label === a.id ? a.id : `${a.label}（${a.id}）` }}
-                </option>
-                <option value="__custom__">自定义 ID…</option>
-              </select>
-              <input
-                v-if="jobAgentChoice === '__custom__'"
-                v-model="jobAgentCustom"
-                type="text"
-                class="cron-input cron-agent-custom-input"
-                placeholder="输入代理 ID，如 ops"
-              />
-              <span class="muted small cron-field-hint">
-                选项由当前已加载会话推断（会话键一般为 agent:代理ID:…）；无会话时至少含 main。未列出的代理请选「自定义」。
-              </span>
-            </label>
-            <label class="cron-check">
-              <input v-model="createJobEnabled" type="checkbox" />
-              已启用
-            </label>
-          </fieldset>
+          </div>
 
-          <fieldset class="cron-fieldset">
-            <legend class="cron-legend">调度</legend>
-            <p class="cron-section-desc muted small">选择一次性或周期规则。</p>
-            <label class="cron-field">
-              <span class="cron-label">调度类型 <span class="cron-req">*</span></span>
-              <select v-model="scheduleKind" class="cron-select">
-                <option value="at">一次性（指定日期时间）</option>
-                <option value="every">每隔（固定间隔）</option>
-                <option value="cron">Cron 表达式（五段）</option>
-              </select>
-            </label>
-            <template v-if="scheduleKind === 'at'">
-              <label class="cron-field">
-                <span class="cron-label">执行时间（本地） <span class="cron-req">*</span></span>
-                <input v-model="scheduleAtLocal" type="datetime-local" class="cron-input" />
-              </label>
-              <label class="cron-check">
-                <input v-model="deleteAfterRun" type="checkbox" />
-                运行成功后删除任务（一次性推荐开启）
-              </label>
-            </template>
-            <div v-else-if="scheduleKind === 'every'" class="cron-row2">
-              <label class="cron-field cron-field-inline">
-                <span class="cron-label">每隔 <span class="cron-req">*</span></span>
-                <input
-                  v-model.number="scheduleEveryValue"
-                  type="number"
-                  min="1"
-                  class="cron-input cron-input-narrow"
-                />
-              </label>
-              <label class="cron-field cron-field-inline cron-field-grow">
-                <span class="cron-label">单位</span>
-                <select v-model="scheduleEveryUnit" class="cron-select">
-                  <option value="minutes">分钟</option>
-                  <option value="hours">小时</option>
-                  <option value="days">天</option>
-                </select>
+          <!-- 执行频率 -->
+          <div class="cron-create-card">
+            <div class="cron-create-card-title">⏰ 什么时候执行？</div>
+            <div class="cron-freq-pills">
+              <button
+                v-for="f in freqOptions"
+                :key="f.value"
+                type="button"
+                :class="['cron-freq-pill', { active: quickSchedule === f.value }]"
+                @click="quickSchedule = f.value"
+              >{{ f.label }}</button>
+            </div>
+
+            <!-- 每天：选时间 -->
+            <div v-if="quickSchedule === 'daily'" class="cron-schedule-detail">
+              <label class="cron-field" style="margin-bottom:0">
+                <span class="cron-label">每天几点执行？</span>
+                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
               </label>
             </div>
-            <template v-else>
-              <label class="cron-field">
-                <span class="cron-label">Cron 表达式 <span class="cron-req">*</span></span>
-                <input
-                  v-model="scheduleCronExpr"
-                  type="text"
-                  class="cron-input cron-mono"
-                  placeholder="0 9 * * *"
-                />
-              </label>
-              <label class="cron-field">
-                <span class="cron-label">时区（可选，IANA）</span>
-                <input
-                  v-model="scheduleCronTz"
-                  type="text"
-                  class="cron-input"
-                  placeholder="留空则使用网关主机本地时区"
-                />
-              </label>
-            </template>
-          </fieldset>
 
-          <fieldset class="cron-fieldset">
-            <legend class="cron-legend">执行</legend>
-            <p class="cron-section-desc muted small">时间到达后的运行方式与内容。</p>
-            <label class="cron-field">
-              <span class="cron-label">会话 <span class="cron-req">*</span></span>
-              <select v-model="sessionTarget" class="cron-select">
-                <option value="main">主会话（写入主聊天时间线 · 系统事件）</option>
-                <option value="isolated">隔离会话（cron: 独立轮次，与主时间线分离）</option>
-              </select>
-              <span class="muted small cron-field-hint">
-                与
-                <a
-                  href="https://docs.openclaw.ai/automation/cron-jobs"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="cron-doc-link"
-                  >官方定时任务说明</a>
-                一致：<strong>主会话</strong>把 <code>systemEvent</code> 排进主会话，在下一次心跳用主上下文处理，适合要在<strong>当前聊天窗</strong>里延续的对话；
-                <strong>隔离</strong>在 <code>cron:&lt;jobId&gt;</code> 会话单独跑一轮（见
-                <a
-                  href="https://docs.openclaw.ai/concepts/session"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="cron-doc-link"
-                  >Session</a>
-                ），主列表里需切换到对应会话才看得到全文；若开「投递 → 发布摘要」，可向渠道发摘要并在主会话出现短摘要（视网关与
-                <code>wakeMode</code>）。
-              </span>
-            </label>
-            <label class="cron-field">
-              <span class="cron-label">唤醒模式</span>
-              <select v-model="wakeMode" class="cron-select">
-                <option value="now">立即</option>
-                <option value="next-heartbeat">下次心跳</option>
-              </select>
-              <span class="muted small cron-field-hint">立即模式尽快触发；下次心跳则对齐心跳周期。</span>
-            </label>
-            <template v-if="sessionTarget === 'main'">
+            <!-- 每周：选星期 + 时间 -->
+            <div v-else-if="quickSchedule === 'weekly'" class="cron-schedule-detail">
+              <div class="cron-field">
+                <span class="cron-label">每周几？</span>
+                <div class="cron-dow-pills">
+                  <button
+                    v-for="d in dowOptions"
+                    :key="d.value"
+                    type="button"
+                    :class="['cron-dow-pill', { active: quickScheduleDay === d.value }]"
+                    @click="quickScheduleDay = d.value"
+                  >{{ d.label }}</button>
+                </div>
+              </div>
+              <label class="cron-field" style="margin-bottom:0">
+                <span class="cron-label">几点执行？</span>
+                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
+              </label>
+            </div>
+
+            <!-- 每月：选几号 + 时间 -->
+            <div v-else-if="quickSchedule === 'monthly'" class="cron-schedule-detail">
               <label class="cron-field">
-                <span class="cron-label">系统事件内容 <span class="cron-req">*</span></span>
-                <textarea
-                  v-model="systemEventText"
-                  class="cron-textarea"
-                  rows="4"
-                  placeholder="入队到主会话的 systemEvent 文本"
+                <span class="cron-label">每月几号？<span class="muted">（建议 1–28，避免月末差异）</span></span>
+                <input v-model.number="quickScheduleDay" type="number" min="1" max="28" class="cron-input cron-input-narrow" />
+              </label>
+              <label class="cron-field" style="margin-bottom:0">
+                <span class="cron-label">几点执行？</span>
+                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
+              </label>
+            </div>
+
+            <!-- 只运行一次 -->
+            <div v-else-if="quickSchedule === 'once'" class="cron-schedule-detail">
+              <label class="cron-field">
+                <span class="cron-label">执行时间 <span class="cron-req">*</span></span>
+                <input v-model="scheduleAtLocal" type="datetime-local" class="cron-input" />
+              </label>
+              <label class="cron-check" style="margin-bottom:0">
+                <input v-model="deleteAfterRun" type="checkbox" />
+                执行完成后自动删除任务
+              </label>
+            </div>
+
+            <!-- 自定义间隔 -->
+            <div v-else-if="quickSchedule === 'custom'" class="cron-schedule-detail">
+              <div class="cron-row2">
+                <label class="cron-field cron-field-inline">
+                  <span class="cron-label">每隔 <span class="cron-req">*</span></span>
+                  <input v-model.number="scheduleEveryValue" type="number" min="1" class="cron-input cron-input-narrow" />
+                </label>
+                <label class="cron-field cron-field-inline cron-field-grow">
+                  <span class="cron-label">单位</span>
+                  <select v-model="scheduleEveryUnit" class="cron-select">
+                    <option value="minutes">分钟</option>
+                    <option value="hours">小时</option>
+                    <option value="days">天</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- 告诉 AI 要做什么 -->
+          <div class="cron-create-card">
+            <div class="cron-create-card-title">💬 告诉 AI 要做什么 <span class="cron-req">*</span></div>
+            <textarea
+              v-model="agentMessage"
+              class="cron-textarea cron-create-task-textarea"
+              rows="4"
+              placeholder="例如：帮我整理今天的科技新闻，以 5 条简洁要点的形式输出，附带每条的信息来源。"
+            />
+          </div>
+
+          <!-- 通知 -->
+          <label class="cron-check cron-create-notify">
+            <input v-model="simpleNotify" type="checkbox" />
+            <span>任务完成后，将结果发送到聊天窗口</span>
+          </label>
+
+          <!-- 高级设置折叠 -->
+          <button type="button" class="cron-advanced-toggle" @click="showAdvancedCreate = !showAdvancedCreate">
+            <span class="cron-advanced-toggle-icon">{{ showAdvancedCreate ? '▲' : '▼' }}</span>
+            {{ showAdvancedCreate ? '收起高级设置' : '高级设置（代理 / 超时 / 频道等）' }}
+          </button>
+
+          <div v-if="showAdvancedCreate" class="cron-advanced-wrap">
+            <fieldset class="cron-fieldset">
+              <legend class="cron-legend">高级设置</legend>
+              <label class="cron-field">
+                <span class="cron-label">描述（可选）</span>
+                <input v-model="jobDescription" type="text" class="cron-input" placeholder="此任务的备注说明" />
+              </label>
+              <label class="cron-field">
+                <span class="cron-label">代理</span>
+                <select v-model="jobAgentChoice" class="cron-select">
+                  <option value="">默认智能体</option>
+                  <option v-for="a in knownAgents" :key="a.id" :value="a.id">
+                    {{ a.label === a.id ? a.id : `${a.label}（${a.id}）` }}
+                  </option>
+                  <option value="__custom__">自定义 ID…</option>
+                </select>
+                <input
+                  v-if="jobAgentChoice === '__custom__'"
+                  v-model="jobAgentCustom"
+                  type="text"
+                  class="cron-input cron-agent-custom-input"
+                  placeholder="输入代理 ID，如 ops"
                 />
               </label>
-            </template>
-            <template v-else>
               <label class="cron-field">
-                <span class="cron-label">助手任务提示 <span class="cron-req">*</span></span>
-                <textarea
-                  v-model="agentMessage"
-                  class="cron-textarea"
-                  rows="4"
-                  placeholder="在隔离会话中作为用户提示启动助手运行"
-                />
+                <span class="cron-label">会话模式</span>
+                <select v-model="sessionTarget" class="cron-select">
+                  <option value="isolated">隔离会话（推荐：在独立会话运行，不影响主聊天）</option>
+                  <option value="main">主会话（将系统事件写入主聊天时间线）</option>
+                </select>
               </label>
+              <template v-if="sessionTarget === 'main'">
+                <label class="cron-field">
+                  <span class="cron-label">系统事件内容 <span class="cron-req">*</span></span>
+                  <textarea v-model="systemEventText" class="cron-textarea" rows="3"
+                    placeholder="入队到主会话的系统事件文本" />
+                </label>
+              </template>
               <label class="cron-field">
-                <span class="cron-label">超时（秒）</span>
+                <span class="cron-label">超时（秒，留空则使用默认）</span>
                 <input
                   v-model="timeoutSecondsInput"
                   type="text"
                   inputmode="numeric"
                   class="cron-input cron-input-narrow"
-                  placeholder="可选，如 90"
+                  placeholder="如 90"
                 />
-                <span class="muted small cron-field-hint">留空则使用网关默认超时。</span>
               </label>
-            </template>
-          </fieldset>
-
-          <fieldset v-if="sessionTarget === 'isolated'" class="cron-fieldset">
-            <legend class="cron-legend">投递</legend>
-            <p class="cron-section-desc muted small">运行结束后是否将摘要发到渠道。</p>
-            <label class="cron-field">
-              <span class="cron-label">结果投递</span>
-              <select v-model="deliveryMode" class="cron-select">
-                <option value="announce">发布摘要（发到聊天 / 渠道）</option>
-                <option value="none">不投递（仅内部执行）</option>
-              </select>
-              <span class="muted small cron-field-hint">
-                发布摘要将尝试发到所选渠道；不投递则不做对外推送。
-              </span>
-            </label>
-            <template v-if="deliveryMode === 'announce'">
-              <label class="cron-field">
-                <span class="cron-label">频道</span>
-                <select v-model="deliveryChannel" class="cron-select">
-                  <option value="last">last（最后路由）</option>
-                  <option value="slack">Slack</option>
-                  <option value="telegram">Telegram</option>
-                  <option value="discord">Discord</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="signal">Signal</option>
-                  <option value="imessage">iMessage</option>
-                  <option value="mattermost">Mattermost</option>
-                </select>
-              </label>
-              <label class="cron-field">
-                <span class="cron-label">收件人 / 目标</span>
-                <input
-                  v-model="deliveryTo"
-                  type="text"
-                  class="cron-input"
-                  placeholder="可选：channel:…、聊天 ID、电话等"
-                />
-                <span class="muted small cron-field-hint">留空时可回退到最后活跃路由（视网关配置而定）。</span>
-              </label>
+              <template v-if="simpleNotify && sessionTarget === 'isolated'">
+                <label class="cron-field">
+                  <span class="cron-label">发送频道</span>
+                  <select v-model="deliveryChannel" class="cron-select">
+                    <option value="last">自动（最后使用的渠道）</option>
+                    <option value="slack">Slack</option>
+                    <option value="telegram">Telegram</option>
+                    <option value="discord">Discord</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="signal">Signal</option>
+                    <option value="imessage">iMessage</option>
+                    <option value="mattermost">Mattermost</option>
+                  </select>
+                </label>
+                <label class="cron-field">
+                  <span class="cron-label">收件人 / 目标（可选）</span>
+                  <input v-model="deliveryTo" type="text" class="cron-input"
+                    placeholder="留空则自动回退到最后活跃路由" />
+                </label>
+                <label class="cron-check">
+                  <input v-model="deliveryBestEffort" type="checkbox" />
+                  投递失败时不影响任务状态
+                </label>
+              </template>
               <label class="cron-check">
-                <input v-model="deliveryBestEffort" type="checkbox" />
-                投递失败时不使任务失败（bestEffort）
+                <input v-model="createJobEnabled" type="checkbox" />
+                立即启用任务
               </label>
-            </template>
-          </fieldset>
+              <!-- Cron 表达式直接编辑（高级） -->
+              <label v-if="quickSchedule !== 'once' && quickSchedule !== 'custom'" class="cron-field">
+                <span class="cron-label">Cron 表达式（自动生成，可手动覆盖）</span>
+                <input v-model="scheduleCronExpr" type="text" class="cron-input cron-mono" placeholder="0 9 * * *" />
+                <span class="muted small cron-field-hint">修改后将以此表达式为准。时区：
+                  <input v-model="scheduleCronTz" type="text" class="cron-input cron-input-tz"
+                    placeholder="留空则使用网关主机本地时区" /></span>
+              </label>
+            </fieldset>
+          </div>
 
           <p v-if="createError" class="err small">{{ createError }}</p>
           <p v-if="createOk" class="cron-ok small">{{ createOk }}</p>
@@ -1421,7 +1527,7 @@ async function removeJob(jobId: string): Promise<void> {
               :disabled="!connected || createBusy"
               @click="submitCreate"
             >
-              {{ createBusy ? "提交中…" : "创建" }}
+              {{ createBusy ? "创建中…" : "创建任务" }}
             </button>
           </div>
         </div>
@@ -1870,5 +1976,134 @@ async function removeJob(jobId: string): Promise<void> {
 }
 .small {
   font-size: 12px;
+}
+
+/* ── 消费者友好新建表单 ── */
+.cron-create-card {
+  background: var(--lc-bg-elevated);
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.cron-create-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lc-text);
+  margin-bottom: 12px;
+}
+.cron-create-name-input {
+  font-size: 14px;
+  width: 100%;
+}
+.cron-freq-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.cron-freq-pill {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.cron-freq-pill:hover {
+  border-color: var(--lc-accent);
+  color: var(--lc-text);
+}
+.cron-freq-pill.active {
+  background: var(--lc-accent);
+  border-color: var(--lc-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.cron-dow-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.cron-dow-pill {
+  padding: 4px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.cron-dow-pill:hover {
+  border-color: var(--lc-accent);
+  color: var(--lc-text);
+}
+.cron-dow-pill.active {
+  background: var(--lc-accent);
+  border-color: var(--lc-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.cron-schedule-detail {
+  padding-top: 4px;
+}
+.cron-input-time {
+  width: auto;
+  min-width: 7rem;
+}
+.cron-input-tz {
+  display: inline-block;
+  width: auto;
+  min-width: 12rem;
+  vertical-align: middle;
+  margin-left: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.cron-create-task-textarea {
+  width: 100%;
+  min-height: 88px;
+  box-sizing: border-box;
+}
+.cron-create-notify {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.cron-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px dashed var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  margin-bottom: 12px;
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s;
+}
+.cron-advanced-toggle:hover {
+  border-color: var(--lc-accent);
+  color: var(--lc-text);
+}
+.cron-advanced-toggle-icon {
+  font-size: 10px;
+}
+.cron-advanced-wrap {
+  margin-bottom: 12px;
+}
+.cron-next-run {
+  margin-top: 3px;
+  font-size: 11px;
 }
 </style>
