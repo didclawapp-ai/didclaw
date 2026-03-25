@@ -316,6 +316,11 @@ export const useChatStore = defineStore("chat", () => {
 
   async function loadHistory(opts?: { silent?: boolean }): Promise<void> {
     const silent = opts?.silent === true;
+    // Silent background syncs (e.g. from sessions.changed) must not interrupt
+    // an active streaming run — the final handler will reload history anyway.
+    if (silent && (sending.value || runId.value != null)) {
+      return;
+    }
     const gw = useGatewayStore();
     const c = gw.client;
     const session = useSessionStore();
@@ -538,6 +543,11 @@ export const useChatStore = defineStore("chat", () => {
     if (start != null) {
       lastCompletedRunDurationMs.value = Date.now() - start;
       lastCompletedRunAtMs.value = Date.now();
+    } else {
+      // start was lost (e.g. externally triggered run); clear stale data so the
+      // old "Done · X.Xs" doesn't re-appear from a previous run.
+      lastCompletedRunDurationMs.value = null;
+      lastCompletedRunAtMs.value = null;
     }
     clearRunTiming();
   }
