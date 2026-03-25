@@ -22,6 +22,8 @@ const editingKey = ref("");
 const showKey = ref(false);
 /** 当前选择的接口节点：main | alt */
 const nodeChoice = ref<"main" | "alt">("main");
+/** 可编辑的接口地址 */
+const editingBaseUrl = ref("");
 /** 可编辑的模型列表（comma-separated 编辑态） */
 const modelEditMode = ref(false);
 const modelEditText = ref("");
@@ -102,6 +104,11 @@ function expandCard(entry: ProviderCatalogEntry) {
   const snap = savedProviders.value[entry.id];
   const existingKey = snap?.apiKey;
   editingKey.value = typeof existingKey === "string" ? existingKey : "";
+  // 填充已有接口地址（优先已保存的，否则取目录默认）
+  const existingUrl = snap?.baseUrl ?? snap?.baseURL;
+  editingBaseUrl.value = typeof existingUrl === "string" && existingUrl.trim()
+    ? existingUrl.trim()
+    : entry.baseUrl;
   // 模型列表
   const currentModels = modelsFromSnap(snap, entry);
   modelEditText.value = currentModels.join(", ");
@@ -120,6 +127,12 @@ function modelsFromSnap(snap: Record<string, unknown> | undefined, entry: Provid
 
 function activeBaseUrl(entry: ProviderCatalogEntry): string {
   return nodeChoice.value === "alt" && entry.baseUrlAlt ? entry.baseUrlAlt : entry.baseUrl;
+}
+
+/** 切换节点时将预置地址同步到输入框 */
+function onNodeChange(entry: ProviderCatalogEntry, choice: "main" | "alt") {
+  nodeChoice.value = choice;
+  editingBaseUrl.value = activeBaseUrl(entry);
 }
 
 function editedModels(entry: ProviderCatalogEntry): string[] {
@@ -146,7 +159,7 @@ async function applyProvider(entry: ProviderCatalogEntry, setPrimary: boolean) {
       models[mid] = {};
     }
     const providerBody: Record<string, unknown> = {
-      baseUrl: activeBaseUrl(entry),
+      baseUrl: editingBaseUrl.value.trim() || activeBaseUrl(entry),
       models,
       ...entry.extras,
     };
@@ -267,28 +280,33 @@ async function removeProvider(entry: ProviderCatalogEntry) {
               <button type="button" class="aips-panel-close" @click="expandedId = null">✕</button>
             </div>
 
-            <!-- 节点选择 -->
-            <div v-if="entry.baseUrlAlt" class="aips-field">
-              <span class="aips-field-label">接口节点</span>
-              <div class="aips-node-pills">
-                <button
-                  type="button"
-                  class="aips-node-pill"
-                  :class="{ 'aips-node-pill--active': nodeChoice === 'main' }"
-                  @click="nodeChoice = 'main'"
-                >{{ entry.baseUrlLabel }}</button>
-                <button
-                  type="button"
-                  class="aips-node-pill"
-                  :class="{ 'aips-node-pill--active': nodeChoice === 'alt' }"
-                  @click="nodeChoice = 'alt'"
-                >{{ entry.baseUrlAltLabel }}</button>
+            <!-- 接口地址 -->
+            <div class="aips-field">
+              <div class="aips-field-label-row">
+                <span class="aips-field-label">接口地址</span>
+                <div v-if="entry.baseUrlAlt" class="aips-node-pills">
+                  <button
+                    type="button"
+                    class="aips-node-pill"
+                    :class="{ 'aips-node-pill--active': nodeChoice === 'main' }"
+                    @click="onNodeChange(entry, 'main')"
+                  >{{ entry.baseUrlLabel }}</button>
+                  <button
+                    type="button"
+                    class="aips-node-pill"
+                    :class="{ 'aips-node-pill--active': nodeChoice === 'alt' }"
+                    @click="onNodeChange(entry, 'alt')"
+                  >{{ entry.baseUrlAltLabel }}</button>
+                </div>
               </div>
-              <span class="aips-url-hint">{{ activeBaseUrl(entry) }}</span>
-            </div>
-            <div v-else class="aips-url-line">
-              <span class="aips-field-label">接口地址</span>
-              <span class="aips-url-hint">{{ entry.baseUrl }}</span>
+              <input
+                v-model="editingBaseUrl"
+                type="text"
+                class="aips-key-input"
+                placeholder="https://..."
+                autocomplete="off"
+                spellcheck="false"
+              />
             </div>
 
             <!-- API Key -->
