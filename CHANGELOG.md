@@ -9,7 +9,7 @@
 ### 修复
 
 - **安装向导退出码 1 根因修复**：
-  - `ensure-openclaw-windows.ps1` 改以 **UTF-8 with BOM** 保存，修复 Windows PowerShell 5.1 因编码误读中文字符串导致的 ParserError。
+  - `ensure-openclaw-windows.ps1` 改以 **UTF-8 with BOM** 保存，修复 Windows PowerShell 5.1 因编码误读中文字符串导致的 ParserError；所有输出语句改为英文，彻底消除乱码。
   - 安装逻辑重构：若本机已有 `npm`（Node 已安装），直接执行 `npm install -g openclaw@latest` 跳过下载 `https://openclaw.ai/install.ps1`，避免依赖服务器可用性；仅当 npm 不可用时才下载官方安装脚本（含自动装 Node）。
   - `openclaw_ensure_install.rs`：将 `BufReader::lines()`（遇非 UTF-8 字节直接 break）替换为自实现的容错逐行读取（`from_utf8_lossy`），乱码环境下仍可将错误输出回传前端。
   - `FirstRunWizard.vue`：安装脚本退出非零且日志为空时，展示具体可能原因与操作建议，不再只显示裸"退出码 1"。
