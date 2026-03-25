@@ -176,13 +176,14 @@ export const useGatewayStore = defineStore("gateway", () => {
            */
           if (evt.event === "sessions.changed") {
             if (isGatewayPushDebugEnabled()) {
-              logGatewayPush("sessions.changed → sessions.refresh + chat.loadHistory(silent)");
+              logGatewayPush("sessions.changed → await refresh 后 loadHistory(silent)，避免与主会话竞态");
             }
             void import("./session").then(async ({ useSessionStore }) => {
-              await useSessionStore().refresh();
-            });
-            void import("./chat").then(({ useChatStore }) => {
-              void useChatStore().loadHistory({ silent: true });
+              const reloaded = await useSessionStore().refresh();
+              if (!reloaded) {
+                const { useChatStore } = await import("./chat");
+                await useChatStore().loadHistory({ silent: true });
+              }
             });
           }
           /**

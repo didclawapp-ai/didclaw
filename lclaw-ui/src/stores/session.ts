@@ -11,7 +11,25 @@ export type SessionRow = {
   lastActiveAt?: number;
   /** 当前会话的模型覆盖（sessions.patch 设置，null = 使用网关默认） */
   model?: string | null;
+  /**
+   * 本次 `sessions.list` 未返回该键，仅为保留当前聊天区而本地挂接（如一次性定时任务结束后网关从列表移除会话）。
+   */
+  localOnly?: boolean;
 };
+
+const DEFAULT_MAIN_SESSION_KEY = "agent:main:main";
+
+function ghostRowForKey(prevSnap: SessionRow[], key: string): SessionRow {
+  const prev = prevSnap.find((s) => s.key === key);
+  const raw = (prev?.label ?? key).replace(/（已结束）\s*$/u, "").trim() || key;
+  return {
+    key,
+    label: `${raw}（已结束）`,
+    lastActiveAt: prev?.lastActiveAt,
+    model: prev?.model,
+    localOnly: true,
+  };
+}
 
 export const useSessionStore = defineStore("session", () => {
   const sessions = ref<SessionRow[]>([]);
@@ -36,6 +54,9 @@ export const useSessionStore = defineStore("session", () => {
     error.value = null;
     let historyReloaded = false;
     try {
+      const prevSnap = sessions.value.slice();
+      const prevKey = activeSessionKey.value;
+
       const res = await c.request<unknown>("sessions.list", {
         includeGlobal: true,
         includeUnknown: true,
@@ -47,22 +68,33 @@ export const useSessionStore = defineStore("session", () => {
         return false;
       }
       const list = parsed.data.sessions ?? [];
-      sessions.value = list.filter((s) => typeof s.key === "string");
+      const serverSessions = list.filter((s) => typeof s.key === "string") as SessionRow[];
 
-      // 新装或尚未产生任何会话时，网关常返回空列表；此时没有 activeSessionKey 会导致无法 chat.send。
-      // 与 OpenClaw resolveMainSessionKey 一致：无 agents.list 时默认 agent 为 main，主会话键为 agent:main:main。
-      const DEFAULT_MAIN_SESSION_KEY = "agent:main:main";
-      if (sessions.value.length === 0) {
-        sessions.value = [{ key: DEFAULT_MAIN_SESSION_KEY, label: "main" }];
+      let merged: SessionRow[];
+      if (serverSessions.length === 0) {
+        // 新装或尚未产生任何会话时，网关常返回空列表；与 OpenClaw 一致默认主会话键 agent:main:main。
+        if (prevKey && prevKey !== DEFAULT_MAIN_SESSION_KEY) {
+          merged = [ghostRowForKey(prevSnap, prevKey), { key: DEFAULT_MAIN_SESSION_KEY, label: "main" }];
+        } else {
+          merged = [{ key: DEFAULT_MAIN_SESSION_KEY, label: "main" }];
+        }
+      } else if (prevKey && !serverSessions.some((s) => s.key === prevKey)) {
+        // 一次性定时任务等结束后，网关会从列表移除会话；勿立刻切回主会话，否则聊天区会像「闪一下又没了」。
+        merged = [ghostRowForKey(prevSnap, prevKey), ...serverSessions];
+      } else {
+        merged = serverSessions;
       }
 
-      const prevKey = activeSessionKey.value;
-      if (
-        sessions.value.length > 0 &&
-        (!prevKey || !sessions.value.some((s) => s.key === prevKey))
-      ) {
-        activeSessionKey.value = sessions.value[0]?.key ?? null;
+      sessions.value = merged;
+
+      const activeInMerged =
+        activeSessionKey.value != null &&
+        merged.some((s) => s.key === activeSessionKey.value);
+      if (merged.length > 0 && !activeInMerged) {
+        activeSessionKey.value =
+          merged.find((s) => s.key === DEFAULT_MAIN_SESSION_KEY)?.key ?? merged[0]?.key ?? null;
       }
+
       const key = activeSessionKey.value;
       if (key && key !== prevKey) {
         const { useChatStore } = await import("./chat");

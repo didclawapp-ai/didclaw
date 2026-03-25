@@ -286,15 +286,19 @@ function formatMsLocal(ms: unknown): string {
   }
 }
 
-function jobStateSummary(j: Record<string, unknown>): string {
+/** 悬停展示：最近结果、下次/上次时间（与网关 `CronJobState` 一致） */
+function jobStateDetailTooltip(j: Record<string, unknown>): string {
   const st = j.state;
   if (!st || typeof st !== "object" || Array.isArray(st)) {
-    return "—";
+    return "";
   }
   const s = st as Record<string, unknown>;
   const parts: string[] = [];
-  if (typeof s.lastStatus === "string" && s.lastStatus) {
-    parts.push(`最近：${s.lastStatus}`);
+  const lastOutcome =
+    (typeof s.lastRunStatus === "string" && s.lastRunStatus.trim()) ||
+    (typeof s.lastStatus === "string" && s.lastStatus.trim());
+  if (lastOutcome) {
+    parts.push(`最近：${lastOutcome}`);
   }
   if (typeof s.nextRunAtMs === "number") {
     parts.push(`下次 ${formatMsLocal(s.nextRunAtMs)}`);
@@ -302,7 +306,32 @@ function jobStateSummary(j: Record<string, unknown>): string {
   if (typeof s.lastRunAtMs === "number") {
     parts.push(`上次 ${formatMsLocal(s.lastRunAtMs)}`);
   }
-  return parts.length ? parts.join(" · ") : "—";
+  return parts.length ? parts.join(" · ") : "";
+}
+
+/**
+ * 列表「运行态」主文案：与 OpenClaw `runningAtMs` / `lastRunAtMs` / `lastStatus` 语义对齐。
+ * - 运行中：网关已标记执行中
+ * - 已运行：至少完成过一次执行（有上次时间或终端状态）
+ * - 未运行：尚未执行过（可能仍在等待首次调度）
+ */
+function jobRunPhaseLabel(j: Record<string, unknown>): string {
+  const st = j.state;
+  if (!st || typeof st !== "object" || Array.isArray(st)) {
+    return "未运行";
+  }
+  const s = st as Record<string, unknown>;
+  if (typeof s.runningAtMs === "number" && Number.isFinite(s.runningAtMs)) {
+    return "运行中";
+  }
+  const hasLastRun =
+    (typeof s.lastRunAtMs === "number" && Number.isFinite(s.lastRunAtMs)) ||
+    (typeof s.lastStatus === "string" && s.lastStatus.trim() !== "") ||
+    (typeof s.lastRunStatus === "string" && s.lastRunStatus.trim() !== "");
+  if (hasLastRun) {
+    return "已运行";
+  }
+  return "未运行";
 }
 
 function runEntryTitle(r: Record<string, unknown>): string {
@@ -950,7 +979,12 @@ async function removeJob(jobId: string): Promise<void> {
                   </td>
                   <td class="cron-sched">{{ formatScheduleSummary(j.schedule) }}</td>
                   <td>{{ isJobEnabled(j) ? "启用" : "暂停" }}</td>
-                  <td class="cron-sched">{{ jobStateSummary(j) }}</td>
+                  <td
+                    class="cron-sched"
+                    :title="jobStateDetailTooltip(j) || undefined"
+                  >
+                    {{ jobRunPhaseLabel(j) }}
+                  </td>
                   <td class="cron-actions">
                     <button
                       type="button"
