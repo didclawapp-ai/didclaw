@@ -18,6 +18,7 @@ import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { computed, ref, watch } from "vue";
 import AiProviderSetup from "@/features/settings/AiProviderSetup.vue";
+import DoctorPanel from "@/features/settings/DoctorPanel.vue";
 import { i18n, type LocaleCode } from "@/i18n";
 
 const props = defineProps<{
@@ -797,6 +798,13 @@ async function onRestoreModel(): Promise<void> {
               {{ saving ? t('common.saving') : t('settings.saveAndReconnect') }}
             </button>
           </div>
+
+          <details class="doctor-section">
+            <summary class="doctor-section-summary muted small">
+              🩺 {{ t('doctor.title') }}
+            </summary>
+            <DoctorPanel :executable="openclawExecutable" />
+          </details>
         </div>
 
         <div v-show="tab === 'model'" class="tab-panel">
@@ -1133,6 +1141,30 @@ async function onRestoreModel(): Promise<void> {
 .locale-btn:hover:not(.active) {
   border-color: var(--lc-border-strong);
   color: var(--lc-text);
+}
+.doctor-section {
+  margin-top: 16px;
+  border-top: 1px solid var(--lc-border);
+  padding-top: 10px;
+}
+.doctor-section-summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.doctor-section-summary::-webkit-details-marker {
+  display: none;
+}
+.doctor-section[open] > .doctor-section-summary::before {
+  content: "▼ ";
+  font-size: 10px;
+}
+.doctor-section:not([open]) > .doctor-section-summary::before {
+  content: "▶ ";
+  font-size: 10px;
 }
 .backdrop {
   position: fixed;

@@ -379,6 +379,26 @@ export default {
     deferredModelBannerBtn: "Configure now",
   },
 
+  // ─── Doctor panel ─────────────────────────────────────
+  doctor: {
+    runBtn: "Run Diagnostics",
+    repairBtn: "Auto-Repair",
+    running: "Running diagnostics…",
+    repairing: "Repairing…",
+    title: "Gateway Diagnostics",
+    noExe: "Cannot find the openclaw executable. Please complete the install wizard first.",
+    passed: "Passed",
+    warning: "Warning",
+    failed: "Failed",
+    rawOutput: "Raw output",
+    noOutput: "(no output)",
+    exitCode: "Exit code: {code}",
+    allPassed: "All checks passed",
+    hasWarnings: "{n} warning(s)",
+    hasErrors: "{n} error(s)",
+    repairHint: "Errors found — try Auto-Repair",
+  },
+
   // ─── About page ───────────────────────────────────────
   about: {
     backToChat: "← Back to chat",

@@ -379,6 +379,26 @@ export default {
     deferredModelBannerBtn: "立即设置",
   },
 
+  // ─── Doctor 诊断面板 DoctorPanel ────────────────────
+  doctor: {
+    runBtn: "运行诊断",
+    repairBtn: "自动修复",
+    running: "诊断中…",
+    repairing: "修复中…",
+    title: "网关诊断",
+    noExe: "找不到 openclaw 可执行文件，请先完成安装向导。",
+    passed: "通过",
+    warning: "警告",
+    failed: "错误",
+    rawOutput: "原始输出",
+    noOutput: "（无输出）",
+    exitCode: "退出码：{code}",
+    allPassed: "全部检查通过",
+    hasWarnings: "{n} 个警告",
+    hasErrors: "{n} 个错误",
+    repairHint: "发现错误，可尝试「自动修复」",
+  },
+
   // ─── 关于页 AboutView ────────────────────────────────
   about: {
     backToChat: "← 返回会话",

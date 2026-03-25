@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **Doctor 图形化诊断**：「本机设置 → 连助手」Tab 底部新增可折叠的「网关诊断」面板。点击「运行诊断」调用 `openclaw doctor --non-interactive`，前端解析 ✓/⚠/✗ 前缀输出行并以颜色卡片展示；发现错误时出现「自动修复」按钮执行 `--repair`；支持展开原始输出。Tauri 侧新增 `run_openclaw_doctor` 命令（自动查找 `openclaw` 可执行文件，可传自定义路径）。
+
 - **国际化（i18n）支持**：接入 `vue-i18n v9`，界面支持中文 / 英文双语。在「本机设置」对话框标题栏增加"中 / EN"语言切换按钮，选择结果持久化到 `localStorage` 并跟随系统语言自动检测。涉及 `AppHeader`、`MessageComposer`、`AboutView`、`GatewayLocalDialog`、`CronJobsDialog` 等核心组件的全量汉字字符串均已提取至 `src/i18n/zh.ts` 与 `src/i18n/en.ts`。
 
 - **卡片式 AI 配置界面**：新增"② AI 配置"Tab，用卡片替代原有的"② AI 账号 + ③ 选模型"两步流程。用户在对应服务商卡片填入 API Key 后点"应用并设为主力"，即可自动完成 Provider 写入 + 主力模型设置，无需手动填写接口地址或模型列表。预置 11 家主流服务商（智谱/DeepSeek/MiniMax/Kimi/Qwen/小米/Anthropic/OpenAI/OpenRouter/xAI/Mistral/Ollama），含国内/国际节点切换。原高级 Tab 保留供需要精细控制的用户使用。

@@ -6,7 +6,7 @@
 
 ## P0 — 发布前必须完成
 
-### P0-1 国际化（i18n）
+### P0-1 国际化（i18n） ✅ 已完成（v0.3.2，commit bbe27c6）
 
 **目标**：UI 支持中文 / 英文切换，Product Hunt 主展示语言为英文。
 
@@ -17,12 +17,12 @@
 - 设置界面加语言切换选项
 
 **工作范围**
-- [ ] 安装 vue-i18n，搭建目录结构
-- [ ] 提取所有 Vue 组件中的中文硬编码字符串（模板 + script）
-- [ ] 提取 Pinia store 中的错误消息字符串
-- [ ] 英文翻译（en.ts）
-- [ ] 设置 Tab 增加语言切换 UI
-- [ ] Rust 侧错误字符串（用户可见部分）英文化
+- [x] 安装 vue-i18n，搭建目录结构
+- [x] 提取所有 Vue 组件中的中文硬编码字符串（模板 + script）
+- [x] 提取 Pinia store 中的错误消息字符串
+- [x] 英文翻译（en.ts）
+- [x] 设置 Tab 增加语言切换 UI（GatewayLocalDialog 标题栏「中 / EN」按钮）
+- [ ] Rust 侧错误字符串（用户可见部分）英文化（低优先，可后续补充）
 
 **注意**：PowerShell 安装脚本已为英文 ✅，无需改动。
 
@@ -122,7 +122,7 @@
 
 ---
 
-### P0-6 Doctor 图形化（OpenClaw 健康诊断）
+### P0-6 Doctor 图形化（OpenClaw 健康诊断）✅ 已完成（v0.3.2）
 
 **目标**：将 `openclaw doctor` 的诊断结果图形化展示，让普通用户无需看命令行也能知道哪里有问题。
 
@@ -153,9 +153,9 @@
 - 支持 `--repair` 模式（点击"自动修复"按钮）
 
 **工作范围**
-- [ ] Tauri：`run_openclaw_doctor(repair: bool)` 命令
-- [ ] 前端：`DoctorPanel.vue` 组件（流式解析 + 状态卡片）
-- [ ] 设置页集成入口
+- [x] Tauri：`run_openclaw_doctor(repair: bool)` 命令
+- [x] 前端：`DoctorPanel.vue` 组件（输出解析 + 状态卡片）
+- [x] 设置页集成入口（「连助手」Tab 底部可折叠「网关诊断」面板）
 
 ---
 

@@ -169,6 +169,16 @@ interface DidClawElectronApi {
     { ok: true; aiName?: string | null; userName?: string | null }
     | { ok: false; error: string }
   >;
+  /** 执行 `openclaw doctor [--repair] --non-interactive`，返回原始输出供前端解析 */
+  runOpenclawDoctor?(payload: {
+    repair?: boolean;
+    executable?: string;
+  }): Promise<{
+    ok: boolean;
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+  }>;
 }
 
 interface Window {

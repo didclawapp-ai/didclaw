@@ -1103,3 +1103,29 @@ pub async fn ensure_open_claw_gateway_running(
 
     Ok(json!({"ok": true, "started": true}))
 }
+
+/// 执行 `openclaw doctor [--repair] --non-interactive`，返回原始输出供前端解析。
+pub fn run_openclaw_doctor_impl(repair: bool, custom_executable: Option<&str>) -> Result<Value, String> {
+    let exe = resolve_open_claw_executable(custom_executable)
+        .ok_or_else(|| "找不到 openclaw 可执行文件，请先完成安装向导。".to_string())?;
+
+    let mut args: Vec<&str> = vec!["doctor", "--non-interactive"];
+    if repair {
+        args.push("--repair");
+    }
+
+    let out = run_open_claw_cli_captured(&exe, &args, &[])
+        .map_err(|e| format!("启动 openclaw doctor 失败：{e}"))?;
+
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    let code = out.status.code().unwrap_or(-1);
+    let ok = out.status.success();
+
+    Ok(json!({
+        "ok": ok,
+        "exitCode": code,
+        "stdout": stdout,
+        "stderr": stderr,
+    }))
+}

@@ -347,3 +347,21 @@ pub fn skills_pick_folder() -> Result<Option<String>, String> {
 pub fn read_workspace_identity() -> Result<Value, String> {
     Ok(crate::workspace_identity::read_workspace_identity())
 }
+
+#[tauri::command]
+pub async fn run_openclaw_doctor(
+    repair: Option<bool>,
+    executable: Option<String>,
+) -> Result<Value, String> {
+    let repair = repair.unwrap_or(false);
+    let exe = executable
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from);
+    tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::run_openclaw_doctor_impl(repair, exe.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

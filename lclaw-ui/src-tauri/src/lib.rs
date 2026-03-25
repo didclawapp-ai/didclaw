@@ -175,6 +175,7 @@ pub fn run() {
             commands::skills_pick_zip_file,
             commands::skills_pick_folder,
             commands::read_workspace_identity,
+            commands::run_openclaw_doctor,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {
