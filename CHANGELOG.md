@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 修复
+
+- **生产构建 CSP 错误**：`dist/index.html` 注入的 CSP 缺少三项必要指令，导致 Tauri IPC 全部失败、主题初始化脚本被拦截、界面空白。修复：`script-src` 补加 `'unsafe-inline'`（内联主题脚本）和 `'unsafe-eval'`（vue-i18n v9 运行时消息编译），`connect-src` 补加 `http://ipc.localhost`（Tauri 2 IPC 协议）。
+
 ### 新增
 
 - **Doctor 图形化诊断**：「本机设置 → 连助手」Tab 底部新增可折叠的「网关诊断」面板。点击「运行诊断」调用 `openclaw doctor --non-interactive`，前端解析 ✓/⚠/✗ 前缀输出行并以颜色卡片展示；发现错误时出现「自动修复」按钮执行 `--repair`；支持展开原始输出。Tauri 侧新增 `run_openclaw_doctor` 命令（自动查找 `openclaw` 可执行文件，可传自定义路径）。
