@@ -6,7 +6,23 @@
 
 ## [未发布]
 
+### 修复
+
+- **技能窗口功能缺陷**：
+  - 详情面板「安装到本机」绕过 `isSuspicious` 检查，直接安装可疑技能。现在 `installHubSkill` 统一执行恶意/可疑检查，调用方已知道 moderation 结果时可传 `skipSuspiciousCheck: true` 避免重复请求。
+  - `onDeleteInstalled` 未设置 `installBusy`，删除操作与安装操作可并发导致 `loadInstalled` 竞争。现在删除前检查并锁定 `installBusy`，finally 中释放。
+
 ### 改进
+
+- **技能窗口 UI**：
+  - 消息条新增三种语义样式：成功（绿色左边框）、失败（红色）、信息（青色）；成功/信息消息 8s 后自动消失，失败消息保留直到下次操作；消息条右侧加 ✕ 关闭按钮。
+  - 头部说明文从 3 句技术性长段缩短为 1 句用户友好描述。
+  - 关闭按钮改为 ✕ 图标按钮，hover 显示红底。
+  - 「删除」按钮文字改为红色，hover 显示红底边框。
+  - 搜索结果卡片添加 `cursor: pointer` 与 hover 边框高亮。
+  - 搜索输入框添加 `font-family: inherit; font-size: 13px`，消除字体渲染差异。
+  - 本机安装成功/失败消息使用对应颜色（绿色/红色）而非统一灰色。
+  - 清除 7 个从未被使用的死 CSS 类（`.hit-btn`、`.hit-slug`、`.hit-name`、`.explore-bar`、`.explore-sort`、`.skills-select`、`.skills-hit-list`）。
 
 - **Header 菜单细化**：移除重复的「⚙ 设置」按钮（与会话区「更多设置」功能重复）；「定时任务」缩短为「定时」节省空间；「···」溢出菜单将背景遮罩通过 `<Teleport to="body">` 挂到 body 最外层，修复 `backdrop-filter` 创建层叠上下文导致点击空白处无法关闭菜单的问题。
 - **暗色模式对话框边框**：`--lc-border` dark 值从 `rgba(255,255,255,0.08)` 提升至 `0.13`；`.cron-panel`/`.skills-panel` 在暗色下追加专属 `border-color: rgba(255,255,255,0.18)` 和多层 `box-shadow`，对话框轮廓清晰可见；遮罩层背景加深至 `rgba(0,0,0,0.6)`。

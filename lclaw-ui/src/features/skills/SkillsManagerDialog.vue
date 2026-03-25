@@ -68,6 +68,22 @@ const installBusy = ref(false);
 /** 当前正在安装的技能 slug；仅该卡片/对应项显示「安装中…」，避免全局误判 */
 const installingSlug = ref<string | null>(null);
 const installMessage = ref<string | null>(null);
+type MessageKind = "success" | "error" | "info";
+const installMessageKind = ref<MessageKind>("info");
+
+let msgTimer: ReturnType<typeof setTimeout> | null = null;
+function setInstallMessage(msg: string, kind: MessageKind = "info"): void {
+  installMessage.value = msg;
+  installMessageKind.value = kind;
+  if (msgTimer !== null) clearTimeout(msgTimer);
+  /* 成功消息 8s 后自动消失，错误保留直到下次操作 */
+  if (kind !== "error") {
+    msgTimer = window.setTimeout(() => {
+      installMessage.value = null;
+      msgTimer = null;
+    }, 8000);
+  }
+}
 
 const installedLoading = ref(false);
 const installedRows = ref<InstalledSkillRow[]>([]);
@@ -76,6 +92,7 @@ const installedError = ref<string | null>(null);
 const localSlug = ref("");
 const localBusy = ref(false);
 const localMessage = ref<string | null>(null);
+const localMessageKind = ref<MessageKind>("info");
 
 function formatClawhubErr(e: unknown): string {
   if (e instanceof ClawhubHttpError) {
@@ -117,8 +134,10 @@ async function syncInstallRoot(): Promise<void> {
     installRoot.value = await skillsDefaultInstallRoot();
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    installMessage.value =
-      `无法连接桌面接口：${msg}。开发模式下请确认已把 Vite 地址（如 http://localhost:5173）写入 src-tauri/capabilities/default.json 的 remote.urls，并重新运行 pnpm dev:tauri。`;
+    setInstallMessage(
+      `无法连接桌面接口：${msg}。开发模式下请确认已把 Vite 地址写入 capabilities/default.json 的 remote.urls，并重新运行 pnpm dev:tauri。`,
+      "error",
+    );
     installRoot.value = "";
   }
 }
@@ -257,17 +276,19 @@ async function installClawhubPluginFromSlug(slug: string | null | undefined): Pr
     return;
   }
   if (!isDidClawDesktop()) {
-    installMessage.value = "安装插件需要桌面版。";
+    setInstallMessage("安装插件需要桌面版。", "info");
     return;
   }
   const api = getDidClawDesktopApi();
   if (!api?.openclawPluginsInstall) {
-    installMessage.value =
-      "当前桌面壳不支持插件一键安装，请在终端执行：openclaw plugins install " + pluginPackageSpec(s);
+    setInstallMessage(
+      "当前桌面壳不支持插件一键安装，请在终端执行：openclaw plugins install " + pluginPackageSpec(s),
+      "info",
+    );
     return;
   }
   if (installBusy.value) {
-    installMessage.value = "正在安装其他项，请等待完成后再试。";
+    setInstallMessage("正在安装其他项，请等待完成后再试。", "info");
     return;
   }
   installBusy.value = true;
@@ -281,8 +302,9 @@ async function installClawhubPluginFromSlug(slug: string | null | undefined): Pr
       clawhubRegistry: ch.registry,
     });
     if (r && typeof r === "object" && "ok" in r && r.ok === true) {
-      installMessage.value = truncateInstallFeedback(
-        `「${s}」已通过 OpenClaw CLI 安装。若网关已在运行，请重启网关后加载插件。`,
+      setInstallMessage(
+        truncateInstallFeedback(`「${s}」已通过 OpenClaw CLI 安装。若网关已在运行，请重启网关后加载插件。`),
+        "success",
       );
       return;
     }
@@ -290,9 +312,9 @@ async function installClawhubPluginFromSlug(slug: string | null | undefined): Pr
       r && typeof r === "object" && "error" in r && typeof (r as { error?: string }).error === "string"
         ? (r as { error: string }).error
         : "安装失败。";
-    installMessage.value = truncateInstallFeedback(err);
+    setInstallMessage(truncateInstallFeedback(err), "error");
   } catch (e) {
-    installMessage.value = truncateInstallFeedback(formatClawhubErr(e));
+    setInstallMessage(truncateInstallFeedback(formatClawhubErr(e)), "error");
   } finally {
     installBusy.value = false;
     installingSlug.value = null;
@@ -320,11 +342,11 @@ async function installFromSearchHit(hit: ClawhubCatalogHit): Promise<void> {
     return;
   }
   if (!isTauri()) {
-    installMessage.value = "安装到本机目录需要桌面版（Tauri）。";
+    setInstallMessage("安装到本机目录需要桌面版（Tauri）。", "info");
     return;
   }
   if (installBusy.value) {
-    installMessage.value = "正在安装其他技能，请等待完成后再试。";
+    setInstallMessage("正在安装其他技能，请等待完成后再试。", "info");
     return;
   }
   installBusy.value = true;
@@ -333,7 +355,7 @@ async function installFromSearchHit(hit: ClawhubCatalogHit): Promise<void> {
   try {
     const meta = await clawhubSkillDetail(slug);
     if (meta.moderation?.isMalwareBlocked) {
-      installMessage.value = `「${slug}」已被标记为恶意，无法安装。`;
+      setInstallMessage(`「${slug}」已被标记为恶意，无法安装。`, "error");
       return;
     }
     if (meta.moderation?.isSuspicious) {
@@ -341,19 +363,20 @@ async function installFromSearchHit(hit: ClawhubCatalogHit): Promise<void> {
         `「${slug}」被标记为可疑技能，可能包含风险模式。确定仍要安装吗？`,
       );
       if (!ok) {
+        setInstallMessage("已取消安装。", "info");
         return;
       }
     }
     const version = meta.latestVersion?.version;
     if (!version) {
-      installMessage.value = `无法解析「${slug}」的最新版本。`;
+      setInstallMessage(`无法解析「${slug}」的最新版本。`, "error");
       return;
     }
     /* 略隔开「详情」与「下载」请求，降低连续命中 429 的概率 */
     await new Promise((r) => setTimeout(r, 400));
-    await installHubSkill(slug, version, { manageBusy: false });
+    await installHubSkill(slug, version, { manageBusy: false, skipSuspiciousCheck: true });
   } catch (e) {
-    installMessage.value = formatClawhubErr(e);
+    setInstallMessage(formatClawhubErr(e), "error");
   } finally {
     installBusy.value = false;
     installingSlug.value = null;
@@ -363,17 +386,18 @@ async function installFromSearchHit(hit: ClawhubCatalogHit): Promise<void> {
 async function installHubSkill(
   slug: string,
   version: string,
-  options?: { manageBusy?: boolean },
+  options?: { manageBusy?: boolean; skipSuspiciousCheck?: boolean },
 ): Promise<void> {
   const manageBusy = options?.manageBusy !== false;
+  const skipSuspiciousCheck = options?.skipSuspiciousCheck === true;
   if (!isTauri()) {
-    installMessage.value = "安装到本机目录需要桌面版（Tauri）。";
+    setInstallMessage("安装到本机目录需要桌面版（Tauri）。", "info");
     return;
   }
   const root = await skillsResolveInstallRoot(installRoot.value.trim() || undefined);
   if (manageBusy) {
     if (installBusy.value) {
-      installMessage.value = "正在安装其他技能，请等待完成后再试。";
+      setInstallMessage("正在安装其他技能，请等待完成后再试。", "info");
       return;
     }
     installBusy.value = true;
@@ -381,6 +405,26 @@ async function installHubSkill(
     installMessage.value = null;
   }
   try {
+    /* 若调用方未获取详情，这里补查 isSuspicious */
+    if (!skipSuspiciousCheck) {
+      let meta: Awaited<ReturnType<typeof clawhubSkillDetail>> | null = null;
+      try {
+        meta = await clawhubSkillDetail(slug);
+      } catch { /* 网络故障时跳过检查 */ }
+      if (meta?.moderation?.isMalwareBlocked) {
+        setInstallMessage(`「${slug}」已被标记为恶意，无法安装。`, "error");
+        return;
+      }
+      if (meta?.moderation?.isSuspicious) {
+        const ok = window.confirm(
+          `「${slug}」被标记为可疑技能，可能包含风险模式。确定仍要安装吗？`,
+        );
+        if (!ok) {
+          setInstallMessage("已取消安装。", "info");
+          return;
+        }
+      }
+    }
     const buf = await clawhubDownloadSkillZip(slug, { version });
     const b64 = arrayBufferToBase64(buf);
     const reg = clawhubDefaultRegistry();
@@ -393,15 +437,15 @@ async function installHubSkill(
     };
     const r = await skillsInstallZipBase64(root, slug, b64, origin);
     if (!r.ok) {
-      installMessage.value = "安装失败。";
+      setInstallMessage("安装失败。", "error");
       return;
     }
-    installMessage.value = `已安装「${slug}」@${version}。新会话通常会加载技能。`;
+    setInstallMessage(`已安装「${slug}」@${version}。新会话通常会加载技能。`, "success");
     setStoredSkillsInstallRoot(root);
     installRoot.value = root;
     await loadInstalled();
   } catch (e) {
-    installMessage.value = formatClawhubErr(e);
+    setInstallMessage(formatClawhubErr(e), "error");
   } finally {
     if (manageBusy) {
       installBusy.value = false;
@@ -411,9 +455,14 @@ async function installHubSkill(
 }
 
 async function onDeleteInstalled(row: InstalledSkillRow): Promise<void> {
+  if (installBusy.value) {
+    setInstallMessage("正在安装其他技能，请等待完成后再删除。", "info");
+    return;
+  }
   if (!window.confirm(`确定删除本机技能「${row.slug}」？将删除整个目录。`)) {
     return;
   }
+  installBusy.value = true;
   const root = await skillsResolveInstallRoot(installRoot.value.trim() || undefined);
   try {
     await skillsDelete(root, row.slug);
@@ -422,25 +471,27 @@ async function onDeleteInstalled(row: InstalledSkillRow): Promise<void> {
       hubSlug.value = null;
       hubDetail.value = null;
     }
-    installMessage.value = `已删除「${row.slug}」。`;
+    setInstallMessage(`已删除「${row.slug}」。`, "success");
   } catch (e) {
-    installMessage.value = e instanceof Error ? e.message : String(e);
+    setInstallMessage(e instanceof Error ? e.message : String(e), "error");
+  } finally {
+    installBusy.value = false;
   }
 }
 
 async function onUpdateInstalled(row: InstalledSkillRow): Promise<void> {
   if (row.source !== "clawhub") {
-    installMessage.value = "非 ClawHub 来源的技能请重新上传 ZIP 或文件夹覆盖安装。";
+    setInstallMessage("非 ClawHub 来源的技能请重新上传 ZIP 或文件夹覆盖安装。", "info");
     return;
   }
   const meta = await clawhubSkillDetail(row.slug).catch(() => null);
   const ver = meta?.latestVersion?.version;
   if (!ver) {
-    installMessage.value = "无法获取远端最新版本。";
+    setInstallMessage("无法获取远端最新版本。", "error");
     return;
   }
   if (row.installedVersion && row.installedVersion === ver) {
-    installMessage.value = `「${row.slug}」已是最新版本 ${ver}。`;
+    setInstallMessage(`「${row.slug}」已是最新版本 ${ver}。`, "info");
     return;
   }
   await installHubSkill(row.slug, ver);
@@ -465,14 +516,17 @@ async function onPickZipInstall(): Promise<void> {
     const r = await skillsInstallZipPath(root, slug, picked);
     if (!r.ok) {
       localMessage.value = "ZIP 安装失败。";
+      localMessageKind.value = "error";
       return;
     }
     setStoredSkillsInstallRoot(root);
     installRoot.value = root;
     localMessage.value = `已从 ZIP 安装到「${slug}」。`;
+    localMessageKind.value = "success";
     await loadInstalled();
   } catch (e) {
     localMessage.value = e instanceof Error ? e.message : String(e);
+    localMessageKind.value = "error";
   } finally {
     localBusy.value = false;
   }
@@ -493,14 +547,17 @@ async function onPickFolderInstall(): Promise<void> {
     const r = await skillsInstallFromFolder(root, slug, picked);
     if (!r.ok) {
       localMessage.value = "文件夹安装失败。";
+      localMessageKind.value = "error";
       return;
     }
     setStoredSkillsInstallRoot(root);
     installRoot.value = root;
     localMessage.value = `已从文件夹安装到「${slug}」。`;
+    localMessageKind.value = "success";
     await loadInstalled();
   } catch (e) {
     localMessage.value = e instanceof Error ? e.message : String(e);
+    localMessageKind.value = "error";
   } finally {
     localBusy.value = false;
   }
@@ -541,6 +598,7 @@ watch(subTab, (t) => {
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
+  if (msgTimer !== null) clearTimeout(msgTimer);
 });
 
 const canInstallDetail = computed(() => {
@@ -590,16 +648,19 @@ const canInstallPluginDetail = computed(() => {
       >
         <div class="skills-head">
           <h2 id="skills-dialog-title">技能管理</h2>
-          <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm skills-close" @click="open = false">
-            关闭
+          <button
+            type="button"
+            class="skills-close-btn"
+            aria-label="关闭"
+            @click="open = false"
+          >
+            ✕
           </button>
         </div>
 
         <div class="skills-panel-top">
           <p class="skills-lead muted small">
-            ClawHub 统一搜索（<code>/api/v1/packages/search</code>）可同时发现<strong>技能</strong>与<strong>插件</strong>。技能可安装到本机
-            <code>.openclaw/workspace/skills</code>；桌面版在已配置 openclaw 可执行文件时，插件可通过「安装」调用官方
-            <code>openclaw plugins install clawhub:…</code>。亦可上传 ZIP / 文件夹安装技能。
+            在 <strong>ClawHub</strong> 搜索并一键安装技能（ZIP）或插件（CLI）；也可在「本机安装」页上传本地 ZIP / 文件夹。
           </p>
 
           <div v-if="isTauri()" class="skills-root-row">
@@ -652,7 +713,20 @@ const canInstallPluginDetail = computed(() => {
           </nav>
 
           <div class="skills-main">
-            <div v-if="installMessage" class="skills-toast">{{ installMessage }}</div>
+            <div
+              v-if="installMessage"
+              class="skills-toast"
+              :class="`skills-toast--${installMessageKind}`"
+              role="status"
+            >
+              <span>{{ installMessage }}</span>
+              <button
+                type="button"
+                class="skills-toast-close"
+                aria-label="关闭提示"
+                @click="installMessage = null"
+              >✕</button>
+            </div>
 
             <!-- ClawHub -->
             <div v-show="subTab === 'browse'" class="skills-body" role="tabpanel">
@@ -863,7 +937,12 @@ const canInstallPluginDetail = computed(() => {
                   >
                     更新
                   </button>
-                  <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs" @click="onDeleteInstalled(row)">
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
+                    :disabled="installBusy"
+                    @click="onDeleteInstalled(row)"
+                  >
                     删除
                   </button>
                 </td>
@@ -894,7 +973,7 @@ const canInstallPluginDetail = computed(() => {
                 {{ localBusy ? "处理中…" : "选择文件夹安装" }}
               </button>
             </div>
-            <p v-if="localMessage" class="muted small">{{ localMessage }}</p>
+            <p v-if="localMessage" class="small" :class="localMessageKind === 'error' ? 'err' : localMessageKind === 'success' ? 'ok' : 'muted'">{{ localMessage }}</p>
             </template>
             </div>
           </div>
@@ -990,6 +1069,26 @@ const canInstallPluginDetail = computed(() => {
   margin: 0;
   font-size: 1.1rem;
 }
+.skills-close-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: var(--lc-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.skills-close-btn:hover {
+  background: var(--lc-error-bg);
+  color: var(--lc-error);
+}
 .skills-lead {
   margin: 0 0 12px;
   line-height: 1.45;
@@ -1023,10 +1122,41 @@ const canInstallPluginDetail = computed(() => {
   margin: 0 0 12px;
 }
 .skills-toast {
-  font-size: 13px;
-  color: var(--lc-accent);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.45;
   margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: var(--lc-radius-sm);
+  border-left: 3px solid currentColor;
 }
+.skills-toast--success {
+  color: var(--lc-success);
+  background: var(--lc-success-bg);
+}
+.skills-toast--error {
+  color: var(--lc-error);
+  background: var(--lc-error-bg);
+}
+.skills-toast--info {
+  color: var(--lc-accent);
+  background: var(--lc-accent-soft);
+}
+.skills-toast-close {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  padding: 0 2px;
+  line-height: 1;
+}
+.skills-toast-close:hover { opacity: 1; }
 .skills-body {
   min-height: 120px;
 }
@@ -1252,65 +1382,8 @@ const canInstallPluginDetail = computed(() => {
   border: 1px solid var(--lc-border);
   background: var(--lc-bg-raised);
   color: var(--lc-text);
-}
-.skills-hit-list {
-  list-style: none;
-  margin: 0 0 14px;
-  padding: 0;
-  max-height: min(280px, 42vh);
-  overflow: auto;
-  border: 1px solid var(--lc-border);
-  border-radius: var(--lc-radius-sm);
-}
-.hit-btn {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  border: none;
-  border-bottom: 1px solid var(--lc-border);
-  background: var(--lc-bg-raised);
-  cursor: pointer;
   font-family: inherit;
   font-size: 13px;
-}
-.hit-btn:last-child {
-  border-bottom: none;
-}
-.hit-btn:hover {
-  background: var(--lc-bg-elevated);
-}
-.hit-slug {
-  font-family: var(--lc-mono);
-  font-weight: 600;
-  color: var(--lc-accent);
-}
-.hit-name {
-  color: var(--lc-text-muted);
-  font-size: 12px;
-}
-.explore-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.explore-sort {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.skills-select {
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-border);
-  background: var(--lc-bg-raised);
-  color: var(--lc-text);
 }
 .detail-card {
   margin-top: 14px;
@@ -1367,8 +1440,26 @@ const canInstallPluginDetail = computed(() => {
   flex-wrap: wrap;
   gap: 8px;
 }
+.btn-danger {
+  color: var(--lc-error) !important;
+}
+.btn-danger:hover:not(:disabled) {
+  border-color: var(--lc-error) !important;
+  background: var(--lc-error-bg) !important;
+}
+.hub-result-card {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.hub-result-card:hover {
+  border-color: var(--lc-border-strong);
+  box-shadow: var(--lc-shadow-sm);
+}
 .err {
   color: var(--lc-error);
+}
+.ok {
+  color: var(--lc-success);
 }
 .muted {
   color: var(--lc-text-muted);
