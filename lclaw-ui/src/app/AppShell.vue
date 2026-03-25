@@ -74,13 +74,17 @@ const isPreviewPaneOpen = computed(
 const previewPaneRef = ref<HTMLElement | null>(null);
 useTauriPreviewWindowStrip(isPreviewPaneOpen, previewPaneRef);
 
+function sessionDisplayLabel(key: string, label?: string): string {
+  if (label?.trim()) return label.trim();
+  // UUID-style keys (no colon) are new sessions not yet registered with the gateway
+  if (!key.includes(":")) return "新对话";
+  return key;
+}
+
 const activeSessionLabel = computed(() => {
   const row = activeSession.value;
-  if (row?.label?.trim()) {
-    return row.label.trim();
-  }
   if (activeSessionKey.value) {
-    return activeSessionKey.value;
+    return sessionDisplayLabel(activeSessionKey.value, row?.label);
   }
   return "";
 });
@@ -302,8 +306,8 @@ async function pickLocalFileForPreview(): Promise<void> {
         <div v-if="sessionsLoading" class="muted">加载中…</div>
         <ul v-else-if="otherSessions.length > 0" class="sess">
           <li v-for="s in otherSessions" :key="s.key">
-            <button type="button" class="sess-btn" @click="session.selectSession(s.key)">
-              {{ s.label || s.key }}
+            <button type="button" class="sess-btn" @click="session.selectSession(s.key)" :title="s.key">
+              {{ sessionDisplayLabel(s.key, s.label) }}
             </button>
           </li>
         </ul>
@@ -548,8 +552,8 @@ async function pickLocalFileForPreview(): Promise<void> {
 .session-active-chip {
   flex: 1 1 auto;
   min-width: 0;
-  font-family: var(--lc-mono);
-  font-size: 11px;
+  font-family: var(--lc-font);
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.3;
   padding: 4px 8px;
