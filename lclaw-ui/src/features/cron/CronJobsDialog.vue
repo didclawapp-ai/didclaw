@@ -131,6 +131,23 @@ function resetCreateForm(): void {
 }
 
 const rowBusyId = ref<string | null>(null);
+const runsCollapsed = ref(false);
+
+function jobCardClass(j: Record<string, unknown>): string {
+  if (!isJobEnabled(j)) return "cron-job-card--disabled";
+  const phase = jobRunPhaseLabel(j);
+  if (phase === "运行中") return "cron-job-card--running";
+  if (phase === "已运行") return "cron-job-card--done";
+  return "cron-job-card--pending";
+}
+
+function runCardClass(r: Record<string, unknown>): string {
+  const st = runEntryStatus(r).toLowerCase();
+  if (/^(ok|success|done|completed)$/.test(st)) return "cron-run-card--ok";
+  if (/^(error|fail|failed|timeout)$/.test(st)) return "cron-run-card--error";
+  if (/^(running|active|pending)$/.test(st)) return "cron-run-card--running";
+  return "";
+}
 
 /** 快频选择 */
 type QuickSchedule = "daily" | "weekly" | "monthly" | "once" | "custom";
@@ -500,10 +517,6 @@ function runSessionKey(r: Record<string, unknown>): string {
   return typeof k === "string" && k.trim() ? k.trim() : "";
 }
 
-function runDeliveryLabel(r: Record<string, unknown>): string {
-  const d = r.deliveryStatus;
-  return typeof d === "string" && d ? d : "—";
-}
 
 async function loadCronStatusOnly(): Promise<void> {
   const c = gw.client;
@@ -1065,248 +1078,172 @@ async function removeJob(jobId: string): Promise<void> {
         </div>
 
         <div v-else-if="panelTab === 'list'" class="cron-body" role="tabpanel">
-          <section class="cron-status-strip muted small" aria-label="调度器状态">
+
+          <!-- 状态栏 -->
+          <section class="cron-status-strip" aria-label="调度器状态">
             <div class="cron-status-item">
               <span class="cron-status-label">调度器</span>
-              <span class="cron-status-value">{{
-                cronStatus == null
-                  ? statusLoading
-                    ? "…"
-                    : "—"
-                  : cronStatus.enabled === false
-                    ? "已关闭"
-                    : "运行中"
-              }}</span>
+              <span class="cron-status-value" :class="cronStatus?.enabled !== false ? 'cron-status--on' : 'cron-status--off'">
+                {{ cronStatus == null ? (statusLoading ? "…" : "—") : cronStatus.enabled === false ? "已关闭" : "运行中" }}
+              </span>
             </div>
             <div class="cron-status-item">
-              <span class="cron-status-label">任务数（网关）</span>
-              <span class="cron-status-value">{{
-                cronStatus != null && typeof cronStatus.jobs === "number" ? cronStatus.jobs : "—"
-              }}</span>
+              <span class="cron-status-label">任务数</span>
+              <span class="cron-status-value">{{ cronStatus != null && typeof cronStatus.jobs === "number" ? cronStatus.jobs : "—" }}</span>
             </div>
-            <div class="cron-status-item cron-status-item--wide">
+            <div class="cron-status-item">
               <span class="cron-status-label">下次唤醒</span>
-              <span class="cron-status-value" :title="formatMsLocal(cronStatus?.nextWakeAtMs ?? undefined)">{{
-                formatMsLocal(cronStatus?.nextWakeAtMs ?? undefined)
-              }}</span>
+              <span class="cron-status-value cron-status-value--sm" :title="formatMsLocal(cronStatus?.nextWakeAtMs ?? undefined)">
+                {{ cronStatus?.nextWakeAtMs ? formatRelativeTime(cronStatus.nextWakeAtMs) : "—" }}
+              </span>
             </div>
           </section>
 
-          <div class="cron-toolbar cron-toolbar-row">
-            <button
-              type="button"
-              class="lc-btn lc-btn-ghost lc-btn-sm"
-              :disabled="listLoading || statusLoading"
-              @click="refreshList"
-            >
-              {{ listLoading || statusLoading ? "刷新中…" : "刷新" }}
+          <!-- 紧凑工具栏 -->
+          <div class="cron-toolbar-compact">
+            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
+              :disabled="listLoading || statusLoading" @click="refreshList">
+              {{ listLoading || statusLoading ? "刷新中…" : "↻ 刷新" }}
             </button>
-            <label class="cron-toolbar-field muted small">
-              <span>排序字段</span>
-              <select v-model="jobsSortBy" class="cron-select cron-select-compact" @change="onJobsSortChange">
-                <option value="nextRunAtMs">下次运行</option>
-                <option value="updatedAtMs">最近更新</option>
-                <option value="name">名称</option>
-              </select>
-            </label>
-            <label class="cron-toolbar-field muted small">
-              <span>顺序</span>
-              <select v-model="jobsSortDir" class="cron-select cron-select-compact" @change="onJobsSortChange">
-                <option value="asc">升序</option>
-                <option value="desc">降序</option>
-              </select>
-            </label>
-            <span v-if="jobs.length || jobsTotal > 0" class="muted small cron-toolbar-meta">
-              已加载 {{ jobs.length }} / 总计约 {{ jobsTotal }}
+            <span class="cron-toolbar-sep">|</span>
+            <span class="muted small">排序</span>
+            <select v-model="jobsSortBy" class="cron-select cron-select-xs" @change="onJobsSortChange">
+              <option value="nextRunAtMs">下次运行</option>
+              <option value="updatedAtMs">最近更新</option>
+              <option value="name">名称</option>
+            </select>
+            <select v-model="jobsSortDir" class="cron-select cron-select-xs" @change="onJobsSortChange">
+              <option value="asc">升序</option>
+              <option value="desc">降序</option>
+            </select>
+            <span v-if="jobs.length || jobsTotal > 0" class="muted small" style="margin-left:auto">
+              {{ jobs.length }} / {{ jobsTotal }} 条
             </span>
           </div>
+
           <p v-if="listError" class="err small">{{ listError }}</p>
-          <p v-if="!listLoading && !jobs.length && !listError" class="muted small">
-            暂无任务。切换到「新建」添加任务（一次性或周期调度 + 执行方式 + 可选投递）。下方可查看
-            <code>cron.runs</code>
-            运行记录。若曾创建<strong>一次性且运行成功后删除</strong>的任务，执行成功后条目会消失。
-          </p>
-          <div v-if="jobs.length" class="cron-table-wrap">
-            <table class="cron-table">
-              <thead>
-                <tr>
-                  <th>名称</th>
-                  <th>调度</th>
-                  <th>启用</th>
-                  <th>运行态</th>
-                  <th class="cron-th-actions">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(j, idx) in jobs" :key="jobIdOf(j) || `row-${idx}`">
-                  <td>
-                    <div class="cron-name">{{ typeof j.name === "string" ? j.name : "—" }}</div>
-                    <code class="cron-id">{{ jobIdOf(j) || "—" }}</code>
-                  </td>
-                  <td class="cron-sched">
-                    <div>{{ formatScheduleSummary(j.schedule) }}</div>
-                    <div v-if="jobNextRunAtMs(j) !== null" class="cron-next-run muted small"
-                      :title="formatMsLocal(jobNextRunAtMs(j))">
-                      下次：{{ formatRelativeTime(jobNextRunAtMs(j)) }}
-                    </div>
-                  </td>
-                  <td>
-                    <span :class="isJobEnabled(j) ? 'cron-badge cron-badge--on' : 'cron-badge cron-badge--off'">
-                      {{ isJobEnabled(j) ? "启用" : "暂停" }}
-                    </span>
-                  </td>
-                  <td
-                    class="cron-sched"
-                    :title="jobStateDetailTooltip(j) || undefined"
-                  >
-                    <span :class="'cron-phase cron-phase--' + jobRunPhaseLabel(j)">
-                      {{ jobRunPhaseLabel(j) }}
-                    </span>
-                  </td>
-                  <td class="cron-actions">
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-xs"
-                      :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                      @click="selectJobForRuns(jobIdOf(j))"
-                    >
-                      记录
-                    </button>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-xs"
-                      :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                      @click="runJobNow(jobIdOf(j))"
-                    >
-                      立即运行
-                    </button>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-xs"
-                      :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                      @click="toggleEnabled(j)"
-                    >
-                      {{ isJobEnabled(j) ? "暂停" : "启用" }}
-                    </button>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
-                      :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                      @click="removeJob(jobIdOf(j))"
-                    >
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+
+          <!-- 空状态 -->
+          <div v-if="!listLoading && !jobs.length && !listError" class="cron-empty-state">
+            <div class="cron-empty-icon">⏰</div>
+            <div class="cron-empty-title">还没有定时任务</div>
+            <div class="cron-empty-desc muted small">切换到「新建」，让 AI 按计划自动执行任务。</div>
+            <button type="button" class="lc-btn lc-btn-sm" style="margin-top:12px" @click="panelTab = 'create'">
+              + 新建任务
+            </button>
           </div>
+
+          <!-- 任务卡片列表 -->
+          <div v-if="jobs.length" class="cron-job-list">
+            <div v-for="(j, idx) in jobs" :key="jobIdOf(j) || `row-${idx}`"
+              class="cron-job-card"
+              :class="jobCardClass(j)"
+              :title="jobStateDetailTooltip(j) || undefined">
+              <div class="cron-job-card__head">
+                <div class="cron-job-card__name">{{ typeof j.name === "string" ? j.name : "未命名" }}</div>
+                <div class="cron-job-card__phase-badge" :class="'cron-job-card__phase-badge--' + jobCardClass(j).replace('cron-job-card--', '')">
+                  {{ jobRunPhaseLabel(j) }}
+                </div>
+              </div>
+              <div class="cron-job-card__meta">
+                <span class="cron-job-card__sched">{{ formatScheduleSummary(j.schedule) }}</span>
+                <span v-if="jobNextRunAtMs(j) !== null" class="muted">
+                  · 下次 {{ formatRelativeTime(jobNextRunAtMs(j)) }}
+                </span>
+                <span v-if="!isJobEnabled(j)" class="cron-badge cron-badge--off" style="margin-left:6px">已暂停</span>
+              </div>
+              <div class="cron-job-card__actions">
+                <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
+                  :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
+                  @click="selectJobForRuns(jobIdOf(j))">执行历史</button>
+                <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
+                  :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
+                  @click="runJobNow(jobIdOf(j))">▶ 立即运行</button>
+                <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
+                  :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
+                  @click="toggleEnabled(j)">{{ isJobEnabled(j) ? "⏸ 暂停" : "▶ 启用" }}</button>
+                <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
+                  :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
+                  @click="removeJob(jobIdOf(j))">删除</button>
+              </div>
+            </div>
+          </div>
+
           <div v-if="jobsHasMore" class="cron-load-more">
-            <button
-              type="button"
-              class="lc-btn lc-btn-ghost lc-btn-sm"
-              :disabled="jobsLoadingMore"
-              @click="loadMoreJobs"
-            >
+            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
+              :disabled="jobsLoadingMore" @click="loadMoreJobs">
               {{ jobsLoadingMore ? "加载中…" : "加载更多任务" }}
             </button>
           </div>
 
-          <fieldset class="cron-fieldset cron-runs-fieldset">
-            <legend class="cron-legend">运行记录</legend>
-            <p class="cron-section-desc muted small">
-              网关 <code>cron.runs</code>；可选查看全部任务或单一任务的历次执行（与官方 Control UI 同源）。
-            </p>
-            <div class="cron-runs-toolbar">
-              <label class="cron-field cron-field-inline cron-runs-field">
-                <span class="cron-label">范围</span>
-                <select
-                  v-model="runsScope"
-                  class="cron-select cron-select-compact"
-                  @change="onRunsFiltersChange"
-                >
+          <!-- 执行历史（可折叠） -->
+          <div class="cron-runs-section">
+            <button type="button" class="cron-runs-header" @click="runsCollapsed = !runsCollapsed">
+              <span class="cron-runs-header__title">执行历史</span>
+              <span v-if="runs.length" class="muted small">{{ runs.length }} 条</span>
+              <span class="cron-runs-header__arrow">{{ runsCollapsed ? "▼" : "▲" }}</span>
+            </button>
+
+            <div v-if="!runsCollapsed" class="cron-runs-body">
+              <!-- 筛选栏 -->
+              <div class="cron-runs-filter-row">
+                <select v-model="runsScope" class="cron-select cron-select-xs" @change="onRunsFiltersChange">
                   <option value="all">全部任务</option>
                   <option value="job">指定任务</option>
                 </select>
-              </label>
-              <label class="cron-field cron-field-inline cron-runs-field cron-runs-field-grow">
-                <span class="cron-label">任务</span>
-                <select
-                  class="cron-select"
-                  :disabled="runsScope !== 'job'"
-                  :value="runsJobId ?? ''"
-                  @change="onRunsJobSelect"
-                >
+                <select v-if="runsScope === 'job'" class="cron-select cron-select-sm"
+                  :value="runsJobId ?? ''" @change="onRunsJobSelect">
                   <option value="">选择任务…</option>
-                  <option v-for="(j, idx) in jobs" :key="jobIdOf(j) || `opt-${idx}`" :value="jobIdOf(j)">
-                    {{ typeof j.name === 'string' ? j.name : jobIdOf(j) || '—' }}
+                  <option v-for="(j, jidx) in jobs" :key="jobIdOf(j) || `opt-${jidx}`" :value="jobIdOf(j)">
+                    {{ typeof j.name === "string" ? j.name : jobIdOf(j) || "—" }}
                   </option>
                 </select>
-              </label>
-              <label class="cron-field cron-field-inline cron-runs-field">
-                <span class="cron-label">时间顺序</span>
-                <select
-                  v-model="runsSortDir"
-                  class="cron-select cron-select-compact"
-                  @change="onRunsFiltersChange"
-                >
+                <select v-model="runsSortDir" class="cron-select cron-select-xs" @change="onRunsFiltersChange">
                   <option value="desc">新的在前</option>
                   <option value="asc">旧的在前</option>
                 </select>
-              </label>
+              </div>
+
+              <p v-if="runsError" class="err small">{{ runsError }}</p>
+              <p v-if="runsScope === 'job' && !runsJobId && !runsLoading" class="muted small">
+                请选择上方任务，或点击任务卡片的「执行历史」。
+              </p>
+              <p v-else-if="runsLoading" class="muted small">加载中…</p>
+              <p v-else-if="!runs.length && !runsError" class="muted small">暂无执行记录。</p>
+
+              <ul v-else class="cron-run-list">
+                <li v-for="(r, ridx) in runs" :key="ridx" class="cron-run-entry" :class="runCardClass(r)">
+                  <div class="cron-run-entry__head">
+                    <span class="cron-run-entry__title">{{ runEntryTitle(r) }}</span>
+                    <span class="cron-run-entry__status"
+                      :class="{
+                        'cron-run-status--ok': /^(ok|success|done|completed)$/i.test(runEntryStatus(r)),
+                        'cron-run-status--err': /^(error|fail|failed|timeout)$/i.test(runEntryStatus(r)),
+                        'cron-run-status--run': /^(running|active|pending)$/i.test(runEntryStatus(r)),
+                      }">{{ runEntryStatus(r) }}</span>
+                  </div>
+                  <div class="cron-run-entry__summary muted small">{{ runEntrySummaryLine(r) }}</div>
+                  <div class="cron-run-entry__meta muted small">
+                    <span>{{ formatMsLocal(r.ts) }}</span>
+                    <span v-if="typeof r.durationMs === 'number'"> · {{ r.durationMs }}ms</span>
+                    <span v-if="typeof r.model === 'string' && r.model"> · {{ r.model }}</span>
+                  </div>
+                  <div v-if="runSessionKey(r)" class="cron-run-entry__actions">
+                    <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
+                      @click="openRunInChat(runSessionKey(r))">打开会话</button>
+                  </div>
+                </li>
+              </ul>
+
+              <div v-if="runsHasMore && (runsScope === 'all' || runsJobId)" class="cron-load-more">
+                <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
+                  :disabled="runsLoadingMore" @click="loadMoreRuns">
+                  {{ runsLoadingMore ? "加载中…" : "加载更多记录" }}
+                </button>
+                <span class="muted small" style="margin-left:8px">{{ runs.length }} / {{ runsTotal }}</span>
+              </div>
             </div>
-            <p v-if="runsError" class="err small">{{ runsError }}</p>
-            <p
-              v-if="runsScope === 'job' && !runsJobId && !runsLoading"
-              class="muted small"
-            >
-              请选择上方任务，或点击表格中的「运行记录」。
-            </p>
-            <p v-else-if="runsLoading" class="muted small">运行记录加载中…</p>
-            <p v-else-if="!runs.length && !runsError" class="muted small">暂无匹配的运行记录。</p>
-            <ul v-else class="cron-run-list">
-              <li v-for="(r, ridx) in runs" :key="ridx" class="cron-run-entry">
-                <div class="cron-run-entry__head">
-                  <span class="cron-run-entry__title">{{ runEntryTitle(r) }}</span>
-                  <span
-                    class="cron-run-entry__status"
-                    :class="{
-                      'cron-run-status--ok': /^(ok|success|done|completed)$/i.test(runEntryStatus(r)),
-                      'cron-run-status--err': /^(error|fail|failed|timeout)$/i.test(runEntryStatus(r)),
-                      'cron-run-status--run': /^(running|active|pending)$/i.test(runEntryStatus(r)),
-                    }"
-                  >{{ runEntryStatus(r) }}</span>
-                </div>
-                <div class="cron-run-entry__summary muted small">{{ runEntrySummaryLine(r) }}</div>
-                <div class="cron-run-entry__meta muted small">
-                  <span>{{ formatMsLocal(r.ts) }}</span>
-                  <span v-if="typeof r.durationMs === 'number'"> · {{ r.durationMs }}ms</span>
-                  <span> · 投递 {{ runDeliveryLabel(r) }}</span>
-                  <span v-if="typeof r.model === 'string' && r.model"> · {{ r.model }}</span>
-                </div>
-                <div v-if="runSessionKey(r)" class="cron-run-entry__actions">
-                  <button
-                    type="button"
-                    class="lc-btn lc-btn-ghost lc-btn-xs"
-                    @click="openRunInChat(runSessionKey(r))"
-                  >
-                    打开会话
-                  </button>
-                </div>
-              </li>
-            </ul>
-            <div v-if="runsHasMore && (runsScope === 'all' || runsJobId)" class="cron-load-more">
-              <button
-                type="button"
-                class="lc-btn lc-btn-ghost lc-btn-sm"
-                :disabled="runsLoadingMore"
-                @click="loadMoreRuns"
-              >
-                {{ runsLoadingMore ? "加载中…" : "加载更多记录" }}
-              </button>
-              <span class="muted small cron-runs-total">已加载 {{ runs.length }} / 约 {{ runsTotal }}</span>
-            </div>
-          </fieldset>
+          </div>
         </div>
 
         <div v-else class="cron-body cron-create" role="tabpanel">
@@ -2106,4 +2043,246 @@ async function removeJob(jobId: string): Promise<void> {
   margin-top: 3px;
   font-size: 11px;
 }
+
+/* ── 状态栏升级 ── */
+.cron-status-strip {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  margin-bottom: 12px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-elevated);
+  overflow: hidden;
+}
+.cron-status-item {
+  flex: 1;
+  padding: 10px 14px;
+  border-right: 1px solid var(--lc-border);
+  min-width: 0;
+}
+.cron-status-item:last-child {
+  border-right: none;
+}
+.cron-status-label {
+  display: block;
+  font-size: 11px;
+  color: var(--lc-text-muted);
+  margin-bottom: 3px;
+}
+.cron-status-value {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--lc-text);
+  word-break: break-word;
+}
+.cron-status-value--sm {
+  font-size: 12px;
+}
+.cron-status--on { color: #16a34a; }
+.cron-status--off { color: var(--lc-error); }
+[data-theme="dark"] .cron-status--on { color: #4ade80; }
+
+/* ── 紧凑工具栏 ── */
+.cron-toolbar-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.cron-toolbar-sep {
+  color: var(--lc-border);
+  user-select: none;
+}
+.cron-select-xs {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  font-family: inherit;
+}
+.cron-select-sm {
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  font-family: inherit;
+  flex: 1 1 auto;
+  min-width: 100px;
+}
+
+/* ── 空状态 ── */
+.cron-empty-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--lc-text-muted);
+}
+.cron-empty-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+.cron-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lc-text);
+  margin-bottom: 6px;
+}
+.cron-empty-desc {
+  line-height: 1.5;
+}
+
+/* ── 任务卡片 ── */
+.cron-job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.cron-job-card {
+  border: 1px solid var(--lc-border);
+  border-left-width: 4px;
+  border-radius: var(--lc-radius-sm);
+  padding: 12px 14px;
+  background: var(--lc-bg-raised);
+  transition: box-shadow 0.15s;
+}
+.cron-job-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+/* 颜色编码 */
+.cron-job-card--running {
+  border-left-color: #22c55e;
+  background: rgba(34, 197, 94, 0.03);
+}
+.cron-job-card--done {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.03);
+}
+.cron-job-card--pending {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.03);
+}
+.cron-job-card--disabled {
+  border-left-color: var(--lc-border);
+  opacity: 0.55;
+}
+[data-theme="dark"] .cron-job-card--running  { background: rgba(34, 197, 94, 0.06); }
+[data-theme="dark"] .cron-job-card--done     { background: rgba(245, 158, 11, 0.06); }
+[data-theme="dark"] .cron-job-card--pending  { background: rgba(239, 68, 68, 0.06); }
+
+.cron-job-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cron-job-card__name {
+  font-weight: 600;
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cron-job-card__phase-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.cron-job-card__phase-badge--running {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+.cron-job-card__phase-badge--done {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+.cron-job-card__phase-badge--pending {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+.cron-job-card__phase-badge--disabled {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--lc-text-muted);
+}
+[data-theme="dark"] .cron-job-card__phase-badge--running { color: #4ade80; }
+[data-theme="dark"] .cron-job-card__phase-badge--done    { color: #fbbf24; }
+[data-theme="dark"] .cron-job-card__phase-badge--pending { color: #f87171; }
+
+.cron-job-card__meta {
+  font-size: 12px;
+  color: var(--lc-text-muted);
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.cron-job-card__sched {
+  color: var(--lc-text);
+  font-weight: 500;
+}
+.cron-job-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── 执行历史区块 ── */
+.cron-runs-section {
+  margin-top: 8px;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  overflow: hidden;
+}
+.cron-runs-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--lc-bg-elevated);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lc-text);
+  text-align: left;
+  transition: background 0.15s;
+}
+.cron-runs-header:hover {
+  background: var(--lc-bg-raised);
+}
+.cron-runs-header__title {
+  flex: 1;
+}
+.cron-runs-header__arrow {
+  font-size: 10px;
+  color: var(--lc-text-muted);
+}
+.cron-runs-body {
+  padding: 12px 14px;
+}
+.cron-runs-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+/* run entry 颜色左边框 */
+.cron-run-card--ok    { border-left: 3px solid #22c55e; }
+.cron-run-card--error { border-left: 3px solid #ef4444; }
+.cron-run-card--running { border-left: 3px solid #2563eb; }
 </style>
