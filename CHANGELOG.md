@@ -8,6 +8,10 @@
 
 ### 修复
 
+- **安装向导 Node.js 缺失处理**：无 winget 的旧系统（企业镜像等）安装会直接失败。现在当 npm 不可用时，先尝试 winget 安装 Node.js LTS，再回退到从 nodejs.org 下载 MSI（per-user 安装，无需 UAC）；若两种方式均失败，脚本以退出码 6 退出并在 UI 展示「需要手动安装 Node.js」面板，含「打开 nodejs.org 下载页」按钮。
+
+### 修复
+
 - **安装向导退出码 1 根因修复**：
   - `ensure-openclaw-windows.ps1` 改以 **UTF-8 with BOM** 保存，修复 Windows PowerShell 5.1 因编码误读中文字符串导致的 ParserError；所有输出语句改为英文，彻底消除乱码。
   - 安装逻辑重构：若本机已有 `npm`（Node 已安装），直接执行 `npm install -g openclaw@latest` 跳过下载 `https://openclaw.ai/install.ps1`，避免依赖服务器可用性；仅当 npm 不可用时才下载官方安装脚本（含自动装 Node）。

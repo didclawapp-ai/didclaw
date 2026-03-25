@@ -91,6 +91,101 @@ function Test-OllamaApiReachable {
     }
 }
 
+function Install-NodeJsLts {
+    # Returns $true if Node/npm is available after this function returns.
+    # Strategy 1: winget (no UAC required on modern Windows 10/11 with App Installer)
+    # Strategy 2: download Node.js LTS MSI from nodejs.org with per-user (no UAC) flags
+    # If both fail: return $false so the caller can emit node_required_manual and exit 6.
+    [OutputType([bool])]
+    param()
+
+    $wingetCmd = $null
+    try {
+        $wgList = @(Get-Command winget -CommandType Application -ErrorAction SilentlyContinue)
+        if ($wgList.Count -ge 1 -and -not [string]::IsNullOrWhiteSpace($wgList[0].Source)) {
+            $wingetCmd = [string]$wgList[0].Source
+        }
+    } catch { }
+
+    if ($wingetCmd) {
+        Write-UiLine '[ensure-openclaw] winget found — installing Node.js LTS...' -ForegroundColor Yellow
+        Write-Output '[ensure-openclaw] ui=node_install_winget'
+        try {
+            & $wingetCmd install --id OpenJS.NodeJS.LTS --source winget `
+                --accept-package-agreements --accept-source-agreements --silent
+            # 0 = success; -1978335135 (0x8A150021) = already installed
+            if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335135) {
+                Sync-PathFromRegistry
+                $chk = @(Get-Command npm -CommandType Application -ErrorAction SilentlyContinue)
+                if ($chk.Count -ge 1) {
+                    Write-UiLine '[ensure-openclaw] Node.js installed via winget.' -ForegroundColor Green
+                    return $true
+                }
+            }
+        } catch { }
+        Write-Output '[ensure-openclaw] winget install Node.js failed or npm not in PATH yet; trying MSI...'
+    }
+
+    # Strategy 2: download Node.js LTS MSI and run with per-user (ALLUSERS="") — no UAC needed
+    Write-UiLine '[ensure-openclaw] Downloading Node.js LTS installer from nodejs.org...' -ForegroundColor Yellow
+    Write-Output '[ensure-openclaw] ui=node_install_msi'
+
+    $arch = if (
+        [System.Environment]::Is64BitOperatingSystem -and
+        [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -eq
+        [System.Runtime.InteropServices.Architecture]::Arm64
+    ) { 'arm64' } else { 'x64' }
+    $nodeVersion = '22.16.0'
+    $msiUrl  = ('https://nodejs.org/dist/v{0}/node-v{0}-{1}.msi' -f $nodeVersion, $arch)
+    $tmpMsi  = Join-Path ([System.IO.Path]::GetTempPath()) ('node-lts-{0}.msi' -f [guid]::NewGuid())
+
+    try {
+        Invoke-WebRequest -Uri $msiUrl -OutFile $tmpMsi -UseBasicParsing -TimeoutSec 600 -ErrorAction Stop
+
+        if (-not (Test-Path -LiteralPath $tmpMsi)) {
+            throw 'Node.js MSI not written to disk.'
+        }
+        $sz = (Get-Item -LiteralPath $tmpMsi).Length
+        if ($sz -lt 1048576) {
+            throw ('Node.js MSI too small ({0} bytes) — download may be incomplete.' -f $sz)
+        }
+
+        # ALLUSERS="" = per-user install (no UAC elevation required)
+        # ADDLOCAL=ALL = include npm + add node dir to user PATH
+        $proc = Start-Process -FilePath 'msiexec.exe' -ArgumentList @(
+            '/i', $tmpMsi, '/qn', '/norestart', 'ADDLOCAL=ALL', 'ALLUSERS=""'
+        ) -Wait -PassThru
+
+        # 0=success, 1641=reboot initiated, 3010=success+reboot needed (rare for Node)
+        if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 1641 -or $proc.ExitCode -eq 3010) {
+            Sync-PathFromRegistry
+            $chk = @(Get-Command npm -CommandType Application -ErrorAction SilentlyContinue)
+            if ($chk.Count -ge 1) {
+                Write-UiLine '[ensure-openclaw] Node.js LTS installed from nodejs.org.' -ForegroundColor Green
+                return $true
+            }
+            # Per-user MSI may install to %LocalAppData%\Programs\nodejs; manually add to session PATH
+            $localNode = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs\nodejs'
+            if (Test-Path -LiteralPath $localNode) {
+                $env:Path = $env:Path + ';' + $localNode
+                $chk2 = @(Get-Command npm -CommandType Application -ErrorAction SilentlyContinue)
+                if ($chk2.Count -ge 1) {
+                    Write-UiLine '[ensure-openclaw] Node.js installed (user-local path patched into session).' -ForegroundColor Green
+                    return $true
+                }
+            }
+        }
+        Write-Output ('[ensure-openclaw] Node.js MSI installer exited with code: {0}' -f $proc.ExitCode)
+    } catch {
+        Write-Output ('[ensure-openclaw] Node.js MSI download/install error: {0}' -f $_)
+    } finally {
+        if (Test-Path -LiteralPath $tmpMsi) {
+            Remove-Item -LiteralPath $tmpMsi -Force -ErrorAction SilentlyContinue
+        }
+    }
+    return $false
+}
+
 function Test-OpenclawOnPath {
     try {
         # Get-Command may return an array when multiple PATHEXT entries match;
@@ -224,7 +319,7 @@ if (-not $openclawExe) {
     } catch { }
 
     if ($npmCmd) {
-        Write-UiLine '[ensure-openclaw] npm found — installing openclaw@latest via npm (no install.ps1 download needed)...' -ForegroundColor Yellow
+        Write-UiLine '[ensure-openclaw] npm found — installing openclaw@latest via npm...' -ForegroundColor Yellow
         Write-Output '[ensure-openclaw] ui=running_official_install_ps1_wait'
         try {
             & $npmCmd install -g openclaw@latest
@@ -237,45 +332,46 @@ if (-not $openclawExe) {
             exit 1
         }
     } else {
-        Write-UiLine '[ensure-openclaw] npm not found — downloading official install.ps1 (includes Node + openclaw)...' -ForegroundColor Yellow
-        Write-UiLine '[ensure-openclaw] Requires network access: https://openclaw.ai/install.ps1' -ForegroundColor DarkGray
+        # No npm found — Node.js is not installed.
+        # Try to install Node.js automatically (winget, then nodejs.org MSI per-user).
+        Write-Output '[ensure-openclaw] ui=node_install_begin'
+        $nodeReady = Install-NodeJsLts
 
-        $tmpInstall = $null
+        if (-not $nodeReady) {
+            # All automatic methods failed — ask the user to install Node.js manually.
+            Write-Output '[ensure-openclaw] ui=node_required_manual'
+            Write-Output '[ensure-openclaw] Automatic Node.js install failed. Please download and install Node.js manually:'
+            Write-Output '[ensure-openclaw] https://nodejs.org/en/download'
+            Write-Output '[ensure-openclaw] After installation, restart DidClaw and click Retry.'
+            exit 6
+        }
+
+        # Re-discover npm after Node install
+        $npmCmd = $null
         try {
-            $tmpInstall = Join-Path ([System.IO.Path]::GetTempPath()) ('openclaw-install-{0}.ps1' -f [guid]::NewGuid())
-            Write-Output '[ensure-openclaw] ui=downloading_official_install_ps1'
-            $wr = Invoke-WebRequest -Uri 'https://openclaw.ai/install.ps1' -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop
-            if ($wr.StatusCode -ne 200) {
-                throw ('https://openclaw.ai/install.ps1 returned HTTP {0}. The installer is temporarily unavailable. Retry later, or run manually: npm install -g openclaw@latest' -f $wr.StatusCode)
+            $nc3 = @(Get-Command npm -CommandType Application -ErrorAction SilentlyContinue)
+            if ($nc3.Count -ge 1 -and -not [string]::IsNullOrWhiteSpace($nc3[0].Source)) {
+                $npmCmd = [string]$nc3[0].Source
             }
-            [System.IO.File]::WriteAllBytes($tmpInstall, $wr.Content)
+        } catch { }
 
-            if (-not (Test-Path -LiteralPath $tmpInstall)) {
-                throw 'Temporary install script was not written to disk.'
-            }
-            if ((Get-Item -LiteralPath $tmpInstall).Length -lt 200) {
-                throw 'Downloaded content is too short — likely not a valid install.ps1 (network interception or server error). Retry later, or run: npm install -g openclaw@latest'
-            }
+        if (-not $npmCmd) {
+            Write-Output '[ensure-openclaw] ui=node_required_manual'
+            Write-Output '[ensure-openclaw] Node.js was installed but npm is not yet in PATH. Please restart DidClaw and click Retry, or open a new terminal and run: npm install -g openclaw@latest'
+            exit 6
+        }
 
-            Write-Output '[ensure-openclaw] ui=running_official_install_ps1_wait'
-            $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
-                '-NoProfile'
-                '-ExecutionPolicy', 'Bypass'
-                '-File', $tmpInstall
-                '-NoOnboard'
-            ) -Wait -PassThru -NoNewWindow
-
-            if ($null -ne $proc.ExitCode -and $proc.ExitCode -ne 0) {
-                throw ('Official install.ps1 exited with code: {0}' -f $proc.ExitCode)
+        Write-UiLine '[ensure-openclaw] Node.js ready — installing openclaw@latest...' -ForegroundColor Yellow
+        Write-Output '[ensure-openclaw] ui=running_official_install_ps1_wait'
+        try {
+            & $npmCmd install -g openclaw@latest
+            if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+                throw ('npm install -g openclaw@latest exited with code: {0}' -f $LASTEXITCODE)
             }
             Write-Output '[ensure-openclaw] ui=official_install_ps1_finished'
         } catch {
-            Write-Output ('[ensure-openclaw] Download or execution of install script failed: {0}' -f $_)
+            Write-Output ('[ensure-openclaw] npm install failed: {0}' -f $_)
             exit 1
-        } finally {
-            if ($tmpInstall -and (Test-Path -LiteralPath $tmpInstall)) {
-                Remove-Item -LiteralPath $tmpInstall -Force -ErrorAction SilentlyContinue
-            }
         }
     }
 

@@ -45,6 +45,8 @@ const installBusy = ref(false);
 const installLog = ref("");
 /** 安装脚本已运行秒数（每秒 +1，仅作参考） */
 const installElapsedSec = ref(0);
+/** true = 脚本退出码 6：自动装 Node.js 失败，需用户手动安装 */
+const nodeManualInstallNeeded = ref(false);
 
 /** 与 `ensure-openclaw-windows.ps1` / Rust `didclaw-ensure-install-phase` 约定一致 */
 const ENSURE_UI_LINE_RE = /^\[ensure-openclaw\] ui=(\S+)/;
@@ -67,6 +69,10 @@ function defaultInstallStepRows(): InstallStepRow[] {
     { id: "onboard", label: "初始化配置（onboard）", status: "pending" },
     { id: "finish", label: "完成", status: "pending" },
   ];
+}
+
+function openNodeJsDownload(): void {
+  window.open("https://nodejs.org/en/download", "_blank", "noopener,noreferrer");
 }
 
 const installStepRows = ref<InstallStepRow[]>(defaultInstallStepRows());
@@ -125,7 +131,19 @@ function ingestEnsureInstallUiKey(key: string): void {
       setInstallStep("node", "done", "已在 PATH 中检测到 node");
       break;
     case "node_not_found":
-      setInstallStep("node", "active", "未在 PATH 中检测到 node（官方脚本通常会安装 Node）");
+      setInstallStep("node", "active", "未检测到 Node.js，准备自动安装…");
+      break;
+    case "node_install_begin":
+      setInstallStep("node", "active", "正在尝试自动安装 Node.js…");
+      break;
+    case "node_install_winget":
+      setInstallStep("node", "active", "通过 winget 安装 Node.js LTS…");
+      break;
+    case "node_install_msi":
+      setInstallStep("node", "active", "从 nodejs.org 下载安装包（约 30MB）…");
+      break;
+    case "node_required_manual":
+      setInstallStep("node", "error", "自动安装失败，请手动安装 Node.js");
       break;
     case "stage_cli_install_begin":
       setInstallStep("cli", "active", "准备下载官方 install.ps1");
@@ -269,6 +287,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
   }
   installBusy.value = true;
   installElapsedSec.value = 0;
+  nodeManualInstallNeeded.value = false;
   resetInstallStepRows();
   installLog.value = "正在执行：安装并初始化…\n";
 
@@ -338,21 +357,28 @@ async function runEnsureInstallAndInit(): Promise<void> {
       installLog.value += `\n--- 完成（退出码 ${r.exitCode}）${r.ok ? "" : tail} ---\n`;
     }
     if (r.ok) {
+      nodeManualInstallNeeded.value = false;
       setInstallStep("onboard", "done");
       setInstallStep("finish", "done");
       await refreshStatus();
     } else {
       markInstallStepErrorOnActive();
-      const logIsEmpty = !streamReceived && (r.log ?? "").replace("--- streamed ---", "").trim().length === 0;
-      if (logIsEmpty) {
-        // 日志全空：脚本在任何输出之前就退出（常见于 PS5.1 编码问题或脚本路径错误）
-        installLog.value += `\n[结果] 进程退出码 ${r.exitCode}，脚本未产生任何输出。`;
-        installLog.value += `\n[提示] 可能原因：① openclaw.ai 服务器暂时不可用（退出码 1）`;
-        installLog.value += `\n        ② PowerShell 脚本解析失败（编码问题）`;
-        installLog.value += `\n        ③ 脚本文件未找到`;
-        installLog.value += `\n[建议] 请等待片刻后点击「重新检测」，或手动运行：npm install -g openclaw@latest`;
-      } else if (r.error && !streamReceived) {
-        installLog.value += `\n[结果] ${r.error}（退出码 ${r.exitCode}）`;
+      if (r.exitCode === 6) {
+        // Node.js 自动安装失败，需要用户手动安装
+        nodeManualInstallNeeded.value = true;
+        setInstallStep("node", "error", "自动安装失败，请手动安装 Node.js");
+      } else {
+        nodeManualInstallNeeded.value = false;
+        const logIsEmpty = !streamReceived && (r.log ?? "").replace("--- streamed ---", "").trim().length === 0;
+        if (logIsEmpty) {
+          installLog.value += `\n[结果] 进程退出码 ${r.exitCode}，脚本未产生任何输出。`;
+          installLog.value += `\n[提示] 可能原因：① openclaw.ai 服务器暂时不可用`;
+          installLog.value += `\n        ② PowerShell 脚本解析失败（编码问题）`;
+          installLog.value += `\n        ③ 脚本文件未找到`;
+          installLog.value += `\n[建议] 请等待片刻后点击「重新检测」，或手动运行：npm install -g openclaw@latest`;
+        } else if (r.error && !streamReceived) {
+          installLog.value += `\n[结果] ${r.error}（退出码 ${r.exitCode}）`;
+        }
       }
     }
   } catch (e) {
@@ -490,6 +516,28 @@ onUnmounted(() => {
                 已用时 {{ formatInstallElapsed(installElapsedSec) }} · 下载与 npm 安装可能较慢，属正常现象
               </p>
             </div>
+            <!-- Node.js 手动安装引导（退出码 6）-->
+            <div v-if="nodeManualInstallNeeded && !installBusy" class="node-manual-panel">
+              <div class="node-manual-icon" aria-hidden="true">📦</div>
+              <div class="node-manual-body">
+                <p class="node-manual-title">需要先安装 Node.js</p>
+                <p class="node-manual-desc">
+                  自动安装未成功（winget 不可用或权限不足）。请手动下载并安装
+                  <strong>Node.js LTS</strong>（22.x 或更新版本），安装完成后点击「重新检测」。
+                </p>
+                <div class="node-manual-actions">
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-sm"
+                    @click="openNodeJsDownload"
+                  >
+                    打开 nodejs.org 下载页
+                  </button>
+                  <span class="node-manual-hint">安装后重启此界面或点击「重新检测」</span>
+                </div>
+              </div>
+            </div>
+
             <pre
               v-if="canRunEnsureInstall && installLog.trim()"
               class="first-run-install-log"
@@ -718,6 +766,51 @@ onUnmounted(() => {
 }
 .first-run-install-log--busy {
   max-height: min(220px, 32vh);
+}
+.node-manual-panel {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 14px 14px 14px 12px;
+  border-radius: var(--lc-radius-sm, 8px);
+  border: 1px solid rgba(217, 119, 6, 0.35);
+  background: rgba(217, 119, 6, 0.08);
+}
+.node-manual-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.node-manual-body {
+  flex: 1;
+  min-width: 0;
+}
+.node-manual-title {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #92400e;
+}
+.node-manual-desc {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #78350f;
+}
+.node-manual-desc strong {
+  font-weight: 600;
+}
+.node-manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.node-manual-hint {
+  font-size: 0.7rem;
+  color: #92400e;
+  opacity: 0.8;
 }
 .first-run-platform-note {
   margin: 0 0 12px;
