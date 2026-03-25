@@ -231,7 +231,6 @@ function closeMoreMenu(): void {
             <span class="brand-d">D</span><span class="brand-mid">idCl</span><span class="brand-tail">aw</span>
           </h1>
         </div>
-        <span v-if="helloInfo" class="conn-version" :title="helloInfo">{{ helloInfo }}</span>
       </div>
 
       <!-- 右侧：主功能 + 更多菜单 -->
@@ -450,15 +449,6 @@ function closeMoreMenu(): void {
   background-clip: text;
   color: transparent;
 }
-.conn-version {
-  font-size: 11px;
-  color: var(--lc-text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-}
-
 /* Connection LED */
 .conn-led {
   flex-shrink: 0;
