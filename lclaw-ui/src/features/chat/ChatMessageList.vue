@@ -198,6 +198,7 @@ onMounted(() => {
   border: 1px solid var(--lc-border);
   cursor: pointer;
   box-sizing: border-box;
+  max-width: 92%;
   background: var(--lc-bg-raised);
   box-shadow: var(--lc-shadow-sm);
   transition:
@@ -205,16 +206,53 @@ onMounted(() => {
     background 0.15s ease,
     box-shadow 0.15s ease;
 }
-.row:hover {
+
+/* User messages: right-aligned, violet tint */
+.row.role-user {
+  margin-left: auto;
+  max-width: 80%;
+  background: var(--lc-violet-soft);
+  border-color: rgba(139, 92, 246, 0.22);
+}
+.row.role-user:hover {
+  background: rgba(139, 92, 246, 0.14);
+  border-color: rgba(139, 92, 246, 0.35);
+}
+
+/* Assistant messages: left-aligned, cyan tint */
+.row.role-assistant {
+  margin-right: auto;
+  background: var(--lc-accent-soft);
+  border-color: rgba(6, 182, 212, 0.18);
+}
+.row.role-assistant:hover {
+  background: rgba(6, 182, 212, 0.12);
+  border-color: rgba(6, 182, 212, 0.32);
+}
+
+/* System/tool messages: compact, neutral */
+.row.role-system,
+.row.role-tool {
+  max-width: 88%;
+  background: var(--lc-bg-elevated);
+  opacity: 0.85;
+}
+
+.row:not(.role-user):not(.role-assistant):hover {
   background: var(--lc-bg-elevated);
   border-color: var(--lc-border);
 }
 .row.selected {
   border-color: var(--lc-border-strong);
-  background: var(--lc-accent-soft);
   box-shadow:
     0 0 0 1px rgba(6, 182, 212, 0.2),
     0 6px 20px rgba(15, 23, 42, 0.06);
+}
+.row.role-user.selected {
+  background: rgba(139, 92, 246, 0.18);
+}
+.row.role-assistant.selected {
+  background: rgba(6, 182, 212, 0.15);
 }
 .row.stream {
   border-style: dashed;

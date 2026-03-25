@@ -77,19 +77,19 @@ const elapsedSec = computed(() => {
 
 const phaseLabel = computed(() => {
   if (composerPhase.value === "sending") {
-    return "正在发送…";
+    return "Sending…";
   }
   if (composerPhase.value === "idle") {
     return "";
   }
   const n = toolEntriesThisRun.value.length;
   if (composerPhase.value === "waiting") {
-    return n > 0 ? "正在调用工具…" : "推理或工具中，等待输出…";
+    return n > 0 ? "Calling tools…" : "Reasoning / waiting for first output…";
   }
   if (n > 0) {
-    return `正在生成…（含 ${n} 条工具事件）`;
+    return `Generating… (${n} tool event${n > 1 ? "s" : ""})`;
   }
-  return "正在生成…";
+  return "Generating…";
 });
 
 const stallHint = computed(() => {
@@ -101,10 +101,10 @@ const stallHint = computed(() => {
   const ld = lastDeltaAtMs.value;
   const now = Date.now();
   if (ld == null && t0 != null && now - t0 > STALL_NO_FIRST_MS) {
-    return "许久未收到回复，可检查网关或点「中断」。";
+    return "No reply received for a while. Check gateway or click Abort.";
   }
   if (ld != null && now - ld > STALL_SILENCE_MS) {
-    return "已较长时间无新输出，若仍无进展可点「中断」。";
+    return "No new output for a while. Click Abort if no progress.";
   }
   return null;
 });
@@ -124,7 +124,7 @@ const lastRunLabel = computed(() => {
   if (d == null) {
     return "";
   }
-  return `完成 · 本轮用时 ${(d / 1000).toFixed(1)}s`;
+  return `Done · ${(d / 1000).toFixed(1)}s`;
 });
 
 const barVisible = computed(() => agentBusy.value || showLastRun.value);

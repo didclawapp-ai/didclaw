@@ -148,9 +148,6 @@ function onDrop(ev: DragEvent): void {
       @paste="onPaste"
     />
     <ComposerAttachments ref="attachRef" />
-    <p class="composer-hint">
-      Enter 发送，Shift+Enter 换行 · 助手回复进行中时「发送」会禁用，可先编辑下一条 · 拖入 / <kbd>Ctrl</kbd>+<kbd>V</kbd> 添加图片 · 「随信发送」与「仅预览」见附件区
-    </p>
     <div class="row">
       <div class="row-left">
         <button
@@ -176,6 +173,14 @@ function onDrop(ev: DragEvent): void {
           @click="chat.abortIfStreaming()"
         >
           中断
+        </button>
+        <button
+          type="button"
+          class="lc-btn lc-btn-ghost hint-btn"
+          title="Enter 发送，Shift+Enter 换行&#10;助手回复进行中时「发送」禁用，可先编辑下一条&#10;Ctrl+V 粘贴截图为图片，拖入文件自动识别&#10;「随信发送」与「仅预览」见附件区"
+          aria-label="快捷键提示"
+        >
+          ?
         </button>
       </div>
       <button
@@ -237,27 +242,6 @@ function onDrop(ev: DragEvent): void {
 .composer textarea:disabled {
   opacity: 0.5;
 }
-.composer-hint {
-  margin: 0 0 8px;
-  padding: 0;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--lc-text-dim);
-}
-.composer-hint code {
-  font-family: var(--lc-mono);
-  font-size: 10px;
-  color: var(--lc-accent);
-}
-.composer-hint kbd {
-  font-family: var(--lc-mono);
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  border: 1px solid var(--lc-border);
-  background: var(--lc-bg-elevated);
-  color: var(--lc-text-muted);
-}
 .row {
   display: flex;
   flex-wrap: wrap;
@@ -272,6 +256,21 @@ function onDrop(ev: DragEvent): void {
 }
 .attach-btn {
   margin-left: auto;
+}
+.hint-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lc-text-dim);
+  border-radius: 50%;
+  min-width: unset;
+  line-height: 1;
+}
+.hint-btn:hover:not(:disabled) {
+  color: var(--lc-accent);
+  border-color: var(--lc-accent);
 }
 .err {
   color: var(--lc-error);

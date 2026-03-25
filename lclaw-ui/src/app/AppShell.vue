@@ -192,6 +192,10 @@ function onSelectMessage(index: number) {
   });
 }
 
+function newChat(): void {
+  void session.selectSession(window.crypto.randomUUID());
+}
+
 async function pickLocalFileForPreview(): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api) {
@@ -238,6 +242,16 @@ async function pickLocalFileForPreview(): Promise<void> {
     <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
       <aside class="left">
         <div class="left-session">
+        <div class="session-toolbar">
+          <button
+            type="button"
+            class="lc-btn lc-btn-primary lc-btn-xs new-chat-btn"
+            title="开始一个新的对话（当前对话将保留在历史列表中）"
+            @click="newChat"
+          >
+            ＋ 新建对话
+          </button>
+        </div>
         <div class="panel-title session-panel-head">
           <span class="session-head-label">会话</span>
           <span
@@ -432,6 +446,16 @@ async function pickLocalFileForPreview(): Promise<void> {
 }
 .left-session {
   flex-shrink: 0;
+}
+.session-toolbar {
+  padding: 8px 10px 0;
+}
+.new-chat-btn {
+  width: 100%;
+  justify-content: center;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  border-color: rgba(6, 182, 212, 0.55);
 }
 .left-conversation {
   flex: 1;

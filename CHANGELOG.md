@@ -6,12 +6,19 @@
 
 ## [未发布]
 
+### 改进
+
+- **UI Phase 1 — Header 精简 + 气泡分层**：
+  - `AppHeader.vue` 重构为单行布局（节省 ~40px 高度）；「诊断」「引导」「重启网关」「关于」收入右侧「···」溢出菜单，普通用户不再面对技术按钮。`window.alert` 替换为 Header 底部内联错误条（含 6s 自动消失）。
+  - `AppShell.vue` 在会话区顶部新增「＋ 新建对话」按钮，直接开启一个新会话。
+  - `ChatMessageList.vue` 消息气泡视觉分层：用户消息右对齐 + 淡紫底色，助手消息左对齐 + 淡青底色，system/tool 消息缩小并置灰，聊天层次感更强。
+  - `MessageComposer.vue` 删除占用垂直空间的长提示段落，改为输入行内「?」圆形 tooltip 图标按钮，悬停可查看所有快捷键说明。
+  - `ChatRunStatusBar.vue` 状态文字改为英文（Sending / Generating / Done），消除遗留中文。
+  - `style.css` 补全 `--lc-radius-md`、`--lc-surface`、`--lc-spacing-{xs,sm,md,lg,xl}` 五组 token；新增 `.lc-btn-primary` 类（加强 `box-shadow` 与最小宽度），使主操作按钮在视觉上更突出。
+
 ### 修复
 
 - **安装向导 Node.js 缺失处理**：无 winget 的旧系统（企业镜像等）安装会直接失败。现在当 npm 不可用时，先尝试 winget 安装 Node.js LTS，再回退到从 nodejs.org 下载 MSI（per-user 安装，无需 UAC）；若两种方式均失败，脚本以退出码 6 退出并在 UI 展示「需要手动安装 Node.js」面板，含「打开 nodejs.org 下载页」按钮。
-
-### 修复
-
 - **安装向导退出码 1 根因修复**：
   - `ensure-openclaw-windows.ps1` 改以 **UTF-8 with BOM** 保存，修复 Windows PowerShell 5.1 因编码误读中文字符串导致的 ParserError；所有输出语句改为英文，彻底消除乱码。
   - 安装逻辑重构：若本机已有 `npm`（Node 已安装），直接执行 `npm install -g openclaw@latest` 跳过下载 `https://openclaw.ai/install.ps1`，避免依赖服务器可用性；仅当 npm 不可用时才下载官方安装脚本（含自动装 Node）。

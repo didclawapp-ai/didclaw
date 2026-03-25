@@ -30,6 +30,13 @@
   --lc-warning-bg: rgba(217, 119, 6, 0.1);
   --lc-radius: 12px;
   --lc-radius-sm: 8px;
+  --lc-radius-md: 10px;
+  --lc-surface: #ffffff;
+  --lc-spacing-xs: 4px;
+  --lc-spacing-sm: 8px;
+  --lc-spacing-md: 14px;
+  --lc-spacing-lg: 20px;
+  --lc-spacing-xl: 28px;
   --lc-font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --lc-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
   --lc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 12px rgba(15, 23, 42, 0.04);
@@ -150,6 +157,14 @@ body::before {
   opacity: 0.45;
   cursor: not-allowed;
   box-shadow: none;
+}
+.lc-btn-primary {
+  border-color: rgba(6, 182, 212, 0.6);
+  box-shadow: 0 2px 16px rgba(6, 182, 212, 0.28);
+  min-width: 72px;
+}
+.lc-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 24px rgba(6, 182, 212, 0.4);
 }
 .lc-btn-ghost {
   background: transparent;
