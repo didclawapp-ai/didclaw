@@ -14,6 +14,7 @@ mod paths;
 mod preview_local;
 mod skills;
 mod setup_status;
+mod workspace_identity;
 
 #[cfg(not(debug_assertions))]
 mod static_server;
@@ -173,6 +174,7 @@ pub fn run() {
             commands::skills_delete,
             commands::skills_pick_zip_file,
             commands::skills_pick_folder,
+            commands::read_workspace_identity,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

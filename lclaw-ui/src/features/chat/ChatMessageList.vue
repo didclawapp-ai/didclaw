@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import ChatLineBody from "@/features/chat/ChatLineBody.vue";
+import { useWorkspaceIdentity } from "@/composables/useWorkspaceIdentity";
 import type { ChatLine } from "@/lib/chat-line";
 import { measureElement, useVirtualizer } from "@tanstack/vue-virtual";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { ComponentPublicInstance } from "vue";
+
+const { loadIdentity, roleLabel } = useWorkspaceIdentity();
+onMounted(() => { void loadIdentity(); });
 
 const props = defineProps<{
   lines: ChatLine[];
@@ -156,7 +160,7 @@ onMounted(() => {
         @click="onRowClick(item.index)"
       >
         <div class="row-head">
-          <span class="tag">{{ lines[item.index]?.role ?? "?" }}</span>
+          <span class="tag">{{ roleLabel(lines[item.index]?.role ?? "?") }}</span>
           <span v-if="lines[item.index]?.timeLabel" class="time">{{
             lines[item.index]?.timeLabel
           }}</span>

@@ -164,6 +164,11 @@ interface DidClawElectronApi {
         authProfilesBackupPath?: string;
       }
   >;
+  /** 读取 workspace/IDENTITY.md 和 USER.md 中的 AI 名称与用户名称 */
+  readWorkspaceIdentity?(): Promise<
+    { ok: true; aiName?: string | null; userName?: string | null }
+    | { ok: false; error: string }
+  >;
 }
 
 interface Window {

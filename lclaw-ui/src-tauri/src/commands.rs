@@ -342,3 +342,8 @@ pub fn skills_pick_zip_file() -> Result<Option<String>, String> {
 pub fn skills_pick_folder() -> Result<Option<String>, String> {
     Ok(crate::skills::pick_folder())
 }
+
+#[tauri::command]
+pub fn read_workspace_identity() -> Result<Value, String> {
+    Ok(crate::workspace_identity::read_workspace_identity())
+}
