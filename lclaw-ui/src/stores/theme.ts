@@ -15,18 +15,31 @@ function loadSaved(): ThemeMode {
   return prefersDark() ? "dark" : "light";
 }
 
-function applyTheme(mode: ThemeMode): void {
+function applyWebviewTheme(mode: ThemeMode): void {
   document.documentElement.dataset.theme = mode;
+}
+
+/** 同步 Tauri 原生标题栏深/浅色（仅桌面端有效，浏览器环境静默忽略） */
+async function applyNativeTitleBarTheme(mode: ThemeMode): Promise<void> {
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().setTheme(mode === "dark" ? "dark" : "light");
+  } catch {
+    // 非 Tauri 环境或权限不足时静默忽略
+  }
 }
 
 export const useThemeStore = defineStore("theme", () => {
   const mode = ref<ThemeMode>(loadSaved());
 
-  applyTheme(mode.value);
+  // 初始化时同步两侧
+  applyWebviewTheme(mode.value);
+  void applyNativeTitleBarTheme(mode.value);
 
   watch(mode, (next) => {
-    applyTheme(next);
+    applyWebviewTheme(next);
     localStorage.setItem(STORAGE_KEY, next);
+    void applyNativeTitleBarTheme(next);
   });
 
   function toggle(): void {

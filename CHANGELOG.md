@@ -10,7 +10,7 @@
 
 - **夜间模式（Dark Mode）**：
   - `AppHeader.vue` 右侧新增 🌙/☀ 图标按钮（圆形，支持 hover 旋转动效），一键切换日间/夜间模式。
-  - `stores/theme.ts`：新增 `useThemeStore`（Pinia），持久化到 `localStorage("didclaw_theme")`，优先读取用户偏好，回退到系统 `prefers-color-scheme`。
+  - `stores/theme.ts`：新增 `useThemeStore`（Pinia），持久化到 `localStorage("didclaw_theme")`，优先读取用户偏好，回退到系统 `prefers-color-scheme`；切换主题时同步调用 `getCurrentWindow().setTheme()` 修改 **Tauri 原生标题栏**深/浅色，非桌面环境静默忽略。
   - `index.html` 注入微型内联脚本，在 Vue 加载前立即应用主题，消除闪白（FOUC）。
   - `style.css` 追加 `[data-theme="dark"]` 覆盖块（约 30 个 CSS token）；body 背景渐变、网格装饰色、代码块（github-dark 配色）、所有组件颜色均随主题切换；`body` 加 `transition: background-color 0.25s ease` 平滑过渡。
   - 修复 `ChatRunStatusBar` stall 警告色从硬编码 `#b45309` 改为 `--lc-warning-text` token；会话芯片颜色改用 `--lc-accent` token。
