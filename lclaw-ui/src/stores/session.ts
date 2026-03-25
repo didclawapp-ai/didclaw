@@ -15,6 +15,12 @@ export type SessionRow = {
    * 本次 `sessions.list` 未返回该键，仅为保留当前聊天区而本地挂接（如一次性定时任务结束后网关从列表移除会话）。
    */
   localOnly?: boolean;
+  /** 会话累计输入 token 数（来自 sessions.list，可能为 undefined） */
+  inputTokens?: number;
+  /** 会话累计输出 token 数（来自 sessions.list，可能为 undefined） */
+  outputTokens?: number;
+  /** 会话累计总 token 数 */
+  totalTokens?: number;
 };
 
 const DEFAULT_MAIN_SESSION_KEY = "agent:main:main";

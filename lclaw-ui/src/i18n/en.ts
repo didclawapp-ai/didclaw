@@ -200,6 +200,12 @@ export default {
   },
 
   // ─── Message composer ─────────────────────────────────
+  usage: {
+    tooltipSession: "Cumulative token usage for this session (from Gateway sessions.list)",
+    in: "↑",
+    out: "↓",
+  },
+
   composer: {
     placeholder: "Type a message… (paste screenshot with Ctrl+V)",
     sendOffline: "Not connected to gateway",

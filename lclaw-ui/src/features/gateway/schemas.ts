@@ -19,6 +19,9 @@ export const sessionRowSchema = z
     key: z.string(),
     label: z.string().optional(),
     lastActiveAt: z.number().optional(),
+    inputTokens: z.number().optional(),
+    outputTokens: z.number().optional(),
+    totalTokens: z.number().optional(),
   })
   .passthrough();
 

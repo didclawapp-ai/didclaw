@@ -47,7 +47,7 @@ watch(() => props.open, (v) => {
     toast.value = null;
     error.value = null;
   }
-});
+}, { immediate: true });
 
 async function loadAll() {
   const api = getDidClawDesktopApi();
@@ -136,13 +136,15 @@ function onNodeChange(entry: ProviderCatalogEntry, choice: "main" | "alt") {
 }
 
 function editedModels(entry: ProviderCatalogEntry): string[] {
-  if (modelEditMode.value) {
+  // modelEditText 在 expandCard 时由 snap 初始化，用户编辑后保持最新值。
+  // 无论编辑模式是否关闭（"完成"按钮只切显示形态），只要文本非空就以它为准；
+  // 仅在文本为空时（未展开过该卡片）回退到 snap / 目录默认值。
+  if (modelEditMode.value || modelEditText.value.trim()) {
     return modelEditText.value
       .split(/[,\n]+/)
       .map((s) => s.trim())
       .filter(Boolean);
   }
-  // Use snap models if saved, else catalog defaults
   const snap = savedProviders.value[entry.id];
   return modelsFromSnap(snap, entry);
 }

@@ -31,6 +31,9 @@ import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayA
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 /** 与参考「流式占位」一致：首包 delta 到达前也显示助手行（长任务常处于推理/工具阶段，无文本增量） */
 const STREAMING_PENDING_LABEL = "正在处理（推理或工具调用中，请稍候）…";
@@ -87,6 +90,22 @@ const activeSessionLabel = computed(() => {
     return sessionDisplayLabel(activeSessionKey.value, row?.label);
   }
   return "";
+});
+
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "k";
+  return String(n);
+}
+
+/** 当前会话的 token 用量（来自 sessions.list），用于状态栏展示 */
+const sessionTokenUsage = computed(() => {
+  const row = activeSession.value;
+  if (!row) return null;
+  const inp = row.inputTokens;
+  const out = row.outputTokens;
+  if (inp == null && out == null) return null;
+  return { in: inp ?? 0, out: out ?? 0 };
 });
 
 /** 标题栏已展示当前会话，下列表只列「可切换到的其他会话」，避免重复大块高亮 */
@@ -344,6 +363,15 @@ async function pickLocalFileForPreview(): Promise<void> {
             >
               本地文件…
             </button>
+            <span
+              v-if="sessionTokenUsage"
+              class="token-usage"
+              :title="t('usage.tooltipSession')"
+              aria-label="Token 用量"
+            >
+              <span class="token-in">{{ t('usage.in') }}{{ formatTokenCount(sessionTokenUsage.in) }}</span>
+              <span class="token-out">{{ t('usage.out') }}{{ formatTokenCount(sessionTokenUsage.out) }}</span>
+            </span>
           </div>
         </div>
         <ChatRunStatusBar />
@@ -669,6 +697,22 @@ async function pickLocalFileForPreview(): Promise<void> {
 }
 .toolbar-mini {
   margin-left: 0;
+}
+.token-usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--lc-mono);
+  color: var(--lc-text-dim);
+  margin-left: auto;
+  white-space: nowrap;
+}
+.token-in {
+  color: var(--lc-text-dim);
+}
+.token-out {
+  color: var(--lc-text-dim);
 }
 .filter-hint {
   font-size: 12px;

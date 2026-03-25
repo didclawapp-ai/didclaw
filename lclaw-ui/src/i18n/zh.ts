@@ -200,6 +200,12 @@ export default {
   },
 
   // ─── 聊天 MessageComposer ────────────────────────────
+  usage: {
+    tooltipSession: "本次会话累计 token 用量（来自 Gateway sessions.list）",
+    in: "↑",
+    out: "↓",
+  },
+
   composer: {
     placeholder: "输入消息…（截图可 Ctrl+V 粘贴为图片）",
     sendOffline: "未连接网关",

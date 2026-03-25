@@ -209,6 +209,11 @@ export const useGatewayStore = defineStore("gateway", () => {
             void import("./session").then(({ useSessionStore }) => {
               const active = useSessionStore().activeSessionKey;
               if (!sk || !active || sk !== active) {
+                if (sk && sk !== active) {
+                  void import("./chat").then(({ useChatStore }) => {
+                    useChatStore().noteBackgroundAgentActivity(sk);
+                  }).catch((e) => { console.error("[didclaw] background agent note error", e); });
+                }
                 return;
               }
               if (!agentEventWarrantsChatHistorySync(evt.payload)) {

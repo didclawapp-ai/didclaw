@@ -147,6 +147,16 @@ export const useChatStore = defineStore("chat", () => {
   const openClawConfigHint = ref<string | null>(null);
   let openClawConfigHintTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** 后台子代理（非当前会话）最近一次 agent 事件时间戳 */
+  const backgroundAgentLastSeenMs = ref<number | null>(null);
+  /** 后台子代理所在会话 key */
+  const backgroundAgentSessionKey = ref<string | null>(null);
+
+  function noteBackgroundAgentActivity(sk: string): void {
+    backgroundAgentLastSeenMs.value = Date.now();
+    backgroundAgentSessionKey.value = sk;
+  }
+
   const agentBusy = computed(() => sending.value || runId.value != null);
 
   function flashOpenClawConfigHint(message: string = OPENCLAW_AFTER_WRITE_HINT): void {
@@ -736,5 +746,8 @@ export const useChatStore = defineStore("chat", () => {
     setOpenClawPrimaryModel,
     openClawConfigHint,
     flashOpenClawConfigHint,
+    backgroundAgentLastSeenMs,
+    backgroundAgentSessionKey,
+    noteBackgroundAgentActivity,
   };
 });

@@ -121,6 +121,50 @@ fn merge_providers_for_read(
     out
 }
 
+/// 从 `auth-profiles.json` 为 `merged` 中尚未设置 `apiKey` 的 provider 补充密钥。
+/// 用于兼容通过 OpenClaw CLI (`openclaw configure`) 设置的老用户——CLI 只写
+/// `auth-profiles.json`，不写 `models.json` 的 `apiKey` 字段。
+fn enrich_providers_with_auth_profiles(merged: &mut Map<String, Value>, auth_profiles_path: &Path) {
+    let raw = match fs::read_to_string(auth_profiles_path) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let root: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+    let profiles = match root.get("profiles").and_then(|v| v.as_object()) {
+        Some(p) => p.clone(),
+        None => return,
+    };
+    for (id, prov) in merged.iter_mut() {
+        // 已有 apiKey 则跳过（DidClaw 写入路径已含 apiKey，优先使用）
+        let has_key = prov
+            .as_object()
+            .and_then(|o| o.get("apiKey"))
+            .and_then(|v| v.as_str())
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false);
+        if has_key {
+            continue;
+        }
+        let profile_key = format!("{id}:default");
+        if let Some(profile) = profiles.get(&profile_key) {
+            let is_api_key_type = profile.get("type").and_then(|v| v.as_str()) == Some("api_key")
+                || profile.get("mode").and_then(|v| v.as_str()) == Some("api_key");
+            if is_api_key_type {
+                if let Some(key) = profile.get("key").and_then(|v| v.as_str()) {
+                    if !key.trim().is_empty() {
+                        if let Some(prov_obj) = prov.as_object_mut() {
+                            prov_obj.insert("apiKey".to_string(), json!(key));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn read_agent_models_providers_map(path: &Path) -> Result<Map<String, Value>, String> {
     let raw = match fs::read_to_string(path) {
         Ok(s) => s,
@@ -156,7 +200,10 @@ pub fn read_open_claw_providers() -> Value {
                     return json!({"ok": false, "error": format!("读取代理 models.json 失败：{e}")});
                 }
             };
-            let merged = merge_providers_for_read(&Map::new(), &agent_p);
+            let mut merged = merge_providers_for_read(&Map::new(), &agent_p);
+            if let Ok(auth_path) = agent_auth_profiles_json_path(&agent_id) {
+                enrich_providers_with_auth_profiles(&mut merged, &auth_path);
+            }
             return json!({
                 "ok": true,
                 "providers": Value::Object(merged),
@@ -183,7 +230,10 @@ pub fn read_open_claw_providers() -> Value {
             return json!({"ok": false, "error": format!("读取代理 models.json 失败：{e}")});
         }
     };
-    let merged = merge_providers_for_read(&global_p, &agent_p);
+    let mut merged = merge_providers_for_read(&global_p, &agent_p);
+    if let Ok(auth_path) = agent_auth_profiles_json_path(&agent_id) {
+        enrich_providers_with_auth_profiles(&mut merged, &auth_path);
+    }
     json!({
         "ok": true,
         "providers": Value::Object(merged),
