@@ -68,7 +68,7 @@ pub async fn run_ensure_openclaw_windows_install_impl(
 ) -> Result<Value, String> {
     use std::sync::{Arc, Mutex};
     use tauri::Emitter;
-    use tokio::io::{AsyncBufReadExt, BufReader};
+    use tokio::io::BufReader;
 
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -133,44 +133,60 @@ pub async fn run_ensure_openclaw_windows_install_impl(
     let col_o = Arc::clone(&collector);
     let col_e = Arc::clone(&collector);
 
-    let out_fut = async move {
-        let mut reader = BufReader::new(stdout).lines();
+    /// 按行读取 AsyncRead 并通过回调处理每一行（容错 UTF-8：非法字节做 lossy 替换而非 break）。
+    async fn read_lines_lossy<R: tokio::io::AsyncRead + Unpin>(
+        reader: R,
+        mut on_line: impl FnMut(String),
+    ) {
+        use tokio::io::AsyncReadExt;
+        let mut buf_reader = BufReader::new(reader);
+        let mut raw = Vec::new();
+        let mut tmp = [0u8; 4096];
         loop {
-            match reader.next_line().await {
-                Ok(None) => break,
-                Ok(Some(line)) => {
-                    col_o
-                        .lock()
-                        .unwrap()
-                        .push(format!("[stdout] {line}"));
-                    let _ = app_o.emit(
-                        ENSURE_INSTALL_LOG_EVENT,
-                        json!({ "stream": "stdout", "line": line }),
-                    );
+            match buf_reader.read(&mut tmp).await {
+                Ok(0) | Err(_) => {
+                    // 冲刷剩余未换行内容
+                    if !raw.is_empty() {
+                        on_line(String::from_utf8_lossy(&raw).into_owned());
+                    }
+                    break;
                 }
-                Err(_) => break,
+                Ok(n) => {
+                    raw.extend_from_slice(&tmp[..n]);
+                    while let Some(pos) = raw.iter().position(|&b| b == b'\n') {
+                        let line_bytes = raw.drain(..=pos).collect::<Vec<u8>>();
+                        let line = String::from_utf8_lossy(&line_bytes)
+                            .trim_end_matches(['\r', '\n'])
+                            .to_owned();
+                        if !line.is_empty() {
+                            on_line(line);
+                        }
+                    }
+                }
             }
         }
+    }
+
+    let out_fut = async move {
+        read_lines_lossy(stdout, |line| {
+            col_o.lock().unwrap().push(format!("[stdout] {line}"));
+            let _ = app_o.emit(
+                ENSURE_INSTALL_LOG_EVENT,
+                json!({ "stream": "stdout", "line": line }),
+            );
+        })
+        .await;
     };
 
     let err_fut = async move {
-        let mut reader = BufReader::new(stderr).lines();
-        loop {
-            match reader.next_line().await {
-                Ok(None) => break,
-                Ok(Some(line)) => {
-                    col_e
-                        .lock()
-                        .unwrap()
-                        .push(format!("[stderr] {line}"));
-                    let _ = app_e.emit(
-                        ENSURE_INSTALL_LOG_EVENT,
-                        json!({ "stream": "stderr", "line": line }),
-                    );
-                }
-                Err(_) => break,
-            }
-        }
+        read_lines_lossy(stderr, |line| {
+            col_e.lock().unwrap().push(format!("[stderr] {line}"));
+            let _ = app_e.emit(
+                ENSURE_INSTALL_LOG_EVENT,
+                json!({ "stream": "stderr", "line": line }),
+            );
+        })
+        .await;
     };
 
     let wait_fut = async move {

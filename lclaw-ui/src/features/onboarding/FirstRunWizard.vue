@@ -343,7 +343,15 @@ async function runEnsureInstallAndInit(): Promise<void> {
       await refreshStatus();
     } else {
       markInstallStepErrorOnActive();
-      if (r.error && !streamReceived) {
+      const logIsEmpty = !streamReceived && (r.log ?? "").replace("--- streamed ---", "").trim().length === 0;
+      if (logIsEmpty) {
+        // 日志全空：脚本在任何输出之前就退出（常见于 PS5.1 编码问题或脚本路径错误）
+        installLog.value += `\n[结果] 进程退出码 ${r.exitCode}，脚本未产生任何输出。`;
+        installLog.value += `\n[提示] 可能原因：① openclaw.ai 服务器暂时不可用（退出码 1）`;
+        installLog.value += `\n        ② PowerShell 脚本解析失败（编码问题）`;
+        installLog.value += `\n        ③ 脚本文件未找到`;
+        installLog.value += `\n[建议] 请等待片刻后点击「重新检测」，或手动运行：npm install -g openclaw@latest`;
+      } else if (r.error && !streamReceived) {
         installLog.value += `\n[结果] ${r.error}（退出码 ${r.exitCode}）`;
       }
     }

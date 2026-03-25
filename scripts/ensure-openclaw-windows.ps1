@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # 须以 UTF-8 **带 BOM** 保存：否则 Windows PowerShell 5.1 用系统 ANSI 解析，中文会乱码并触发 ParserError。
 <#
 .SYNOPSIS
@@ -217,50 +217,79 @@ try {
 $openclawExe = Test-OpenclawOnPath
 
 if (-not $openclawExe) {
-    Write-UiLine '[ensure-openclaw] 未检测到 openclaw，开始执行官方安装脚本（-NoOnboard）...' -ForegroundColor Yellow
-    Write-UiLine '[ensure-openclaw] 需要联网下载 https://openclaw.ai/install.ps1' -ForegroundColor DarkGray
     Write-Output '[ensure-openclaw] ui=stage_cli_install_begin'
 
-    $tmpInstall = $null
+    # 主路径：若 npm 已就绪（Node 已安装），直接 npm install -g openclaw@latest，
+    # 无需下载官方 install.ps1（更快且不依赖 openclaw.ai 服务器可用性）。
+    # 备用路径：npm 不可用时回退到下载 https://openclaw.ai/install.ps1（含自动装 Node）。
+    $npmCmd = $null
     try {
-        $tmpInstall = Join-Path ([System.IO.Path]::GetTempPath()) ('openclaw-install-{0}.ps1' -f [guid]::NewGuid())
-        Write-Output '[ensure-openclaw] ui=downloading_official_install_ps1'
-        Invoke-WebRequest -Uri 'https://openclaw.ai/install.ps1' -UseBasicParsing -OutFile $tmpInstall -TimeoutSec 300
-
-        if (-not (Test-Path -LiteralPath $tmpInstall)) {
-            throw '临时安装脚本未写入磁盘。'
+        $nc2 = @(Get-Command npm -CommandType Application -ErrorAction SilentlyContinue)
+        if ($nc2.Count -ge 1 -and -not [string]::IsNullOrWhiteSpace($nc2[0].Source)) {
+            $npmCmd = [string]$nc2[0].Source
         }
-        if ((Get-Item -LiteralPath $tmpInstall).Length -lt 200) {
-            throw '下载内容过短，可能不是有效的 install.ps1（网络拦截或错误页）。'
-        }
+    } catch { }
 
+    if ($npmCmd) {
+        Write-UiLine '[ensure-openclaw] 检测到 npm，直接安装 openclaw@latest（无需下载 install.ps1）...' -ForegroundColor Yellow
         Write-Output '[ensure-openclaw] ui=running_official_install_ps1_wait'
-        $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
-            '-NoProfile'
-            '-ExecutionPolicy', 'Bypass'
-            '-File', $tmpInstall
-            '-NoOnboard'
-        ) -Wait -PassThru -NoNewWindow
-
-        if ($null -ne $proc.ExitCode -and $proc.ExitCode -ne 0) {
-            throw ('官方 install.ps1 退出码: {0}' -f $proc.ExitCode)
+        try {
+            & $npmCmd install -g openclaw@latest
+            if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+                throw ('npm install -g openclaw@latest 退出码: {0}' -f $LASTEXITCODE)
+            }
+            Write-Output '[ensure-openclaw] ui=official_install_ps1_finished'
+        } catch {
+            Write-Output ('[ensure-openclaw] npm 安装失败: {0}' -f $_)
+            exit 1
         }
-        Write-Output '[ensure-openclaw] ui=official_install_ps1_finished'
-    } catch {
-        Write-UiLine ('[ensure-openclaw] 下载或执行安装脚本失败: {0}' -f $_) -ForegroundColor Red
-        exit 1
-    } finally {
-        if ($tmpInstall -and (Test-Path -LiteralPath $tmpInstall)) {
-            Remove-Item -LiteralPath $tmpInstall -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-UiLine '[ensure-openclaw] 未检测到 npm，下载官方安装脚本（含 Node + openclaw）...' -ForegroundColor Yellow
+        Write-UiLine '[ensure-openclaw] 需要联网下载 https://openclaw.ai/install.ps1' -ForegroundColor DarkGray
+
+        $tmpInstall = $null
+        try {
+            $tmpInstall = Join-Path ([System.IO.Path]::GetTempPath()) ('openclaw-install-{0}.ps1' -f [guid]::NewGuid())
+            Write-Output '[ensure-openclaw] ui=downloading_official_install_ps1'
+            $wr = Invoke-WebRequest -Uri 'https://openclaw.ai/install.ps1' -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop
+            if ($wr.StatusCode -ne 200) {
+                throw ('https://openclaw.ai/install.ps1 返回 HTTP {0}，安装脚本暂不可用。请稍后重试，或手动运行: npm install -g openclaw@latest' -f $wr.StatusCode)
+            }
+            [System.IO.File]::WriteAllBytes($tmpInstall, $wr.Content)
+
+            if (-not (Test-Path -LiteralPath $tmpInstall)) {
+                throw '临时安装脚本未写入磁盘。'
+            }
+            if ((Get-Item -LiteralPath $tmpInstall).Length -lt 200) {
+                throw '下载内容过短，可能不是有效的 install.ps1（网络拦截或服务器错误）。请稍后重试，或手动运行: npm install -g openclaw@latest'
+            }
+
+            Write-Output '[ensure-openclaw] ui=running_official_install_ps1_wait'
+            $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+                '-NoProfile'
+                '-ExecutionPolicy', 'Bypass'
+                '-File', $tmpInstall
+                '-NoOnboard'
+            ) -Wait -PassThru -NoNewWindow
+
+            if ($null -ne $proc.ExitCode -and $proc.ExitCode -ne 0) {
+                throw ('官方 install.ps1 退出码: {0}' -f $proc.ExitCode)
+            }
+            Write-Output '[ensure-openclaw] ui=official_install_ps1_finished'
+        } catch {
+            Write-Output ('[ensure-openclaw] 下载或执行安装脚本失败: {0}' -f $_)
+            exit 1
+        } finally {
+            if ($tmpInstall -and (Test-Path -LiteralPath $tmpInstall)) {
+                Remove-Item -LiteralPath $tmpInstall -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 
     Sync-PathFromRegistry
     $openclawExe = Test-OpenclawOnPath
     if (-not $openclawExe) {
-        Write-UiLine '[ensure-openclaw] 安装已完成，但当前会话仍找不到 openclaw。' -ForegroundColor Yellow
-        Write-UiLine '  请关闭并重新打开终端，或检查 npm 全局目录是否已加入用户 PATH。' -ForegroundColor Yellow
-        Write-UiLine '  可运行: npm prefix -g' -ForegroundColor DarkGray
+        Write-Output '[ensure-openclaw] 安装已完成，但当前会话仍找不到 openclaw。请检查 npm 全局目录是否在 PATH 中（npm prefix -g）。'
         exit 2
     }
 
