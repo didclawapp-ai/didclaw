@@ -393,7 +393,10 @@ async function pickLocalFileForPreview(): Promise<void> {
         class="right"
         aria-label="文件预览"
       >
-        <div class="panel-title">文件预览</div>
+        <div class="panel-title preview-panel-head">
+          <span>文件预览</span>
+          <button type="button" class="preview-close-btn" @click="filePreview.clear()" title="关闭预览">✕</button>
+        </div>
         <div class="preview-wrap">
           <PreviewPane />
         </div>
@@ -531,6 +534,27 @@ async function pickLocalFileForPreview(): Promise<void> {
   background: linear-gradient(180deg, var(--lc-bg-elevated) 0%, var(--lc-bg-raised) 100%);
   border-bottom: 1px solid var(--lc-border);
   flex-shrink: 0;
+}
+.preview-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.preview-close-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 13px;
+  color: var(--lc-text-dim);
+  line-height: 1;
+  border-radius: var(--lc-radius-sm);
+  transition: color 0.15s, background 0.15s;
+}
+.preview-close-btn:hover {
+  color: var(--lc-text);
+  background: var(--lc-bg-elevated);
 }
 .panel-title.session-panel-head {
   display: flex;
