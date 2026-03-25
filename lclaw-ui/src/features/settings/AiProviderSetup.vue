@@ -245,7 +245,6 @@ async function removeProvider(entry: ProviderCatalogEntry) {
         :style="{ '--card-color': entry.color }"
         @click="expandCard(entry)"
       >
-        <div class="aips-card-icon">{{ entry.icon }}</div>
         <div class="aips-card-body">
           <div class="aips-card-name">{{ entry.name }}</div>
           <div class="aips-card-desc">{{ entry.description }}</div>
@@ -263,7 +262,6 @@ async function removeProvider(entry: ProviderCatalogEntry) {
         <template v-for="entry in PROVIDER_CATALOG" :key="entry.id">
           <template v-if="entry.id === expandedId">
             <div class="aips-panel-head" :style="{ borderColor: entry.color }">
-              <span class="aips-panel-icon">{{ entry.icon }}</span>
               <span class="aips-panel-title">{{ entry.name }}</span>
               <a v-if="entry.docsUrl" :href="entry.docsUrl" target="_blank" rel="noopener" class="aips-panel-docs">文档 ↗</a>
               <button type="button" class="aips-panel-close" @click="expandedId = null">✕</button>
@@ -465,11 +463,6 @@ async function removeProvider(entry: ProviderCatalogEntry) {
 .aips-card--primary {
   border-left-width: 3px;
 }
-.aips-card-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-  line-height: 1;
-}
 .aips-card-body {
   flex: 1;
   min-width: 0;
@@ -529,7 +522,6 @@ async function removeProvider(entry: ProviderCatalogEntry) {
   padding-bottom: 10px;
   border-bottom: 2px solid var(--lc-border);
 }
-.aips-panel-icon { font-size: 20px; }
 .aips-panel-title {
   flex: 1;
   font-weight: 700;
