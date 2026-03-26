@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import ComposerAttachments from "@/features/chat/ComposerAttachments.vue";
+import SlashCommandPicker from "@/features/chat/SlashCommandPicker.vue";
+import {
+  extractSlashQuery,
+  filterCommands,
+  type SlashCommand,
+} from "@/features/chat/slash-commands";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { storeToRefs } from "pinia";
@@ -42,10 +48,60 @@ const sendButtonTitle = computed(() => {
 });
 
 const attachRef = ref<InstanceType<typeof ComposerAttachments> | null>(null);
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const dragOver = ref(false);
+
+// ─── Slash 命令 ────────────────────────────────────────────────────────────
+
+const slashQuery = computed(() => extractSlashQuery(draft.value));
+const slashFiltered = computed(() =>
+  slashQuery.value !== null ? filterCommands(slashQuery.value) : [],
+);
+const showSlashPicker = computed(
+  () => slashQuery.value !== null && slashFiltered.value.length > 0,
+);
+const slashActiveIndex = ref(0);
+
+/** 选中 slash 命令：填入草稿，有参数时末尾加空格让用户继续输入 */
+function selectSlashCommand(cmd: SlashCommand): void {
+  draft.value = cmd.hasArgs ? `${cmd.command} ` : cmd.command;
+  slashActiveIndex.value = 0;
+  void textareaRef.value?.focus();
+}
+
+/** picker 消失时重置高亮索引 */
+function onSlashPickerClose(): void {
+  slashActiveIndex.value = 0;
+}
+
+function onComposerKeydown(ev: KeyboardEvent): void {
+  if (!showSlashPicker.value) return;
+
+  if (ev.key === "ArrowDown") {
+    ev.preventDefault();
+    slashActiveIndex.value = (slashActiveIndex.value + 1) % slashFiltered.value.length;
+  } else if (ev.key === "ArrowUp") {
+    ev.preventDefault();
+    slashActiveIndex.value =
+      (slashActiveIndex.value - 1 + slashFiltered.value.length) % slashFiltered.value.length;
+  } else if (ev.key === "Tab" || ev.key === "Enter") {
+    if (ev.key === "Enter" && ev.shiftKey) return;
+    ev.preventDefault();
+    const cmd = slashFiltered.value[slashActiveIndex.value];
+    if (cmd) selectSlashCommand(cmd);
+  } else if (ev.key === "Escape") {
+    ev.preventDefault();
+    draft.value = "";
+    onSlashPickerClose();
+  }
+}
 
 function onComposerEnter(ev: KeyboardEvent): void {
   if (ev.shiftKey) {
+    return;
+  }
+  // 当 picker 可见时 Enter 由 onComposerKeydown 处理，不走发送
+  if (showSlashPicker.value) {
     return;
   }
   ev.preventDefault();
@@ -141,14 +197,27 @@ function onDrop(ev: DragEvent): void {
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
-    <textarea
-      v-model="draft"
-      rows="3"
-      :placeholder="t('composer.placeholder')"
-      :disabled="sending || status !== 'connected'"
-      @keydown.enter="onComposerEnter"
-      @paste="onPaste"
-    />
+    <div class="textarea-wrap">
+      <Transition name="slash-fade">
+        <SlashCommandPicker
+          v-if="showSlashPicker"
+          :commands="slashFiltered"
+          :active-index="slashActiveIndex"
+          @select="selectSlashCommand"
+          @close="onSlashPickerClose"
+        />
+      </Transition>
+      <textarea
+        ref="textareaRef"
+        v-model="draft"
+        rows="3"
+        :placeholder="t('composer.placeholder')"
+        :disabled="sending || status !== 'connected'"
+        @keydown="onComposerKeydown"
+        @keydown.enter="onComposerEnter"
+        @paste="onPaste"
+      />
+    </div>
     <ComposerAttachments ref="attachRef" />
     <div class="row">
       <div class="row-left">
@@ -215,11 +284,16 @@ function onDrop(ev: DragEvent): void {
   box-shadow: inset 0 0 0 2px rgba(6, 182, 212, 0.45);
   background: rgba(6, 182, 212, 0.06);
 }
+.textarea-wrap {
+  position: relative;
+  margin-bottom: 6px;
+}
+
 .composer textarea {
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
-  margin-bottom: 6px;
+  margin-bottom: 0;
   min-height: 72px;
   padding: 10px 12px;
   border-radius: var(--lc-radius-sm);
@@ -318,5 +392,16 @@ function onDrop(ev: DragEvent): void {
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+/* Slash picker 弹出过渡 */
+.slash-fade-enter-active,
+.slash-fade-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.slash-fade-enter-from,
+.slash-fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 </style>

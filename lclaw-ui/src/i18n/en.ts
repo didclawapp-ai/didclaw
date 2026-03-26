@@ -518,4 +518,18 @@ export default {
     loadError: "Failed to load",
     unsupported: "Preview not supported for this file type",
   },
+
+  // ─── Slash commands SlashCommandPicker ────────────────
+  slash: {
+    pickerLabel: "Slash command picker",
+    navHint: "navigate",
+    confirmHint: "select",
+    closeHint: "close",
+    new:      "Start a new session",
+    remember: "Ask AI to remember something",
+    forget:   "Clear a memory",
+    status:   "Show current usage status",
+    usage:    "Show detailed usage report",
+    model:    "Switch the conversation model",
+  },
 } as const;

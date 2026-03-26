@@ -518,4 +518,18 @@ export default {
     loadError: "加载失败",
     unsupported: "不支持预览此文件类型",
   },
+
+  // ─── Slash 命令 SlashCommandPicker ──────────────────
+  slash: {
+    pickerLabel: "Slash 命令选择",
+    navHint: "导航",
+    confirmHint: "选择",
+    closeHint: "关闭",
+    new:      "新建会话",
+    remember: "让 AI 记住某事",
+    forget:   "清除记忆",
+    status:   "查看当前用量状态",
+    usage:    "查看详细用量报告",
+    model:    "切换对话模型",
+  },
 } as const;
