@@ -70,6 +70,7 @@ export default {
     redoOnboardingTitle: "Clear first-run state and re-check (for testing the install flow)",
     redoOnboardingConfirm: "This will clear the first-run local record and re-check. Continue?",
     doctorBtn: "Gateway Diagnostics",
+    backupBtn: "Backup & Restore",
     aboutApp: "About DidClaw",
     restartFailed: "Failed to restart gateway",
     copyFailed: "Copy failed: please open under https or localhost, and grant clipboard permission.",
@@ -424,6 +425,26 @@ export default {
     suggestLocalEmbed: "For local embeddings, set agents.defaults.memorySearch and your local model path.",
     suggestDisableMemorySearch: "To turn off semantic recall, disable agents.defaults.memorySearch.enabled.",
     repairHint: "Serious items may be fixable with Auto-Repair (backs up and normalizes config)",
+  },
+
+  // ─── Backup & Restore ─────────────────────────────────
+  backup: {
+    title: "Backup & Restore",
+    desc: "Package ~/.openclaw/ as a zip file for easy migration or config restore.",
+    excl1: "Excluded: logs/ (runtime logs)",
+    excl2: "Excluded: completions/ (completion cache)",
+    excl3: "Excluded: agents/*/sessions/ (session records)",
+    estimating: "Calculating…",
+    estimateLabel: "Estimated backup size:",
+    fileCount: "{n} files",
+    backupBtn: "Backup Config",
+    restoreBtn: "Restore Config",
+    backing: "Backing up…",
+    restoring: "Restoring…",
+    backupDone: "Backup saved: {path}",
+    restoreDone: "Restore complete, {count} files restored",
+    restoreWarn: "Restoring will overwrite current config. Make sure you have a backup first.",
+    unknownError: "Operation failed, please try again.",
   },
 
   // ─── About dialog ─────────────────────────────────────

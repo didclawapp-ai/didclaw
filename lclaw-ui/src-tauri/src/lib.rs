@@ -1,5 +1,6 @@
 mod commands;
 mod didclaw_db;
+mod openclaw_backup;
 mod gateway_local;
 mod gateway_tunnel;
 mod launch_log;
@@ -176,6 +177,9 @@ pub fn run() {
             commands::skills_pick_folder,
             commands::read_workspace_identity,
             commands::run_openclaw_doctor,
+            commands::estimate_openclaw_backup_size,
+            commands::backup_openclaw_config,
+            commands::restore_openclaw_config,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

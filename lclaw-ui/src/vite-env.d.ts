@@ -179,6 +179,20 @@ interface DidClawElectronApi {
     stdout: string;
     stderr: string;
   }>;
+  /** 估算 ~/.openclaw/ 备份体积（不弹窗） */
+  estimateOpenclawBackupSize?(): Promise<
+    { ok: true; bytes: number; fileCount: number } | { ok: false; error: string }
+  >;
+  /** 弹出另存为对话框，将 ~/.openclaw/ 打包为 zip */
+  backupOpenclawConfig?(): Promise<
+    | { ok: true; savedPath: string; fileCount: number }
+    | { ok: false; cancelled?: boolean; error?: string }
+  >;
+  /** 弹出打开文件对话框，从 zip 解压还原到 ~/.openclaw/ */
+  restoreOpenclawConfig?(): Promise<
+    | { ok: true; restoredFrom: string; fileCount: number }
+    | { ok: false; cancelled?: boolean; error?: string }
+  >;
 }
 
 interface Window {

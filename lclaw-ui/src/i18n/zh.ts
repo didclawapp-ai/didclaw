@@ -70,6 +70,7 @@ export default {
     redoOnboardingTitle: "清除首次引导状态，重新检测（便于测试安装流程）",
     redoOnboardingConfirm: "将清除「首次引导」本地记录并重新检测，是否继续？",
     doctorBtn: "网关诊断",
+    backupBtn: "备份与恢复",
     aboutApp: "关于 DidClaw",
     restartFailed: "重启网关失败",
     copyFailed: "复制失败：请在 https 或 localhost 下打开，并允许浏览器剪贴板权限。",
@@ -424,6 +425,26 @@ export default {
     suggestLocalEmbed: "若使用本地嵌入模型，需在配置里指定 memorySearch 提供商与本地模型路径。",
     suggestDisableMemorySearch: "若不需要语义回忆，可在配置中关闭 agents.defaults.memorySearch.enabled。",
     repairHint: "严重项可尝试「自动修复」（会备份并规范化配置）",
+  },
+
+  // ─── 配置备份与恢复 BackupRestoreDialog ─────────────────
+  backup: {
+    title: "备份与恢复",
+    desc: "将 ~/.openclaw/ 目录打包为 zip 文件，方便迁移设备或恢复配置。",
+    excl1: "排除：logs/（运行日志）",
+    excl2: "排除：completions/（补全缓存）",
+    excl3: "排除：agents/*/sessions/（会话记录）",
+    estimating: "正在计算…",
+    estimateLabel: "预计备份大小：",
+    fileCount: "{n} 个文件",
+    backupBtn: "备份配置",
+    restoreBtn: "恢复配置",
+    backing: "备份中…",
+    restoring: "恢复中…",
+    backupDone: "备份成功：{path}",
+    restoreDone: "恢复成功，共还原 {count} 个文件",
+    restoreWarn: "恢复会覆盖当前配置，请先确保已做好备份。",
+    unknownError: "操作失败，请重试。",
   },
 
   // ─── 关于对话框 AboutDialog ──────────────────────────

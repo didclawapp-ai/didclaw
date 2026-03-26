@@ -365,3 +365,22 @@ pub async fn run_openclaw_doctor(
     .await
     .map_err(|e| e.to_string())?
 }
+
+#[tauri::command]
+pub fn estimate_openclaw_backup_size() -> Result<Value, String> {
+    Ok(crate::openclaw_backup::estimate_backup_size())
+}
+
+#[tauri::command]
+pub async fn backup_openclaw_config() -> Result<Value, String> {
+    tokio::task::spawn_blocking(crate::openclaw_backup::backup_openclaw_config)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn restore_openclaw_config() -> Result<Value, String> {
+    tokio::task::spawn_blocking(crate::openclaw_backup::restore_openclaw_config)
+        .await
+        .map_err(|e| e.to_string())
+}

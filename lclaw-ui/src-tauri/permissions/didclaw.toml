@@ -40,4 +40,7 @@ commands.allow = [
   "skills_delete",
   "skills_pick_zip_file",
   "skills_pick_folder",
+  "estimate_openclaw_backup_size",
+  "backup_openclaw_config",
+  "restore_openclaw_config",
 ]
