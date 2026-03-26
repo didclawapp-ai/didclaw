@@ -45,6 +45,44 @@ function closeDialog(): void { open.value = false; }
 
 // ── Credential channels (Feishu, Discord, WeCom) ─────────────────────────────
 
+// Feishu streaming install
+type FeishuInstallState = "idle" | "running" | "success" | "failed";
+const feishuInstallState = ref<FeishuInstallState>("idle");
+const feishuInstallLines = ref<string[]>([]);
+let unlistenFeishuLine: UnlistenFn | null = null;
+let unlistenFeishuDone: UnlistenFn | null = null;
+const feishuManualOpen = ref(false);
+
+async function startFeishuInstall(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (!api?.startChannelQrFlow) return;
+
+  feishuInstallState.value = "running";
+  feishuInstallLines.value = [];
+
+  unlistenFeishuLine?.();
+  unlistenFeishuLine = await listen<{ stream: string; line: string }>("channel:line", (e) => {
+    feishuInstallLines.value = [...feishuInstallLines.value, e.payload.line];
+    if (feishuInstallLines.value.length > 300) {
+      feishuInstallLines.value = feishuInstallLines.value.slice(-300);
+    }
+  });
+  unlistenFeishuDone?.();
+  unlistenFeishuDone = await listen<{ ok: boolean }>("channel:done", (e) => {
+    feishuInstallState.value = e.payload.ok ? "success" : "failed";
+    unlistenFeishuLine?.(); unlistenFeishuLine = null;
+    unlistenFeishuDone?.(); unlistenFeishuDone = null;
+  });
+
+  try {
+    const gatewayUrl = gwStore.url.replace("ws://", "http://").replace("wss://", "https://");
+    await api.startChannelQrFlow("feishu", gatewayUrl);
+  } catch (e) {
+    feishuInstallState.value = "failed";
+    feishuInstallLines.value = [...feishuInstallLines.value, `Error: ${e}`];
+  }
+}
+
 const feishuAppId = ref("");
 const feishuAppSecret = ref("");
 const discordToken = ref("");
@@ -147,6 +185,8 @@ function cleanupListeners(): void {
   unlistenLine?.(); unlistenLine = null;
   unlistenQr?.(); unlistenQr = null;
   unlistenDone?.(); unlistenDone = null;
+  unlistenFeishuLine?.(); unlistenFeishuLine = null;
+  unlistenFeishuDone?.(); unlistenFeishuDone = null;
 }
 
 // 命令仅完成插件激活就退出（已有 session）
@@ -313,20 +353,62 @@ onUnmounted(() => {
           <!-- ── Feishu ── -->
           <div v-else-if="activeTab === 'feishu'" class="ch-panel">
             <p class="ch-hint">{{ t('channel.feishu.hint') }}
-              <a :href="t('channel.feishu.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
+              <a :href="t('channel.feishu.docLink')" target="_blank" rel="noopener" class="ch-link">官方文档 ↗</a>
             </p>
-            <div class="ch-form">
-              <label class="ch-label">{{ t('channel.feishu.appId') }}</label>
-              <input v-model="feishuAppId" type="text" class="ch-input" :placeholder="t('channel.feishu.appIdPlh')" />
-              <label class="ch-label">{{ t('channel.feishu.appSecret') }}</label>
-              <input v-model="feishuAppSecret" type="password" class="ch-input" :placeholder="t('channel.feishu.appSecretPlh')" />
+
+            <!-- Install wizard (primary path) -->
+            <div class="ch-install-card">
+              <div class="ch-install-cmd-row">
+                <code class="ch-code ch-code--block">{{ t('channel.feishu.installCmd') }}</code>
+              </div>
+              <div class="ch-qr-status" style="margin-top: 6px;">
+                <span v-if="feishuInstallState === 'idle'" class="ch-status-idle">准备就绪</span>
+                <span v-else-if="feishuInstallState === 'running'" class="ch-status-running">{{ t('channel.feishu.installRunning') }}</span>
+                <span v-else-if="feishuInstallState === 'success'" class="ch-status-ok">✓ {{ t('channel.feishu.installSuccess') }}</span>
+                <span v-else class="ch-status-err">✗ {{ t('channel.feishu.installFail') }}</span>
+              </div>
+
+              <!-- Terminal output -->
+              <div v-if="feishuInstallLines.length" class="ch-terminal" style="margin-top: 8px;">
+                <div class="ch-terminal-head">{{ t('channel.qrOutputLabel') }}</div>
+                <pre class="ch-terminal-body"><template v-for="(ln, i) in feishuInstallLines" :key="i">{{ ln }}
+</template></pre>
+              </div>
+
+              <div class="ch-actions" style="margin-top: 8px;">
+                <button
+                  v-if="feishuInstallState === 'idle' || feishuInstallState === 'failed'"
+                  type="button"
+                  class="ch-btn ch-btn--primary"
+                  @click="startFeishuInstall"
+                >{{ t('channel.feishu.startInstallBtn') }}</button>
+                <button v-if="feishuInstallState === 'running'" type="button" class="ch-btn" disabled>
+                  {{ t('channel.feishu.installRunning') }}
+                </button>
+                <button v-if="feishuInstallState === 'success'" type="button" class="ch-btn ch-btn--primary" @click="restartGateway">
+                  🔄 重启 Gateway 立即生效
+                </button>
+              </div>
             </div>
-            <p class="ch-restart-hint">{{ t('channel.restartHint') }}</p>
-            <div class="ch-actions">
-              <button type="button" class="ch-btn ch-btn--primary" :disabled="busy" @click="saveCredentialChannel('feishu')">
-                {{ busy ? t('common.saving') : t('channel.saveBtn') }}
-              </button>
-            </div>
+
+            <!-- Manual credentials (collapsible fallback) -->
+            <button type="button" class="ch-toggle-manual" @click="feishuManualOpen = !feishuManualOpen">
+              {{ feishuManualOpen ? '▾' : '▸' }} {{ t('channel.feishu.orManual') }}
+            </button>
+            <template v-if="feishuManualOpen">
+              <div class="ch-form">
+                <label class="ch-label">{{ t('channel.feishu.appId') }}</label>
+                <input v-model="feishuAppId" type="text" class="ch-input" :placeholder="t('channel.feishu.appIdPlh')" />
+                <label class="ch-label">{{ t('channel.feishu.appSecret') }}</label>
+                <input v-model="feishuAppSecret" type="password" class="ch-input" :placeholder="t('channel.feishu.appSecretPlh')" />
+              </div>
+              <p class="ch-restart-hint">{{ t('channel.restartHint') }}</p>
+              <div class="ch-actions">
+                <button type="button" class="ch-btn ch-btn--primary" :disabled="busy" @click="saveCredentialChannel('feishu')">
+                  {{ busy ? t('common.saving') : t('channel.saveBtn') }}
+                </button>
+              </div>
+            </template>
           </div>
 
           <!-- ── Discord ── -->
@@ -613,6 +695,41 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 500;
 }
+.ch-install-card {
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  padding: 10px 12px;
+  background: var(--lc-bg-raised);
+  display: flex;
+  flex-direction: column;
+}
+.ch-install-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ch-code--block {
+  flex: 1;
+  display: block;
+  padding: 6px 8px;
+  background: var(--lc-bg-elevated);
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  font-size: 12px;
+  color: var(--lc-accent);
+  user-select: all;
+}
+.ch-toggle-manual {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--lc-text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+.ch-toggle-manual:hover { color: var(--lc-text); }
 .ch-session-exists {
   display: flex;
   flex-direction: column;

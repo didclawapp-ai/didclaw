@@ -103,6 +103,48 @@ pub fn write_channel_config(channel_key: &str, payload: Value) -> Value {
 
 // ── start_channel_qr_flow ────────────────────────────────────────────────────
 
+/// 查找 npx 可执行文件（Windows 优先 npx.cmd，fallback 到 PATH 中的 npx）。
+fn resolve_npx_executable() -> Option<String> {
+    #[cfg(windows)]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let p = std::path::PathBuf::from(&appdata).join("npm").join("npx.cmd");
+            if p.is_file() {
+                return Some(p.to_string_lossy().into_owned());
+            }
+        }
+        for base in &[r"C:\Program Files\nodejs", r"C:\Program Files (x86)\nodejs"] {
+            let p = std::path::PathBuf::from(base).join("npx.cmd");
+            if p.is_file() {
+                return Some(p.to_string_lossy().into_owned());
+            }
+        }
+        if let Ok(out) = std::process::Command::new("where").arg("npx").output() {
+            if out.status.success() {
+                let s = String::from_utf8_lossy(&out.stdout);
+                if let Some(line) = s.lines().next() {
+                    let t = line.trim();
+                    if !t.is_empty() { return Some(t.to_owned()); }
+                }
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        for c in &["/usr/local/bin/npx", "/usr/bin/npx"] {
+            if std::path::Path::new(c).is_file() { return Some(c.to_string()); }
+        }
+        if let Ok(out) = std::process::Command::new("which").arg("npx").output() {
+            if out.status.success() {
+                let s = String::from_utf8_lossy(&out.stdout);
+                let t = s.trim();
+                if !t.is_empty() { return Some(t.to_owned()); }
+            }
+        }
+    }
+    None
+}
+
 /// 流式运行渠道 QR 登录命令，逐行向前端推送事件：
 /// - `channel:line`  → `{stream: "stdout"|"stderr", line: string}`
 /// - `channel:qr`    → `{url: string}`（检测到 https:// 行时）
@@ -123,16 +165,25 @@ pub async fn start_channel_qr_flow(
         None => return json!({"ok": false, "error": "找不到 openclaw，请先完成安装向导"}),
     };
 
-    let args: Vec<&str> = match channel.as_str() {
-        "whatsapp" => vec!["channels", "login", "--channel", "whatsapp"],
+    // 飞书使用独立的 npx 安装命令，其他渠道用 openclaw CLI
+    let (exe_resolved, args_resolved): (String, Vec<String>) = match channel.as_str() {
+        "whatsapp" => (
+            exe,
+            vec!["channels".into(), "login".into(), "--channel".into(), "whatsapp".into()],
+        ),
+        "feishu" => {
+            // 查找 npx（Windows 上通常是 npx.cmd）
+            let npx = resolve_npx_executable().unwrap_or_else(|| "npx".into());
+            (npx, vec!["-y".into(), "@larksuite/openclaw-lark".into(), "install".into()])
+        }
         _ => return json!({"ok": false, "error": format!("不支持的 QR 渠道: {channel}")}),
     };
+    let args: Vec<&str> = args_resolved.iter().map(String::as_str).collect();
 
-    let mut cmd = Command::new(&exe);
+    let mut cmd = Command::new(&exe_resolved);
     cmd.args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        // 接管 stdin，以便向交互式提示发送回车键自动接受默认选项
         .stdin(Stdio::piped());
 
     if !gateway_url.is_empty() {
