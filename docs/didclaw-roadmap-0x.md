@@ -147,33 +147,33 @@
 
 ---
 
-### P1-3 Channel 接入引导
+### P1-3 Channel 接入引导 ✅ 已完成
 
 **目标**：用户通过图形向导接入主流消息渠道，手机消息 ↔ DidClaw AI。
 
 **支持渠道（本期）**
 | 渠道 | 接入方式 | 插件 |
 |------|----------|------|
-| WhatsApp | QR 扫码（流式命令） | `@openclaw/whatsapp` |
-| 飞书 (Feishu) | App ID + App Secret | 内置 |
-| Discord | Bot Token | 内置 |
-| 企业微信 (WeCom) | Bot ID + Secret | `@wecom/wecom-openclaw-plugin` |
+| WhatsApp | 流式命令向导（已有 session 自动复用，提示重启 Gateway） | `@openclaw/whatsapp`（本机） |
+| 飞书 (Feishu) | 官方插件流式安装 `npx -y @larksuite/openclaw-lark install`；备用手动凭据 | `@larksuite/openclaw-lark` |
+| Discord | Bot Token 表单 | 内置 |
+| 企业微信 (WeCom) | Bot ID + Secret 表单 + 一键安装插件 | `@wecom/wecom-openclaw-plugin` |
 
 个人微信（`@tencent-weixin` QR 流）列为后续迭代。
 
-**入口位置**：Header 独立按钮（与「定时任务」「技能」并列），所有用户可见
-
-**技术方案**
-- `ChannelSetupDialog.vue`：多渠道 tab 切换向导
-- **凭据类渠道**（飞书 / Discord / 企业微信）：表单输入 → 写入 `openclaw.json` → 提示重启 Gateway
-- **QR 类渠道**（WhatsApp）：Rust 流式命令 `start_channel_qr_flow()` → `window.emit` 推送每行输出 → 前端解析 QR URL → 渲染图片
-- `write_channel_config(channel, payload)` Tauri 命令：通用写入 `openclaw.json` 的 `channels.*`
+**入口位置**：Header 独立按钮「渠道」（与「定时任务」「技能」并列）
 
 **工作范围**
-- [ ] Tauri：`write_channel_config(channel, payload)` 命令
-- [ ] Tauri：`start_channel_qr_flow(channel, gateway_url)` 流式命令
-- [ ] `ChannelSetupDialog.vue`：4 渠道向导 UI
-- [ ] AppHeader：新增「渠道」Header 按钮入口
+- [x] Tauri：`write_channel_config(channel, payload)` 命令
+- [x] Tauri：`start_channel_qr_flow(channel, gateway_url)` 流式命令（支持 whatsapp / feishu）
+- [x] Tauri：`resolve_npx_executable()` Windows npx 路径解析
+- [x] `ChannelSetupDialog.vue`：4 渠道向导 UI（WhatsApp 流式终端、飞书官方插件向导、Discord/WeCom 表单）
+- [x] AppHeader：新增「渠道」Header 按钮入口
+
+**已知修复**
+- WhatsApp `channels login` 为交互式 CLI：自动向 stdin 发 3 次回车（间隔 1.5s）接受默认选项
+- 已有本地 session 时命令以 0 退出（不显示 QR），前端提示「已有绑定会话」并提供「重启 Gateway」按钮
+- `@wecom/wecom-openclaw-plugin` 等含 `@` 的 i18n 字符串会被 vue-i18n 误解析为链接消息语法，已移出 i18n 改为组件内常量
 
 ---
 
@@ -225,14 +225,14 @@
 ```
 ✅ P0-1 i18n  →  ✅ P0-6 Doctor  →  ✅ P0-3 Token 用量  →  ✅ P0-5 备份恢复
      ↓
-✅ P1-4 Slash 命令  →  ✅ P1-2 Exec 审批  →  ✅ P1-5 故障切换
+✅ P1-4 Slash 命令  →  ✅ P1-2 Exec 审批  →  ✅ P1-5 故障切换  →  ✅ P1-3 渠道接入
      ↓
-P1-1 常驻指令  →  P1-3 Telegram
+P1-1 常驻指令
 ```
 
 ---
 
-## 完成情况汇总（截至 v0.4.0）
+## 完成情况汇总（截至 v0.5.0）
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
@@ -243,8 +243,10 @@ P1-1 常驻指令  →  P1-3 Telegram
 | P0-5 配置备份/恢复 | ✅ 完成 | 一键 zip 备份 `~/.openclaw/`，顶栏菜单可访问 |
 | P0-6 Doctor 图形化 | ✅ 完成 | 网关诊断面板，支持自动修复 |
 | P1-2 Exec 审批 UI | ✅ 完成 | `exec.approval.requested` 弹窗，支持允许/总是允许/拒绝 |
+| P1-3 消息渠道接入 | ✅ 完成 | WhatsApp / 飞书 / Discord / 企业微信向导，顶栏「渠道」按钮 |
 | P1-4 Slash 命令提示 | ✅ 完成 | `/` 触发浮层，红/黄/绿风险色标注 |
 | P1-5 模型故障切换 | ✅ 完成 | AI 配置页备用模型管理，写入 `fallbacks` 配置 |
+| P1-1 常驻指令 | 🔲 待做 | Standing Orders 图形化编辑 |
 
 ---
 
@@ -253,7 +255,8 @@ P1-1 常驻指令  →  P1-3 Telegram
 | 里程碑 | 版本 | 主要内容 |
 |--------|------|---------|
 | 上一版 | 0.3.x | AI 配置、i18n、Doctor、备份恢复、Token 用量 — P0 全部完成 |
-| 当前 | 0.4.0 | Slash 命令、Exec 审批、模型故障切换 — **P1 部分完成** |
-| P1 全部 | 0.5.0 | 常驻指令（P1-1）、Telegram 接入（P1-3） |
+| 上一版 | 0.4.0 | Slash 命令、Exec 审批、模型故障切换 — P1 部分完成 |
+| 当前 | 0.5.0 | 消息渠道接入（WhatsApp/飞书/Discord/企业微信）— **P1 主体完成** |
+| P1 完整 | 0.6.0 | 常驻指令（P1-1） |
 | 发布候选 | 0.9.0 | 功能冻结、Bug 修复、文档完善 |
 | Product Hunt 发布 | 1.0.0 | 正式发布 |

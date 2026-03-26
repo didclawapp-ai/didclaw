@@ -8,7 +8,12 @@
 
 ### 新增
 
-- **消息渠道接入向导（P1-3）**：顶栏新增「渠道」按钮，点击打开渠道接入向导，支持 WhatsApp（QR 扫码登录，流式命令输出）、飞书（App ID + App Secret）、Discord（Bot Token）、企业微信（Bot ID + Secret，含一键安装插件按钮）四种渠道。凭据类渠道配置写入 `openclaw.json` 的 `channels.*`；WhatsApp 通过 Rust 流式子进程逐行推送 `channel:line` / `channel:qr` / `channel:done` 事件到前端。个人微信（QR 流）列为后续迭代。
+- **消息渠道接入向导（P1-3）**：顶栏新增「渠道」按钮（与「定时任务」「技能」并列），点击打开四渠道向导：
+  - **WhatsApp**：流式运行 `openclaw channels login --channel whatsapp`，自动接受插件选择提示（3 次 Enter/1.5s 间隔），已有本地 session 时提示「无需重新扫码，重启 Gateway 即可使用」并提供快捷重启按钮。
+  - **飞书 / Lark**：主路径为运行官方插件安装向导 `npx -y @larksuite/openclaw-lark install`（流式输出，自动创建机器人并写入配置）；备用路径可折叠展开，手动填写 App ID / App Secret。
+  - **Discord**：Bot Token 表单，直接写入 `openclaw.json` 的 `channels.discord`。
+  - **企业微信（WeCom）**：Bot ID + Secret 表单 + 一键安装插件按钮（`@wecom/wecom-openclaw-plugin`），写入 `channels.wecom`。
+  - Rust 新增 `write_channel_config` / `start_channel_qr_flow` / `resolve_npx_executable` 命令；个人微信列为后续迭代。
 
 - **Exec 审批 UI（P1-2）**：AI 执行终端命令前，DidClaw 桌面端通过 Gateway `exec.approval.requested` 事件弹出审批对话框，显示待执行命令、工作目录和所属 Agent；用户可选择「仅此次允许」「总是允许」或「拒绝」，响应通过 `exec.approval.resolve` RPC 发回网关（参数字段为 `id`，已通过真实 gateway 响应校验）。支持多请求排队，队列不为空时弹窗持续展示。
 
@@ -31,6 +36,10 @@
 - **后台子代理运行感知**：当后台子代理（运行在非当前选中会话的 agent）活跃时，消息面板运行状态栏会显示「后台子代理运行中…」蓝色脉冲指示，提示用户有任务在进行中，避免误认为程序已停止。120 秒内无新事件时自动消失；用户切换至对应会话后指示器隐藏。
 
 ### 修复
+
+- **Windows 重启 Gateway 报 `ERR_UNKNOWN_SIGNAL: SIGUSR1`**：`openclaw gateway restart` 内部对运行中的进程发送 SIGUSR1 信号（Unix 专有）；Windows 不存在此信号导致 `TypeError`。修复：Windows 下改为直接 kill 托管子进程 + spawn 全新进程（等待 2s 启动），完全绕开信号问题；非 Windows 仍走原 `openclaw gateway restart` 服务路径。
+
+- **Windows 重启 Gateway PowerShell `MethodArgumentConversionInvalidCastArgument`**（早期更早的路径）：PowerShell 脚本中 `$q=[char]34` 与 `$q+$q`（结果为 `[string]`）类型不一致，`String.Replace(char, string)` 重载不存在。已改为 `$q=[string][char]34`，两参数统一为 `string`。
 
 - **「网关诊断」弹窗背景透明**：对话框使用了未在主题中定义的 CSS 变量 `--lc-bg`，导致 `background` 无效、底层界面透出。已改为与「关于」弹窗相同的 `var(--lc-surface)` 及阴影 token。
 
