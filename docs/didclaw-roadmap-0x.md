@@ -139,10 +139,11 @@
 - 多请求排队展示
 
 **工作范围**
-- [x] 研究 OpenClaw approvals WS 事件格式
+- [x] 研究 OpenClaw approvals WS 事件格式（`exec.approval.requested`，payload 含 `id`/`systemRunPlan`/`agentId`）
 - [x] `stores/approval.ts`：Pinia 审批队列 store
 - [x] `ExecApprovalDialog.vue`：展示命令、允许/拒绝
 - [x] `stores/gateway.ts`：监听 `exec.approval.requested` 事件
+- [x] 通过真实 gateway 响应确认 `exec.approval.resolve` 参数字段为 `id`（非 `approvalId`）
 
 ---
 
