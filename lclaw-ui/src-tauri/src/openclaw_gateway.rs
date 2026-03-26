@@ -557,7 +557,7 @@ fn run_openclaw_gateway_restart_captured(exe: &str) -> io::Result<std::process::
         concat!(
             "$ErrorActionPreference='Stop';",
             "$exe=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{b64}'));",
-            "$q=[char]34;",
+            "$q=[string][char]34;",
             "$safe=$exe.Replace($q,$q+$q);",
             "$argsLine='/c '+$q+$safe+$q+' gateway restart';",
             "$psi=New-Object System.Diagnostics.ProcessStartInfo;",
