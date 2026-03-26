@@ -89,6 +89,28 @@ const deliveryChannel = ref("last");
 const deliveryTo = ref("");
 const deliveryBestEffort = ref(true);
 
+/** 选了具体频道（非 last/空）时，to 字段为必填 */
+const deliveryToRequired = computed(
+  () =>
+    deliveryMode.value === "announce" &&
+    deliveryChannel.value !== "" &&
+    deliveryChannel.value !== "last",
+);
+
+/** 根据所选频道返回对应的 to 字段占位提示 */
+const deliveryToPlaceholder = computed((): string => {
+  switch (deliveryChannel.value) {
+    case "whatsapp":    return t("cron.deliveryToPlaceholderWhatsapp");
+    case "telegram":   return t("cron.deliveryToPlaceholderTelegram");
+    case "slack":      return t("cron.deliveryToPlaceholderSlack");
+    case "discord":    return t("cron.deliveryToPlaceholderDiscord");
+    case "mattermost": return t("cron.deliveryToPlaceholderMattermost");
+    case "signal":     return t("cron.deliveryToPlaceholderSignal");
+    case "imessage":   return t("cron.deliveryToPlaceholderImessage");
+    default:           return t("cron.deliveryToPlaceholder");
+  }
+});
+
 const createBusy = ref(false);
 const createError = ref<string | null>(null);
 const createOk = ref<string | null>(null);
@@ -906,6 +928,10 @@ async function submitCreate(): Promise<void> {
       return;
     }
   }
+  if (sessionTarget.value === "isolated" && deliveryToRequired.value && !deliveryTo.value.trim()) {
+    createError.value = t("cron.errNoDeliveryTo", { channel: deliveryChannel.value });
+    return;
+  }
 
   createBusy.value = true;
   try {
@@ -1436,9 +1462,13 @@ async function removeJob(jobId: string): Promise<void> {
                   </select>
                 </label>
                 <label class="cron-field">
-                  <span class="cron-label">{{ t('cron.deliveryToLabel') }}</span>
+                  <span class="cron-label">
+                    {{ t('cron.deliveryToLabel') }}
+                    <span v-if="deliveryToRequired" class="cron-req">{{ t('cron.deliveryToRequired') }}</span>
+                    <span v-else class="muted">（{{ t('common.optional') }}）</span>
+                  </span>
                   <input v-model="deliveryTo" type="text" class="cron-input"
-                    :placeholder="t('cron.deliveryToPlaceholder')" />
+                    :placeholder="deliveryToPlaceholder" />
                 </label>
                 <label class="cron-check">
                   <input v-model="deliveryBestEffort" type="checkbox" />
