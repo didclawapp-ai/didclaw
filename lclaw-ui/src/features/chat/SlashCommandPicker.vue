@@ -41,7 +41,14 @@ watch(
         @mousedown.prevent="emit('select', cmd)"
         @mouseover="$emit('update:activeIndex', i)"
       >
-        <span class="slash-cmd">{{ cmd.command }}<span v-if="cmd.argHint" class="slash-arg">{{ cmd.argHint }}</span></span>
+        <span
+          class="slash-cmd"
+          :class="{
+            'slash-cmd--safe':    cmd.risk === 'safe',
+            'slash-cmd--caution': cmd.risk === 'caution',
+            'slash-cmd--danger':  cmd.risk === 'danger',
+          }"
+        >{{ cmd.command }}<span v-if="cmd.argHint" class="slash-arg">{{ cmd.argHint }}</span></span>
         <span class="slash-desc">{{ t(cmd.descKey) }}</span>
       </li>
     </ul>
@@ -96,10 +103,12 @@ watch(
 .slash-cmd {
   font-family: var(--lc-font-mono, monospace);
   font-weight: 600;
-  color: var(--lc-accent, #06b6d4);
   white-space: nowrap;
   flex-shrink: 0;
 }
+.slash-cmd--safe    { color: var(--lc-success, #059669); }
+.slash-cmd--caution { color: var(--lc-warning, #d97706); }
+.slash-cmd--danger  { color: var(--lc-error,   #dc2626); }
 
 .slash-arg {
   font-weight: 400;

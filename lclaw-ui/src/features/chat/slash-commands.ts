@@ -12,15 +12,22 @@ export interface SlashCommand {
    * 无 args 的命令选中后直接可发送。
    */
   hasArgs?: boolean;
+  /**
+   * 风险等级，用于 picker 中的字体颜色提示：
+   * - `safe`（绿）：只读或可撤销，普通用户随意使用
+   * - `caution`（黄）：可逆但有影响，如切换模型
+   * - `danger`（红）：不可逆或影响较大，如结束会话、删除记忆
+   */
+  risk?: "safe" | "caution" | "danger";
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
-  { command: "/new",      descKey: "slash.new" },
-  { command: "/remember", descKey: "slash.remember", argHint: " <内容>", hasArgs: true },
-  { command: "/forget",   descKey: "slash.forget",   argHint: " <内容>", hasArgs: true },
-  { command: "/status",   descKey: "slash.status" },
-  { command: "/usage",    descKey: "slash.usage" },
-  { command: "/model",    descKey: "slash.model",    argHint: " <模型名>", hasArgs: true },
+  { command: "/new",      descKey: "slash.new",      risk: "danger" },
+  { command: "/remember", descKey: "slash.remember", argHint: " <内容>",  hasArgs: true, risk: "safe" },
+  { command: "/forget",   descKey: "slash.forget",   argHint: " <内容>",  hasArgs: true, risk: "danger" },
+  { command: "/status",   descKey: "slash.status",   risk: "safe" },
+  { command: "/usage",    descKey: "slash.usage",    risk: "safe" },
+  { command: "/model",    descKey: "slash.model",    argHint: " <模型名>", hasArgs: true, risk: "caution" },
 ];
 
 /**
