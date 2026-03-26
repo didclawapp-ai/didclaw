@@ -208,11 +208,34 @@ export const useGatewayStore = defineStore("gateway", () => {
             const p = evt.payload as { sessionKey?: unknown } | undefined;
             const sk = p && typeof p.sessionKey === "string" ? p.sessionKey : null;
             void import("./session").then(({ useSessionStore }) => {
-              const active = useSessionStore().activeSessionKey;
+              const sessionStore = useSessionStore();
+              const active = sessionStore.activeSessionKey;
               if (!sk || !active || sk !== active) {
                 if (sk && sk !== active) {
-                  void import("./chat").then(({ useChatStore }) => {
-                    useChatStore().noteBackgroundAgentActivity(sk);
+                  void import("./chat").then(async ({ useChatStore }) => {
+                    const chatStore = useChatStore();
+                    /**
+                     * 检查是否为「首次出现」的后台会话（flashingSessionKeys 尚未包含它）。
+                     * 对于 WhatsApp 等渠道，Gateway 仅发 agent 事件而不发 chat.delta，
+                     * 依赖 chat.delta 的 shouldFollow 逻辑无法触发切换，需在此补充：
+                     * 首个 agent 事件到达时若 composer 空闲则自动切换到该会话。
+                     */
+                    const isFirstAgentBurst = !chatStore.flashingSessionKeys.includes(sk);
+                    chatStore.noteBackgroundAgentActivity(sk);
+                    if (isFirstAgentBurst) {
+                      const composerIdle =
+                        !chatStore.sending &&
+                        chatStore.runId == null &&
+                        (chatStore.streamText == null || !String(chatStore.streamText).trim());
+                      if (composerIdle) {
+                        if (isGatewayPushDebugEnabled()) {
+                          logGatewayPush("agent WS event（新后台会话，composer 空闲）→ selectSession", {
+                            sessionKey: sk,
+                          });
+                        }
+                        await sessionStore.selectSession(sk);
+                      }
+                    }
                   }).catch((e) => { console.error("[didclaw] background agent note error", e); });
                 }
                 return;

@@ -8,6 +8,8 @@
 
 ### 修复
 
+- **WhatsApp 等渠道收到消息后仅显示"后台子代理运行中"、未自动切换到会话窗口**：WhatsApp 等渠道消息处理时 Gateway 只发 `agent` 事件（走 announce 投递），不发 `chat.delta`，导致原先依赖 `chat.delta` 的 shouldFollow 自动切换逻辑从未触发。修复后：当某个后台会话首次出现 `agent` 事件（`flashingSessionKeys` 尚未包含该会话，即 5 秒内未曾高亮过）且 composer 空闲时，自动切换到该会话，与 `chat.delta` 的行为对齐；此后同一会话的后续 `agent` 事件不会重复触发切换。
+
 - **定时任务投递频道选了 WhatsApp 但消息未发送到手机**：官方文档明确指出，当 `delivery.to` 为空时，无论 `delivery.channel` 设置了什么，网关均回退到"最后活跃路由"而忽略指定的频道。修复内容：① 选了具体频道（非"自动"）时，收件人/目标字段标注为必填并展示该频道对应的格式示例（WhatsApp → 手机号如 `+8613XXXXXXXXX`；Telegram → 群 ID 或 `:topic:` 格式；Slack → `channel:CXXXXX` 等）；② `submitCreate` 增加校验，频道已选但 `to` 为空时阻止提交并提示；③ 选"自动（最后使用的渠道）"时仍保持可选行为不变。
 
 ## [0.4.0] - 2026-03-26
