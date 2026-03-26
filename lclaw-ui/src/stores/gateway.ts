@@ -244,7 +244,11 @@ export const useGatewayStore = defineStore("gateway", () => {
           }).catch((e) => { console.error("[didclaw] toolTimeline ingest error", e); });
           if (evt.event === "exec.approval.requested") {
             const p = evt.payload as Record<string, unknown> | undefined;
-            const approvalId = p && typeof p.approvalId === "string" ? p.approvalId : null;
+            // gateway schema uses `id`; tolerate legacy `approvalId` too
+            const approvalId =
+              p && typeof p.id === "string" ? p.id
+              : p && typeof p.approvalId === "string" ? p.approvalId
+              : null;
             if (approvalId) {
               void import("./approval").then(({ useApprovalStore }) => {
                 useApprovalStore().addPending({

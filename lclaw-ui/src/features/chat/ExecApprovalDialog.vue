@@ -32,7 +32,7 @@ async function resolve(decision: ApprovalDecision): Promise<void> {
   resolveError.value = null;
   try {
     await gwStore.client?.request("exec.approval.resolve", {
-      approvalId: req.approvalId,
+      id: req.approvalId,
       decision,
     });
     approvalStore.removePending(req.approvalId);
