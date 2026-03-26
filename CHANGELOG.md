@@ -8,6 +8,10 @@
 
 ### 新增
 
+- **Exec 审批 UI（P1-2）**：AI 执行终端命令前，DidClaw 桌面端通过 Gateway `exec.approval.requested` 事件弹出审批对话框，显示待执行命令、工作目录和所属 Agent；用户可选择「仅此次允许」「总是允许」或「拒绝」，响应通过 `exec.approval.resolve` RPC 发回网关。支持多请求排队，队列不为空时弹窗持续展示。
+
+- **模型故障切换配置（P1-5）**：AI 配置面板新增「备用模型（故障切换）」区块。用户可从已配置服务商的模型列表中选择备用模型，也可手动输入 `provider/model` 格式添加。保存后写入 `agents.defaults.model.fallbacks`，主力模型不可用时 OpenClaw 自动按顺序切换。
+
 - **Slash 命令提示面板（P1-4）**：消息输入框输入 `/` 时自动弹出命令选择浮层，预置 `/new`、`/remember`、`/forget`、`/status`、`/usage`、`/model` 六条命令；支持键盘 ↑↓ 导航、Enter/Tab 选中、Esc 关闭；选中后自动填入草稿，有参数的命令末尾留空格供继续输入。
 
 - **配置备份与恢复（P0-5）**：顶栏「···」菜单新增「备份与恢复」入口（仅桌面端可见）。点击后可将 `~/.openclaw/` 打包为 zip 文件保存到任意位置，或从备份 zip 还原配置。备份自动跳过 `logs/`、`completions/`、`agents/*/sessions/` 等大体积目录，同时估算并展示备份体积。

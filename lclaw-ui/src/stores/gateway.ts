@@ -15,6 +15,7 @@ import {
   logGatewayPush,
   summarizeGatewayEvent,
 } from "@/lib/gateway-debug-log";
+import type { ExecApprovalRequest } from "./approval";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
@@ -241,6 +242,20 @@ export const useGatewayStore = defineStore("gateway", () => {
           void import("./toolTimeline").then(({ useToolTimelineStore }) => {
             useToolTimelineStore().ingest(evt);
           }).catch((e) => { console.error("[didclaw] toolTimeline ingest error", e); });
+          if (evt.event === "exec.approval.requested") {
+            const p = evt.payload as Record<string, unknown> | undefined;
+            const approvalId = p && typeof p.approvalId === "string" ? p.approvalId : null;
+            if (approvalId) {
+              void import("./approval").then(({ useApprovalStore }) => {
+                useApprovalStore().addPending({
+                  approvalId,
+                  sessionKey: typeof p?.sessionKey === "string" ? p.sessionKey : undefined,
+                  agentId: typeof p?.agentId === "string" ? p.agentId : undefined,
+                  systemRunPlan: p?.systemRunPlan as ExecApprovalRequest["systemRunPlan"],
+                });
+              }).catch((e) => { console.error("[didclaw] approval store error", e); });
+            }
+          }
         },
         onClose: ({ code, reason, error }) => {
           /**

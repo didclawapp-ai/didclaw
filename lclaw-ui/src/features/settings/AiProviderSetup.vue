@@ -3,7 +3,7 @@ import { PROVIDER_CATALOG, type ProviderCatalogEntry } from "@/lib/provider-cata
 import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { afterOpenClawModelConfigSaved, afterOpenClawProvidersSaved } from "@/composables/modelConfigDeferred";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 const props = defineProps<{ open: boolean }>();
 
@@ -13,6 +13,10 @@ const chat = useChatStore();
 const savedProviders = ref<Record<string, Record<string, unknown>>>({});
 /** 当前主力模型，如 "zai/glm-5" */
 const currentPrimary = ref("");
+/** 备用模型列表（故障切换顺序），如 ["openai/gpt-4o-mini"] */
+const fallbackModels = ref<string[]>([]);
+const fallbackInput = ref("");
+const fallbackBusy = ref(false);
 
 /** 展开的卡片 id */
 const expandedId = ref<string | null>(null);
@@ -69,7 +73,59 @@ async function loadAll() {
     if (mr?.ok && mr.model?.primary) {
       currentPrimary.value = String(mr.model.primary);
     }
+    if (mr?.ok && Array.isArray((mr.model as Record<string, unknown>)?.fallbacks)) {
+      fallbackModels.value = ((mr.model as Record<string, unknown>).fallbacks as unknown[])
+        .filter((v) => typeof v === "string" && v.trim())
+        .map((v) => String(v).trim());
+    }
   } catch { /* ignore */ }
+}
+
+/** 所有已配置 provider 下的完整模型引用（provider/model），排除当前主力 */
+const availableFallbackSuggestions = computed<string[]>(() => {
+  const results: string[] = [];
+  for (const entry of PROVIDER_CATALOG) {
+    const snap = savedProviders.value[entry.id];
+    if (!snap) continue;
+    const models = modelsFromSnap(snap, entry);
+    for (const m of models) {
+      const ref = `${entry.id}/${m}`;
+      if (ref !== currentPrimary.value && !fallbackModels.value.includes(ref)) {
+        results.push(ref);
+      }
+    }
+  }
+  return results;
+});
+
+function addFallback(model: string): void {
+  const v = model.trim();
+  if (!v || fallbackModels.value.includes(v)) return;
+  fallbackModels.value = [...fallbackModels.value, v];
+  fallbackInput.value = "";
+}
+
+function removeFallback(model: string): void {
+  fallbackModels.value = fallbackModels.value.filter((m) => m !== model);
+}
+
+async function saveFallbacks(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (!api?.writeOpenClawModelConfig) return;
+  fallbackBusy.value = true;
+  try {
+    const r = await api.writeOpenClawModelConfig({ model: { fallbacks: fallbackModels.value } });
+    if (r.ok) {
+      setToast("备用模型已保存");
+      afterOpenClawModelConfigSaved();
+    } else {
+      error.value = String(r.error || "保存失败");
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    fallbackBusy.value = false;
+  }
 }
 
 function isConfigured(entry: ProviderCatalogEntry): boolean {
@@ -264,6 +320,58 @@ async function removeProvider(entry: ProviderCatalogEntry) {
     <div class="aips-primary-bar" :class="{ 'aips-primary-bar--set': currentPrimary }">
       <span class="aips-primary-label">当前主力模型</span>
       <span class="aips-primary-value">{{ currentPrimaryLabel() }}</span>
+    </div>
+
+    <!-- 备用模型（故障切换）-->
+    <div class="aips-fallback">
+      <div class="aips-fallback-head">
+        <span class="aips-fallback-title">备用模型（故障切换）</span>
+        <span class="aips-fallback-hint">主力不可用时依序尝试</span>
+      </div>
+      <div class="aips-fallback-chips">
+        <template v-if="fallbackModels.length">
+          <span
+            v-for="m in fallbackModels"
+            :key="m"
+            class="aips-fallback-chip"
+          >
+            {{ m }}
+            <button type="button" class="aips-fallback-chip-del" :aria-label="`移除 ${m}`" @click.stop="removeFallback(m)">×</button>
+          </span>
+        </template>
+        <span v-else class="aips-fallback-empty">未配置</span>
+      </div>
+      <div class="aips-fallback-add">
+        <select
+          v-if="availableFallbackSuggestions.length"
+          class="aips-fallback-select"
+          @change="(e) => { addFallback((e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = '' }"
+        >
+          <option value="">+ 从已配置模型选择…</option>
+          <option v-for="s in availableFallbackSuggestions" :key="s" :value="s">{{ s }}</option>
+        </select>
+        <div class="aips-fallback-manual">
+          <input
+            v-model="fallbackInput"
+            type="text"
+            class="aips-key-input"
+            placeholder="或手动输入 provider/model…"
+            @keydown.enter.prevent="addFallback(fallbackInput)"
+          />
+          <button
+            type="button"
+            class="aips-ghost-btn aips-sm-btn"
+            :disabled="!fallbackInput.trim()"
+            @click="addFallback(fallbackInput)"
+          >添加</button>
+        </div>
+        <button
+          type="button"
+          class="aips-ghost-btn aips-sm-btn aips-fallback-save"
+          :disabled="fallbackBusy"
+          @click="saveFallbacks"
+        >{{ fallbackBusy ? "保存中…" : "保存" }}</button>
+      </div>
     </div>
 
     <!-- 反馈 -->
@@ -752,5 +860,90 @@ async function removeProvider(entry: ProviderCatalogEntry) {
 .aips-panel-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+/* ── 备用模型 ── */
+.aips-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-elevated);
+  border: 1px solid var(--lc-border);
+  font-size: 12px;
+}
+.aips-fallback-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aips-fallback-title {
+  font-weight: 600;
+  color: var(--lc-text);
+}
+.aips-fallback-hint {
+  color: var(--lc-text-muted);
+}
+.aips-fallback-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 22px;
+}
+.aips-fallback-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--lc-accent-soft);
+  color: var(--lc-accent);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--lc-font-mono, monospace);
+}
+.aips-fallback-chip-del {
+  background: none;
+  border: none;
+  color: var(--lc-text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+.aips-fallback-chip-del:hover { color: var(--lc-error); }
+.aips-fallback-empty {
+  color: var(--lc-text-dim, var(--lc-text-muted));
+  font-style: italic;
+}
+.aips-fallback-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.aips-fallback-select {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  font-size: 12px;
+  font-family: inherit;
+}
+.aips-fallback-manual {
+  display: flex;
+  gap: 6px;
+}
+.aips-fallback-manual .aips-key-input {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.aips-fallback-save {
+  align-self: flex-start;
+  color: var(--lc-accent);
+  border-color: rgba(6,182,212,0.4);
 }
 </style>

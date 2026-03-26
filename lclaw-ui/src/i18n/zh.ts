@@ -519,6 +519,18 @@ export default {
     unsupported: "不支持预览此文件类型",
   },
 
+  // ─── Exec 审批 ExecApprovalDialog ──────────────────
+  approval: {
+    title: "AI 请求执行命令",
+    command: "命令",
+    cwd: "目录",
+    agent: "Agent",
+    unknownCmd: "（未知命令）",
+    allowOnce: "仅此次允许",
+    allowAlways: "总是允许",
+    deny: "拒绝",
+  },
+
   // ─── Slash 命令 SlashCommandPicker ──────────────────
   slash: {
     pickerLabel: "Slash 命令选择",

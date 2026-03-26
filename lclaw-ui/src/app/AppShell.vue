@@ -6,6 +6,7 @@ import ChatRunStatusBar from "@/features/chat/ChatRunStatusBar.vue";
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import InlineToolTimeline from "@/features/chat/InlineToolTimeline.vue";
 import MessageComposer from "@/features/chat/MessageComposer.vue";
+import ExecApprovalDialog from "@/features/chat/ExecApprovalDialog.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
 import {
   buildListPreview,
@@ -235,6 +236,7 @@ async function pickLocalFileForPreview(): Promise<void> {
   <div class="shell">
     <FirstRunWizard v-if="isDidClawElectron()" />
     <OpenClawUpdatePrompt v-if="isDidClawElectron()" />
+    <ExecApprovalDialog />
     <AppHeader />
     <div
       v-if="isDidClawElectron() && showDeferredModelBanner"

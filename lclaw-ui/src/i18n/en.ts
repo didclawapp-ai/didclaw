@@ -519,6 +519,18 @@ export default {
     unsupported: "Preview not supported for this file type",
   },
 
+  // ─── Exec approvals ExecApprovalDialog ────────────────
+  approval: {
+    title: "AI Requests Command Execution",
+    command: "Command",
+    cwd: "Directory",
+    agent: "Agent",
+    unknownCmd: "(unknown command)",
+    allowOnce: "Allow Once",
+    allowAlways: "Always Allow",
+    deny: "Deny",
+  },
+
   // ─── Slash commands SlashCommandPicker ────────────────
   slash: {
     pickerLabel: "Slash command picker",
