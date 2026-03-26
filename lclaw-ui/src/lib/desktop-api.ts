@@ -61,6 +61,10 @@ function tauriApi(): DidClawElectronApi {
     estimateOpenclawBackupSize: () => invoke("estimate_openclaw_backup_size"),
     backupOpenclawConfig: () => invoke("backup_openclaw_config"),
     restoreOpenclawConfig: () => invoke("restore_openclaw_config"),
+    writeChannelConfig: (channelKey: string, payload: Record<string, unknown>) =>
+      invoke("write_channel_config", { channelKey, payload }),
+    startChannelQrFlow: (channel: string, gatewayUrl: string) =>
+      invoke("start_channel_qr_flow", { channel, gatewayUrl }),
     getOpenClawSetupStatus: () => invoke("get_open_claw_setup_status"),
     checkOpenclawUpdate: () => invoke("check_openclaw_update"),
     runEnsureOpenclawWindowsInstall: (payload: { skipOnboard: boolean; upgrade?: boolean }) =>

@@ -1,6 +1,7 @@
 mod commands;
 mod didclaw_db;
 mod openclaw_backup;
+mod openclaw_channel_config;
 mod gateway_local;
 mod gateway_tunnel;
 mod launch_log;
@@ -180,6 +181,8 @@ pub fn run() {
             commands::estimate_openclaw_backup_size,
             commands::backup_openclaw_config,
             commands::restore_openclaw_config,
+            commands::write_channel_config,
+            commands::start_channel_qr_flow,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

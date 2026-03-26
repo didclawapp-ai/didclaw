@@ -4,6 +4,7 @@ import AboutDialog from "@/features/about/AboutDialog.vue";
 import CronJobsDialog from "@/features/cron/CronJobsDialog.vue";
 import DoctorDialog from "@/features/settings/DoctorDialog.vue";
 import BackupRestoreDialog from "@/features/settings/BackupRestoreDialog.vue";
+import ChannelSetupDialog from "@/features/settings/ChannelSetupDialog.vue";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
@@ -32,6 +33,7 @@ const cronDialogOpen = ref(false);
 const aboutDialogOpen = ref(false);
 const doctorDialogOpen = ref(false);
 const backupDialogOpen = ref(false);
+const channelDialogOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
 const moreMenuOpen = ref(false);
@@ -251,6 +253,15 @@ function closeMoreMenu(): void {
         <button
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs"
+          :title="t('channel.title')"
+          :aria-expanded="channelDialogOpen"
+          @click="channelDialogOpen = true"
+        >
+          {{ t('channel.menuBtn') }}
+        </button>
+        <button
+          type="button"
+          class="lc-btn lc-btn-ghost lc-btn-xs"
           :aria-expanded="skillsDialogOpen"
           @click="skillsDialogOpen = true"
         >
@@ -399,6 +410,7 @@ function closeMoreMenu(): void {
     <AboutDialog v-model="aboutDialogOpen" />
     <DoctorDialog v-model="doctorDialogOpen" />
     <BackupRestoreDialog v-model="backupDialogOpen" />
+    <ChannelSetupDialog v-model="channelDialogOpen" />
   </header>
 </template>
 

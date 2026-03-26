@@ -147,22 +147,33 @@
 
 ---
 
-### P1-3 Channel 接入引导（Telegram 优先）
+### P1-3 Channel 接入引导
 
-**目标**：用户通过向导完成 Telegram Bot 绑定，实现手机消息 ↔ DidClaw AI。
+**目标**：用户通过图形向导接入主流消息渠道，手机消息 ↔ DidClaw AI。
 
-**OpenClaw 对应**：[Telegram](https://docs.openclaw.ai/channels/telegram) — 配置最简单，只需 Bot Token
+**支持渠道（本期）**
+| 渠道 | 接入方式 | 插件 |
+|------|----------|------|
+| WhatsApp | QR 扫码（流式命令） | `@openclaw/whatsapp` |
+| 飞书 (Feishu) | App ID + App Secret | 内置 |
+| Discord | Bot Token | 内置 |
+| 企业微信 (WeCom) | Bot ID + Secret | `@wecom/wecom-openclaw-plugin` |
+
+个人微信（`@tencent-weixin` QR 流）列为后续迭代。
+
+**入口位置**：Header 独立按钮（与「定时任务」「技能」并列），所有用户可见
 
 **技术方案**
-- 新增 `ChannelSetupDialog.vue`，Step 1 先只做 Telegram
-- 步骤：创建 Bot（链接到 BotFather）→ 粘贴 Token → 写入 `openclaw.json` →
-  重启网关 → 验证（发一条测试消息）
-- 其他 Channel（WhatsApp / Discord）留作后续 Step
+- `ChannelSetupDialog.vue`：多渠道 tab 切换向导
+- **凭据类渠道**（飞书 / Discord / 企业微信）：表单输入 → 写入 `openclaw.json` → 提示重启 Gateway
+- **QR 类渠道**（WhatsApp）：Rust 流式命令 `start_channel_qr_flow()` → `window.emit` 推送每行输出 → 前端解析 QR URL → 渲染图片
+- `write_channel_config(channel, payload)` Tauri 命令：通用写入 `openclaw.json` 的 `channels.*`
 
 **工作范围**
-- [ ] Tauri：`write_channel_config(channel, config)` 命令
-- [ ] `ChannelSetupDialog.vue`：Telegram 向导
-- [ ] 菜单栏 "Channel 连接" 入口
+- [ ] Tauri：`write_channel_config(channel, payload)` 命令
+- [ ] Tauri：`start_channel_qr_flow(channel, gateway_url)` 流式命令
+- [ ] `ChannelSetupDialog.vue`：4 渠道向导 UI
+- [ ] AppHeader：新增「渠道」Header 按钮入口
 
 ---
 

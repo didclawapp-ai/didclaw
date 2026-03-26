@@ -384,3 +384,17 @@ pub async fn restore_openclaw_config() -> Result<Value, String> {
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn write_channel_config(channel_key: String, payload: Value) -> Result<Value, String> {
+    Ok(crate::openclaw_channel_config::write_channel_config(&channel_key, payload))
+}
+
+#[tauri::command]
+pub async fn start_channel_qr_flow(
+    app: tauri::AppHandle,
+    channel: String,
+    gateway_url: String,
+) -> Result<Value, String> {
+    Ok(crate::openclaw_channel_config::start_channel_qr_flow(app, channel, gateway_url).await)
+}

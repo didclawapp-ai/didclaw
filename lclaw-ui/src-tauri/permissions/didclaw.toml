@@ -43,4 +43,6 @@ commands.allow = [
   "estimate_openclaw_backup_size",
   "backup_openclaw_config",
   "restore_openclaw_config",
+  "write_channel_config",
+  "start_channel_qr_flow",
 ]

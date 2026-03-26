@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **消息渠道接入向导（P1-3）**：顶栏新增「渠道」按钮，点击打开渠道接入向导，支持 WhatsApp（QR 扫码登录，流式命令输出）、飞书（App ID + App Secret）、Discord（Bot Token）、企业微信（Bot ID + Secret，含一键安装插件按钮）四种渠道。凭据类渠道配置写入 `openclaw.json` 的 `channels.*`；WhatsApp 通过 Rust 流式子进程逐行推送 `channel:line` / `channel:qr` / `channel:done` 事件到前端。个人微信（QR 流）列为后续迭代。
+
 - **Exec 审批 UI（P1-2）**：AI 执行终端命令前，DidClaw 桌面端通过 Gateway `exec.approval.requested` 事件弹出审批对话框，显示待执行命令、工作目录和所属 Agent；用户可选择「仅此次允许」「总是允许」或「拒绝」，响应通过 `exec.approval.resolve` RPC 发回网关（参数字段为 `id`，已通过真实 gateway 响应校验）。支持多请求排队，队列不为空时弹窗持续展示。
 
 - **模型故障切换配置（P1-5）**：AI 配置面板新增「备用模型（故障切换）」区块。用户可从已配置服务商的模型列表中选择备用模型，也可手动输入 `provider/model` 格式添加。保存后写入 `agents.defaults.model.fallbacks`，主力模型不可用时 OpenClaw 自动按顺序切换。

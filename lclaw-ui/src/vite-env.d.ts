@@ -193,6 +193,16 @@ interface DidClawElectronApi {
     | { ok: true; restoredFrom: string; fileCount: number }
     | { ok: false; cancelled?: boolean; error?: string }
   >;
+  /** 将 payload 深合并写入 openclaw.json 的 channels.<channelKey> */
+  writeChannelConfig?(
+    channelKey: string,
+    payload: Record<string, unknown>,
+  ): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;
+  /** 启动 QR 登录流（whatsapp），通过 Tauri 事件推送输出 */
+  startChannelQrFlow?(
+    channel: string,
+    gatewayUrl: string,
+  ): Promise<{ ok: boolean; exitCode?: number; error?: string }>;
 }
 
 interface Window {
