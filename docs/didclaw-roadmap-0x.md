@@ -28,80 +28,26 @@
 
 ---
 
-### P0-2 记忆管理 UI
+### P0-2 记忆管理 UI ~~（已取消）~~
 
-**目标**：让用户在界面内直接编辑 AI 身份（IDENTITY.md）、个人信息（USER.md）、AI 个性（SOUL.md）、常驻指令（AGENTS.md），无需手动改文件。
-
-**OpenClaw 对应**：[Memory](https://docs.openclaw.ai/concepts/memory) / [Agent Workspace](https://docs.openclaw.ai/concepts/agent-workspace)
-
-**技术方案**
-- Tauri 侧新增命令：读取 / 写入 workspace 下的 Markdown 文件
-- 文件路径：`~/.openclaw/workspace/{IDENTITY,USER,SOUL,AGENTS,MEMORY}.md`
-- 前端新建 `MemoryManagerDialog.vue`，Tab 式编辑各文件
-- 编辑器用 `<textarea>`（Markdown 纯文本，不做富文本），有字符计数提示
-- 保存时写入磁盘，并提示"下次对话生效"
-
-**UI 设计要点**
-- IDENTITY.md → "AI 设定"（名字、角色、性格）
-- USER.md → "关于我"（姓名、时区、偏好）
-- SOUL.md → "AI 风格"（高级用户，默认折叠）
-- AGENTS.md → "常驻指令 / 技能说明"（高级用户，默认折叠）
-- MEMORY.md → "长期记忆"（只读展示 + 清空按钮）
-
-**工作范围**
-- [ ] Rust：`read_workspace_file(name)` / `write_workspace_file(name, content)` 命令
-- [ ] 前端：`MemoryManagerDialog.vue` 组件
-- [ ] 菜单栏入口（AppHeader 加"记忆"按钮）
+> **决定不做**：1.0 之前不在 UI 内提供 workspace Markdown 编辑器，用户通过文件管理器或 `openclaw configure` 直接编辑即可。
 
 ---
 
-### P0-3 API 用量 / 费用显示（部分完成）
+### P0-3 Token 用量显示 ✅ 已完成（v0.3.2）
 
-**目标**：让用户了解本次会话消耗了多少 Token 和大概费用。
+**目标**：让用户了解本次会话消耗了多少 Token。
 
-**OpenClaw 对应**：[Usage Tracking](https://docs.openclaw.ai/concepts/usage-tracking) — `/status` 和 `/usage` 命令返回的数据
-
-**技术方案**
-- 通过网关 `chat.send` 发送 `/status` 或解析 OpenClaw session log
-- 更可靠的方案：读取 `~/.openclaw/agents/main/sessions/` 下的 JSONL transcript，
-  统计 `usage.inputTokens` / `usage.outputTokens` 字段
-- 前端在 ChatRunStatusBar 或设置面板展示累计用量
-
-**UI 设计**
-- 状态栏右侧常驻小字：`本次 ↑1.2k ↓3.4k tokens`
-- 设置 → 用量 Tab：按日/周聚合，展示 token 数 + 估算费用（基于各 provider 定价）
+> **范围调整**：费用估算不做；历史用量汇总 Tab 不做。只展示当前会话 Token 用量即可。
 
 **工作范围**
-- [ ] Tauri：`read_session_usage(agentId, date_range)` 命令（解析 JSONL）
 - [x] 前端：消息面板标题栏右侧展示本次会话累计输入/输出 Token（来自 Gateway `sessions.list`）
-- [ ] 前端：设置内用量汇总 Tab（历史按日/周聚合、费用估算）
 
 ---
 
-### P0-4 网关健康状态面板
+### P0-4 网关健康状态面板 ~~（已取消）~~
 
-**目标**：用户能一眼看出网关运行是否正常，出问题时有明确提示和修复引导。
-
-**OpenClaw 对应**：[Health Checks](https://docs.openclaw.ai/gateway/health) / `openclaw health` CLI
-
-**技术方案**
-- 调用现有 `getOpenClawSetupStatus` / 网关 HTTP `/health` 接口
-- 补充解析：端口占用、Node 版本、服务进程状态
-- 连接失败时在 AppHeader 显示警告图标 + 快速操作面板
-
-**UI 设计**
-- AppHeader 连接图标：绿色（健康）/ 黄色（警告）/ 红色（断开）
-- 点击图标展开面板，显示：
-  - 网关版本 / Node 版本
-  - 上次启动时间
-  - 当前端口是否正常监听
-  - 已配置的 Channel 状态（如有）
-  - 一键"重启网关" / "查看日志"按钮
-
-**工作范围**
-- [ ] Tauri：`get_gateway_health_detail()` 命令（整合多个状态源）
-- [ ] 前端：`GatewayStatusPanel.vue` 浮层组件
-- [ ] AppHeader 状态图标更新逻辑
+> **决定不做**：现有连接状态 LED + Doctor 诊断面板已足够满足健康检查需求，不再单独开发健康状态浮层。
 
 ---
 
@@ -263,14 +209,10 @@
 ## 优先级执行顺序建议
 
 ```
-✅ P0-1 i18n 框架  →  ✅ P0-6 Doctor  →  ✅ P0-5 备份恢复  →  P0-2 记忆管理
-     ↓
-✅ P0-3 用量显示（状态栏）  →  P0-3 用量汇总 Tab  →  P0-4 健康面板
+✅ P0-1 i18n  →  ✅ P0-6 Doctor  →  ✅ P0-3 Token 用量  →  ✅ P0-5 备份恢复
      ↓
 P1-4 Slash 命令  →  P1-1 常驻指令  →  P1-3 Telegram  →  P1-2 Exec 审批  →  P1-5 故障切换
 ```
-
-i18n 建议最先做，搭好框架后其他功能的新字符串直接写进语言文件，避免后期补提取。
 
 ---
 
@@ -279,12 +221,11 @@ i18n 建议最先做，搭好框架后其他功能的新字符串直接写进语
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | P0-1 国际化（i18n） | ✅ 完成 | 中/英切换，顶栏语言按钮 |
-| P0-3 Token 用量（状态栏） | ✅ 完成 | 消息面板标题栏显示本次会话输入/输出 Token |
-| P0-3 用量汇总 Tab | ⏳ 待做 | 历史聚合、费用估算 |
+| P0-2 记忆管理 UI | 🚫 取消 | 用文件管理器 / CLI 直接编辑即可 |
+| P0-3 Token 用量显示 | ✅ 完成 | 消息面板标题栏显示本次会话输入/输出 Token |
+| P0-4 网关健康面板 | 🚫 取消 | 连接 LED + Doctor 面板已够用 |
 | P0-5 配置备份/恢复 | ✅ 完成 | 一键 zip 备份 `~/.openclaw/`，顶栏菜单可访问 |
 | P0-6 Doctor 图形化 | ✅ 完成 | 网关诊断面板，支持自动修复 |
-| P0-2 记忆管理 UI | ⏳ 待做 | workspace Markdown 文件编辑器 |
-| P0-4 网关健康面板 | ⏳ 待做 | 健康状态浮层 + 一键修复 |
 
 ---
 
@@ -292,9 +233,8 @@ i18n 建议最先做，搭好框架后其他功能的新字符串直接写进语
 
 | 里程碑 | 版本 | 主要内容 |
 |--------|------|---------|
-| 当前 | 0.3.x | AI 配置、i18n、Doctor、备份恢复、Token 用量等 |
-| P0 完成 | 0.4.0 | 记忆管理、用量汇总 Tab、网关健康面板 |
-| P0 全部 + P1 前半 | 0.5.0 | 常驻指令、Slash 命令 |
-| P1 全部 | 0.6.0 | Telegram 接入、Exec 审批、故障切换 |
+| 当前 | 0.3.x | AI 配置、i18n、Doctor、备份恢复、Token 用量 — **P0 全部完成** |
+| P1 前半 | 0.4.0 | Slash 命令、常驻指令 |
+| P1 全部 | 0.5.0 | Telegram 接入、Exec 审批、故障切换 |
 | 发布候选 | 0.9.0 | 功能冻结、Bug 修复、文档完善 |
 | Product Hunt 发布 | 1.0.0 | 正式发布 |
