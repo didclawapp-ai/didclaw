@@ -55,7 +55,7 @@
 
 ---
 
-### P0-3 API 用量 / 费用显示
+### P0-3 API 用量 / 费用显示（部分完成）
 
 **目标**：让用户了解本次会话消耗了多少 Token 和大概费用。
 
@@ -73,8 +73,8 @@
 
 **工作范围**
 - [ ] Tauri：`read_session_usage(agentId, date_range)` 命令（解析 JSONL）
-- [ ] 前端：`ChatRunStatusBar` 增加 token 小计
-- [ ] 前端：设置内用量汇总 Tab
+- [x] 前端：消息面板标题栏右侧展示本次会话累计输入/输出 Token（来自 Gateway `sessions.list`）
+- [ ] 前端：设置内用量汇总 Tab（历史按日/周聚合、费用估算）
 
 ---
 
@@ -105,20 +105,21 @@
 
 ---
 
-### P0-5 配置备份 / 恢复
+### P0-5 配置备份 / 恢复 ✅ 已完成（v0.3.2）
 
 **目标**：用户可一键备份全部配置和记忆文件，支持换电脑恢复。
 
 **OpenClaw 对应**：[Backup CLI](https://docs.openclaw.ai/cli/backup) — `openclaw backup`
 
 **技术方案**
-- 备份内容：`~/.openclaw/openclaw.json` + `workspace/*.md` + `cron/jobs.json`
+- 备份内容：整个 `~/.openclaw/` 目录（排除 `logs/`、`completions/`、`agents/*/sessions/` 等大体积目录）
 - 打包为 `.zip`，通过 Tauri 文件选择器保存到用户指定位置
-- 恢复时解包并写回（写前自动备份当前版本）
+- 恢复时从 zip 解压还原，合并写回 `~/.openclaw/`
 
 **工作范围**
-- [ ] Tauri：`backup_openclaw_config()` / `restore_openclaw_config(path)` 命令
-- [ ] 前端：设置 → 备份 Tab（导出按钮 + 导入按钮 + 最近备份列表）
+- [x] Tauri：`backup_openclaw_config()` / `restore_openclaw_config()` / `estimate_openclaw_backup_size()` 命令
+- [x] 前端：`BackupRestoreDialog.vue`（估算体积 + 导出按钮 + 导入按钮 + 操作反馈）
+- [x] 顶栏「···」菜单新增「备份与恢复」入口（仅桌面端）
 
 ---
 
@@ -262,9 +263,9 @@
 ## 优先级执行顺序建议
 
 ```
-P0-1 i18n 框架  →  P0-6 Doctor  →  P0-2 记忆管理  →  P0-4 健康面板
+✅ P0-1 i18n 框架  →  ✅ P0-6 Doctor  →  ✅ P0-5 备份恢复  →  P0-2 记忆管理
      ↓
-P0-3 用量显示  →  P0-5 备份恢复
+✅ P0-3 用量显示（状态栏）  →  P0-3 用量汇总 Tab  →  P0-4 健康面板
      ↓
 P1-4 Slash 命令  →  P1-1 常驻指令  →  P1-3 Telegram  →  P1-2 Exec 审批  →  P1-5 故障切换
 ```
@@ -273,13 +274,27 @@ i18n 建议最先做，搭好框架后其他功能的新字符串直接写进语
 
 ---
 
+## 完成情况汇总（截至 v0.3.2）
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| P0-1 国际化（i18n） | ✅ 完成 | 中/英切换，顶栏语言按钮 |
+| P0-3 Token 用量（状态栏） | ✅ 完成 | 消息面板标题栏显示本次会话输入/输出 Token |
+| P0-3 用量汇总 Tab | ⏳ 待做 | 历史聚合、费用估算 |
+| P0-5 配置备份/恢复 | ✅ 完成 | 一键 zip 备份 `~/.openclaw/`，顶栏菜单可访问 |
+| P0-6 Doctor 图形化 | ✅ 完成 | 网关诊断面板，支持自动修复 |
+| P0-2 记忆管理 UI | ⏳ 待做 | workspace Markdown 文件编辑器 |
+| P0-4 网关健康面板 | ⏳ 待做 | 健康状态浮层 + 一键修复 |
+
+---
+
 ## 版本号规划参考
 
 | 里程碑 | 版本 | 主要内容 |
 |--------|------|---------|
-| 当前 | 0.3.x | AI 配置卡片化、记忆名称显示、计时修复等 |
-| P0 完成 | 0.4.0 | i18n、记忆管理、Doctor、健康面板 |
-| P0 全部 + P1 前半 | 0.5.0 | 用量显示、备份、常驻指令、Slash 命令 |
+| 当前 | 0.3.x | AI 配置、i18n、Doctor、备份恢复、Token 用量等 |
+| P0 完成 | 0.4.0 | 记忆管理、用量汇总 Tab、网关健康面板 |
+| P0 全部 + P1 前半 | 0.5.0 | 常驻指令、Slash 命令 |
 | P1 全部 | 0.6.0 | Telegram 接入、Exec 审批、故障切换 |
 | 发布候选 | 0.9.0 | 功能冻结、Bug 修复、文档完善 |
 | Product Hunt 发布 | 1.0.0 | 正式发布 |
