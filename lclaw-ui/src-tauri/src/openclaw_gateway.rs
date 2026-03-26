@@ -533,9 +533,11 @@ pub fn dispose_managed_open_claw_gateway(app: &tauri::AppHandle) {
     }
 }
 
-/// Windows：`cmd /c *.cmd` 即使用 CREATE_NO_WINDOW，内层 node 仍可能闪控制台；用 PowerShell 拉 ProcessStartInfo.CreateNoWindow 包一层。
-#[cfg(windows)]
-fn run_openclaw_gateway_restart_captured(exe: &str) -> io::Result<std::process::Output> {
+// NOTE: run_openclaw_gateway_restart_captured 已删除——Windows 下 openclaw gateway restart
+// 内部发送 SIGUSR1（Unix 专有信号）会导致 ERR_UNKNOWN_SIGNAL；改为 kill+spawn 直接重启。
+// 保留此注释说明删除原因，避免误以为忘记实现。
+#[cfg(any())] // 永不编译的占位块，使下方代码不可达
+fn run_openclaw_gateway_restart_captured_deleted(exe: &str) -> io::Result<std::process::Output> {
     use base64::{engine::general_purpose, Engine as _};
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -806,8 +808,10 @@ fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
     }
 }
 
-/// 调用 `openclaw gateway restart`（Windows 计划任务 / systemd 等服务），与官方 CLI 一致。
-/// 会先结束本应用此前 `ensure_open_claw_gateway` 拉起的子进程，避免与系统服务抢端口。
+/// 重启 Gateway。
+/// - Windows：`openclaw gateway restart` 内部发送 SIGUSR1（Unix 专有信号），Windows 不支持。
+///   改为直接 kill 当前托管进程 + 再 spawn 一个新进程，等同于"停 + 启"。
+/// - 非 Windows：调用 `openclaw gateway restart`（systemd / launchd 服务重启）。
 pub fn restart_open_claw_gateway_service(app: &tauri::AppHandle) -> Value {
     kill_managed_gateway_process();
 
@@ -829,55 +833,76 @@ pub fn restart_open_claw_gateway_service(app: &tauri::AppHandle) -> Value {
         });
     };
 
-    let output = {
-        #[cfg(windows)]
-        {
-            run_openclaw_gateway_restart_captured(&exe)
+    // Windows：直接 kill + spawn，避免触发 SIGUSR1 导致 ERR_UNKNOWN_SIGNAL
+    #[cfg(windows)]
+    {
+        match spawn_openclaw_gateway(&exe) {
+            Ok(child) => {
+                {
+                    let mut g = MANAGED_CHILD.lock().expect("MANAGED_CHILD mutex poisoned");
+                    if let Some(mut old) = g.take() {
+                        let _ = old.kill();
+                        let _ = old.wait();
+                    }
+                    *g = Some(child);
+                }
+                // 给进程 2 秒启动时间，再由前端重连
+                std::thread::sleep(std::time::Duration::from_millis(2000));
+                return json!({ "ok": true });
+            }
+            Err(e) => {
+                return json!({
+                    "ok": false,
+                    "error": format!("重启 Gateway 失败（spawn）：{e}")
+                });
+            }
         }
-        #[cfg(not(windows))]
-        {
-            Command::new(exe.trim())
-                .arg("gateway")
-                .arg("restart")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output()
-        }
-    };
-
-    let output = match output {
-        Ok(o) => o,
-        Err(e) => {
-            return json!({
-                "ok": false,
-                "error": format!("执行 openclaw gateway restart 失败：{e}")
-            });
-        }
-    };
-
-    if output.status.success() {
-        return json!({ "ok": true });
     }
 
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let mut detail = [stderr.as_str(), stdout.as_str()]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n");
-    if detail.is_empty() {
-        detail = output
-            .status
-            .code()
-            .map(|c| format!("退出码 {c}"))
-            .unwrap_or_else(|| "进程异常退出".into());
+    // 非 Windows：走 `openclaw gateway restart`（systemd / launchd）
+    #[cfg(not(windows))]
+    {
+        let output = Command::new(exe.trim())
+            .arg("gateway")
+            .arg("restart")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output();
+
+        let output = match output {
+            Ok(o) => o,
+            Err(e) => {
+                return json!({
+                    "ok": false,
+                    "error": format!("执行 openclaw gateway restart 失败：{e}")
+                });
+            }
+        };
+
+        if output.status.success() {
+            return json!({ "ok": true });
+        }
+
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let mut detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if detail.is_empty() {
+            detail = output
+                .status
+                .code()
+                .map(|c| format!("退出码 {c}"))
+                .unwrap_or_else(|| "进程异常退出".into());
+        }
+        json!({
+            "ok": false,
+            "error": format!("网关服务重启失败：{detail}")
+        })
     }
-    json!({
-        "ok": false,
-        "error": format!("网关服务重启失败：{detail}")
-    })
 }
 
 /// 调用 `openclaw plugins install <package_spec>`（如 `clawhub:@scope/name`），与官方 CLI 一致。
