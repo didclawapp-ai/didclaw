@@ -8,7 +8,7 @@
 
 ### 新增
 
-- **WhatsApp 渠道对话框自动探测连接状态**：打开渠道设置或切换到 WhatsApp 标签页时，自动调用 `web.login.start` 探测当前连接状态，无需手动点击「开始扫码登录」即可看到是否已有绑定会话。若 Gateway 重启后插件进入 stopped/disconnected 状态（常见场景：重装 DidClaw 或重启 Gateway 后 WhatsApp 消息停止接收），新增「重新连接」按钮可一键唤醒插件，无需重新扫码；「重启 Gateway」退为次选操作。
+- **WhatsApp 渠道对话框新增「重新连接」按钮**：当检测到已有绑定会话时（无需重新扫码），在操作区展示「重新连接」主按钮，点击后触发 `web.login.start` 唤醒因 Gateway 重启而进入 stopped/disconnected 状态的插件，无需重新扫码也无需重启 Gateway；「重启 Gateway」退为次选操作。注意：「开始扫码登录」仍需手动点击触发，不再自动调用（自动探测会中断已有的活跃 WhatsApp 连接）。
 
 - **deviceToken 持久化与有界重试**：Gateway 在 `hello` 响应中颁发的 `deviceToken` 现已自动保存到设备身份存储（桌面端使用 Tauri KV，浏览器端使用 `localStorage`）。重连时若无用户配置的 `token`/`password`，自动携带已保存的 `deviceToken`，避免重复配对审批。若用户凭证触发 `AUTH_TOKEN_MISMATCH`，按协议规范尝试一次以 `deviceToken` 为凭证的有界重试；认证错误时自动清除失效的 `deviceToken` 缓存。
 

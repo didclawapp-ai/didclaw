@@ -509,18 +509,9 @@ watch(
       cleanupListeners();
       toast.value = null;
       resetQr();
-    } else if (activeTab.value === "whatsapp" && qrState.value === "idle") {
-      // 打开对话框时自动探测 WhatsApp 连接状态，避免用户手动点击才知道
-      void startWhatsAppQr();
     }
   },
 );
-
-watch(activeTab, (tab) => {
-  if (tab === "whatsapp" && props.modelValue && qrState.value === "idle") {
-    void startWhatsAppQr();
-  }
-});
 
 onUnmounted(() => {
   cleanupListeners();
