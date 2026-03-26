@@ -123,13 +123,9 @@ pub async fn start_channel_qr_flow(
         None => return json!({"ok": false, "error": "找不到 openclaw，请先完成安装向导"}),
     };
 
-    // force=true 时加 --force，强制清除旧 session 重新生成 QR
-    let force = channel.ends_with(":force");
-    let channel_name = channel.trim_end_matches(":force");
-    let args: Vec<&str> = match channel_name {
-        "whatsapp" if force => vec!["channels", "login", "--channel", "whatsapp", "--force"],
-        "whatsapp"          => vec!["channels", "login", "--channel", "whatsapp"],
-        _ => return json!({"ok": false, "error": format!("不支持的 QR 渠道: {channel_name}")}),
+    let args: Vec<&str> = match channel.as_str() {
+        "whatsapp" => vec!["channels", "login", "--channel", "whatsapp"],
+        _ => return json!({"ok": false, "error": format!("不支持的 QR 渠道: {channel}")}),
     };
 
     let mut cmd = Command::new(&exe);

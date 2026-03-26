@@ -595,7 +595,6 @@ export default {
       desc: "中国企业团队首选，官方长连接支持。",
       docLink: "https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21657",
       hint: "在企业微信管理后台 → 智能机器人 → API 模式（长连接）创建机器人，获取 Bot ID 和 Secret。",
-      pluginSpec: "@wecom/wecom-openclaw-plugin",
       botId:     "Bot ID",
       botIdPlh:  "粘贴 Bot ID",
       secret:    "Secret",

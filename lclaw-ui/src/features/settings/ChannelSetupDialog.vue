@@ -54,12 +54,14 @@ const wecomSecret = ref("");
 // WeCom plugin install
 const wecomPluginInstalling = ref(false);
 
+const WECOM_PLUGIN_SPEC = "@wecom/wecom-openclaw-plugin";
+
 async function installWecomPlugin(): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.openclawPluginsInstall) return;
   wecomPluginInstalling.value = true;
   try {
-    const r = await api.openclawPluginsInstall({ packageSpec: t("channel.wecom.pluginSpec") });
+    const r = await api.openclawPluginsInstall({ packageSpec: WECOM_PLUGIN_SPEC });
     if (r.ok) {
       showToast(t("channel.pluginInstallOk"));
     } else {
@@ -147,10 +149,10 @@ function cleanupListeners(): void {
   unlistenDone?.(); unlistenDone = null;
 }
 
-// true = 命令仅完成插件激活就退出（已有 session），false = 出现了 QR 输出
+// 命令仅完成插件激活就退出（已有 session）
 const qrNoScanNeeded = ref(false);
 
-async function startWhatsAppQr(force = false): Promise<void> {
+async function startWhatsAppQr(): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.startChannelQrFlow) return;
 
@@ -164,9 +166,8 @@ async function startWhatsAppQr(force = false): Promise<void> {
 
   try {
     const gatewayUrl = gwStore.url.replace("ws://", "http://").replace("wss://", "https://");
-    const channelArg = force ? "whatsapp:force" : "whatsapp";
-    await api.startChannelQrFlow(channelArg, gatewayUrl);
-    // 命令退出后若还没收到 QR URL，说明已有 session
+    await api.startChannelQrFlow("whatsapp", gatewayUrl);
+    // 命令成功退出但没有 QR URL → 已有本地 session
     if (qrState.value === "success" && !qrUrl.value) {
       qrNoScanNeeded.value = true;
     }
@@ -262,9 +263,10 @@ onUnmounted(() => {
               <span v-if="qrState === 'idle'" class="ch-status-idle">准备就绪</span>
               <span v-else-if="qrState === 'running'" class="ch-status-running">{{ t('channel.qrWaiting') }}</span>
               <template v-else-if="qrState === 'success'">
-                <span v-if="qrNoScanNeeded" class="ch-status-ok">
-                  ✓ WhatsApp 已有绑定会话，无需重新扫码 — 重启 Gateway 即可使用
-                </span>
+                <div v-if="qrNoScanNeeded" class="ch-session-exists">
+                  <span class="ch-status-ok">✓ WhatsApp 已有绑定会话，无需重新扫码</span>
+                  <span class="ch-session-hint">若需切换账号，请在终端运行：<code>openclaw channels logout --channel whatsapp</code>，再点「开始扫码登录」</span>
+                </div>
                 <span v-else class="ch-status-ok">✓ {{ t('channel.qrSuccess') }}</span>
               </template>
               <span v-else class="ch-status-err">✗ {{ t('channel.qrFail') }}</span>
@@ -282,7 +284,7 @@ onUnmounted(() => {
                 v-if="qrState === 'idle' || qrState === 'failed'"
                 type="button"
                 class="ch-btn ch-btn--primary"
-                @click="startWhatsAppQr(false)"
+                @click="startWhatsAppQr"
               >{{ t('channel.qrStartBtn') }}</button>
               <button
                 v-if="qrState === 'running'"
@@ -290,13 +292,10 @@ onUnmounted(() => {
                 class="ch-btn"
                 disabled
               >{{ t('channel.qrStarting') }}</button>
-              <!-- 已有 session：提供重启 Gateway 和强制重新扫码两个选项 -->
+              <!-- 已有 session：重启 Gateway 生效；如需重新绑定提示用 CLI -->
               <template v-if="qrState === 'success' && qrNoScanNeeded">
                 <button type="button" class="ch-btn ch-btn--primary" @click="restartGateway">
                   🔄 重启 Gateway 立即生效
-                </button>
-                <button type="button" class="ch-btn" @click="startWhatsAppQr(true)">
-                  强制重新扫码
                 </button>
               </template>
               <template v-else-if="qrState === 'success'">
@@ -355,7 +354,7 @@ onUnmounted(() => {
 
             <!-- Plugin install -->
             <div class="ch-plugin-row">
-              <code class="ch-code">{{ t('channel.wecom.pluginSpec') }}</code>
+              <code class="ch-code">{{ WECOM_PLUGIN_SPEC }}</code>
               <button
                 type="button"
                 class="ch-btn ch-btn--sm"
@@ -613,6 +612,22 @@ onUnmounted(() => {
 .ch-qr-status {
   font-size: 12px;
   font-weight: 500;
+}
+.ch-session-exists {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ch-session-hint {
+  font-size: 11px;
+  color: var(--lc-text-muted);
+}
+.ch-session-hint code {
+  font-family: var(--lc-font-mono, monospace);
+  color: var(--lc-text);
+  background: var(--lc-bg-elevated);
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 .ch-status-idle   { color: var(--lc-text-muted); }
 .ch-status-running { color: var(--lc-accent); animation: pulse 1.4s ease-in-out infinite; }

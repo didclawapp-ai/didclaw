@@ -595,7 +595,6 @@ export default {
       desc: "Chinese enterprise teams. Official WebSocket connection.",
       docLink: "https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21657",
       hint: "In WeCom admin console → Smart Robot → API mode (persistent connection), create a bot to get Bot ID and Secret.",
-      pluginSpec: "@wecom/wecom-openclaw-plugin",
       botId:     "Bot ID",
       botIdPlh:  "Paste Bot ID",
       secret:    "Secret",
