@@ -123,9 +123,13 @@ pub async fn start_channel_qr_flow(
         None => return json!({"ok": false, "error": "找不到 openclaw，请先完成安装向导"}),
     };
 
-    let args: Vec<&str> = match channel.as_str() {
-        "whatsapp" => vec!["channels", "login", "--channel", "whatsapp"],
-        _ => return json!({"ok": false, "error": format!("不支持的 QR 渠道: {channel}")}),
+    // force=true 时加 --force，强制清除旧 session 重新生成 QR
+    let force = channel.ends_with(":force");
+    let channel_name = channel.trim_end_matches(":force");
+    let args: Vec<&str> = match channel_name {
+        "whatsapp" if force => vec!["channels", "login", "--channel", "whatsapp", "--force"],
+        "whatsapp"          => vec!["channels", "login", "--channel", "whatsapp"],
+        _ => return json!({"ok": false, "error": format!("不支持的 QR 渠道: {channel_name}")}),
     };
 
     let mut cmd = Command::new(&exe);
@@ -151,14 +155,14 @@ pub async fn start_channel_qr_flow(
         Err(e) => return json!({"ok": false, "error": format!("启动 {channel} 登录失败：{e}")}),
     };
 
-    // 向 stdin 写入多个回车，自动接受 clack / inquirer 等交互式提示的默认选项
+    // 向 stdin 写入回车，自动接受 clack / inquirer 插件选择提示的默认选项。
+    // 只发 3 次（间隔 1.5s），足以通过插件选择弹窗；不多发，避免跳过 QR 步骤。
     if let Some(mut stdin) = child.stdin.take() {
         tokio::spawn(async move {
             use tokio::io::AsyncWriteExt;
-            // 给每个可能出现的提示都发一次回车；多余的回车无害
-            for _ in 0..10u8 {
+            for _ in 0..3u8 {
                 if stdin.write_all(b"\n").await.is_err() { break; }
-                tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
             }
         });
     }

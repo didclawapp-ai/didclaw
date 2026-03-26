@@ -147,7 +147,10 @@ function cleanupListeners(): void {
   unlistenDone?.(); unlistenDone = null;
 }
 
-async function startWhatsAppQr(): Promise<void> {
+// true = 命令仅完成插件激活就退出（已有 session），false = 出现了 QR 输出
+const qrNoScanNeeded = ref(false);
+
+async function startWhatsAppQr(force = false): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.startChannelQrFlow) return;
 
@@ -155,18 +158,30 @@ async function startWhatsAppQr(): Promise<void> {
   qrLines.value = [];
   qrUrl.value = null;
   qrImgError.value = false;
+  qrNoScanNeeded.value = false;
 
   await setupListeners();
 
   try {
     const gatewayUrl = gwStore.url.replace("ws://", "http://").replace("wss://", "https://");
-    await api.startChannelQrFlow("whatsapp", gatewayUrl);
+    const channelArg = force ? "whatsapp:force" : "whatsapp";
+    await api.startChannelQrFlow(channelArg, gatewayUrl);
+    // 命令退出后若还没收到 QR URL，说明已有 session
+    if (qrState.value === "success" && !qrUrl.value) {
+      qrNoScanNeeded.value = true;
+    }
   } catch (e) {
     qrState.value = "failed";
     qrLines.value = [...qrLines.value, `Error: ${e}`];
   } finally {
     cleanupListeners();
   }
+}
+
+async function restartGateway(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  await api?.restartOpenClawGateway?.();
+  showToast("Gateway 重启中，稍等片刻…");
 }
 
 function resetQr(): void {
@@ -246,7 +261,12 @@ onUnmounted(() => {
             <div class="ch-qr-status">
               <span v-if="qrState === 'idle'" class="ch-status-idle">准备就绪</span>
               <span v-else-if="qrState === 'running'" class="ch-status-running">{{ t('channel.qrWaiting') }}</span>
-              <span v-else-if="qrState === 'success'" class="ch-status-ok">✓ {{ t('channel.qrSuccess') }}</span>
+              <template v-else-if="qrState === 'success'">
+                <span v-if="qrNoScanNeeded" class="ch-status-ok">
+                  ✓ WhatsApp 已有绑定会话，无需重新扫码 — 重启 Gateway 即可使用
+                </span>
+                <span v-else class="ch-status-ok">✓ {{ t('channel.qrSuccess') }}</span>
+              </template>
               <span v-else class="ch-status-err">✗ {{ t('channel.qrFail') }}</span>
             </div>
 
@@ -262,7 +282,7 @@ onUnmounted(() => {
                 v-if="qrState === 'idle' || qrState === 'failed'"
                 type="button"
                 class="ch-btn ch-btn--primary"
-                @click="startWhatsAppQr"
+                @click="startWhatsAppQr(false)"
               >{{ t('channel.qrStartBtn') }}</button>
               <button
                 v-if="qrState === 'running'"
@@ -270,8 +290,20 @@ onUnmounted(() => {
                 class="ch-btn"
                 disabled
               >{{ t('channel.qrStarting') }}</button>
+              <!-- 已有 session：提供重启 Gateway 和强制重新扫码两个选项 -->
+              <template v-if="qrState === 'success' && qrNoScanNeeded">
+                <button type="button" class="ch-btn ch-btn--primary" @click="restartGateway">
+                  🔄 重启 Gateway 立即生效
+                </button>
+                <button type="button" class="ch-btn" @click="startWhatsAppQr(true)">
+                  强制重新扫码
+                </button>
+              </template>
+              <template v-else-if="qrState === 'success'">
+                <button type="button" class="ch-btn" @click="resetQr">{{ t('common.refresh') }}</button>
+              </template>
               <button
-                v-if="qrState === 'success' || qrState === 'failed'"
+                v-if="qrState === 'failed'"
                 type="button"
                 class="ch-btn"
                 @click="resetQr"
