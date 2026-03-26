@@ -151,10 +151,30 @@ export const useChatStore = defineStore("chat", () => {
   const backgroundAgentLastSeenMs = ref<number | null>(null);
   /** 后台子代理所在会话 key */
   const backgroundAgentSessionKey = ref<string | null>(null);
+  /** 当前正在闪动高亮的会话 key 集合（收到 agent 活动后短暂保持，用于会话按钮闪动提示） */
+  const flashingSessionKeys = ref<string[]>([]);
+
+  const FLASH_DURATION_MS = 5000;
+  const flashTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   function noteBackgroundAgentActivity(sk: string): void {
     backgroundAgentLastSeenMs.value = Date.now();
     backgroundAgentSessionKey.value = sk;
+    // 将该会话标记为闪动状态，5 秒后自动清除
+    if (!flashingSessionKeys.value.includes(sk)) {
+      flashingSessionKeys.value = [...flashingSessionKeys.value, sk];
+    }
+    const existing = flashTimers.get(sk);
+    if (existing != null) {
+      clearTimeout(existing);
+    }
+    flashTimers.set(
+      sk,
+      window.setTimeout(() => {
+        flashTimers.delete(sk);
+        flashingSessionKeys.value = flashingSessionKeys.value.filter((k) => k !== sk);
+      }, FLASH_DURATION_MS),
+    );
   }
 
   const agentBusy = computed(() => sending.value || runId.value != null);
@@ -676,6 +696,11 @@ export const useChatStore = defineStore("chat", () => {
         if (payload.runId) {
           runId.value = payload.runId;
         }
+        // 用户切换到正在运行的后台会话时，runStartedAtMs 会因 loadHistory 而清空；
+        // 首个到达的 delta 补设起始时间，使计时器能够正常显示
+        if (runStartedAtMs.value == null) {
+          runStartedAtMs.value = Date.now();
+        }
         const chunk = extractChatDeltaText(payload as Record<string, unknown>);
         if (chunk) {
           streamText.value = mergeAssistantStreamDelta(streamText.value, chunk);
@@ -748,6 +773,7 @@ export const useChatStore = defineStore("chat", () => {
     flashOpenClawConfigHint,
     backgroundAgentLastSeenMs,
     backgroundAgentSessionKey,
+    flashingSessionKeys,
     noteBackgroundAgentActivity,
   };
 });

@@ -103,6 +103,32 @@ pub fn write_channel_config(channel_key: &str, payload: Value) -> Value {
 
 // ── start_channel_qr_flow ────────────────────────────────────────────────────
 
+/// 剥离 ANSI/VT100 转义序列（`\x1b[…m` 及常见控制码），返回纯文本。
+/// 不引入额外依赖，仅处理 ESC `[` CSI 序列（CLI 工具最常见的色彩码格式）。
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            // 跳过 ESC + `[` 引导的 CSI 序列，直到遇到字母结束符
+            if chars.peek() == Some(&'[') {
+                chars.next(); // 消耗 '['
+                for c in chars.by_ref() {
+                    // CSI 序列以 0x40–0x7E 范围的字节结束（字母）
+                    if c.is_ascii_alphabetic() { break; }
+                }
+            }
+            // 其他 ESC 序列（如 ESC M 等）：跳过紧跟的一个字符
+            else if let Some(&next) = chars.peek() {
+                if next != '\x1b' { chars.next(); }
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 /// 查找 npx 可执行文件（Windows 优先 npx.cmd，fallback 到 PATH 中的 npx）。
 fn resolve_npx_executable() -> Option<String> {
     #[cfg(windows)]
@@ -223,8 +249,11 @@ pub async fn start_channel_qr_flow(
         while let Ok(Some(line)) = lines.next_line().await {
             let _ = app_out.emit("channel:line", json!({"stream": "stdout", "line": &line}));
             let t = line.trim();
-            if t.starts_with("https://") || t.starts_with("http://") {
-                let _ = app_out.emit("channel:qr", json!({"url": t}));
+            // 剥离 ANSI 转义序列后再做 URL 检测，避免色彩码导致 starts_with 匹配失败
+            let clean = strip_ansi(t);
+            let tc = clean.trim();
+            if tc.starts_with("https://") || tc.starts_with("http://") || tc.starts_with("data:image/") {
+                let _ = app_out.emit("channel:qr", json!({"url": tc}));
             }
         }
     });

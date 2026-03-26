@@ -59,6 +59,7 @@ const {
   openClawPrimaryBusy,
   openClawPrimaryPickerError,
   openClawConfigHint,
+  flashingSessionKeys,
 } = storeToRefs(chat);
 const {
   target: fpTarget,
@@ -327,7 +328,13 @@ async function pickLocalFileForPreview(): Promise<void> {
         <div v-if="sessionsLoading" class="muted">加载中…</div>
         <ul v-else-if="otherSessions.length > 0" class="sess">
           <li v-for="s in otherSessions" :key="s.key">
-            <button type="button" class="sess-btn" @click="session.selectSession(s.key)" :title="s.key">
+            <button
+              type="button"
+              class="sess-btn"
+              :class="{ 'sess-btn--activity': flashingSessionKeys.includes(s.key) }"
+              :title="s.key"
+              @click="session.selectSession(s.key)"
+            >
               {{ sessionDisplayLabel(s.key, s.label) }}
             </button>
           </li>
@@ -757,6 +764,19 @@ async function pickLocalFileForPreview(): Promise<void> {
 .sess-btn:hover {
   border-color: var(--lc-border-strong);
   background: var(--lc-bg-elevated);
+}
+.sess-btn--activity {
+  border-color: var(--lc-accent) !important;
+  color: var(--lc-accent) !important;
+  background: var(--lc-accent-soft, rgba(6, 182, 212, 0.08)) !important;
+  animation: sess-activity-flash 0.5s ease-out;
+}
+@keyframes sess-activity-flash {
+  0% { background: rgba(6, 182, 212, 0.32) !important; }
+  100% { background: var(--lc-accent-soft, rgba(6, 182, 212, 0.08)) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sess-btn--activity { animation: none; }
 }
 .err {
   color: var(--lc-error);

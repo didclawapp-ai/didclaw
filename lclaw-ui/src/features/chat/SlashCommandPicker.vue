@@ -11,6 +11,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [cmd: SlashCommand];
   close: [];
+  "update:activeIndex": [index: number];
 }>();
 
 const { t } = useI18n();

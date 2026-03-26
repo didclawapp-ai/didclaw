@@ -93,18 +93,140 @@ const wecomSecret = ref("");
 const wecomPluginInstalling = ref(false);
 
 const WECOM_PLUGIN_SPEC = "@wecom/wecom-openclaw-plugin";
+const WHATSAPP_PLUGIN_SPEC = "@openclaw/whatsapp";
+
+type ChannelReadyMeta = {
+  pluginPackageSpec?: string;
+  configPatch?: Record<string, unknown>;
+  restartGatewayAfterSetup?: boolean;
+};
+
+const CHANNEL_READY_META: Record<ChannelId, ChannelReadyMeta> = {
+  whatsapp: {
+    pluginPackageSpec: WHATSAPP_PLUGIN_SPEC,
+    configPatch: { enabled: true },
+    restartGatewayAfterSetup: true,
+  },
+  feishu: {
+    configPatch: { enabled: true },
+  },
+  discord: {
+    configPatch: { enabled: true },
+  },
+  wecom: {
+    pluginPackageSpec: WECOM_PLUGIN_SPEC,
+    configPatch: { enabled: true },
+  },
+};
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withChannelReadyPatch(
+  channelKey: ChannelId,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...(CHANNEL_READY_META[channelKey].configPatch ?? {}),
+    ...payload,
+  };
+}
+
+async function restartGatewayAndReconnect(toastMessage = "Gateway 重启中，稍等片刻…"): Promise<boolean> {
+  const api = getDidClawDesktopApi();
+  if (!api?.restartOpenClawGateway) {
+    showToast("桌面端不支持重启 Gateway", true);
+    return false;
+  }
+  const result = await api.restartOpenClawGateway();
+  if (!result?.ok) {
+    showToast(`重启 Gateway 失败：${(result as { error?: string }).error ?? "未知错误"}`, true);
+    return false;
+  }
+  showToast(toastMessage);
+  await gwStore.reloadConnection();
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    if (gwStore.client?.connected) {
+      return true;
+    }
+    await delay(500);
+  }
+  showToast("Gateway 重启后暂未恢复连接，请稍后重试。", true);
+  return false;
+}
+
+type EnsureChannelReadyOptions = {
+  installPlugin?: boolean;
+  writeConfigPatch?: boolean;
+  restartGateway?: boolean;
+  restartToast?: string;
+  installFailureMessage?: string;
+  configFailureMessage?: string;
+  successToast?: string;
+};
+
+async function ensureChannelReady(
+  channelKey: ChannelId,
+  options: EnsureChannelReadyOptions = {},
+): Promise<boolean> {
+  const api = getDidClawDesktopApi();
+  const meta = CHANNEL_READY_META[channelKey];
+
+  if (options.installPlugin && meta.pluginPackageSpec) {
+    if (!api?.openclawPluginsInstall) {
+      showToast(options.installFailureMessage ?? "桌面端不支持插件安装", true);
+      return false;
+    }
+    const result = await api.openclawPluginsInstall({ packageSpec: meta.pluginPackageSpec });
+    if (!result.ok) {
+      showToast(
+        (options.installFailureMessage ?? t("channel.pluginInstallFail")) +
+          ((result as { error?: string }).error ? `：${(result as { error?: string }).error}` : ""),
+        true,
+      );
+      return false;
+    }
+  }
+
+  if (options.writeConfigPatch && meta.configPatch) {
+    if (!api?.writeChannelConfig) {
+      showToast(options.configFailureMessage ?? "桌面端不支持写入渠道配置", true);
+      return false;
+    }
+    const result = await api.writeChannelConfig(channelKey, meta.configPatch);
+    if (!result.ok) {
+      showToast(
+        (options.configFailureMessage ?? t("channel.saveFail")) +
+          `：${(result as { error?: string }).error ?? "未知错误"}`,
+        true,
+      );
+      return false;
+    }
+  }
+
+  const shouldRestartGateway = options.restartGateway ?? meta.restartGatewayAfterSetup ?? false;
+  if (shouldRestartGateway) {
+    const restarted = await restartGatewayAndReconnect(options.restartToast);
+    if (!restarted) {
+      return false;
+    }
+  }
+
+  if (options.successToast) {
+    showToast(options.successToast);
+  }
+  return true;
+}
 
 async function installWecomPlugin(): Promise<void> {
-  const api = getDidClawDesktopApi();
-  if (!api?.openclawPluginsInstall) return;
   wecomPluginInstalling.value = true;
   try {
-    const r = await api.openclawPluginsInstall({ packageSpec: WECOM_PLUGIN_SPEC });
-    if (r.ok) {
-      showToast(t("channel.pluginInstallOk"));
-    } else {
-      showToast(t("channel.pluginInstallFail") + (r.error ? `：${r.error}` : ""), true);
-    }
+    await ensureChannelReady("wecom", {
+      installPlugin: true,
+      successToast: t("channel.pluginInstallOk"),
+    });
   } catch (e) {
     showToast(t("channel.pluginInstallFail") + `：${e}`, true);
   } finally {
@@ -133,8 +255,20 @@ async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
     payload = { accounts: { main: { botId, secret } } };
   }
 
+  payload = withChannelReadyPatch(channelKey, payload);
+
   busy.value = true;
   try {
+    if (channelKey === "wecom") {
+      wecomPluginInstalling.value = true;
+      const ready = await ensureChannelReady("wecom", {
+        installPlugin: true,
+      });
+      wecomPluginInstalling.value = false;
+      if (!ready) {
+        return;
+      }
+    }
     const r = await api.writeChannelConfig(channelKey, payload);
     if (r.ok) {
       showToast(t("channel.saveOk"));
@@ -144,91 +278,207 @@ async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
   } catch (e) {
     showToast(t("channel.saveFail") + `：${e}`, true);
   } finally {
+    wecomPluginInstalling.value = false;
     busy.value = false;
   }
 }
 
 // ── WhatsApp QR flow ──────────────────────────────────────────────────────────
+// 双路径：①  Gateway RPC web.login.start（插件可用时直接获取 qrDataUrl）
+//         ② CLI openclaw channels login --channel whatsapp（插件未加载时降级）
 
-type QrState = "idle" | "running" | "success" | "failed";
+type QrState = "idle" | "running" | "waiting" | "success" | "failed";
 const qrState = ref<QrState>("idle");
-const qrLines = ref<string[]>([]);
 const qrUrl = ref<string | null>(null);
 const qrImgError = ref(false);
+const qrNoScanNeeded = ref(false);
+const qrWaitMessage = ref<string | null>(null);
+const qrPluginMissing = ref(false);
+const qrErrorMessage = ref<string | null>(null);
+const qrProgressMessage = ref<string | null>(null);
+const qrMode = ref<"rpc" | "cli" | null>(null);
+// CLI 降级路径的终端输出
+const qrLines = ref<string[]>([]);
 
-let unlistenLine: UnlistenFn | null = null;
-let unlistenQr: UnlistenFn | null = null;
-let unlistenDone: UnlistenFn | null = null;
-
-async function setupListeners(): Promise<void> {
-  cleanupListeners();
-  unlistenLine = await listen<{ stream: string; line: string }>("channel:line", (e) => {
-    qrLines.value = [...qrLines.value, e.payload.line];
-    // Auto-scroll: keep last 200 lines
-    if (qrLines.value.length > 200) {
-      qrLines.value = qrLines.value.slice(-200);
-    }
-  });
-  unlistenQr = await listen<{ url: string }>("channel:qr", (e) => {
-    qrUrl.value = e.payload.url;
-    qrImgError.value = false;
-  });
-  unlistenDone = await listen<{ ok: boolean; exitCode?: number; error?: string }>(
-    "channel:done",
-    (e) => {
-      qrState.value = e.payload.ok ? "success" : "failed";
-    },
-  );
-}
+let unlistenWaLine: UnlistenFn | null = null;
+let unlistenWaDone: UnlistenFn | null = null;
 
 function cleanupListeners(): void {
-  unlistenLine?.(); unlistenLine = null;
-  unlistenQr?.(); unlistenQr = null;
-  unlistenDone?.(); unlistenDone = null;
+  unlistenWaLine?.();  unlistenWaLine = null;
+  unlistenWaDone?.();  unlistenWaDone = null;
   unlistenFeishuLine?.(); unlistenFeishuLine = null;
   unlistenFeishuDone?.(); unlistenFeishuDone = null;
 }
 
-// 命令仅完成插件激活就退出（已有 session）
-const qrNoScanNeeded = ref(false);
-
-async function startWhatsAppQr(): Promise<void> {
+/** CLI 降级：openclaw channels login --channel whatsapp → 流式输出 */
+async function startWhatsAppCli(): Promise<void> {
   const api = getDidClawDesktopApi();
-  if (!api?.startChannelQrFlow) return;
+  if (!api?.startChannelQrFlow) {
+    qrState.value = "failed";
+    qrErrorMessage.value = "桌面端 API 不可用";
+    return;
+  }
 
-  qrState.value = "running";
   qrLines.value = [];
-  qrUrl.value = null;
-  qrImgError.value = false;
-  qrNoScanNeeded.value = false;
+  qrMode.value = "cli";
+  qrProgressMessage.value = "正在切换到命令行登录…";
 
-  await setupListeners();
+  const hasCliPluginPrompt = (): boolean =>
+    qrLines.value.some((line) => /install .*plugin|use local plugin path|skip for now/i.test(line));
+  const hasCliLoginSuccess = (): boolean =>
+    qrLines.value.some((line) => /linked|login successful|already linked|ready|登录成功|已绑定/i.test(line));
+
+  // 注册 Tauri 事件监听
+  unlistenWaLine?.(); unlistenWaLine = null;
+  unlistenWaDone?.(); unlistenWaDone = null;
+
+  unlistenWaLine = await listen<{ stream: string; line: string }>("channel:line", (e) => {
+    qrLines.value = [...qrLines.value, e.payload.line];
+    if (qrLines.value.length > 300) qrLines.value = qrLines.value.slice(-300);
+  });
+  unlistenWaDone = await listen<{ ok: boolean }>("channel:done", (e) => {
+    const exitedAtPrompt = hasCliPluginPrompt() && !hasCliLoginSuccess();
+    if (e.payload.ok && !exitedAtPrompt) {
+      qrState.value = "success";
+      qrWaitMessage.value = hasCliLoginSuccess()
+        ? "CLI 登录完成，重启 Gateway 后生效"
+        : "CLI 已完成，若 WhatsApp 仍未在线，请重启 Gateway 生效";
+      qrProgressMessage.value = null;
+    } else {
+      qrState.value = "failed";
+      qrErrorMessage.value = exitedAtPrompt
+        ? "CLI 停在插件安装/选择提示，尚未真正开始 WhatsApp 登录"
+        : "命令已退出，但未完成 WhatsApp 登录";
+      qrProgressMessage.value = null;
+    }
+    unlistenWaLine?.(); unlistenWaLine = null;
+    unlistenWaDone?.(); unlistenWaDone = null;
+  });
 
   try {
     const gatewayUrl = gwStore.url.replace("ws://", "http://").replace("wss://", "https://");
     await api.startChannelQrFlow("whatsapp", gatewayUrl);
-    // 命令成功退出但没有 QR URL → 已有本地 session
-    if (qrState.value === "success" && !qrUrl.value) {
-      qrNoScanNeeded.value = true;
+    if (qrState.value === "running") {
+      qrState.value = "failed";
+      qrErrorMessage.value = "命令未返回二维码，也未完成登录";
+      qrProgressMessage.value = null;
     }
-  } catch (e) {
+  } catch (e: unknown) {
     qrState.value = "failed";
-    qrLines.value = [...qrLines.value, `Error: ${e}`];
+    qrErrorMessage.value = String((e as Error)?.message ?? e);
+    qrProgressMessage.value = null;
   } finally {
-    cleanupListeners();
+    unlistenWaLine?.(); unlistenWaLine = null;
+    unlistenWaDone?.(); unlistenWaDone = null;
   }
 }
 
+function isWhatsAppProviderMissingError(message: string): boolean {
+  return /not available|not supported|provider is not available/i.test(message);
+}
+
+async function tryStartWhatsAppRpc(): Promise<"done" | "provider-missing" | "failed"> {
+  const gc = gwStore.client;
+  if (!gc?.connected) {
+    qrState.value = "failed";
+    qrErrorMessage.value = t("channel.gatewayNotConnected");
+    return "failed";
+  }
+  try {
+    const startResult = await gc.request<{ qrDataUrl?: string; message?: string }>(
+      "web.login.start",
+      { force: false },
+    );
+    qrMode.value = "rpc";
+    if (!startResult?.qrDataUrl) {
+      qrState.value = "success";
+      qrNoScanNeeded.value = true;
+      qrWaitMessage.value = startResult?.message ?? null;
+      qrProgressMessage.value = null;
+      return "done";
+    }
+    qrUrl.value = startResult.qrDataUrl;
+    qrState.value = "waiting";
+    qrProgressMessage.value = null;
+    const waitResult = await gc.request<{ connected?: boolean; message?: string }>(
+      "web.login.wait",
+      { timeoutMs: 120000 },
+    );
+    qrState.value = waitResult?.connected ? "success" : "failed";
+    qrWaitMessage.value = waitResult?.message ?? null;
+    return "done";
+  } catch (e: unknown) {
+    const msg = String((e as Error)?.message ?? e);
+    if (isWhatsAppProviderMissingError(msg)) {
+      return "provider-missing";
+    }
+    qrState.value = "failed";
+    qrErrorMessage.value = msg;
+    qrProgressMessage.value = null;
+    return "failed";
+  }
+}
+
+async function startWhatsAppQr(): Promise<void> {
+  qrState.value = "running";
+  qrUrl.value = null;
+  qrImgError.value = false;
+  qrNoScanNeeded.value = false;
+  qrWaitMessage.value = null;
+  qrPluginMissing.value = false;
+  qrErrorMessage.value = null;
+  qrProgressMessage.value = "正在请求二维码…";
+  qrMode.value = null;
+  qrLines.value = [];
+
+  // ① 优先尝试 Gateway RPC（插件已加载时直接返回 qrDataUrl）
+  const firstRpcAttempt = await tryStartWhatsAppRpc();
+  if (firstRpcAttempt === "done" || firstRpcAttempt === "failed") {
+    return;
+  }
+
+  qrProgressMessage.value = "检测到 WhatsApp 插件未启用，正在自动安装并启用渠道…";
+  const ready = await ensureChannelReady("whatsapp", {
+    installPlugin: true,
+    writeConfigPatch: true,
+    restartGateway: true,
+    restartToast: "正在启用 WhatsApp 渠道并重连 Gateway…",
+    installFailureMessage: "自动安装 WhatsApp 插件失败",
+    configFailureMessage: "启用 WhatsApp 渠道失败",
+  });
+  if (!ready) {
+    qrState.value = "failed";
+    qrProgressMessage.value = null;
+    return;
+  }
+
+  qrProgressMessage.value = "Gateway 已更新，正在重试二维码请求…";
+  const secondRpcAttempt = await tryStartWhatsAppRpc();
+  if (secondRpcAttempt === "done" || secondRpcAttempt === "failed") {
+    return;
+  }
+
+  qrPluginMissing.value = true;
+  qrProgressMessage.value = "WhatsApp 插件仍未就绪，已切换到命令行登录…";
+
+  // ② CLI 降级：openclaw channels login --channel whatsapp
+  await startWhatsAppCli();
+}
+
 async function restartGateway(): Promise<void> {
-  const api = getDidClawDesktopApi();
-  await api?.restartOpenClawGateway?.();
-  showToast("Gateway 重启中，稍等片刻…");
+  await restartGatewayAndReconnect();
 }
 
 function resetQr(): void {
   qrState.value = "idle";
-  qrLines.value = [];
   qrUrl.value = null;
+  qrLines.value = [];
+  qrWaitMessage.value = null;
+  qrPluginMissing.value = false;
+  qrErrorMessage.value = null;
+  qrNoScanNeeded.value = false;
+  qrProgressMessage.value = null;
+  qrMode.value = null;
 }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -288,7 +538,7 @@ onUnmounted(() => {
               <a :href="t('channel.whatsapp.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
             </p>
 
-            <!-- QR image (if URL found in output) -->
+            <!-- QR image（Gateway RPC 路径） -->
             <div v-if="qrUrl && !qrImgError" class="ch-qr-wrap">
               <img
                 :src="qrUrl"
@@ -298,23 +548,31 @@ onUnmounted(() => {
               />
             </div>
 
+            <!-- CLI 降级提示 -->
+            <div v-if="qrPluginMissing && (qrState === 'running' || qrState === 'waiting' || qrState === 'success' || qrLines.length > 0)" class="ch-plugin-warn">
+              <span>插件运行时不可用，已切换到命令行配对模式（<code>openclaw channels login --channel whatsapp</code>）</span>
+            </div>
+
             <!-- Status -->
             <div class="ch-qr-status">
               <span v-if="qrState === 'idle'" class="ch-status-idle">准备就绪</span>
-              <span v-else-if="qrState === 'running'" class="ch-status-running">{{ t('channel.qrWaiting') }}</span>
+              <span v-else-if="qrState === 'running'" class="ch-status-running">
+                {{ qrProgressMessage ?? (qrLines.length ? t('channel.qrWaiting') : '正在请求二维码…') }}
+              </span>
+              <span v-else-if="qrState === 'waiting'" class="ch-status-running">{{ qrWaitMessage ?? t('channel.qrWaiting') }}</span>
               <template v-else-if="qrState === 'success'">
                 <div v-if="qrNoScanNeeded" class="ch-session-exists">
                   <span class="ch-status-ok">✓ WhatsApp 已有绑定会话，无需重新扫码</span>
                   <span class="ch-session-hint">若需切换账号，请在终端运行：<code>openclaw channels logout --channel whatsapp</code>，再点「开始扫码登录」</span>
                 </div>
-                <span v-else class="ch-status-ok">✓ {{ t('channel.qrSuccess') }}</span>
+                <span v-else class="ch-status-ok">✓ {{ qrWaitMessage ?? t('channel.qrSuccess') }}</span>
               </template>
-              <span v-else class="ch-status-err">✗ {{ t('channel.qrFail') }}</span>
+              <span v-else-if="qrState === 'failed'" class="ch-status-err">✗ {{ qrWaitMessage ?? qrErrorMessage ?? t('channel.qrFail') }}</span>
             </div>
 
-            <!-- Terminal output -->
-            <div v-if="qrLines.length" class="ch-terminal">
-              <div class="ch-terminal-head">{{ t('channel.qrOutputLabel') }}</div>
+            <!-- CLI 终端输出（扫码区） -->
+            <div v-if="qrLines.length" class="ch-terminal ch-terminal--qr">
+              <div class="ch-terminal-head">{{ t('channel.qrOutputLabel') }}（二维码在下方，用手机扫描）</div>
               <pre class="ch-terminal-body"><template v-for="(ln, i) in qrLines" :key="i">{{ ln }}
 </template></pre>
             </div>
@@ -327,20 +585,23 @@ onUnmounted(() => {
                 @click="startWhatsAppQr"
               >{{ t('channel.qrStartBtn') }}</button>
               <button
-                v-if="qrState === 'running'"
+                v-if="qrState === 'running' || qrState === 'waiting'"
                 type="button"
                 class="ch-btn"
                 disabled
               >{{ t('channel.qrStarting') }}</button>
-              <!-- 已有 session：重启 Gateway 生效；如需重新绑定提示用 CLI -->
-              <template v-if="qrState === 'success' && qrNoScanNeeded">
+              <template v-if="qrState === 'success' && (qrMode === 'cli' || qrNoScanNeeded)">
                 <button type="button" class="ch-btn ch-btn--primary" @click="restartGateway">
                   🔄 重启 Gateway 立即生效
                 </button>
-              </template>
-              <template v-else-if="qrState === 'success'">
                 <button type="button" class="ch-btn" @click="resetQr">{{ t('common.refresh') }}</button>
               </template>
+              <button
+                v-else-if="qrState === 'success'"
+                type="button"
+                class="ch-btn"
+                @click="resetQr"
+              >{{ t('common.refresh') }}</button>
               <button
                 v-if="qrState === 'failed'"
                 type="button"
@@ -755,6 +1016,22 @@ onUnmounted(() => {
   50%       { opacity: 0.4; }
 }
 
+.ch-plugin-warn {
+  font-size: 12px;
+  color: var(--lc-warning, #d97706);
+  background: color-mix(in srgb, var(--lc-warning, #d97706) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lc-warning, #d97706) 30%, transparent);
+  border-radius: var(--lc-radius-sm);
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+.ch-plugin-warn code {
+  font-family: var(--lc-font-mono, monospace);
+  background: color-mix(in srgb, var(--lc-warning, #d97706) 15%, transparent);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
 .ch-terminal {
   border: 1px solid var(--lc-border);
   border-radius: var(--lc-radius-sm);
@@ -762,6 +1039,14 @@ onUnmounted(() => {
   max-height: 240px;
   display: flex;
   flex-direction: column;
+}
+/* QR ASCII art 需要更大的显示区域 */
+.ch-terminal--qr {
+  max-height: 400px;
+}
+.ch-terminal--qr .ch-terminal-body {
+  font-size: 9px;
+  line-height: 1.2;
 }
 .ch-terminal-head {
   font-size: 10px;

@@ -6,6 +6,25 @@
 
 ## [未发布]
 
+## [0.4.0] - 2026-03-26
+
+### 新增
+
+- **后台会话收到消息时，会话按钮高亮闪动提示**：当 WhatsApp 等渠道在后台收到消息并触发 agent 活动时，左侧会话列表中对应的会话按钮会短暂亮起青色边框与背景（约 5 秒），帮助用户快速感知有新消息待处理，点击即可切换。
+- **切换到正在处理中的后台会话时显示 AI 运行计时器**：用户手动切换到仍在运行的后台会话后，首个到达的 `chat.delta` 事件会自动启动计时器，状态栏与以往主窗口保持一致（阶段标签 + 秒数 + 超时提示），不再因 `loadHistory` 清空 `runStartedAtMs` 而导致计时无法显示。
+
+### 修复
+
+- **`--unonboard` 安装后首次接入渠道缺少插件的问题**：渠道向导现在会在用户点击接入时按需补齐常见渠道的最小启用配置；WhatsApp 检测到 Gateway 缺少 provider 时，会先自动安装 `@openclaw/whatsapp`、写入 `channels.whatsapp.enabled=true`、重启并重连 Gateway，然后重试 `web.login.start`，不再直接卡在交互式插件安装提示。
+- **WhatsApp CLI 降级误把插件安装提示当成登录成功**：命令行回退路径现在会识别 `Install WhatsApp plugin?` / `Use local plugin path` / `Skip for now` 等交互提示，避免把“尚未真正开始登录”的退出结果错误显示成“登录成功”；同时将 RPC 成功与 CLI 成功的后续操作区分开来，只有 CLI/已有会话场景才强调重启 Gateway 生效。
+- **WhatsApp 向导 CLI 降级提示命令名错误**：警告横幅和注销提示中写的是 `openclaw channel ...`（单数），已更正为与 Rust 实际执行一致的 `openclaw channels login --channel whatsapp` 和 `openclaw channels logout --channel whatsapp`。
+- **WhatsApp 登录成功后的操作引导更准确**：CLI 降级路径或“已有绑定会话”场景会明确展示「🔄 重启 Gateway 立即生效」；直接走 Gateway RPC 扫码成功时则只保留刷新，避免误导用户做不必要的重启。
+- **WhatsApp 向导点「开始扫码登录」误报「请先连接 Gateway」**：Pinia store 对 `shallowRef` 自动解包，`gwStore.client` 已是 `GatewayClient | null`，代码中多写了一层 `.value` 导致连接检测永远为 false。移除多余的 `.value` 后恢复正常。
+- **WhatsApp 接入改为双路径**：① 优先尝试 Gateway RPC `web.login.start`（插件可用时直接返回 `qrDataUrl` 图片显示）；② provider 仍不可用时再回退到 `openclaw channels login --channel whatsapp` 的命令行登录。终端框在 CLI 路径下扩大至 400px 高度，字号缩小以完整展示 ASCII art 二维码供手机扫描。
+- **`SlashCommandPicker` Vue warn `update:activeIndex` 未声明**：鼠标悬停时通过 `$emit('update:activeIndex', i)` 更新高亮索引，但该事件未在 `defineEmits` 中声明。已补充 `"update:activeIndex": [index: number]` 声明，消除控制台警告。
+
+- **WhatsApp 渠道向导无法显示二维码**：原实现通过运行 `openclaw channels login --channel whatsapp` CLI 并从 stdout 提取 URL 的方式获取 QR 码，但 WhatsApp 插件不走该路径输出 QR URL。正确方式是通过 **Gateway WebSocket RPC** 调用 `web.login.start`（直接返回 `qrDataUrl` base64 图片）→ 显示 QR 图片 → 调 `web.login.wait` 等待扫码确认。新增「插件未加载」友好错误提示（当上游 `@openclaw/whatsapp` 插件不可用时）。`channel:line` / `channel:qr` Tauri 事件监听不再用于 WhatsApp，相关冗余代码已清除。Rust 侧同步保留了 `strip_ansi()` 辅助函数以备其他渠道扩展使用。
+
 ### 新增
 
 - **消息渠道接入向导（P1-3）**：顶栏新增「渠道」按钮（与「定时任务」「技能」并列），点击打开四渠道向导：
