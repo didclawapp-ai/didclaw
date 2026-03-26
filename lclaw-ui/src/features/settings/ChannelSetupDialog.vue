@@ -289,6 +289,7 @@ async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
 
 type QrState = "idle" | "running" | "waiting" | "success" | "failed";
 const qrState = ref<QrState>("idle");
+const qrReconnecting = ref(false);
 const qrUrl = ref<string | null>(null);
 const qrImgError = ref(false);
 const qrNoScanNeeded = ref(false);
@@ -469,6 +470,24 @@ async function restartGateway(): Promise<void> {
   await restartGatewayAndReconnect();
 }
 
+/** 触发 WhatsApp 重连：re-call web.login.start，让插件从 stopped/disconnected 状态恢复 */
+async function reconnectWhatsApp(): Promise<void> {
+  const gc = gwStore.client;
+  if (!gc?.connected) {
+    showToast(t("channel.gatewayNotConnected"), true);
+    return;
+  }
+  qrReconnecting.value = true;
+  try {
+    await gc.request("web.login.start", { force: false });
+    showToast("重新连接请求已发送，请从手机发一条消息验证是否正常接收");
+  } catch (e) {
+    showToast(`重新连接失败：${(e as Error)?.message ?? String(e)}`, true);
+  } finally {
+    qrReconnecting.value = false;
+  }
+}
+
 function resetQr(): void {
   qrState.value = "idle";
   qrUrl.value = null;
@@ -490,9 +509,18 @@ watch(
       cleanupListeners();
       toast.value = null;
       resetQr();
+    } else if (activeTab.value === "whatsapp" && qrState.value === "idle") {
+      // 打开对话框时自动探测 WhatsApp 连接状态，避免用户手动点击才知道
+      void startWhatsAppQr();
     }
   },
 );
+
+watch(activeTab, (tab) => {
+  if (tab === "whatsapp" && props.modelValue && qrState.value === "idle") {
+    void startWhatsAppQr();
+  }
+});
 
 onUnmounted(() => {
   cleanupListeners();
@@ -563,6 +591,7 @@ onUnmounted(() => {
               <template v-else-if="qrState === 'success'">
                 <div v-if="qrNoScanNeeded" class="ch-session-exists">
                   <span class="ch-status-ok">✓ WhatsApp 已有绑定会话，无需重新扫码</span>
+                  <span class="ch-session-hint">若消息未正常到达（Gateway 重启后常见），点「重新连接」唤醒插件</span>
                   <span class="ch-session-hint">若需切换账号，请在终端运行：<code>openclaw channels logout --channel whatsapp</code>，再点「开始扫码登录」</span>
                 </div>
                 <span v-else class="ch-status-ok">✓ {{ qrWaitMessage ?? t('channel.qrSuccess') }}</span>
@@ -590,7 +619,19 @@ onUnmounted(() => {
                 class="ch-btn"
                 disabled
               >{{ t('channel.qrStarting') }}</button>
-              <template v-if="qrState === 'success' && (qrMode === 'cli' || qrNoScanNeeded)">
+              <template v-if="qrState === 'success' && qrNoScanNeeded">
+                <button
+                  type="button"
+                  class="ch-btn ch-btn--primary"
+                  :disabled="qrReconnecting"
+                  @click="reconnectWhatsApp"
+                >{{ qrReconnecting ? '重连中…' : '重新连接' }}</button>
+                <button type="button" class="ch-btn" @click="restartGateway">
+                  🔄 重启 Gateway
+                </button>
+                <button type="button" class="ch-btn" @click="resetQr">{{ t('common.refresh') }}</button>
+              </template>
+              <template v-else-if="qrState === 'success' && qrMode === 'cli'">
                 <button type="button" class="ch-btn ch-btn--primary" @click="restartGateway">
                   🔄 重启 Gateway 立即生效
                 </button>
