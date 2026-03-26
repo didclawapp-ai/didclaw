@@ -11,12 +11,16 @@ type StoredIdentity = {
   publicKey: string;
   privateKey: string;
   createdAtMs: number;
+  /** OpenClaw 网关颁发的设备令牌，用于自动重连 */
+  deviceToken?: string;
 };
 
 export type DeviceIdentity = {
   deviceId: string;
   publicKey: string;
   privateKey: string;
+  /** OpenClaw 网关颁发的设备令牌 */
+  deviceToken?: string;
 };
 
 const STORAGE_KEY = "didclaw-device-identity-v1";
@@ -63,6 +67,7 @@ async function generateIdentity(): Promise<DeviceIdentity> {
     deviceId,
     publicKey: base64UrlEncode(publicKey),
     privateKey: base64UrlEncode(privateKey),
+    // 新生成的身份没有 deviceToken，需要配对后获取
   };
 }
 
@@ -101,12 +106,14 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
             deviceId: derivedId,
             publicKey: parsed.publicKey,
             privateKey: parsed.privateKey,
+            deviceToken: parsed.deviceToken,
           };
         }
         return {
           deviceId: parsed.deviceId,
           publicKey: parsed.publicKey,
           privateKey: parsed.privateKey,
+          deviceToken: parsed.deviceToken,
         };
       }
     }
@@ -124,6 +131,58 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
   };
   await persistIdentity(stored);
   return identity;
+}
+
+/**
+ * 保存网关颁发的 deviceToken 到设备身份存储
+ */
+export async function saveDeviceToken(deviceToken: string): Promise<void> {
+  const storage = getSafeLocalStorage();
+  let raw: string | null = null;
+  try {
+    if (getDidClawDesktopApi()?.didclawKvGet) {
+      raw = await didclawKvGetDirect(STORAGE_KEY);
+    } else {
+      raw = storage?.getItem(STORAGE_KEY) ?? null;
+    }
+    if (raw) {
+      const parsed = JSON.parse(raw) as StoredIdentity;
+      if (parsed?.version === 1) {
+        const updated: StoredIdentity = { ...parsed, deviceToken };
+        await persistIdentity(updated);
+        return;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  // 如果没有现有身份，无法保存 token（这种情况不应该发生）
+  console.warn("[didclaw] saveDeviceToken: no existing identity found");
+}
+
+/**
+ * 清除保存的 deviceToken（例如在令牌失效或用户登出时）
+ */
+export async function clearDeviceToken(): Promise<void> {
+  const storage = getSafeLocalStorage();
+  let raw: string | null = null;
+  try {
+    if (getDidClawDesktopApi()?.didclawKvGet) {
+      raw = await didclawKvGetDirect(STORAGE_KEY);
+    } else {
+      raw = storage?.getItem(STORAGE_KEY) ?? null;
+    }
+    if (raw) {
+      const parsed = JSON.parse(raw) as StoredIdentity;
+      if (parsed?.version === 1) {
+        const { deviceToken: _, ...rest } = parsed;
+        await persistIdentity(rest as StoredIdentity);
+        return;
+      }
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export async function signDevicePayload(privateKeyBase64Url: string, payload: string): Promise<string> {

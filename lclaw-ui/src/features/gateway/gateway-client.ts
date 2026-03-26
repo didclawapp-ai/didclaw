@@ -1,6 +1,7 @@
 import { buildDeviceAuthPayload } from "@/lib/device-auth-payload";
 import {
   loadOrCreateDeviceIdentity,
+  saveDeviceToken,
   signDevicePayload,
   type DeviceIdentity,
 } from "@/lib/device-identity";
@@ -28,6 +29,7 @@ type Pending = {
 
 export type GatewayClientOptions = {
   url: string;
+  /** 用户配置的 token 或 password，优先级高于 deviceToken */
   token?: string;
   password?: string;
   clientVersion?: string;
@@ -40,6 +42,11 @@ export type GatewayClientOptions = {
   onHello?: (hello: unknown) => void;
   onEvent?: (evt: GatewayEventFrame) => void;
   onClose?: (info: { code: number; reason: string; error?: GatewayRequestError }) => void;
+  /**
+   * 可选的 deviceToken，用于自动重连。
+   * 如果提供了 userToken 或 password，则优先使用用户凭证。
+   */
+  deviceToken?: string;
 };
 
 const OPERATOR_SCOPES = [
@@ -285,6 +292,23 @@ export class GatewayClient {
     try {
       await this.sendConnectInner();
     } catch (e) {
+      // AUTH_TOKEN_MISMATCH: per-spec, trusted clients may attempt one bounded
+      // retry with the cached per-device token when user credentials fail.
+      if (
+        e instanceof GatewayRequestError &&
+        e.gatewayCode === "AUTH_TOKEN_MISMATCH" &&
+        this.opts.deviceToken?.trim() &&
+        (this.opts.token?.trim() || this.opts.password?.trim())
+      ) {
+        console.warn("[didclaw] AUTH_TOKEN_MISMATCH on user credentials, retrying with deviceToken");
+        try {
+          await this.sendConnectInner({ useDeviceTokenOnly: true });
+          return;
+        } catch (retryErr) {
+          // Retry also failed — report the original error (more actionable)
+          console.error("[didclaw] deviceToken retry also failed", retryErr);
+        }
+      }
       console.error("[didclaw] sendConnect failed", e);
       this.pendingConnectError =
         e instanceof GatewayRequestError
@@ -297,20 +321,23 @@ export class GatewayClient {
     }
   }
 
-  private async sendConnectInner(): Promise<void> {
+  private async sendConnectInner(overrides?: { useDeviceTokenOnly?: boolean }): Promise<void> {
     const isSecureContext = typeof crypto !== "undefined" && !!crypto.subtle;
     const role = "operator";
     const clientMode = this.opts.clientMode ?? GATEWAY_CLIENT_MODE;
     const platformOs = inferOpenclawGatewayOs();
     const deviceFamily = "desktop";
-    const token = this.opts.token?.trim() || undefined;
-    const password = this.opts.password?.trim() || undefined;
-    const auth =
-      token || password
-        ? {
-            token,
-            password,
-          }
+
+    // Priority: user-configured token/password > deviceToken.
+    // useDeviceTokenOnly=true is used for the AUTH_TOKEN_MISMATCH bounded retry.
+    const userToken = overrides?.useDeviceTokenOnly ? undefined : (this.opts.token?.trim() || undefined);
+    const password = overrides?.useDeviceTokenOnly ? undefined : (this.opts.password?.trim() || undefined);
+    const deviceToken = this.opts.deviceToken?.trim() || undefined;
+
+    const auth = userToken || password
+      ? { token: userToken, password }
+      : deviceToken
+        ? { token: deviceToken }
         : undefined;
 
     let device:
@@ -339,7 +366,7 @@ export class GatewayClient {
         role,
         scopes: OPERATOR_SCOPES,
         signedAtMs,
-        token: token ?? null,
+        token: userToken ?? null,
         nonce,
         platformOs,
         deviceFamily,
@@ -386,6 +413,26 @@ export class GatewayClient {
     const hello = await this.request("connect", params);
     this.backoffMs = 800;
     this.pendingConnectError = undefined;
+    
+    // 保存网关返回的 deviceToken（如果有）
+    const helloPayload = hello as { 
+      auth?: { 
+        deviceToken?: string;
+        role?: string;
+        scopes?: string[];
+      };
+      type?: string;
+      protocol?: number;
+    } | undefined;
+    
+    const returnedDeviceToken = helloPayload?.auth?.deviceToken;
+    if (returnedDeviceToken && typeof returnedDeviceToken === "string") {
+      // 异步保存，不阻塞连接流程
+      void saveDeviceToken(returnedDeviceToken).catch((e) => {
+        console.error("[didclaw] failed to save deviceToken", e);
+      });
+    }
+    
     this.opts.onHello?.(hello);
   }
 }

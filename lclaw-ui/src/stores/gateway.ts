@@ -15,6 +15,7 @@ import {
   logGatewayPush,
   summarizeGatewayEvent,
 } from "@/lib/gateway-debug-log";
+import { loadOrCreateDeviceIdentity, clearDeviceToken } from "@/lib/device-identity";
 import type { ExecApprovalRequest } from "./approval";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
@@ -33,9 +34,26 @@ export function gatewayUrlFromEnv(): string {
   return "ws://127.0.0.1:18789";
 }
 
-type ConnectOpts = { url: string; token?: string; password?: string };
+type ConnectOpts = { url: string; token?: string; password?: string; deviceToken?: string };
 
 let connectRequestId = 0;
+
+/** 缓存的 deviceToken，用于自动重连 */
+let cachedDeviceToken: string | undefined = undefined;
+
+/** 加载 deviceToken（从设备身份存储） */
+async function loadDeviceToken(): Promise<string | undefined> {
+  if (cachedDeviceToken) {
+    return cachedDeviceToken;
+  }
+  try {
+    const identity = await loadOrCreateDeviceIdentity();
+    cachedDeviceToken = identity.deviceToken;
+    return cachedDeviceToken;
+  } catch {
+    return undefined;
+  }
+}
 
 function delayMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -66,7 +84,10 @@ async function loadGatewayConnectOptions(): Promise<ConnectOpts> {
     }
   }
 
-  return { url: finalUrl, token, password };
+  // 如果没有用户配置的 token/password，尝试使用 deviceToken
+  const deviceToken = !token && !password ? await loadDeviceToken() : undefined;
+
+  return { url: finalUrl, token, password, deviceToken };
 }
 
 export const useGatewayStore = defineStore("gateway", () => {
@@ -138,6 +159,7 @@ export const useGatewayStore = defineStore("gateway", () => {
         url: opts.url,
         token: opts.token,
         password: opts.password,
+        deviceToken: opts.deviceToken,
         clientVersion: `didclaw/${__APP_VERSION__}`,
         clientMode: isDidClawDesktop() ? GATEWAY_CLIENT_MODE_UI : GATEWAY_CLIENT_MODE,
         useTauriTunnel: isTauri(),
@@ -298,8 +320,23 @@ export const useGatewayStore = defineStore("gateway", () => {
             helloInfo.value = null;
             const detailText = error ? describeGatewayError(error) : String(reason ?? "").trim();
             lastError.value = detailText ? `已断开（${code}）：${detailText}` : `已断开（${code}）`;
-            if (detailText.toLowerCase().includes("pairing")) {
+            
+            // 处理配对和设备认证错误
+            const lowerDetail = detailText.toLowerCase();
+            if (lowerDetail.includes("pairing")) {
               lastError.value += " — 请在网关主机执行: openclaw devices list / openclaw devices approve <id>";
+            }
+            
+            // 如果 deviceToken 失效（AUTH_TOKEN_MISMATCH 或相关错误），清除缓存
+            const isAuthError = lowerDetail.includes("unauthorized") || 
+                               lowerDetail.includes("auth") ||
+                               lowerDetail.includes("token") ||
+                               error?.gatewayCode === "AUTH_TOKEN_MISMATCH" ||
+                               error?.gatewayCode?.startsWith("DEVICE_AUTH_");
+            if (isAuthError && cachedDeviceToken) {
+              console.log("[didclaw] clearing cached deviceToken due to auth error");
+              cachedDeviceToken = undefined;
+              void clearDeviceToken().catch(() => { /* ignore */ });
             }
           }
         },

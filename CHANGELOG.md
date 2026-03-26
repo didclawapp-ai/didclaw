@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 新增
+
+- **deviceToken 持久化与有界重试**：Gateway 在 `hello` 响应中颁发的 `deviceToken` 现已自动保存到设备身份存储（桌面端使用 Tauri KV，浏览器端使用 `localStorage`）。重连时若无用户配置的 `token`/`password`，自动携带已保存的 `deviceToken`，避免重复配对审批。若用户凭证触发 `AUTH_TOKEN_MISMATCH`，按协议规范尝试一次以 `deviceToken` 为凭证的有界重试；认证错误时自动清除失效的 `deviceToken` 缓存。
+
 ### 修复
 
 - **WhatsApp 等渠道收到消息后仅显示"后台子代理运行中"、未自动切换到会话窗口**：WhatsApp 等渠道消息处理时 Gateway 只发 `agent` 事件（走 announce 投递），不发 `chat.delta`，导致原先依赖 `chat.delta` 的 shouldFollow 自动切换逻辑从未触发。修复后：当某个后台会话首次出现 `agent` 事件（`flashingSessionKeys` 尚未包含该会话，即 5 秒内未曾高亮过）且 composer 空闲时，自动切换到该会话，与 `chat.delta` 的行为对齐；此后同一会话的后续 `agent` 事件不会重复触发切换。
