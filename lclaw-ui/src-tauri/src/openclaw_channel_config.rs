@@ -129,7 +129,11 @@ pub async fn start_channel_qr_flow(
     };
 
     let mut cmd = Command::new(&exe);
-    cmd.args(&args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        // 接管 stdin，以便向交互式提示发送回车键自动接受默认选项
+        .stdin(Stdio::piped());
 
     if !gateway_url.is_empty() {
         cmd.env("OPENCLAW_GATEWAY_URL", &gateway_url);
@@ -146,6 +150,18 @@ pub async fn start_channel_qr_flow(
         Ok(c) => c,
         Err(e) => return json!({"ok": false, "error": format!("启动 {channel} 登录失败：{e}")}),
     };
+
+    // 向 stdin 写入多个回车，自动接受 clack / inquirer 等交互式提示的默认选项
+    if let Some(mut stdin) = child.stdin.take() {
+        tokio::spawn(async move {
+            use tokio::io::AsyncWriteExt;
+            // 给每个可能出现的提示都发一次回车；多余的回车无害
+            for _ in 0..10u8 {
+                if stdin.write_all(b"\n").await.is_err() { break; }
+                tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
+            }
+        });
+    }
 
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
