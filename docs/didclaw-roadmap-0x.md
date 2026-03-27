@@ -159,7 +159,7 @@
 | Discord | Bot Token 表单 | 内置 |
 | 企业微信 (WeCom) | Bot ID + Secret 表单 + 一键安装插件 | `@wecom/wecom-openclaw-plugin` |
 
-个人微信（`@tencent-weixin` QR 流）列为后续迭代。
+
 
 **入口位置**：Header 独立按钮「渠道」（与「定时任务」「技能」并列）
 

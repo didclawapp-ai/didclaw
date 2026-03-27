@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **个人微信（WeChat）渠道接入**：通过腾讯官方 ClawBot 插件接入个人微信，零封号风险。渠道设置新增「微信」标签页，包含前置步骤说明（在微信中开启 ClawBot 插件）、流式安装向导（`npx -y @tencent-weixin/openclaw-weixin-cli@latest install`）、QR 码终端输出、成功后重启 Gateway 按钮。当前仅支持 iPhone 微信 8.0.70+，Android 版即将推出。
+
 - **WhatsApp 渠道对话框新增「重新连接」按钮**：当检测到已有绑定会话时（无需重新扫码），在操作区展示「重新连接」主按钮，点击后触发 `web.login.start` 唤醒因 Gateway 重启而进入 stopped/disconnected 状态的插件，无需重新扫码也无需重启 Gateway；「重启 Gateway」退为次选操作。注意：「开始扫码登录」仍需手动点击触发，不再自动调用（自动探测会中断已有的活跃 WhatsApp 连接）。
 
 - **deviceToken 持久化与有界重试**：Gateway 在 `hello` 响应中颁发的 `deviceToken` 现已自动保存到设备身份存储（桌面端使用 Tauri KV，浏览器端使用 `localStorage`）。重连时若无用户配置的 `token`/`password`，自动携带已保存的 `deviceToken`，避免重复配对审批。若用户凭证触发 `AUTH_TOKEN_MISMATCH`，按协议规范尝试一次以 `deviceToken` 为凭证的有界重试；认证错误时自动清除失效的 `deviceToken` 缓存。

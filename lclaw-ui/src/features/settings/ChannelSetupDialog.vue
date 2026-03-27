@@ -17,11 +17,12 @@ const open = computed({
 
 // ── Tab state ────────────────────────────────────────────────────────────────
 
-type ChannelId = "whatsapp" | "feishu" | "discord" | "wecom";
+type ChannelId = "whatsapp" | "feishu" | "discord" | "wecom" | "wechat";
 const activeTab = ref<ChannelId>("whatsapp");
 
 const tabs: { id: ChannelId; icon: string }[] = [
   { id: "whatsapp", icon: "💬" },
+  { id: "wechat",   icon: "🟢" },
   { id: "feishu",   icon: "🪶" },
   { id: "discord",  icon: "🎮" },
   { id: "wecom",    icon: "💼" },
@@ -83,6 +84,43 @@ async function startFeishuInstall(): Promise<void> {
   }
 }
 
+// WeChat (personal) streaming install via ClawBot
+type WechatInstallState = "idle" | "running" | "success" | "failed";
+const wechatInstallState = ref<WechatInstallState>("idle");
+const wechatInstallLines = ref<string[]>([]);
+let unlistenWechatLine: UnlistenFn | null = null;
+let unlistenWechatDone: UnlistenFn | null = null;
+
+async function startWechatInstall(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (!api?.startChannelQrFlow) return;
+
+  wechatInstallState.value = "running";
+  wechatInstallLines.value = [];
+
+  unlistenWechatLine?.();
+  unlistenWechatLine = await listen<{ stream: string; line: string }>("channel:line", (e) => {
+    wechatInstallLines.value = [...wechatInstallLines.value, e.payload.line];
+    if (wechatInstallLines.value.length > 300) {
+      wechatInstallLines.value = wechatInstallLines.value.slice(-300);
+    }
+  });
+  unlistenWechatDone?.();
+  unlistenWechatDone = await listen<{ ok: boolean }>("channel:done", (e) => {
+    wechatInstallState.value = e.payload.ok ? "success" : "failed";
+    unlistenWechatLine?.(); unlistenWechatLine = null;
+    unlistenWechatDone?.(); unlistenWechatDone = null;
+  });
+
+  try {
+    const gatewayUrl = gwStore.url.replace("ws://", "http://").replace("wss://", "https://");
+    await api.startChannelQrFlow("wechat", gatewayUrl);
+  } catch (e) {
+    wechatInstallState.value = "failed";
+    wechatInstallLines.value = [...wechatInstallLines.value, `Error: ${e}`];
+  }
+}
+
 const feishuAppId = ref("");
 const feishuAppSecret = ref("");
 const discordToken = ref("");
@@ -117,6 +155,7 @@ const CHANNEL_READY_META: Record<ChannelId, ChannelReadyMeta> = {
     pluginPackageSpec: WECOM_PLUGIN_SPEC,
     configPatch: { enabled: true },
   },
+  wechat: {},
 };
 
 function delay(ms: number): Promise<void> {
@@ -313,6 +352,8 @@ function cleanupListeners(): void {
   unlistenWaDone?.();  unlistenWaDone = null;
   unlistenFeishuLine?.(); unlistenFeishuLine = null;
   unlistenFeishuDone?.(); unlistenFeishuDone = null;
+  unlistenWechatLine?.(); unlistenWechatLine = null;
+  unlistenWechatDone?.(); unlistenWechatDone = null;
 }
 
 /** CLI 降级：openclaw channels login --channel whatsapp → 流式输出 */
@@ -718,6 +759,59 @@ onUnmounted(() => {
             </template>
           </div>
 
+          <!-- ── WeChat (Personal) ── -->
+          <div v-else-if="activeTab === 'wechat'" class="ch-panel">
+            <p class="ch-hint">{{ t('channel.wechat.hint') }}
+              <a :href="t('channel.wechat.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
+            </p>
+
+            <!-- 前置步骤：需先在微信客户端开启 ClawBot 插件 -->
+            <div class="ch-prereq-card">
+              <div class="ch-prereq-title">{{ t('channel.wechat.prereqTitle') }}</div>
+              <ol class="ch-prereq-steps">
+                <li>{{ t('channel.wechat.prereqStep1') }}</li>
+                <li>{{ t('channel.wechat.prereqStep2') }}</li>
+                <li>{{ t('channel.wechat.prereqStep3') }}</li>
+              </ol>
+              <p class="ch-prereq-note">⚠ {{ t('channel.wechat.prereqNote') }}</p>
+            </div>
+
+            <!-- Install wizard -->
+            <div class="ch-install-card">
+              <div class="ch-install-cmd-row">
+                <code class="ch-code ch-code--block">{{ t('channel.wechat.installCmd') }}</code>
+              </div>
+              <div class="ch-qr-status" style="margin-top: 6px;">
+                <span v-if="wechatInstallState === 'idle'" class="ch-status-idle">准备就绪</span>
+                <span v-else-if="wechatInstallState === 'running'" class="ch-status-running">{{ t('channel.wechat.installRunning') }}</span>
+                <span v-else-if="wechatInstallState === 'success'" class="ch-status-ok">✓ {{ t('channel.wechat.installSuccess') }}</span>
+                <span v-else class="ch-status-err">✗ {{ t('channel.wechat.installFail') }}</span>
+              </div>
+
+              <!-- Terminal output -->
+              <div v-if="wechatInstallLines.length" class="ch-terminal" style="margin-top: 8px;">
+                <div class="ch-terminal-head">{{ t('channel.qrOutputLabel') }}（二维码在下方，用微信扫描）</div>
+                <pre class="ch-terminal-body"><template v-for="(ln, i) in wechatInstallLines" :key="i">{{ ln }}
+</template></pre>
+              </div>
+
+              <div class="ch-actions" style="margin-top: 8px;">
+                <button
+                  v-if="wechatInstallState === 'idle' || wechatInstallState === 'failed'"
+                  type="button"
+                  class="ch-btn ch-btn--primary"
+                  @click="startWechatInstall"
+                >{{ t('channel.wechat.startInstallBtn') }}</button>
+                <button v-if="wechatInstallState === 'running'" type="button" class="ch-btn" disabled>
+                  {{ t('channel.wechat.installRunning') }}
+                </button>
+                <button v-if="wechatInstallState === 'success'" type="button" class="ch-btn ch-btn--primary" @click="restartGateway">
+                  🔄 重启 Gateway 立即生效
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- ── Discord ── -->
           <div v-else-if="activeTab === 'discord'" class="ch-panel">
             <p class="ch-hint">{{ t('channel.discord.hint') }}
@@ -1117,6 +1211,35 @@ onUnmounted(() => {
   color: var(--lc-text);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* WeChat prerequisite card */
+.ch-prereq-card {
+  background: var(--lc-bg-elevated);
+  border: 1px solid var(--lc-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.ch-prereq-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lc-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.ch-prereq-steps {
+  margin: 0 0 8px 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--lc-text);
+}
+.ch-prereq-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lc-text-secondary);
 }
 
 /* Dialog transition */

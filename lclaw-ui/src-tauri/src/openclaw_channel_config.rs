@@ -202,6 +202,14 @@ pub async fn start_channel_qr_flow(
             let npx = resolve_npx_executable().unwrap_or_else(|| "npx".into());
             (npx, vec!["-y".into(), "@larksuite/openclaw-lark".into(), "install".into()])
         }
+        "wechat" => {
+            let npx = resolve_npx_executable().unwrap_or_else(|| "npx".into());
+            (npx, vec![
+                "-y".into(),
+                "@tencent-weixin/openclaw-weixin-cli@latest".into(),
+                "install".into(),
+            ])
+        }
         _ => return json!({"ok": false, "error": format!("不支持的 QR 渠道: {channel}")}),
     };
     let args: Vec<&str> = args_resolved.iter().map(String::as_str).collect();
