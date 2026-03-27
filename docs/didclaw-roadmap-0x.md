@@ -185,6 +185,7 @@
 - Gateway 重启后 WhatsApp 插件进入 `stopped (reconnectAttempts=0)` 状态不自动重连：已在「已有绑定会话」状态下新增「重新连接」按钮，点击重新调用 `web.login.start` 唤醒插件，无需重新扫码
 - 握手时序错误（"invalid handshake: first request must be connect"）：原先用 `client.connected`（仅检查 WebSocket OPEN）判断 Gateway 就绪，Gateway 重启插件安装后立即发 RPC 会报此错；改为检查 `gwStore.status === "connected"`（仅在 `onHello` 回调后设置），并在握手完成后额外等待 800ms
 - 同号码自测（Gateway 号码与发消息号码相同）会触发 AI 回复消息被 Baileys 循环接收的无限回环；需在 `openclaw.json` 设置 `channels.whatsapp.selfChatMode: true`。使用专用号码（推荐）则无此问题
+- 微信绑定后误报「绑定失败」：插件安装触发网关自行重启（1012），但登录流程未等网关恢复即启动 CLI，且成功后又尝试重启进程与自启进程端口冲突 → 超时。改为插件安装后软重连（不杀进程）+ 登录成功后优先软重连、仅失败时完整重启
 
 ---
 

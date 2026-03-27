@@ -8,6 +8,8 @@
 
 ### 修复
 
+- **微信渠道绑定后误报「绑定失败」及 Gateway 重连超时**：插件安装后网关自行重启（WS close 1012 "service restart"），但 `startWechatInstall` 未等待网关恢复即启动 `channels login` CLI；登录成功后的 `restartGatewayAndReconnect` 又尝试重启网关进程，与已自行重启的进程端口冲突，导致连接超时 → 「绑定失败，请重试」。修复：① 插件安装后若网关断开，先通过软重连（`reloadConnection`，不杀进程）等待网关恢复，再启动扫码登录；② `channel:done` 成功后优先软重连，仅在软重连失败时才走完整重启路径，避免与自启进程冲突。
+
 - **首次启动 Gateway 后会话/渠道状态不完整**：`ensureOpenClawGateway` 返回 `{started: true}` 时（即本次刚拉起新进程），`onHello` 触发后额外等待 4 秒再做一次静默 `session.refresh()` + `loadHistory()`，等待插件（WhatsApp / 微信等）完成初始化后补全状态。已在运行的 Gateway 重连时不触发额外刷新。
 - **渠道绑定后自动关闭窗口并重连**：WhatsApp（RPC 路径）和微信扫码成功后，对话框在 1.8 秒后自动关闭，无需用户手动点击；关闭时若 Gateway 未连接则自动触发重连（兜底用户手动关闭场景）。WhatsApp CLI 降级路径因仍需手动重启 Gateway，不触发自动关闭。
 - **微信渠道绑定优化**：① 新增桌面端 `check_channel_plugin_installed` Tauri 命令，按需检测本地插件，已安装则跳过重复下载，直接进入 `openclaw channels login --channel openclaw-weixin`；② 登录流程结束后自动从输出中提取扫码 URL，用 `qrcode` 库渲染为可直接扫描的图片二维码；③ 将大块滚动终端输出替换为单行黑底滚动状态条，交互界面更简洁；④ 降级路径补全：命令未注册或插件已存在时均不再中断流程。
