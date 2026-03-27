@@ -145,7 +145,7 @@ export const useChatStore = defineStore("chat", () => {
   const openClawPrimaryPickerError = ref<string | null>(null);
   /** 写入 openclaw.json 后的短提示（约 12s 消失） */
   const openClawConfigHint = ref<string | null>(null);
-  let openClawConfigHintTimer: ReturnType<typeof setTimeout> | null = null;
+  let openClawConfigHintTimer: number | null = null;
 
   /** 后台子代理（非当前会话）最近一次 agent 事件时间戳 */
   const backgroundAgentLastSeenMs = ref<number | null>(null);
@@ -155,7 +155,7 @@ export const useChatStore = defineStore("chat", () => {
   const flashingSessionKeys = ref<string[]>([]);
 
   const FLASH_DURATION_MS = 5000;
-  const flashTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const flashTimers = new Map<string, number>();
 
   function noteBackgroundAgentActivity(sk: string): void {
     backgroundAgentLastSeenMs.value = Date.now();
@@ -426,7 +426,7 @@ export const useChatStore = defineStore("chat", () => {
    * `chat.history` 与 transcript 对齐（与重连后行为一致）。
    */
   const GATEWAY_CHAT_SYNC_DEBOUNCE_MS = 1500;
-  let gatewayChatSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  let gatewayChatSyncTimer: number | null = null;
 
   function scheduleDebouncedSilentHistoryFromGateway(source: string): void {
     if (gatewayChatSyncTimer !== null) {

@@ -2,6 +2,7 @@
 import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 import { useGatewayStore } from "@/stores/gateway";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import QRCode from "qrcode";
 import { computed, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -85,11 +86,114 @@ async function startFeishuInstall(): Promise<void> {
 }
 
 // WeChat (personal) streaming install via ClawBot
-type WechatInstallState = "idle" | "running" | "success" | "failed";
+type WechatInstallState = "idle" | "running" | "reconnecting" | "success" | "failed";
 const wechatInstallState = ref<WechatInstallState>("idle");
 const wechatInstallLines = ref<string[]>([]);
+const wechatQrUrl = ref<string | null>(null);
+const wechatQrDataUrl = ref<string | null>(null);
 let unlistenWechatLine: UnlistenFn | null = null;
 let unlistenWechatDone: UnlistenFn | null = null;
+let unlistenWechatQr: UnlistenFn | null = null;
+const wechatTickerText = computed(() =>
+  wechatInstallLines.value.length
+    ? wechatInstallLines.value.join("   •   ")
+    : "等待微信绑定日志…",
+);
+
+function isMissingTauriCommandError(error: unknown): boolean {
+  const message = String((error as Error)?.message ?? error ?? "");
+  return /not allowed|command not found|unknown command/i.test(message);
+}
+
+function looksLikeWechatPluginAlreadyInstalled(result: {
+  ok: boolean;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
+}): boolean {
+  const combined = [result.error, result.stdout, result.stderr]
+    .filter(Boolean)
+    .join("\n");
+  return /plugin already exists|already at \d+\.\d+\.\d+/i.test(combined);
+}
+
+function pushWechatLines(raw?: string | null): void {
+  if (!raw) return;
+  const chunks = raw
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean);
+  if (!chunks.length) return;
+  wechatInstallLines.value = [...wechatInstallLines.value, ...chunks].slice(-300);
+}
+
+async function setWechatQrUrl(url: string | null): Promise<void> {
+  wechatQrUrl.value = url;
+  if (!url) {
+    wechatQrDataUrl.value = null;
+    return;
+  }
+  try {
+    wechatQrDataUrl.value = await QRCode.toDataURL(url, {
+      width: 220,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    });
+  } catch (error) {
+    console.warn("[didclaw] failed to render WeChat QR image", error);
+    wechatQrDataUrl.value = null;
+  }
+}
+
+async function ensureWechatPluginInstalled(): Promise<boolean> {
+  const api = getDidClawDesktopApi();
+  if (!api?.checkChannelPluginInstalled) {
+    pushWechatLines("当前桌面端未提供微信插件检测能力，回退到直接安装/更新流程…");
+  } else {
+    try {
+      const installedState = await api.checkChannelPluginInstalled("wechat");
+      if (!installedState.ok) {
+        showToast(`检测微信插件状态失败：${installedState.error}`, true);
+        return false;
+      }
+      if (installedState.installed) {
+        pushWechatLines("已检测到本地微信插件，直接启动扫码登录…");
+        return true;
+      }
+    } catch (error) {
+      // dev 模式热更新时，前端可能已更新而 Rust 端尚未重启注册新命令。
+      if (isMissingTauriCommandError(error)) {
+        pushWechatLines("当前运行中的桌面端尚未注册微信插件检测命令，回退到直接安装/更新流程…");
+      } else {
+        showToast(`检测微信插件状态失败：${String((error as Error)?.message ?? error)}`, true);
+        return false;
+      }
+    }
+  }
+
+  if (!api?.openclawPluginsInstall) {
+    showToast("桌面端不支持安装微信插件", true);
+    return false;
+  }
+
+  pushWechatLines(`> openclaw plugins install "${WECHAT_PLUGIN_SPEC}"`);
+  pushWechatLines("未检测到本地微信插件，正在自动安装…");
+
+  const result = await api.openclawPluginsInstall({ packageSpec: WECHAT_PLUGIN_SPEC });
+  pushWechatLines(result.stdout);
+  pushWechatLines(result.stderr);
+  if (!result.ok) {
+    if (looksLikeWechatPluginAlreadyInstalled(result)) {
+      pushWechatLines("检测到微信插件已存在，跳过重复安装，继续启动扫码登录…");
+      return true;
+    }
+    showToast(`自动安装微信插件失败：${result.error}`, true);
+    return false;
+  }
+
+  pushWechatLines("微信插件安装完成，正在启动扫码登录…");
+  return true;
+}
 
 async function startWechatInstall(): Promise<void> {
   const api = getDidClawDesktopApi();
@@ -97,6 +201,13 @@ async function startWechatInstall(): Promise<void> {
 
   wechatInstallState.value = "running";
   wechatInstallLines.value = [];
+  await setWechatQrUrl(null);
+
+  const ready = await ensureWechatPluginInstalled();
+  if (!ready) {
+    wechatInstallState.value = "failed";
+    return;
+  }
 
   unlistenWechatLine?.();
   unlistenWechatLine = await listen<{ stream: string; line: string }>("channel:line", (e) => {
@@ -104,12 +215,36 @@ async function startWechatInstall(): Promise<void> {
     if (wechatInstallLines.value.length > 300) {
       wechatInstallLines.value = wechatInstallLines.value.slice(-300);
     }
+    // 从输出行里提取微信扫码 URL（liteapp.weixin.qq.com）
+    const m = e.payload.line.match(/https:\/\/liteapp\.weixin\.qq\.com\/\S+/);
+    if (m && !wechatQrUrl.value) {
+      void setWechatQrUrl(m[0].trim());
+    }
+  });
+  unlistenWechatQr?.();
+  unlistenWechatQr = await listen<{ url: string }>("channel:qr", (e) => {
+    // Rust 侧检测到 https:// URL 也会发 channel:qr 事件
+    if (e.payload.url.includes("liteapp.weixin.qq.com") || e.payload.url.includes("weixin")) {
+      void setWechatQrUrl(e.payload.url);
+    }
   });
   unlistenWechatDone?.();
   unlistenWechatDone = await listen<{ ok: boolean }>("channel:done", (e) => {
-    wechatInstallState.value = e.payload.ok ? "success" : "failed";
     unlistenWechatLine?.(); unlistenWechatLine = null;
+    unlistenWechatQr?.();  unlistenWechatQr = null;
     unlistenWechatDone?.(); unlistenWechatDone = null;
+    if (!e.payload.ok) {
+      wechatInstallState.value = "failed";
+      return;
+    }
+    // 扫码成功后自动重启 Gateway 并重连，用户不需要手动操作
+    wechatInstallState.value = "reconnecting";
+    void restartGatewayAndReconnect("微信绑定成功，Gateway 重启中…").then((ok) => {
+      wechatInstallState.value = ok ? "success" : "failed";
+      if (!ok) {
+        showToast("Gateway 重连超时，请手动点「重启 Gateway」", true);
+      }
+    });
   });
 
   try {
@@ -118,6 +253,9 @@ async function startWechatInstall(): Promise<void> {
   } catch (e) {
     wechatInstallState.value = "failed";
     wechatInstallLines.value = [...wechatInstallLines.value, `Error: ${e}`];
+    unlistenWechatLine?.(); unlistenWechatLine = null;
+    unlistenWechatQr?.(); unlistenWechatQr = null;
+    unlistenWechatDone?.(); unlistenWechatDone = null;
   }
 }
 
@@ -132,6 +270,7 @@ const wecomPluginInstalling = ref(false);
 
 const WECOM_PLUGIN_SPEC = "@wecom/wecom-openclaw-plugin";
 const WHATSAPP_PLUGIN_SPEC = "@openclaw/whatsapp";
+const WECHAT_PLUGIN_SPEC = "@tencent-weixin/openclaw-weixin";
 
 type ChannelReadyMeta = {
   pluginPackageSpec?: string;
@@ -353,7 +492,15 @@ function cleanupListeners(): void {
   unlistenFeishuLine?.(); unlistenFeishuLine = null;
   unlistenFeishuDone?.(); unlistenFeishuDone = null;
   unlistenWechatLine?.(); unlistenWechatLine = null;
+  unlistenWechatQr?.();  unlistenWechatQr = null;
   unlistenWechatDone?.(); unlistenWechatDone = null;
+}
+
+function resetWechat(): void {
+  wechatInstallState.value = "idle";
+  wechatInstallLines.value = [];
+  wechatQrUrl.value = null;
+  wechatQrDataUrl.value = null;
 }
 
 /** CLI 降级：openclaw channels login --channel whatsapp → 流式输出 */
@@ -564,6 +711,7 @@ watch(
       cleanupListeners();
       toast.value = null;
       resetQr();
+      resetWechat();
     }
   },
 );
@@ -784,15 +932,33 @@ onUnmounted(() => {
               <div class="ch-qr-status" style="margin-top: 6px;">
                 <span v-if="wechatInstallState === 'idle'" class="ch-status-idle">准备就绪</span>
                 <span v-else-if="wechatInstallState === 'running'" class="ch-status-running">{{ t('channel.wechat.installRunning') }}</span>
-                <span v-else-if="wechatInstallState === 'success'" class="ch-status-ok">✓ {{ t('channel.wechat.installSuccess') }}</span>
+                <span v-else-if="wechatInstallState === 'reconnecting'" class="ch-status-running">🔄 微信绑定成功，正在重启网关并自动重连…</span>
+                <span v-else-if="wechatInstallState === 'success'" class="ch-status-ok">✓ 微信已绑定，网关已就绪，可以关闭此窗口开始对话。</span>
                 <span v-else class="ch-status-err">✗ {{ t('channel.wechat.installFail') }}</span>
               </div>
 
-              <!-- Terminal output -->
-              <div v-if="wechatInstallLines.length" class="ch-terminal" style="margin-top: 8px;">
-                <div class="ch-terminal-head">{{ t('channel.qrOutputLabel') }}（二维码在下方，用微信扫描）</div>
-                <pre class="ch-terminal-body"><template v-for="(ln, i) in wechatInstallLines" :key="i">{{ ln }}
-</template></pre>
+              <div v-if="wechatQrDataUrl" class="ch-qr-wrap" style="margin-top: 8px;">
+                <img
+                  :src="wechatQrDataUrl"
+                  class="ch-qr-img"
+                  alt="WeChat QR code"
+                />
+              </div>
+
+              <!-- WeChat QR URL（提取出来单独显示，方便扫码或用浏览器打开） -->
+              <div v-if="wechatQrUrl" class="ch-wechat-qr-box">
+                <p class="ch-wechat-qr-hint">用微信「扫一扫」扫描，或点链接在浏览器打开后扫码：</p>
+                <a :href="wechatQrUrl" target="_blank" rel="noopener" class="ch-link ch-wechat-qr-link">
+                  {{ wechatQrUrl }}
+                </a>
+              </div>
+
+              <!-- WeChat compact ticker -->
+              <div v-if="wechatInstallLines.length" class="ch-wechat-ticker">
+                <div class="ch-wechat-ticker__track">
+                  <span class="ch-wechat-ticker__text">{{ wechatTickerText }}</span>
+                  <span class="ch-wechat-ticker__text" aria-hidden="true">{{ wechatTickerText }}</span>
+                </div>
               </div>
 
               <div class="ch-actions" style="margin-top: 8px;">
@@ -802,12 +968,21 @@ onUnmounted(() => {
                   class="ch-btn ch-btn--primary"
                   @click="startWechatInstall"
                 >{{ t('channel.wechat.startInstallBtn') }}</button>
-                <button v-if="wechatInstallState === 'running'" type="button" class="ch-btn" disabled>
-                  {{ t('channel.wechat.installRunning') }}
-                </button>
-                <button v-if="wechatInstallState === 'success'" type="button" class="ch-btn ch-btn--primary" @click="restartGateway">
-                  🔄 重启 Gateway 立即生效
-                </button>
+                <button
+                  v-if="wechatInstallState === 'running' || wechatInstallState === 'reconnecting'"
+                  type="button"
+                  class="ch-btn"
+                  disabled
+                >{{ wechatInstallState === 'reconnecting' ? '重启网关中…' : t('channel.wechat.installRunning') }}</button>
+                <template v-if="wechatInstallState === 'success'">
+                  <button type="button" class="ch-btn ch-btn--primary" @click="closeDialog">
+                    ✓ 关闭，开始对话
+                  </button>
+                  <button type="button" class="ch-btn" @click="resetWechat">重新绑定</button>
+                </template>
+                <template v-if="wechatInstallState === 'failed'">
+                  <button type="button" class="ch-btn" @click="restartGateway">🔄 手动重启 Gateway</button>
+                </template>
               </div>
             </div>
           </div>
@@ -1240,6 +1415,57 @@ onUnmounted(() => {
   margin: 0;
   font-size: 12px;
   color: var(--lc-text-secondary);
+}
+
+/* WeChat QR URL highlight box */
+.ch-wechat-qr-box {
+  background: var(--lc-bg-elevated);
+  border: 1px solid var(--lc-accent, #06b6d4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+.ch-wechat-qr-hint {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  color: var(--lc-text-secondary);
+}
+.ch-wechat-qr-link {
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.ch-wechat-ticker {
+  margin-top: 8px;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  background: #0b0b0b;
+  color: #d4d4d4;
+  overflow: hidden;
+  padding: 8px 0;
+}
+
+.ch-wechat-ticker__track {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  white-space: nowrap;
+  will-change: transform;
+  animation: wechatTickerScroll 28s linear infinite;
+}
+
+.ch-wechat-ticker__text {
+  display: inline-block;
+  padding-left: 16px;
+  padding-right: 32px;
+  font-family: var(--lc-font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@keyframes wechatTickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
 /* Dialog transition */

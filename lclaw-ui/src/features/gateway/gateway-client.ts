@@ -63,7 +63,7 @@ export class GatewayClient {
   private closed = false;
   private connectNonce: string | null = null;
   private connectSent = false;
-  private connectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimer: number | null = null;
   private backoffMs = 800;
   private pendingConnectError: GatewayRequestError | undefined;
   private lastSeq: number | null = null;

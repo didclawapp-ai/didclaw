@@ -1,6 +1,6 @@
 type GwLike = { connect: () => void };
 
-let deferredTimer: ReturnType<typeof setTimeout> | null = null;
+let deferredTimer: number | null = null;
 
 /** 取消待执行的延迟自动连接（用户手动点连接开关时会由 store.connect 调用） */
 export function cancelDeferredGatewayConnect(): void {

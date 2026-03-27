@@ -294,7 +294,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
   let streamReceived = false;
   let unlisten: UnlistenFn | undefined;
   let unlistenPhase: UnlistenFn | undefined;
-  let tick: ReturnType<typeof setInterval> | undefined;
+  let tick: number | undefined;
   if (isTauri()) {
     try {
       unlistenPhase = await listen<{ key?: string; detail?: string }>(

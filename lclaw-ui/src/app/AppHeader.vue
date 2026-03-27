@@ -40,8 +40,8 @@ const moreMenuOpen = ref(false);
 const moreWrapRef = ref<HTMLElement | null>(null);
 /** 内联操作错误（替代 window.alert） */
 const inlineError = ref<string | null>(null);
-let copyTimer: ReturnType<typeof setTimeout> | null = null;
-let errorTimer: ReturnType<typeof setTimeout> | null = null;
+let copyTimer: number | null = null;
+let errorTimer: number | null = null;
 const localSettings = useLocalSettingsStore();
 const showGatewayLocal = computed({
   get: () => localSettings.visible,

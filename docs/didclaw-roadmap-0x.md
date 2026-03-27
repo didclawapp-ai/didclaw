@@ -155,9 +155,17 @@
 | 渠道 | 接入方式 | 插件 |
 |------|----------|------|
 | WhatsApp | 流式命令向导（已有 session 自动复用，提示重启 Gateway） | `@openclaw/whatsapp`（本机） |
+| 微信（个人） | 官方 ClawBot 插件；按需检测/安装 → `openclaw channels login --channel openclaw-weixin` 扫码 → 自动重启 Gateway | `@tencent-weixin/openclaw-weixin`（腾讯官方） |
 | 飞书 (Feishu) | 官方插件流式安装 `npx -y @larksuite/openclaw-lark install`；备用手动凭据 | `@larksuite/openclaw-lark` |
 | Discord | Bot Token 表单 | 内置 |
 | 企业微信 (WeCom) | Bot ID + Secret 表单 + 一键安装插件 | `@wecom/wecom-openclaw-plugin` |
+
+**个人微信（ClawBot）已知能力边界**
+- ✅ 与已有联系人 1:1 私聊（DM）
+- ❌ 不支持群聊（接收/发送均不可）
+- ❌ 不支持通过 DidClaw 添加好友
+- ⚠️ 每条微信消息在 OpenClaw 里创建一个独立子会话（`openclaw-weixin:direct:<id>`），与 `main` 会话并列，切回 `main` 后子会话进入「后台子代理运行中」状态；下条消息到来或手动点击会话条目可切回
+- ⚠️ 仅支持 iPhone 微信 8.0.70+，需在微信→设置→功能→插件中手动开启 ClawBot；Android 官方尚未支持
 
 
 

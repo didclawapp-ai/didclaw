@@ -198,6 +198,10 @@ interface DidClawElectronApi {
     channelKey: string,
     payload: Record<string, unknown>,
   ): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;
+  checkChannelPluginInstalled?(channel: string): Promise<
+    | { ok: true; channel: string; pluginId: string; installed: boolean }
+    | { ok: false; error: string }
+  >;
   /** 启动 QR 登录流（whatsapp），通过 Tauri 事件推送输出 */
   startChannelQrFlow?(
     channel: string,

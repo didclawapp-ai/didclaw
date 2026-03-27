@@ -6,9 +6,14 @@
 
 ## [未发布]
 
+### 修复
+
+- **微信渠道绑定优化**：① 新增桌面端 `check_channel_plugin_installed` Tauri 命令，按需检测本地插件，已安装则跳过重复下载，直接进入 `openclaw channels login --channel openclaw-weixin`；② 登录流程结束后自动从输出中提取扫码 URL，用 `qrcode` 库渲染为可直接扫描的图片二维码；③ 将大块滚动终端输出替换为单行黑底滚动状态条，交互界面更简洁；④ 降级路径补全：命令未注册或插件已存在时均不再中断流程。
+- **TypeScript 构建报错修复**：全项目将 `ReturnType<typeof setTimeout>` / `ReturnType<typeof setInterval>` 类型声明统一改为 `number`，与 `window.setTimeout` 的浏览器返回值一致，消除 11 处 TS2322 / TS2345 编译错误。
+
 ### 新增
 
-- **个人微信（WeChat）渠道接入**：通过腾讯官方 ClawBot 插件接入个人微信，零封号风险。渠道设置新增「微信」标签页，包含前置步骤说明（在微信中开启 ClawBot 插件）、流式安装向导（`npx -y @tencent-weixin/openclaw-weixin-cli@latest install`）、QR 码终端输出、成功后重启 Gateway 按钮。当前仅支持 iPhone 微信 8.0.70+，Android 版即将推出。
+- **个人微信（WeChat）渠道接入**：通过腾讯官方 ClawBot 插件接入个人微信，零封号风险。渠道设置新增「微信」标签页，包含前置步骤说明（在微信中开启 ClawBot 插件）、流式安装向导（`npx -y @tencent-weixin/openclaw-weixin-cli@latest install`）、自动检测输出中的扫码 URL 并以高亮链接展示（方便在浏览器中扫码）、ASCII 二维码终端输出、成功后重启 Gateway 按钮。当前仅支持 iPhone 微信 8.0.70+，Android 版即将推出。
 
 - **WhatsApp 渠道对话框新增「重新连接」按钮**：当检测到已有绑定会话时（无需重新扫码），在操作区展示「重新连接」主按钮，点击后触发 `web.login.start` 唤醒因 Gateway 重启而进入 stopped/disconnected 状态的插件，无需重新扫码也无需重启 Gateway；「重启 Gateway」退为次选操作。注意：「开始扫码登录」仍需手动点击触发，不再自动调用（自动探测会中断已有的活跃 WhatsApp 连接）。
 

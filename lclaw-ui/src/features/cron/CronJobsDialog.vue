@@ -114,7 +114,7 @@ const deliveryToPlaceholder = computed((): string => {
 const createBusy = ref(false);
 const createError = ref<string | null>(null);
 const createOk = ref<string | null>(null);
-let createOkTimer: ReturnType<typeof setTimeout> | null = null;
+let createOkTimer: number | null = null;
 
 function setCreateOk(msg: string): void {
   createOk.value = msg;

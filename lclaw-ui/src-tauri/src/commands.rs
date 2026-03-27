@@ -391,6 +391,11 @@ pub fn write_channel_config(channel_key: String, payload: Value) -> Result<Value
 }
 
 #[tauri::command]
+pub fn check_channel_plugin_installed(channel: String) -> Result<Value, String> {
+    Ok(crate::openclaw_channel_config::check_channel_plugin_installed(&channel))
+}
+
+#[tauri::command]
 pub async fn start_channel_qr_flow(
     app: tauri::AppHandle,
     channel: String,

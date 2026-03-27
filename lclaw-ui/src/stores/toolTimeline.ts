@@ -51,7 +51,7 @@ function extractRunId(payload: unknown): string | undefined {
 export const useToolTimelineStore = defineStore("toolTimeline", () => {
   const entries = ref<ToolTimelineEntry[]>([]);
   const buffer: GatewayEventFrame[] = [];
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: number | null = null;
 
   function flush(): void {
     timer = null;

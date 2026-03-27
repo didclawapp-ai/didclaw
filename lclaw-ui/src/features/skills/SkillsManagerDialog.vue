@@ -71,7 +71,7 @@ const installMessage = ref<string | null>(null);
 type MessageKind = "success" | "error" | "info";
 const installMessageKind = ref<MessageKind>("info");
 
-let msgTimer: ReturnType<typeof setTimeout> | null = null;
+let msgTimer: number | null = null;
 function setInstallMessage(msg: string, kind: MessageKind = "info"): void {
   installMessage.value = msg;
   installMessageKind.value = kind;

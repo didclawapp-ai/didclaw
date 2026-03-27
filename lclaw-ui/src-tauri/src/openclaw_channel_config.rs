@@ -101,6 +101,32 @@ pub fn write_channel_config(channel_key: &str, payload: Value) -> Value {
     json!({"ok": true, "backupPath": backup_json})
 }
 
+/// 检查渠道插件是否已安装。
+/// 当前仅为按需接入流程提供最小能力：判断 `~/.openclaw/extensions/<plugin-id>` 是否存在。
+pub fn check_channel_plugin_installed(channel: &str) -> Value {
+    let plugin_id = match channel {
+        "wechat" => "openclaw-weixin",
+        _ => {
+            return json!({
+                "ok": false,
+                "error": format!("不支持检查安装状态的渠道: {channel}")
+            });
+        }
+    };
+
+    let dir = match openclaw_dir() {
+        Ok(d) => d,
+        Err(e) => return json!({"ok": false, "error": e}),
+    };
+    let installed = dir.join("extensions").join(plugin_id).exists();
+    json!({
+        "ok": true,
+        "channel": channel,
+        "pluginId": plugin_id,
+        "installed": installed
+    })
+}
+
 // ── start_channel_qr_flow ────────────────────────────────────────────────────
 
 /// 剥离 ANSI/VT100 转义序列（`\x1b[…m` 及常见控制码），返回纯文本。
@@ -127,6 +153,16 @@ fn strip_ansi(s: &str) -> String {
         }
     }
     out
+}
+
+fn first_url_token(s: &str) -> Option<&str> {
+    s.split_whitespace()
+        .find(|token| {
+            token.starts_with("https://")
+                || token.starts_with("http://")
+                || token.starts_with("data:image/")
+        })
+        .map(|token| token.trim_matches(|c| matches!(c, '"' | '\'' | '(' | ')' | '[' | ']')))
 }
 
 /// 查找 npx 可执行文件（Windows 优先 npx.cmd，fallback 到 PATH 中的 npx）。
@@ -191,7 +227,7 @@ pub async fn start_channel_qr_flow(
         None => return json!({"ok": false, "error": "找不到 openclaw，请先完成安装向导"}),
     };
 
-    // 飞书使用独立的 npx 安装命令，其他渠道用 openclaw CLI
+    // 飞书使用独立的 npx 安装命令；微信/WhatsApp 走 openclaw CLI 登录。
     let (exe_resolved, args_resolved): (String, Vec<String>) = match channel.as_str() {
         "whatsapp" => (
             exe,
@@ -202,14 +238,15 @@ pub async fn start_channel_qr_flow(
             let npx = resolve_npx_executable().unwrap_or_else(|| "npx".into());
             (npx, vec!["-y".into(), "@larksuite/openclaw-lark".into(), "install".into()])
         }
-        "wechat" => {
-            let npx = resolve_npx_executable().unwrap_or_else(|| "npx".into());
-            (npx, vec![
-                "-y".into(),
-                "@tencent-weixin/openclaw-weixin-cli@latest".into(),
-                "install".into(),
-            ])
-        }
+        "wechat" => (
+            exe,
+            vec![
+                "channels".into(),
+                "login".into(),
+                "--channel".into(),
+                "openclaw-weixin".into(),
+            ],
+        ),
         _ => return json!({"ok": false, "error": format!("不支持的 QR 渠道: {channel}")}),
     };
     let args: Vec<&str> = args_resolved.iter().map(String::as_str).collect();
@@ -256,12 +293,10 @@ pub async fn start_channel_qr_flow(
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = lines.next_line().await {
             let _ = app_out.emit("channel:line", json!({"stream": "stdout", "line": &line}));
-            let t = line.trim();
-            // 剥离 ANSI 转义序列后再做 URL 检测，避免色彩码导致 starts_with 匹配失败
-            let clean = strip_ansi(t);
-            let tc = clean.trim();
-            if tc.starts_with("https://") || tc.starts_with("http://") || tc.starts_with("data:image/") {
-                let _ = app_out.emit("channel:qr", json!({"url": tc}));
+            // 剥离 ANSI 转义序列后再做 URL 检测，避免色彩码或前缀文案导致匹配失败。
+            let clean = strip_ansi(line.trim());
+            if let Some(url) = first_url_token(clean.trim()) {
+                let _ = app_out.emit("channel:qr", json!({"url": url}));
             }
         }
     });

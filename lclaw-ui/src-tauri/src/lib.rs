@@ -182,6 +182,7 @@ pub fn run() {
             commands::backup_openclaw_config,
             commands::restore_openclaw_config,
             commands::write_channel_config,
+            commands::check_channel_plugin_installed,
             commands::start_channel_qr_flow,
         ])
         .build(tauri::generate_context!())
