@@ -202,10 +202,11 @@ interface DidClawElectronApi {
     | { ok: true; channel: string; pluginId: string; installed: boolean }
     | { ok: false; error: string }
   >;
-  /** 启动 QR 登录流（whatsapp），通过 Tauri 事件推送输出 */
+  /** 启动 QR 登录流，通过 Tauri 事件推送输出；flowId 用于隔离并发流的事件 */
   startChannelQrFlow?(
     channel: string,
     gatewayUrl: string,
+    flowId: string,
   ): Promise<{ ok: boolean; exitCode?: number; error?: string }>;
 }
 

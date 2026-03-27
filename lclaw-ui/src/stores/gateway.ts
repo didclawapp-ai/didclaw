@@ -199,6 +199,19 @@ export const useGatewayStore = defineStore("gateway", () => {
               }).catch((e) => { console.error("[didclaw] deferred onHello refresh error", e); });
             }, 4000);
           }
+
+          // 连接稳定后约 20s 做一次后台静默刷新，确保 OpenClaw 与桌面端数据完全对齐
+          // （覆盖连接建立时未就绪的渠道、会话、历史等边缘情况）。
+          window.setTimeout(() => {
+            if (client.value !== gc) return; // 连接已切换，放弃
+            void import("./session").then(async ({ useSessionStore }) => {
+              const reloaded = await useSessionStore().refresh();
+              if (!reloaded) {
+                const { useChatStore } = await import("./chat");
+                await useChatStore().loadHistory({ silent: true });
+              }
+            }).catch((e) => { console.error("[didclaw] 20s background sync error", e); });
+          }, 20000);
         },
         onEvent: (evt) => {
           if (isGatewayPushDebugEnabled()) {

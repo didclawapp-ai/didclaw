@@ -6,8 +6,18 @@
 
 ## [未发布]
 
+### 新增
+
+- **WhatsApp 绑定状态真实验证**：扫码/CLI 完成后不再仅凭 `web.login.wait` 的 `connected` 或进程退出码判断「绑定成功」，而是额外调用网关 `channels.status` RPC（`probe:true`）验证 `channels.whatsapp.linked === true`（与官方 Control UI 完全一致）。若 linked 为 false 则明确报错提示重试，防止「界面显示成功但实际未关联」；CLI 降级路径增加软重连后再做验证。
+- **个人微信绑定后 Gateway 重连策略彻底重写**：原策略（12s 软连超时 → kill 进程硬重启）会打断 Gateway 自行加载微信插件的过程，导致必然失败。新策略：CLI 退出后先等 5s 沉淀，再纯轮询等待 Gateway 自行恢复（最多 35s），不主动 kill 进程；35s 后若仍未连接则显示「绑定已完成，点「重启 Gateway」使配置生效」（`pending-restart` 状态）而非标记为失败，避免误导用户重试。
+- **个人微信扫码绑定可靠性修复**：①为每次绑定流程生成唯一 `flowId`，Tauri 事件（`channel:line/qr/done`）均携带该 ID，前端只处理 ID 匹配的事件，彻底解决重试或并发时事件串台导致的假成功/假失败问题；②扫码成功后显式调用 `writeChannelConfig("wechat", { enabled: true })` 写入 `openclaw.json`，确保网关加载该渠道（修复「扫码成功但数据没写入」的根本问题）；③允许二维码 URL 刷新更新（去掉「只取第一个 QR URL」的限制）；④stderr 同步做 QR URL 检测（部分 CLI 版本将 URL 输出到 stderr）；⑤插件检测由目录存在改为检查 `package.json` 存在，避免空目录误判为已安装；⑥`channel:done` 失败时在日志中显示退出码与错误信息，方便排查。
+- **后台子代理状态栏增加可点击跳转**：「后台子代理运行中」状态栏的提示文字改为可点击的「切换会话查看进度 →」按钮，点击后直接切换到后台代理所在会话，解决原有提示有文字无操作路径的问题。
+- **连接后 20 秒后台静默数据同步**：Gateway 每次成功连接后约 20 秒，自动执行一次 `session.refresh()` + `loadHistory(silent)`，确保 OpenClaw 与桌面端会话/历史数据完全对齐（覆盖连接建立时渠道尚未就绪等边缘情况）。
+- **WhatsApp 状态指示器 + 渠道健康轮询**：在聊天输入栏底部新增 WhatsApp 图标按钮（绿色=已连接，橙色=已绑定但未运行/连接，红色=未关联，灰色=Gateway 未连接）。点击图标弹出轻量级弹窗：未关联时直接显示 QR 码供扫码绑定，绑定但未运行时提供「重新连接」/「重启 Gateway」操作，已连接时显示确认状态。后台每 30 秒轮询 `channels.status` RPC 保持图标颜色与实际状态同步；检测到 `linked=true, running=false` 时自动尝试一次 `web.login.start` 恢复连接。
+
 ### 修复
 
+- **WhatsApp「已绑定」状态与官方 UI 不一致**：当 WhatsApp 会话 `linked=true` 但渠道实际未运行（`running=false`）或未连接（`connected=false`）时，DidClaw 仍显示绿色「已有绑定会话，无需重新扫码」。修复：在检测到无需扫码后额外调用 `channels.status` 获取完整渠道健康状态（`running`、`connected`、`lastError`），若渠道未正常运行则以警告色显示具体原因（含网关返回的 `lastError`），并提示用户「重新连接」或「重启 Gateway」；此状态下不再自动关闭对话框。
 - **微信渠道绑定后误报「绑定失败」及 Gateway 重连超时**：插件安装后网关自行重启（WS close 1012 "service restart"），但 `startWechatInstall` 未等待网关恢复即启动 `channels login` CLI；登录成功后的 `restartGatewayAndReconnect` 又尝试重启网关进程，与已自行重启的进程端口冲突，导致连接超时 → 「绑定失败，请重试」。修复：① 插件安装后若网关断开，先通过软重连（`reloadConnection`，不杀进程）等待网关恢复，再启动扫码登录；② `channel:done` 成功后优先软重连，仅在软重连失败时才走完整重启路径，避免与自启进程冲突。
 
 - **首次启动 Gateway 后会话/渠道状态不完整**：`ensureOpenClawGateway` 返回 `{started: true}` 时（即本次刚拉起新进程），`onHello` 触发后额外等待 4 秒再做一次静默 `session.refresh()` + `loadHistory()`，等待插件（WhatsApp / 微信等）完成初始化后补全状态。已在运行的 Gateway 重连时不触发额外刷新。

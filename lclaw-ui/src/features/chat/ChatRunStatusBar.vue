@@ -169,7 +169,12 @@ const barVisible = computed(() => agentBusy.value || showLastRun.value || showBa
     <template v-else-if="showBackgroundActivity">
       <span class="bg-dot" aria-hidden="true" />
       <span class="bg-label">后台子代理运行中…</span>
-      <span class="bg-hint">（切换会话可查看进度）</span>
+      <button
+        v-if="backgroundAgentSessionKey"
+        class="bg-switch"
+        @click="session.selectSession(backgroundAgentSessionKey!)"
+      >切换会话查看进度 →</button>
+      <span v-else class="bg-hint">（切换会话可查看进度）</span>
     </template>
   </div>
 </template>
@@ -231,5 +236,19 @@ const barVisible = computed(() => agentBusy.value || showLastRun.value || showBa
 .bg-hint {
   font-size: 11px;
   color: var(--lc-text-dim);
+}
+.bg-switch {
+  font-size: 11px;
+  color: var(--lc-accent, #06b6d4);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  line-height: inherit;
+}
+.bg-switch:hover {
+  opacity: 0.75;
 }
 </style>

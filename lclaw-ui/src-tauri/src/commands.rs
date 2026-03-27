@@ -400,6 +400,7 @@ pub async fn start_channel_qr_flow(
     app: tauri::AppHandle,
     channel: String,
     gateway_url: String,
+    flow_id: String,
 ) -> Result<Value, String> {
-    Ok(crate::openclaw_channel_config::start_channel_qr_flow(app, channel, gateway_url).await)
+    Ok(crate::openclaw_channel_config::start_channel_qr_flow(app, channel, gateway_url, flow_id).await)
 }

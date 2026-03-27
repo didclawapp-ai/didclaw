@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ComposerAttachments from "@/features/chat/ComposerAttachments.vue";
 import SlashCommandPicker from "@/features/chat/SlashCommandPicker.vue";
+import WhatsAppIndicator from "@/features/chat/WhatsAppIndicator.vue";
 import {
   extractSlashQuery,
   filterCommands,
@@ -254,15 +255,18 @@ function onDrop(ev: DragEvent): void {
           ?
         </button>
       </div>
-      <button
-        type="button"
-        class="lc-btn lc-btn-ghost attach-btn"
-        :title="t('composer.attachTitle')"
-        :disabled="sending || status !== 'connected'"
-        @click="openAttachmentPicker"
-      >
-        {{ t('common.attach') }}
-      </button>
+      <div class="row-right">
+        <WhatsAppIndicator />
+        <button
+          type="button"
+          class="lc-btn lc-btn-ghost attach-btn"
+          :title="t('composer.attachTitle')"
+          :disabled="sending || status !== 'connected'"
+          @click="openAttachmentPicker"
+        >
+          {{ t('common.attach') }}
+        </button>
+      </div>
     </div>
     <p v-if="chatError" class="err small">{{ chatError }}</p>
   </div>
@@ -330,7 +334,10 @@ function onDrop(ev: DragEvent): void {
   flex-wrap: wrap;
   gap: 10px;
 }
-.attach-btn {
+.row-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-left: auto;
 }
 .hint-btn {

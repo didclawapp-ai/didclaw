@@ -102,7 +102,7 @@ pub fn write_channel_config(channel_key: &str, payload: Value) -> Value {
 }
 
 /// 检查渠道插件是否已安装。
-/// 当前仅为按需接入流程提供最小能力：判断 `~/.openclaw/extensions/<plugin-id>` 是否存在。
+/// 判断 `~/.openclaw/extensions/<plugin-id>/package.json` 是否存在（非空目录误判）。
 pub fn check_channel_plugin_installed(channel: &str) -> Value {
     let plugin_id = match channel {
         "wechat" => "openclaw-weixin",
@@ -118,7 +118,9 @@ pub fn check_channel_plugin_installed(channel: &str) -> Value {
         Ok(d) => d,
         Err(e) => return json!({"ok": false, "error": e}),
     };
-    let installed = dir.join("extensions").join(plugin_id).exists();
+    // 检查 package.json 是否存在，避免空目录被误判为已安装
+    let pkg_json = dir.join("extensions").join(plugin_id).join("package.json");
+    let installed = pkg_json.is_file();
     json!({
         "ok": true,
         "channel": channel,
@@ -208,13 +210,16 @@ fn resolve_npx_executable() -> Option<String> {
 }
 
 /// 流式运行渠道 QR 登录命令，逐行向前端推送事件：
-/// - `channel:line`  → `{stream: "stdout"|"stderr", line: string}`
-/// - `channel:qr`    → `{url: string}`（检测到 https:// 行时）
-/// - `channel:done`  → `{ok: bool, exitCode: number}`（进程退出）
+/// - `channel:line`  → `{flowId, stream: "stdout"|"stderr", line: string}`
+/// - `channel:qr`    → `{flowId, url: string}`（检测到 https:// 行时）
+/// - `channel:done`  → `{flowId, ok: bool, exitCode: number}`（进程退出）
+///
+/// `flow_id` 由前端生成并传入，所有事件带回同一 ID，前端据此过滤多个并发流的事件串台。
 pub async fn start_channel_qr_flow(
     app: tauri::AppHandle,
     channel: String,
     gateway_url: String,
+    flow_id: String,
 ) -> Value {
     use crate::openclaw_gateway::resolve_open_claw_executable;
     use std::process::Stdio;
@@ -289,23 +294,30 @@ pub async fn start_channel_qr_flow(
     let stderr = child.stderr.take().unwrap();
 
     let app_out = app.clone();
+    let fid_out = flow_id.clone();
     let stdout_task = tokio::spawn(async move {
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            let _ = app_out.emit("channel:line", json!({"stream": "stdout", "line": &line}));
+            let _ = app_out.emit("channel:line", json!({"flowId": &fid_out, "stream": "stdout", "line": &line}));
             // 剥离 ANSI 转义序列后再做 URL 检测，避免色彩码或前缀文案导致匹配失败。
             let clean = strip_ansi(line.trim());
             if let Some(url) = first_url_token(clean.trim()) {
-                let _ = app_out.emit("channel:qr", json!({"url": url}));
+                let _ = app_out.emit("channel:qr", json!({"flowId": &fid_out, "url": url}));
             }
         }
     });
 
     let app_err = app.clone();
+    let fid_err = flow_id.clone();
     let stderr_task = tokio::spawn(async move {
         let mut lines = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            let _ = app_err.emit("channel:line", json!({"stream": "stderr", "line": &line}));
+            let _ = app_err.emit("channel:line", json!({"flowId": &fid_err, "stream": "stderr", "line": &line}));
+            // stderr 也做 URL 检测（部分 CLI 版本将二维码 URL 输出到 stderr）
+            let clean = strip_ansi(line.trim());
+            if let Some(url) = first_url_token(clean.trim()) {
+                let _ = app_err.emit("channel:qr", json!({"flowId": &fid_err, "url": url}));
+            }
         }
     });
 
@@ -315,11 +327,11 @@ pub async fn start_channel_qr_flow(
         Ok(status) => {
             let code = status.code().unwrap_or(-1);
             let ok = status.success();
-            let _ = app.emit("channel:done", json!({"ok": ok, "exitCode": code}));
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": ok, "exitCode": code}));
             json!({"ok": ok, "exitCode": code})
         }
         Err(e) => {
-            let _ = app.emit("channel:done", json!({"ok": false, "error": e.to_string()}));
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": e.to_string()}));
             json!({"ok": false, "error": e.to_string()})
         }
     }
