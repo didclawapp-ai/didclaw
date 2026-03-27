@@ -174,6 +174,9 @@
 - WhatsApp `channels login` 为交互式 CLI：自动向 stdin 发 3 次回车（间隔 1.5s）接受默认选项
 - 已有本地 session 时命令以 0 退出（不显示 QR），前端提示「已有绑定会话」并提供「重启 Gateway」按钮
 - `@wecom/wecom-openclaw-plugin` 等含 `@` 的 i18n 字符串会被 vue-i18n 误解析为链接消息语法，已移出 i18n 改为组件内常量
+- Gateway 重启后 WhatsApp 插件进入 `stopped (reconnectAttempts=0)` 状态不自动重连：已在「已有绑定会话」状态下新增「重新连接」按钮，点击重新调用 `web.login.start` 唤醒插件，无需重新扫码
+- 握手时序错误（"invalid handshake: first request must be connect"）：原先用 `client.connected`（仅检查 WebSocket OPEN）判断 Gateway 就绪，Gateway 重启插件安装后立即发 RPC 会报此错；改为检查 `gwStore.status === "connected"`（仅在 `onHello` 回调后设置），并在握手完成后额外等待 800ms
+- 同号码自测（Gateway 号码与发消息号码相同）会触发 AI 回复消息被 Baileys 循环接收的无限回环；需在 `openclaw.json` 设置 `channels.whatsapp.selfChatMode: true`。使用专用号码（推荐）则无此问题
 
 ---
 
