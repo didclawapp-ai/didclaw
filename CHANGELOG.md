@@ -8,6 +8,8 @@
 
 ### 修复
 
+- **首次启动 Gateway 后会话/渠道状态不完整**：`ensureOpenClawGateway` 返回 `{started: true}` 时（即本次刚拉起新进程），`onHello` 触发后额外等待 4 秒再做一次静默 `session.refresh()` + `loadHistory()`，等待插件（WhatsApp / 微信等）完成初始化后补全状态。已在运行的 Gateway 重连时不触发额外刷新。
+- **渠道绑定后自动关闭窗口并重连**：WhatsApp（RPC 路径）和微信扫码成功后，对话框在 1.8 秒后自动关闭，无需用户手动点击；关闭时若 Gateway 未连接则自动触发重连（兜底用户手动关闭场景）。WhatsApp CLI 降级路径因仍需手动重启 Gateway，不触发自动关闭。
 - **微信渠道绑定优化**：① 新增桌面端 `check_channel_plugin_installed` Tauri 命令，按需检测本地插件，已安装则跳过重复下载，直接进入 `openclaw channels login --channel openclaw-weixin`；② 登录流程结束后自动从输出中提取扫码 URL，用 `qrcode` 库渲染为可直接扫描的图片二维码；③ 将大块滚动终端输出替换为单行黑底滚动状态条，交互界面更简洁；④ 降级路径补全：命令未注册或插件已存在时均不再中断流程。
 - **TypeScript 构建报错修复**：全项目将 `ReturnType<typeof setTimeout>` / `ReturnType<typeof setInterval>` 类型声明统一改为 `number`，与 `window.setTimeout` 的浏览器返回值一致，消除 11 处 TS2322 / TS2345 编译错误。
 

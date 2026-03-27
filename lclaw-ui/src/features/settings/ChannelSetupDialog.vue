@@ -702,21 +702,61 @@ function resetQr(): void {
   qrMode.value = null;
 }
 
+// ── Auto-close after binding success ─────────────────────────────────────────
+
+let autoCloseTimer: number | null = null;
+
+function scheduleAutoClose(): void {
+  if (autoCloseTimer !== null) return;
+  autoCloseTimer = window.setTimeout(() => {
+    autoCloseTimer = null;
+    if (open.value) closeDialog();
+  }, 1800);
+}
+
+watch(
+  () => [qrState.value, qrMode.value, wechatInstallState.value] as const,
+  ([wa, mode, wc]) => {
+    // WhatsApp RPC 路径成功（gateway 已连接）→ 自动关闭
+    // WhatsApp CLI 降级路径不自动关（还需用户手动重启 Gateway）
+    if (wa === "success" && mode === "rpc") {
+      scheduleAutoClose();
+    }
+    // 微信：成功已含 restartGatewayAndReconnect，gateway 已就绪
+    if (wc === "success") {
+      scheduleAutoClose();
+    }
+  },
+);
+
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 
 watch(
   () => props.modelValue,
   (v) => {
     if (!v) {
+      // 清理定时器
+      if (autoCloseTimer !== null) {
+        clearTimeout(autoCloseTimer);
+        autoCloseTimer = null;
+      }
       cleanupListeners();
       toast.value = null;
       resetQr();
       resetWechat();
+      // 关闭窗口时若 Gateway 未连接则自动重连（兜底：用户手动关或意外断开时）
+      if (gwStore.status !== "connected") {
+        void gwStore.reloadConnection();
+      }
     }
   },
 );
 
 onUnmounted(() => {
+  if (autoCloseTimer !== null) {
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = null;
+  }
   cleanupListeners();
   if (toastTimer) clearTimeout(toastTimer);
 });

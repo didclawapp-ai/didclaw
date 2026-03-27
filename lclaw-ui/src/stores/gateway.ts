@@ -136,6 +136,8 @@ export const useGatewayStore = defineStore("gateway", () => {
       url.value = opts.url;
 
       const desktop = getDidClawDesktopApi();
+      // 记录本次是否刚启动了新网关进程（插件加载需要额外时间，onHello 时数据可能不完整）
+      let gatewayWasFreshlyStarted = false;
       if (desktop?.ensureOpenClawGateway) {
         const ensured = await desktop.ensureOpenClawGateway({ wsUrl: opts.url });
         if (req !== connectRequestId) {
@@ -148,6 +150,7 @@ export const useGatewayStore = defineStore("gateway", () => {
         }
         // 本次由桌面端新拉了网关进程时，再给事件循环与隧道一层缓冲，减少首连与 challenge 的竞态。
         if (ensured.started) {
+          gatewayWasFreshlyStarted = true;
           await delayMs(400);
           if (req !== connectRequestId) {
             return;
@@ -181,6 +184,21 @@ export const useGatewayStore = defineStore("gateway", () => {
           void import("./chat").then(({ useChatStore }) => {
             void useChatStore().refreshOpenClawModelPicker();
           }).catch((e) => { console.error("[didclaw] onHello model picker error", e); });
+
+          // 首次启动的网关：onHello 时插件（WhatsApp / 微信等）可能还在初始化，
+          // sessions/channel 状态不完整。等插件就绪后（约 4s）补做一次静默刷新。
+          if (gatewayWasFreshlyStarted) {
+            window.setTimeout(() => {
+              if (client.value !== gc) return; // 连接已切换，放弃
+              void import("./session").then(async ({ useSessionStore }) => {
+                const reloaded = await useSessionStore().refresh();
+                if (!reloaded) {
+                  const { useChatStore } = await import("./chat");
+                  await useChatStore().loadHistory({ silent: true });
+                }
+              }).catch((e) => { console.error("[didclaw] deferred onHello refresh error", e); });
+            }, 4000);
+          }
         },
         onEvent: (evt) => {
           if (isGatewayPushDebugEnabled()) {
