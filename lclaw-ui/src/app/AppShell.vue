@@ -505,6 +505,7 @@ async function pickLocalFileForPreview(): Promise<void> {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding-top: 8px;
 }
 .main {
   flex: 1;
@@ -618,7 +619,9 @@ async function pickLocalFileForPreview(): Promise<void> {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 .msg-toolbar {
   display: flex;

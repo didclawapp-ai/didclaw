@@ -39,16 +39,6 @@ const emit = defineEmits<{
 
 <template>
   <div class="left-session">
-    <div class="session-toolbar">
-      <button
-        type="button"
-        class="lc-btn lc-btn-primary lc-btn-xs new-chat-btn"
-        title="开始一个新的对话（当前对话将保留在历史列表中）"
-        @click="emit('newChat')"
-      >
-        ＋ 新建对话
-      </button>
-    </div>
     <div class="panel-title session-panel-head">
       <span class="session-head-label">会话</span>
       <select
@@ -86,6 +76,14 @@ const emit = defineEmits<{
         @click="emit('openHistory')"
       >
         历史
+      </button>
+      <button
+        type="button"
+        class="lc-btn lc-btn-ghost lc-btn-xs session-new-btn"
+        title="开始一个新的对话（当前对话将保留在历史列表中）"
+        @click="emit('newChat')"
+      >
+        ＋新建
       </button>
       <div v-if="isDesktop" class="session-model-tools">
         <select
@@ -131,21 +129,12 @@ const emit = defineEmits<{
 .left-session {
   flex-shrink: 0;
 }
-.session-toolbar {
-  padding: 8px 10px 0;
-}
-.new-chat-btn {
-  width: 100%;
-  justify-content: center;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  border-color: rgba(6, 182, 212, 0.55);
-}
 .panel-title.session-panel-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
+  padding: 10px 14px;
   text-transform: none;
   letter-spacing: normal;
   font-size: 12px;
@@ -182,7 +171,8 @@ const emit = defineEmits<{
   cursor: wait;
 }
 .session-close-btn,
-.session-history-btn {
+.session-history-btn,
+.session-new-btn {
   flex-shrink: 0;
   padding-inline: 8px;
 }
