@@ -13,6 +13,7 @@
 
 ### 修复
 
+- **飞书等渠道当前会话的静默同步不再被流式状态饿死**：当手机端来消息后，Gateway 可能只连续推送 `agent` 事件来提示当前会话需要补拉 `chat.history`；旧逻辑在本机 `sending=true` 或存在流式 `runId` 时会直接跳过这次静默同步，导致手机端消息只能等很晚才补齐。现在改为先记录一次待补同步请求，待当前轮次结束后自动补做 `loadHistory(silent)`，避免移动端与桌面端长时间不同步。
 - **飞书渠道安装配置体验补齐**：飞书安装向导现在会先检查 OpenClaw 环境是否已初始化，未安装时直接给出明确提示；安装成功后自动补写 `channels.feishu.enabled=true`，并在弹窗中提示后续的 `重启 Gateway`、`/feishu start` 与 `/feishu auth` 验证步骤。手动配置路径新增 `Feishu / Lark` 区域选择，同时过滤安装日志里与飞书无关的重复 WhatsApp 插件警告，避免误导用户。
 - **飞书安装失败时支持一键清理残留**：新增桌面端飞书残留清理能力；当安装日志出现 `plugin already exists` / `openclaw-lark` 残留特征时，渠道弹窗会直接提示并提供「清理飞书残留」按钮，自动清掉 `channels.feishu`、`plugins.entries/install` 中的飞书残项以及 `~/.openclaw/extensions/openclaw-lark` 目录，方便用户立即重试安装。
 - **飞书插件已安装时跳过重装，直接进入扫码配置**：桌面端现在会先检查 `~/.openclaw/extensions/openclaw-lark` 是否已完整安装（含 `package.json` 与 `node_modules`）。若已存在，则不再重复执行 `@larksuite/openclaw-lark install` 的安装/更新链路，而是直接调用飞书注册接口生成二维码并轮询返回的机器人凭据，写回官方插件所需的 `channels.feishu.appId/appSecret/domain` 与 `plugins.entries.openclaw-lark` 配置，显著减少重复安装导致的失败与日志噪音。

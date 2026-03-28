@@ -59,6 +59,30 @@ function extractBody(o: Record<string, unknown>): string {
   return "";
 }
 
+function stripTransportInjectedUserHeader(text: string): string {
+  const normalized = text.replace(/\r\n/g, "\n");
+  const lines = normalized.split("\n");
+  if (lines.length === 0) {
+    return text;
+  }
+
+  const first = (lines[0] ?? "").trim();
+  const second = (lines[1] ?? "").trim();
+  const looksLikeTransportHeader =
+    /^System:\s*\[[^\]]+\]\s*(Feishu|Lark|WhatsApp|WeChat)\[[^\]]+\]/i.test(first);
+  const looksLikeMessageId = /^\[msg:[^\]]+\]$/i.test(second);
+  if (!looksLikeTransportHeader) {
+    return text;
+  }
+
+  let start = looksLikeMessageId ? 2 : 1;
+  while (start < lines.length && lines[start].trim() === "") {
+    start += 1;
+  }
+  const stripped = lines.slice(start).join("\n").trim();
+  return stripped || text;
+}
+
 export function messageToChatLine(m: unknown): ChatLine {
   if (!m || typeof m !== "object") {
     const s = String(m);
@@ -70,6 +94,9 @@ export function messageToChatLine(m: unknown): ChatLine {
     roleRaw === "user" || roleRaw === "assistant" || roleRaw === "system" ? roleRaw : "system";
 
   let text = extractBody(o);
+  if (role === "user" && text) {
+    text = stripTransportInjectedUserHeader(text);
+  }
   if (!text.trim()) {
     if (role === "assistant") {
       const structured = assistantStructuredSummary(o);

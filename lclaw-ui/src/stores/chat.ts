@@ -344,11 +344,35 @@ export const useChatStore = defineStore("chat", () => {
     pendingComposerFiles.value = [];
   }
 
+  const pendingSilentHistorySource = ref<string | null>(null);
+
+  function markPendingSilentHistorySync(source: string): void {
+    pendingSilentHistorySource.value = source;
+  }
+
+  function clearPendingSilentHistorySync(): void {
+    pendingSilentHistorySource.value = null;
+  }
+
+  function flushPendingSilentHistorySync(reason: string): void {
+    const source = pendingSilentHistorySource.value;
+    if (!source || sending.value || runId.value != null) {
+      return;
+    }
+    pendingSilentHistorySource.value = null;
+    logGatewayPush("pending history sync → loadHistory(silent)", {
+      source,
+      reason,
+    });
+    void loadHistory({ silent: true });
+  }
+
   async function loadHistory(opts?: { silent?: boolean }): Promise<void> {
     const silent = opts?.silent === true;
     // Silent background syncs (e.g. from sessions.changed) must not interrupt
     // an active streaming run — the final handler will reload history anyway.
     if (silent && (sending.value || runId.value != null)) {
+      markPendingSilentHistorySync("loadHistory-silent");
       return;
     }
     const gw = useGatewayStore();
@@ -435,6 +459,7 @@ export const useChatStore = defineStore("chat", () => {
     gatewayChatSyncTimer = window.setTimeout(() => {
       gatewayChatSyncTimer = null;
       if (sending.value || runId.value != null) {
+        markPendingSilentHistorySync(source);
         logGatewayPush("cron/agent → debounced loadHistory 跳过（本机发送或流式 runId 占用）", {
           source,
         });
@@ -541,6 +566,7 @@ export const useChatStore = defineStore("chat", () => {
       lastError.value = describeGatewayError(e);
     } finally {
       sending.value = false;
+      flushPendingSilentHistorySync("sendMessage.finally");
     }
   }
 
@@ -717,12 +743,14 @@ export const useChatStore = defineStore("chat", () => {
         snapshotRunDuration();
         streamText.value = null;
         runId.value = null;
+        clearPendingSilentHistorySync();
         void loadHistory({ silent: true });
       } else if (payload.state === "aborted") {
         logGatewayPush("chat.handle → aborted → loadHistory(silent)", { runId: payload.runId ?? null });
         clearRunTiming();
         streamText.value = null;
         runId.value = null;
+        clearPendingSilentHistorySync();
         void loadHistory({ silent: true });
       } else if (payload.state === "error") {
         logGatewayPush("chat.handle → error", {
@@ -733,6 +761,7 @@ export const useChatStore = defineStore("chat", () => {
         streamText.value = null;
         runId.value = null;
         lastError.value = payload.errorMessage?.trim() || "对话出错（网关返回 error 状态）";
+        flushPendingSilentHistorySync("chat.error");
       }
     })().catch((e) => {
       console.error("[didclaw] handleGatewayEvent async error", e);
