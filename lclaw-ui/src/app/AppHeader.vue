@@ -1,59 +1,15 @@
 <script setup lang="ts">
-import { resetFirstRunWizardLocalState } from "@/composables/modelConfigDeferred";
-import AboutDialog from "@/features/about/AboutDialog.vue";
-import CronJobsDialog from "@/features/cron/CronJobsDialog.vue";
-import DoctorDialog from "@/features/settings/DoctorDialog.vue";
-import BackupRestoreDialog from "@/features/settings/BackupRestoreDialog.vue";
-import ChannelSetupDialog from "@/features/settings/ChannelSetupDialog.vue";
-import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
-import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
-import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
-import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
-import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
-import { useLocalSettingsStore } from "@/stores/localSettings";
-import { useSessionStore } from "@/stores/session";
-import { useThemeStore } from "@/stores/theme";
 import { storeToRefs } from "pinia";
-import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { i18n, type LocaleCode } from "@/i18n";
 
 const { t } = useI18n();
 const gw = useGatewayStore();
-const session = useSessionStore();
-const chat = useChatStore();
-const { status, lastError, helloInfo, url } = storeToRefs(gw);
-const { sessions, error: sessionsError, activeSessionKey } = storeToRefs(session);
-const { messages, lastError: chatError } = storeToRefs(chat);
+const { status, lastError, url } = storeToRefs(gw);
 
-const themeStore = useThemeStore();
-const skillsDialogOpen = ref(false);
-const cronDialogOpen = ref(false);
-const aboutDialogOpen = ref(false);
-const doctorDialogOpen = ref(false);
-const backupDialogOpen = ref(false);
-const channelDialogOpen = ref(false);
-const copiedDiag = ref(false);
-const restartGatewayBusy = ref(false);
-const moreMenuOpen = ref(false);
-const moreWrapRef = ref<HTMLElement | null>(null);
-/** 内联操作错误（替代 window.alert） */
 const inlineError = ref<string | null>(null);
-let copyTimer: number | null = null;
 let errorTimer: number | null = null;
-const localSettings = useLocalSettingsStore();
-const showGatewayLocal = computed({
-  get: () => localSettings.visible,
-  set: (v: boolean) => {
-    if (!v) localSettings.close();
-  },
-});
-
-const currentLocale = computed({
-  get: () => (i18n.global.locale as { value: LocaleCode }).value,
-  set: (v: LocaleCode) => localSettings.switchLocale(v),
-});
 
 const connSwitchOn = computed(
   () => status.value === "connected" || status.value === "connecting",
@@ -112,104 +68,12 @@ function showInlineError(msg: string): void {
   }, 6000);
 }
 
-async function onRestartGateway(): Promise<void> {
-  const desktop = getDidClawDesktopApi();
-  if (!desktop?.restartOpenClawGateway || restartGatewayBusy.value) return;
-  restartGatewayBusy.value = true;
-  moreMenuOpen.value = false;
-  try {
-    const r = await desktop.restartOpenClawGateway();
-    if (r && "ok" in r && r.ok === false) {
-      showInlineError((r as { error?: string }).error ?? t("header.restartFailed"));
-      return;
-    }
-    await gw.reloadConnection();
-  } catch (e) {
-    showInlineError(e instanceof Error ? e.message : String(e));
-  } finally {
-    restartGatewayBusy.value = false;
-  }
-}
-
-async function copyDiagnostics(): Promise<void> {
-  moreMenuOpen.value = false;
-  let tokenConfigured = !!import.meta.env.VITE_GATEWAY_TOKEN?.trim();
-  let passwordConfigured = !!import.meta.env.VITE_GATEWAY_PASSWORD?.trim();
-  const desktop = getDidClawDesktopApi();
-  if (isDidClawElectron() && desktop?.readGatewayLocalConfig) {
-    try {
-      const c = await desktop.readGatewayLocalConfig();
-      if (c.token?.trim()) tokenConfigured = true;
-      if (c.password?.trim()) passwordConfigured = true;
-    } catch { /* ignore */ }
-  }
-  const snapshot = buildDiagnosticsSnapshot({
-    version: __APP_VERSION__,
-    gatewayWsUrl: url.value,
-    connectionStatus: status.value,
-    helloInfo: helloInfo.value,
-    gatewayLastError: lastError.value,
-    sessionListError: sessionsError.value,
-    activeSessionKey: activeSessionKey.value,
-    sessionCount: sessions.value.length,
-    chatLastError: chatError.value,
-    messageCount: messages.value.length,
-    gatewayTokenConfigured: tokenConfigured,
-    gatewayPasswordConfigured: passwordConfigured,
-  });
-  const text = diagnosticsToPrettyJson(snapshot);
-  try {
-    await navigator.clipboard.writeText(text);
-    copiedDiag.value = true;
-    if (copyTimer !== null) clearTimeout(copyTimer);
-    copyTimer = window.setTimeout(() => {
-      copiedDiag.value = false;
-      copyTimer = null;
-    }, 2000);
-  } catch {
-    showInlineError(t("header.copyFailed"));
-  }
-}
-
-function onRedoFirstRunWizard(): void {
-  moreMenuOpen.value = false;
-  if (!window.confirm(t("header.redoOnboardingConfirm"))) return;
-  resetFirstRunWizardLocalState();
-  window.dispatchEvent(new CustomEvent("didclaw-first-run-recheck"));
-}
-
-function toggleMoreMenu(): void {
-  moreMenuOpen.value = !moreMenuOpen.value;
-}
-
-function handleMoreMenuOutsideClick(e: MouseEvent): void {
-  if (!moreWrapRef.value?.contains(e.target as Node)) {
-    moreMenuOpen.value = false;
-  }
-}
-
-watch(moreMenuOpen, (open) => {
-  if (open) {
-    // nextTick 防止开启菜单的同一次 click 事件立即触发关闭
-    void nextTick(() => document.addEventListener("click", handleMoreMenuOutsideClick));
-  } else {
-    document.removeEventListener("click", handleMoreMenuOutsideClick);
-  }
-});
-
-onUnmounted(() => {
-  document.removeEventListener("click", handleMoreMenuOutsideClick);
-});
-
-function closeMoreMenu(): void {
-  moreMenuOpen.value = false;
-}
+defineExpose({ showInlineError });
 </script>
 
 <template>
   <header class="top">
     <div class="top-row">
-      <!-- 左侧：连接状态 + 品牌 -->
       <div class="left-group">
         <button
           type="button"
@@ -238,179 +102,15 @@ function closeMoreMenu(): void {
           </h1>
         </div>
       </div>
-
-      <!-- 右侧：主功能 + 更多菜单 -->
-      <div class="right-group" role="toolbar" :aria-label="t('header.toolbarLabel')">
-        <button
-          type="button"
-          class="lc-btn lc-btn-ghost lc-btn-xs"
-          :title="t('header.cronTitle')"
-          :aria-expanded="cronDialogOpen"
-          @click="cronDialogOpen = true"
-        >
-          {{ t('header.cronBtn') }}
-        </button>
-        <button
-          type="button"
-          class="lc-btn lc-btn-ghost lc-btn-xs"
-          :title="t('channel.title')"
-          :aria-expanded="channelDialogOpen"
-          @click="channelDialogOpen = true"
-        >
-          {{ t('channel.menuBtn') }}
-        </button>
-        <button
-          type="button"
-          class="lc-btn lc-btn-ghost lc-btn-xs"
-          :aria-expanded="skillsDialogOpen"
-          @click="skillsDialogOpen = true"
-        >
-          {{ t('header.skillsBtn') }}
-        </button>
-
-        <!-- 夜间模式切换 -->
-        <button
-          type="button"
-          class="lc-btn lc-btn-ghost theme-toggle"
-          :title="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
-          :aria-label="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
-          :aria-pressed="themeStore.mode === 'dark'"
-          @click="themeStore.toggle()"
-        >
-          <span class="theme-icon" aria-hidden="true">{{ themeStore.mode === 'dark' ? '☀' : '🌙' }}</span>
-        </button>
-
-        <!-- 语言切换 -->
-        <div class="locale-switcher" :aria-label="t('settings.languageLabel')">
-          <button
-            type="button"
-            class="locale-btn"
-            :class="{ active: currentLocale === 'zh' }"
-            :aria-pressed="currentLocale === 'zh'"
-            @click="currentLocale = 'zh'"
-          >中</button>
-          <button
-            type="button"
-            class="locale-btn"
-            :class="{ active: currentLocale === 'en' }"
-            :aria-pressed="currentLocale === 'en'"
-            @click="currentLocale = 'en'"
-          >EN</button>
-        </div>
-
-        <!-- 更多菜单 -->
-        <div ref="moreWrapRef" class="more-wrap">
-          <button
-            type="button"
-            class="lc-btn lc-btn-ghost lc-btn-xs more-btn"
-            :class="{ 'more-btn--open': moreMenuOpen }"
-            :aria-label="t('header.moreOptions')"
-            :aria-expanded="moreMenuOpen"
-            @click="toggleMoreMenu"
-          >
-            ···
-          </button>
-          <transition name="menu-fade">
-            <div
-              v-if="moreMenuOpen"
-              class="more-menu"
-              role="menu"
-              @keydown.escape="closeMoreMenu"
-            >
-              <ul class="more-menu-list">
-                <li role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="more-menu-item"
-                    @click="copyDiagnostics"
-                  >
-                    <span class="more-menu-icon" aria-hidden="true">📋</span>
-                    {{ copiedDiag ? t('header.copyDiagDone') : t('header.copyDiag') }}
-                  </button>
-                </li>
-                <li v-if="isDidClawElectron()" role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="more-menu-item"
-                    :disabled="restartGatewayBusy"
-                    @click="onRestartGateway"
-                  >
-                    <span class="more-menu-icon" aria-hidden="true">🔄</span>
-                    {{ restartGatewayBusy ? t('header.restartingGateway') : t('header.restartGateway') }}
-                  </button>
-                </li>
-                <li v-if="isDidClawElectron()" role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="more-menu-item"
-                    @click="closeMoreMenu(); doctorDialogOpen = true"
-                  >
-                    <span class="more-menu-icon" aria-hidden="true">🩺</span>
-                    {{ t('header.doctorBtn') }}
-                  </button>
-                </li>
-                <li v-if="isDidClawElectron()" role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="more-menu-item"
-                    @click="closeMoreMenu(); backupDialogOpen = true"
-                  >
-                    <span class="more-menu-icon" aria-hidden="true">💾</span>
-                    {{ t('header.backupBtn') }}
-                  </button>
-                </li>
-                <li v-if="isDidClawElectron()" role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="more-menu-item"
-                    :title="t('header.redoOnboardingTitle')"
-                    @click="onRedoFirstRunWizard"
-                  >
-                    <span class="more-menu-icon" aria-hidden="true">🔧</span>
-                    {{ t('header.redoOnboarding') }}
-                  </button>
-                </li>
-                <li class="more-menu-sep" role="separator" />
-                <li role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="more-menu-item"
-                    @click="closeMoreMenu(); aboutDialogOpen = true"
-                  >
-                    <span class="more-menu-icon" aria-hidden="true">ℹ</span>
-                    {{ t('header.aboutApp') }}
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </transition>
-        </div>
-      </div>
     </div>
 
-
-    <!-- 内联错误/状态提示 -->
     <transition name="err-fade">
       <p v-if="inlineError" class="inline-err" role="alert">
         {{ inlineError }}
-        <button type="button" class="inline-err-close" :aria-label="t('common.close')" @click="inlineError = null">✕</button>
+        <button type="button" class="inline-err-close" :aria-label="t('common.close')" @click="inlineError = null">&#x2715;</button>
       </p>
       <p v-else-if="lastError" class="inline-err inline-err--conn" role="alert">{{ lastError }}</p>
     </transition>
-
-    <GatewayLocalDialog v-model="showGatewayLocal" />
-    <CronJobsDialog v-model="cronDialogOpen" />
-    <SkillsManagerDialog v-model="skillsDialogOpen" />
-    <AboutDialog v-model="aboutDialogOpen" />
-    <DoctorDialog v-model="doctorDialogOpen" />
-    <BackupRestoreDialog v-model="backupDialogOpen" />
-    <ChannelSetupDialog v-model="channelDialogOpen" />
   </header>
 </template>
 
@@ -440,19 +140,13 @@ function closeMoreMenu(): void {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  height: 52px;
+  height: 42px;
 }
 .left-group {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
-}
-.right-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
 }
 
 /* Brand */
@@ -489,6 +183,7 @@ function closeMoreMenu(): void {
   background-clip: text;
   color: transparent;
 }
+
 /* Connection LED */
 .conn-led {
   flex-shrink: 0;
@@ -575,124 +270,6 @@ function closeMoreMenu(): void {
   background: var(--lc-success);
 }
 
-/* Theme toggle */
-.theme-toggle {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: unset;
-  transition:
-    background 0.2s ease,
-    transform 0.3s ease,
-    border-color 0.2s ease;
-}
-.theme-toggle:hover:not(:disabled) {
-  transform: rotate(20deg) translateY(-1px);
-}
-.theme-icon {
-  font-size: 15px;
-  line-height: 1;
-  display: block;
-  transition: transform 0.35s ease;
-}
-
-/* 语言切换 */
-.locale-switcher {
-  display: flex;
-  gap: 2px;
-}
-.locale-btn {
-  padding: 2px 7px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-border);
-  background: transparent;
-  color: var(--lc-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  line-height: 1.6;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.locale-btn.active {
-  background: var(--lc-accent-soft);
-  border-color: var(--lc-accent);
-  color: var(--lc-accent);
-}
-.locale-btn:hover:not(.active) {
-  border-color: var(--lc-border-strong);
-  color: var(--lc-text);
-}
-
-/* More menu */
-.more-wrap {
-  position: relative;
-}
-.more-btn {
-  letter-spacing: 0.1em;
-  padding-inline: 10px;
-  font-size: 14px;
-  line-height: 1;
-}
-.more-btn--open {
-  background: var(--lc-bg-hover);
-  border-color: var(--lc-border-strong);
-}
-.more-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 10; /* 在 header 层叠上下文（z-index:100）内部，任意正值即可 */
-}
-.more-menu-list {
-  min-width: 200px;
-  margin: 0;
-  padding: 6px 0;
-  list-style: none;
-  background: var(--lc-surface, #fff);
-  border: 1px solid var(--lc-border);
-  border-radius: var(--lc-radius-sm);
-  box-shadow: var(--lc-shadow-md);
-  backdrop-filter: blur(12px);
-}
-.more-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 16px;
-  border: none;
-  background: transparent;
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  color: var(--lc-text);
-  cursor: pointer;
-  text-decoration: none;
-  transition: background 0.12s ease;
-}
-.more-menu-item:hover:not(:disabled) {
-  background: var(--lc-accent-soft);
-}
-.more-menu-item:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.more-menu-icon {
-  font-size: 14px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-.more-menu-sep {
-  height: 1px;
-  margin: 5px 10px;
-  background: var(--lc-border);
-}
-
 /* Inline error */
 .inline-err {
   display: flex;
@@ -723,15 +300,6 @@ function closeMoreMenu(): void {
 .inline-err-close:hover { opacity: 1; }
 
 /* Transitions */
-.menu-fade-enter-active,
-.menu-fade-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-.menu-fade-enter-from,
-.menu-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
 .err-fade-enter-active,
 .err-fade-leave-active {
   transition: opacity 0.2s ease, max-height 0.2s ease;

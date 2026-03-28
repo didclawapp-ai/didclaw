@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppHeader from "@/app/AppHeader.vue";
+import ToolSidebar from "@/app/ToolSidebar.vue";
 import FirstRunWizard from "@/features/onboarding/FirstRunWizard.vue";
 import OpenClawUpdatePrompt from "@/features/openclaw/OpenClawUpdatePrompt.vue";
 import ChatRunStatusBar from "@/features/chat/ChatRunStatusBar.vue";
@@ -265,179 +266,182 @@ async function pickLocalFileForPreview(): Promise<void> {
       </div>
     </div>
 
-    <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
-      <aside class="left">
-        <div class="left-session">
-        <div class="session-toolbar">
-          <button
-            type="button"
-            class="lc-btn lc-btn-primary lc-btn-xs new-chat-btn"
-            title="开始一个新的对话（当前对话将保留在历史列表中）"
-            @click="newChat"
-          >
-            ＋ 新建对话
-          </button>
-        </div>
-        <div class="panel-title session-panel-head">
-          <span class="session-head-label">会话</span>
-          <span
-            class="session-active-chip"
-            :class="{ 'session-active-chip--empty': !activeSessionKey }"
-            :title="activeSessionKey ?? '当前会话'"
-          >{{ activeSessionLabel || "—" }}</span>
-          <div v-if="isDidClawElectron()" class="session-model-tools">
-            <select
-              v-if="showOpenClawModelSelect"
-              class="session-model-select"
-              :value="openClawPrimaryModel"
-              :disabled="openClawPrimaryBusy"
-              :title="
-                openClawPrimaryPickerError ??
-                  '在这里切换「默认用哪个 AI 模型」。选好后会保存到本机；新对话一般会按这个来。'
-              "
-              @change="
-                void chat.setOpenClawPrimaryModel(($event.target as HTMLSelectElement).value)
-              "
-            >
-              <option v-if="!openClawPrimaryModel" value="" disabled>请选择默认模型…</option>
-              <option
-                v-for="row in openClawModelPickerRows"
-                :key="row.value"
-                :value="row.value"
+    <div class="main-wrap">
+      <ToolSidebar />
+      <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
+        <aside class="left">
+          <div class="left-session">
+            <div class="session-toolbar">
+              <button
+                type="button"
+                class="lc-btn lc-btn-primary lc-btn-xs new-chat-btn"
+                title="开始一个新的对话（当前对话将保留在历史列表中）"
+                @click="newChat"
               >
-                {{ row.label }}
-              </option>
-            </select>
-            <button
-              type="button"
-              class="lc-btn lc-btn-ghost lc-btn-xs session-model-manage"
-              title="打开本机设置，可改密钥、接口地址或恢复备份"
-              @click="localSettings.open('ai')"
-            >
-              更多设置
-            </button>
+                ＋ 新建对话
+              </button>
+            </div>
+            <div class="panel-title session-panel-head">
+              <span class="session-head-label">会话</span>
+              <span
+                class="session-active-chip"
+                :class="{ 'session-active-chip--empty': !activeSessionKey }"
+                :title="activeSessionKey ?? '当前会话'"
+              >{{ activeSessionLabel || "—" }}</span>
+              <div v-if="isDidClawElectron()" class="session-model-tools">
+                <select
+                  v-if="showOpenClawModelSelect"
+                  class="session-model-select"
+                  :value="openClawPrimaryModel"
+                  :disabled="openClawPrimaryBusy"
+                  :title="
+                    openClawPrimaryPickerError ??
+                      '在这里切换「默认用哪个 AI 模型」。选好后会保存到本机；新对话一般会按这个来。'
+                  "
+                  @change="
+                    void chat.setOpenClawPrimaryModel(($event.target as HTMLSelectElement).value)
+                  "
+                >
+                  <option v-if="!openClawPrimaryModel" value="" disabled>请选择默认模型…</option>
+                  <option
+                    v-for="row in openClawModelPickerRows"
+                    :key="row.value"
+                    :value="row.value"
+                  >
+                    {{ row.label }}
+                  </option>
+                </select>
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-xs session-model-manage"
+                  title="打开本机设置，可改密钥、接口地址或恢复备份"
+                  @click="localSettings.open('ai')"
+                >
+                  更多设置
+                </button>
+              </div>
+            </div>
+            <p v-if="isDidClawElectron() && openClawPrimaryPickerError" class="err small session-model-err">
+              {{ openClawPrimaryPickerError }}
+            </p>
+            <p v-if="isDidClawElectron() && openClawConfigHint" class="muted small session-config-hint">
+              {{ openClawConfigHint }}
+            </p>
+            <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
+            <div v-if="sessionsLoading" class="muted">加载中…</div>
+            <ul v-else-if="otherSessions.length > 0" class="sess">
+              <li v-for="s in otherSessions" :key="s.key">
+                <button
+                  type="button"
+                  class="sess-btn"
+                  :class="{ 'sess-btn--activity': flashingSessionKeys.includes(s.key) }"
+                  :title="s.key"
+                  @click="session.selectSession(s.key)"
+                >
+                  {{ sessionDisplayLabel(s.key, s.label) }}
+                </button>
+              </li>
+            </ul>
           </div>
-        </div>
-        <p v-if="isDidClawElectron() && openClawPrimaryPickerError" class="err small session-model-err">
-          {{ openClawPrimaryPickerError }}
-        </p>
-        <p v-if="isDidClawElectron() && openClawConfigHint" class="muted small session-config-hint">
-          {{ openClawConfigHint }}
-        </p>
-        <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
-        <div v-if="sessionsLoading" class="muted">加载中…</div>
-        <ul v-else-if="otherSessions.length > 0" class="sess">
-          <li v-for="s in otherSessions" :key="s.key">
-            <button
-              type="button"
-              class="sess-btn"
-              :class="{ 'sess-btn--activity': flashingSessionKeys.includes(s.key) }"
-              :title="s.key"
-              @click="session.selectSession(s.key)"
-            >
-              {{ sessionDisplayLabel(s.key, s.label) }}
-            </button>
-          </li>
-        </ul>
-        </div>
 
-        <div class="left-conversation">
-        <div class="panel-title row-title">
-          <span>消息</span>
-          <div v-if="!historyLoading" class="msg-toolbar">
-            <label class="msg-filter">
-              <input
-                type="checkbox"
-                :checked="followLatest"
-                @change="preview.setFollowLatest(($event.target as HTMLInputElement).checked)"
+          <div class="left-conversation">
+            <div class="panel-title row-title">
+              <span>消息</span>
+              <div v-if="!historyLoading" class="msg-toolbar">
+                <label class="msg-filter">
+                  <input
+                    type="checkbox"
+                    :checked="followLatest"
+                    @change="preview.setFollowLatest(($event.target as HTMLInputElement).checked)"
+                  >
+                  跟随最新
+                </label>
+                <label class="msg-filter">
+                  <input
+                    type="checkbox"
+                    :checked="showDiagnosticMessages"
+                    @change="
+                      preview.setShowDiagnosticMessages(($event.target as HTMLInputElement).checked)
+                    "
+                  >
+                  显示诊断/配置
+                </label>
+                <button
+                  v-if="isDidClawElectron() && !isPreviewPaneOpen"
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-xs toolbar-mini"
+                  title="打开本地文件并在右侧预览（PDF / 图片 / Office / Markdown / 文本）"
+                  @click="pickLocalFileForPreview"
+                >
+                  本地文件…
+                </button>
+                <span
+                  v-if="sessionTokenUsage"
+                  class="token-usage"
+                  :title="t('usage.tooltipSession')"
+                  aria-label="Token 用量"
+                >
+                  <span class="token-in">{{ t('usage.in') }}{{ formatTokenCount(sessionTokenUsage.in) }}</span>
+                  <span class="token-out">{{ t('usage.out') }}{{ formatTokenCount(sessionTokenUsage.out) }}</span>
+                </span>
+              </div>
+            </div>
+            <ChatRunStatusBar />
+            <div class="left-messages">
+              <template v-if="historyLoading">
+                <div class="muted">加载历史…</div>
+                <div class="left-messages-spacer" aria-hidden="true" />
+              </template>
+              <template
+                v-else-if="displayLines.length === 0 && messages.length > 0 && !showDiagnosticMessages"
               >
-              跟随最新
-            </label>
-            <label class="msg-filter">
-              <input
-                type="checkbox"
-                :checked="showDiagnosticMessages"
-                @change="
-                  preview.setShowDiagnosticMessages(($event.target as HTMLInputElement).checked)
-                "
+                <p class="muted filter-hint">
+                  本会话消息已按规则隐藏（含全部 <strong>system</strong> 行、审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
+                </p>
+                <div class="left-messages-spacer" aria-hidden="true" />
+              </template>
+              <template v-else-if="!historyLoading && displayLines.length > 0">
+                <InlineToolTimeline />
+                <div class="left-msg-list-wrap">
+                  <ChatMessageList
+                    :lines="displayLines"
+                    :selected-index="selectedIndex"
+                    :follow-latest="followLatest"
+                    @select="onSelectMessage"
+                  />
+                </div>
+              </template>
+              <div
+                v-else-if="!historyLoading && messages.length === 0"
+                class="left-msg-list-wrap left-msg-list-wrap--placeholder"
               >
-              显示诊断/配置
-            </label>
-            <button
-              v-if="isDidClawElectron() && !isPreviewPaneOpen"
-              type="button"
-              class="lc-btn lc-btn-ghost lc-btn-xs toolbar-mini"
-              title="打开本地文件并在右侧预览（PDF / 图片 / Office / Markdown / 文本）"
-              @click="pickLocalFileForPreview"
-            >
-              本地文件…
-            </button>
-            <span
-              v-if="sessionTokenUsage"
-              class="token-usage"
-              :title="t('usage.tooltipSession')"
-              aria-label="Token 用量"
-            >
-              <span class="token-in">{{ t('usage.in') }}{{ formatTokenCount(sessionTokenUsage.in) }}</span>
-              <span class="token-out">{{ t('usage.out') }}{{ formatTokenCount(sessionTokenUsage.out) }}</span>
-            </span>
+                <p class="muted">暂无消息</p>
+              </div>
+              <template v-else-if="!historyLoading">
+                <p class="muted filter-hint">暂无可显示消息。</p>
+                <div class="left-messages-spacer" aria-hidden="true" />
+              </template>
+            </div>
           </div>
-        </div>
-        <ChatRunStatusBar />
-        <div class="left-messages">
-        <template v-if="historyLoading">
-          <div class="muted">加载历史…</div>
-          <div class="left-messages-spacer" aria-hidden="true" />
-        </template>
-        <template
-          v-else-if="displayLines.length === 0 && messages.length > 0 && !showDiagnosticMessages"
+
+          <MessageComposer />
+        </aside>
+
+        <section
+          v-if="isPreviewPaneOpen"
+          ref="previewPaneRef"
+          class="right"
+          aria-label="文件预览"
         >
-          <p class="muted filter-hint">
-            本会话消息已按规则隐藏（含全部 <strong>system</strong> 行、审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
-          </p>
-          <div class="left-messages-spacer" aria-hidden="true" />
-        </template>
-        <template v-else-if="!historyLoading && displayLines.length > 0">
-          <InlineToolTimeline />
-          <div class="left-msg-list-wrap">
-            <ChatMessageList
-              :lines="displayLines"
-              :selected-index="selectedIndex"
-              :follow-latest="followLatest"
-              @select="onSelectMessage"
-            />
+          <div class="panel-title preview-panel-head">
+            <span>文件预览</span>
+            <button type="button" class="preview-close-btn" title="关闭预览" @click="filePreview.clear()">&#x2715;</button>
           </div>
-        </template>
-        <div
-          v-else-if="!historyLoading && messages.length === 0"
-          class="left-msg-list-wrap left-msg-list-wrap--placeholder"
-        >
-          <p class="muted">暂无消息</p>
-        </div>
-        <template v-else-if="!historyLoading">
-          <p class="muted filter-hint">暂无可显示消息。</p>
-          <div class="left-messages-spacer" aria-hidden="true" />
-        </template>
-        </div>
-        </div>
-
-        <MessageComposer />
-      </aside>
-
-      <section
-        v-if="isPreviewPaneOpen"
-        ref="previewPaneRef"
-        class="right"
-        aria-label="文件预览"
-      >
-        <div class="panel-title preview-panel-head">
-          <span>文件预览</span>
-          <button type="button" class="preview-close-btn" @click="filePreview.clear()" title="关闭预览">✕</button>
-        </div>
-        <div class="preview-wrap">
-          <PreviewPane />
-        </div>
-      </section>
+          <div class="preview-wrap">
+            <PreviewPane />
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>
@@ -472,6 +476,13 @@ async function pickLocalFileForPreview(): Promise<void> {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+.main-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .main {
   flex: 1;

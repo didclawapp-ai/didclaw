@@ -230,12 +230,19 @@ async function refreshStatus(): Promise<void> {
       cliError.value = s.openclawCli.error;
     }
 
-    if (isFirstRunModelStepComplete()) {
-      visible.value = false;
+    if (!s.openclawDirExists) {
+      phase.value = "env";
+      visible.value = true;
       return;
     }
 
-    if (s.openclawDirExists && api.readOpenClawModelConfig) {
+    if (isFirstRunModelStepComplete()) {
+      visible.value = false;
+      scheduleDeferredGatewayConnect(gw);
+      return;
+    }
+
+    if (api.readOpenClawModelConfig) {
       try {
         const mc = await api.readOpenClawModelConfig();
         if (mc.ok) {
@@ -253,13 +260,7 @@ async function refreshStatus(): Promise<void> {
       }
     }
 
-    if (s.openclawDirExists) {
-      phase.value = "model";
-      visible.value = true;
-      return;
-    }
-
-    phase.value = "env";
+    phase.value = "model";
     visible.value = true;
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);

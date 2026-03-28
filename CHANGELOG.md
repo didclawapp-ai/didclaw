@@ -14,9 +14,12 @@
 - **后台子代理状态栏增加可点击跳转**：「后台子代理运行中」状态栏的提示文字改为可点击的「切换会话查看进度 →」按钮，点击后直接切换到后台代理所在会话，解决原有提示有文字无操作路径的问题。
 - **连接后 20 秒后台静默数据同步**：Gateway 每次成功连接后约 20 秒，自动执行一次 `session.refresh()` + `loadHistory(silent)`，确保 OpenClaw 与桌面端会话/历史数据完全对齐（覆盖连接建立时渠道尚未就绪等边缘情况）。
 - **WhatsApp 状态指示器 + 渠道健康轮询**：在聊天输入栏底部新增 WhatsApp 图标按钮（绿色=已连接，橙色=已绑定但未运行/连接，红色=未关联，灰色=Gateway 未连接）。点击图标弹出轻量级弹窗：未关联时直接显示 QR 码供扫码绑定，绑定但未运行时提供「重新连接」/「重启 Gateway」操作，已连接时显示确认状态。后台每 30 秒轮询 `channels.status` RPC 保持图标颜色与实际状态同步；检测到 `linked=true, running=false` 时自动尝试一次 `web.login.start` 恢复连接。
+- **UI 布局重构 — 左侧自动隐藏工具栏**：将顶栏中的功能按钮（定时任务、渠道管理、技能、主题切换、语言切换、重启 Gateway、Doctor 诊断、备份恢复、重做引导、复制诊断、关于）全部迁移到左侧 overlay 侧边栏（`ToolSidebar.vue`）。侧边栏默认隐藏，鼠标悬停窗口左边缘时滑出，离开后 300ms 自动收起，不影响主内容区宽度。顶栏简化为仅保留 DidClaw Logo 和连接状态 LED/开关，高度从 52px 降至 42px，为消息区腾出更多空间。
 
 ### 修复
 
+- **OpenClaw 卸载后 FirstRunWizard 不弹出**：用户此前完成过初始化向导后，`isFirstRunModelStepComplete()` 标记留在 KV 中。如果之后卸载了 OpenClaw（`~/.openclaw` 目录不存在），向导仍被跳过。修复：在 `refreshStatus` 中优先检查 `openclawDirExists`，若为 false 则无论 KV 标记如何均显示环境安装步骤。同时在 WhatsApp 指示器的自动安装流程中增加 OpenClaw 环境预检，未安装时提示用户先完成初始化。
+- **WhatsApp 扫码绑定成功后渠道未运行**：扫码绑定成功（`linked=true`）但渠道进程未启动（`running=false`），点击"重新连接"仅发一次 `web.login.start` 无后续验证。修复：① 扫码成功后等待 3 秒验证渠道 `running` 状态，若仍未启动则自动重启 Gateway 并等待渠道就绪；② "重新连接"按钮改为渐进式策略：先尝试 `web.login.start` + 等待验证，失败后自动升级为 Gateway 重启，并在弹窗中实时显示进度文字；③ 后台自动恢复（`tryAutoRecovery`）同样增加 Gateway 重启兜底，覆盖 `linked=true, running=false` 长期停滞的场景。
 - **WhatsApp「已绑定」状态与官方 UI 不一致**：当 WhatsApp 会话 `linked=true` 但渠道实际未运行（`running=false`）或未连接（`connected=false`）时，DidClaw 仍显示绿色「已有绑定会话，无需重新扫码」。修复：在检测到无需扫码后额外调用 `channels.status` 获取完整渠道健康状态（`running`、`connected`、`lastError`），若渠道未正常运行则以警告色显示具体原因（含网关返回的 `lastError`），并提示用户「重新连接」或「重启 Gateway」；此状态下不再自动关闭对话框。
 - **微信渠道绑定后误报「绑定失败」及 Gateway 重连超时**：插件安装后网关自行重启（WS close 1012 "service restart"），但 `startWechatInstall` 未等待网关恢复即启动 `channels login` CLI；登录成功后的 `restartGatewayAndReconnect` 又尝试重启网关进程，与已自行重启的进程端口冲突，导致连接超时 → 「绑定失败，请重试」。修复：① 插件安装后若网关断开，先通过软重连（`reloadConnection`，不杀进程）等待网关恢复，再启动扫码登录；② `channel:done` 成功后优先软重连，仅在软重连失败时才走完整重启路径，避免与自启进程冲突。
 

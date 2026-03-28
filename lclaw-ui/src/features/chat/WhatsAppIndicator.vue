@@ -5,15 +5,22 @@ import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 import { storeToRefs } from "pinia";
 import { computed, ref, onUnmounted, watch } from "vue";
 
+const WHATSAPP_PLUGIN_SPEC = "@openclaw/whatsapp";
+
 const gw = useGatewayStore();
 const { status: gwStatus } = storeToRefs(gw);
 const { whatsAppHealth } = useChannelHealth();
 
 const popupOpen = ref(false);
 const qrUrl = ref<string | null>(null);
-const qrState = ref<"idle" | "loading" | "waiting" | "success" | "failed">("idle");
+const qrState = ref<"idle" | "loading" | "installing" | "waiting" | "success" | "failed">("idle");
 const qrMessage = ref<string | null>(null);
+const installProgress = ref(0);
 const busy = ref(false);
+
+function isProviderMissingError(msg: string): boolean {
+  return /not available|not supported|provider is not available/i.test(msg);
+}
 
 type IndicatorColor = "green" | "amber" | "red" | "gray";
 
@@ -42,6 +49,7 @@ function togglePopup(): void {
     qrState.value = "idle";
     qrUrl.value = null;
     qrMessage.value = null;
+    installProgress.value = 0;
   }
 }
 
@@ -66,61 +74,242 @@ onUnmounted(() => {
   window.removeEventListener("click", onClickOutside, { capture: true });
 });
 
-async function startQrFlow(): Promise<void> {
-  const gc = gw.client;
-  if (!gc || gwStatus.value !== "connected") {
-    qrState.value = "failed";
-    qrMessage.value = "Gateway 未连接";
-    return;
+function delay(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function waitForGatewayConnected(timeoutMs = 25000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((gwStatus.value as string) === "connected") {
+      await delay(800);
+      return true;
+    }
+    await delay(500);
   }
-  qrState.value = "loading";
-  qrUrl.value = null;
-  qrMessage.value = "正在请求…";
+  return false;
+}
+
+async function tryWebLoginStart(): Promise<"qr" | "linked" | "provider-missing" | "failed"> {
+  const gc = gw.client;
+  if (!gc || gwStatus.value !== "connected") return "failed";
   try {
     const res = await gc.request<{ qrDataUrl?: string; message?: string }>(
       "web.login.start",
       { force: false },
     );
     if (!res?.qrDataUrl) {
-      // Already linked, refresh health and close
       await queryChannelHealthNow();
       qrState.value = "success";
       qrMessage.value = res?.message ?? "WhatsApp 已关联";
       scheduleAutoClose();
-      return;
+      return "linked";
     }
     qrUrl.value = res.qrDataUrl;
     qrState.value = "waiting";
     qrMessage.value = "请用手机扫描二维码";
-    // Wait for scan
+    return "qr";
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e);
+    if (isProviderMissingError(msg)) return "provider-missing";
+    qrState.value = "failed";
+    qrMessage.value = msg;
+    return "failed";
+  }
+}
+
+async function autoInstallAndRetry(): Promise<boolean> {
+  const api = getDidClawDesktopApi();
+  if (!api?.openclawPluginsInstall || !api.writeChannelConfig || !api.restartOpenClawGateway) {
+    qrState.value = "failed";
+    qrMessage.value = "桌面端不支持自动安装插件";
+    return false;
+  }
+
+  if (api.getOpenClawSetupStatus) {
+    try {
+      const s = await api.getOpenClawSetupStatus();
+      if (!s.openclawDirExists || !s.openclawCli?.ok) {
+        qrState.value = "failed";
+        qrMessage.value = "请先完成 OpenClaw 初始化安装（重启应用将弹出向导）";
+        return false;
+      }
+    } catch {
+      /* fall through to attempt install */
+    }
+  }
+
+  qrState.value = "installing";
+  installProgress.value = 0;
+  qrMessage.value = "正在安装 WhatsApp 插件…";
+
+  const installResult = await api.openclawPluginsInstall({ packageSpec: WHATSAPP_PLUGIN_SPEC });
+  if (!installResult.ok) {
+    qrState.value = "failed";
+    qrMessage.value = `插件安装失败：${(installResult as { error?: string }).error ?? "未知错误"}`;
+    return false;
+  }
+  installProgress.value = 33;
+
+  qrMessage.value = "正在启用 WhatsApp 渠道…";
+  const configResult = await api.writeChannelConfig("whatsapp", { enabled: true });
+  if (!configResult.ok) {
+    qrState.value = "failed";
+    qrMessage.value = `启用渠道失败：${(configResult as { error?: string }).error ?? "未知错误"}`;
+    return false;
+  }
+  installProgress.value = 55;
+
+  qrMessage.value = "正在重启 Gateway…";
+  const restartResult = await api.restartOpenClawGateway();
+  if (!restartResult?.ok) {
+    qrState.value = "failed";
+    qrMessage.value = "Gateway 重启失败";
+    return false;
+  }
+  installProgress.value = 70;
+
+  qrMessage.value = "等待 Gateway 重新连接…";
+  await gw.reloadConnection();
+  const reconnected = await waitForGatewayConnected();
+  if (!reconnected) {
+    qrState.value = "failed";
+    qrMessage.value = "Gateway 重启后连接超时，请稍后重试";
+    return false;
+  }
+  installProgress.value = 90;
+
+  qrMessage.value = "正在获取二维码…";
+  installProgress.value = 100;
+  return true;
+}
+
+async function startQrFlow(): Promise<void> {
+  qrState.value = "loading";
+  qrUrl.value = null;
+  qrMessage.value = "正在请求…";
+  installProgress.value = 0;
+
+  const firstAttempt = await tryWebLoginStart();
+  if (firstAttempt === "linked" || firstAttempt === "failed") return;
+
+  if (firstAttempt === "qr") {
+    await waitForQrScan();
+    return;
+  }
+
+  // provider-missing: auto-install
+  const installed = await autoInstallAndRetry();
+  if (!installed) return;
+
+  const secondAttempt = await tryWebLoginStart();
+  if (secondAttempt === "linked" || secondAttempt === "failed") return;
+
+  if (secondAttempt === "qr") {
+    await waitForQrScan();
+    return;
+  }
+
+  // Still provider-missing after install
+  qrState.value = "failed";
+  qrMessage.value = "插件安装完成但仍未就绪，请打开渠道设置手动操作";
+}
+
+async function waitForQrScan(): Promise<void> {
+  const gc = gw.client;
+  if (!gc) return;
+  try {
     const waitRes = await gc.request<{ connected?: boolean; message?: string }>(
       "web.login.wait",
       { timeoutMs: 120000 },
     );
-    if (waitRes?.connected) {
-      await queryChannelHealthNow();
+    if (!waitRes?.connected) {
+      qrState.value = "failed";
+      qrMessage.value = waitRes?.message ?? "扫码超时或失败";
+      return;
+    }
+
+    qrMessage.value = "扫码成功，等待渠道启动…";
+    await delay(3000);
+    const h = await queryChannelHealthNow();
+    if (h?.running) {
       qrState.value = "success";
       qrMessage.value = "WhatsApp 关联成功";
       scheduleAutoClose();
-    } else {
-      qrState.value = "failed";
-      qrMessage.value = waitRes?.message ?? "扫码超时或失败";
+      return;
     }
+
+    qrMessage.value = "渠道未自动启动，正在重启 Gateway…";
+    const api = getDidClawDesktopApi();
+    if (!api?.restartOpenClawGateway) {
+      qrState.value = "success";
+      qrMessage.value = "绑定成功，请手动重启 Gateway 以启动渠道";
+      return;
+    }
+    const restartResult = await api.restartOpenClawGateway();
+    if (!restartResult?.ok) {
+      qrState.value = "success";
+      qrMessage.value = "绑定成功，Gateway 重启失败，请手动重启";
+      return;
+    }
+    await gw.reloadConnection();
+    const reconnected = await waitForGatewayConnected(20000);
+    if (!reconnected) {
+      qrState.value = "success";
+      qrMessage.value = "绑定成功，Gateway 连接超时，请稍后检查";
+      return;
+    }
+    await delay(5000);
+    const h2 = await queryChannelHealthNow();
+    qrState.value = "success";
+    qrMessage.value = h2?.running
+      ? "WhatsApp 关联成功"
+      : "绑定成功，渠道正在启动中";
+    scheduleAutoClose();
   } catch (e) {
     qrState.value = "failed";
     qrMessage.value = String((e as Error)?.message ?? e);
   }
 }
 
+const reconnectMessage = ref<string | null>(null);
+
 async function doReconnect(): Promise<void> {
   const gc = gw.client;
   if (!gc || gwStatus.value !== "connected") return;
   busy.value = true;
+  reconnectMessage.value = "正在重新连接…";
   try {
     await gc.request("web.login.start", { force: false });
-    await queryChannelHealthNow();
+    await delay(3000);
+    const h1 = await queryChannelHealthNow();
+    if (h1 && h1.running) {
+      reconnectMessage.value = null;
+      return;
+    }
+
+    reconnectMessage.value = "渠道仍未启动，正在重启 Gateway…";
+    const api = getDidClawDesktopApi();
+    if (!api?.restartOpenClawGateway) {
+      reconnectMessage.value = "重连未能启动渠道，请手动重启 Gateway";
+      return;
+    }
+    const restartResult = await api.restartOpenClawGateway();
+    if (!restartResult?.ok) {
+      reconnectMessage.value = "Gateway 重启失败";
+      return;
+    }
+    await gw.reloadConnection();
+    const reconnected = await waitForGatewayConnected(20000);
+    if (!reconnected) {
+      reconnectMessage.value = "Gateway 重启后连接超时";
+      return;
+    }
+    await delay(4000);
+    const h2 = await queryChannelHealthNow();
+    reconnectMessage.value = h2?.running ? null : "重启完成，渠道可能需要几秒钟启动";
   } catch {
-    // ignore
+    reconnectMessage.value = "重新连接失败";
   } finally {
     busy.value = false;
   }
@@ -130,14 +319,32 @@ async function doRestartGateway(): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.restartOpenClawGateway) return;
   busy.value = true;
+  reconnectMessage.value = "正在重启 Gateway…";
   try {
-    await api.restartOpenClawGateway();
+    const restartResult = await api.restartOpenClawGateway();
+    if (!restartResult?.ok) {
+      reconnectMessage.value = "Gateway 重启失败";
+      return;
+    }
     await gw.reloadConnection();
+    const reconnected = await waitForGatewayConnected(20000);
+    if (!reconnected) {
+      reconnectMessage.value = "Gateway 重启后连接超时";
+      return;
+    }
+    await delay(4000);
+    const h = await queryChannelHealthNow();
+    reconnectMessage.value = h?.running ? null : "重启完成，渠道可能需要几秒钟启动";
   } catch {
-    // ignore
+    reconnectMessage.value = "重启失败";
   } finally {
     busy.value = false;
   }
+}
+
+function openChannelSetup(): void {
+  closePopup();
+  window.dispatchEvent(new CustomEvent("didclaw-open-channel-dialog"));
 }
 
 let autoCloseTimer: number | null = null;
@@ -184,11 +391,19 @@ onUnmounted(() => {
               ? `已绑定，未运行（${whatsAppHealth.lastError}）`
               : '已绑定，渠道未运行' }}
           </div>
+          <div
+            v-if="reconnectMessage"
+            class="wa-popup-detail"
+          >
+            {{ reconnectMessage }}
+          </div>
           <div class="wa-popup-actions">
             <button class="wa-popup-btn wa-popup-btn--primary" :disabled="busy" @click="doReconnect">
               {{ busy ? '重连中…' : '重新连接' }}
             </button>
-            <button class="wa-popup-btn" :disabled="busy" @click="doRestartGateway">重启 Gateway</button>
+            <button class="wa-popup-btn" :disabled="busy" @click="doRestartGateway">
+              重启 Gateway
+            </button>
           </div>
         </template>
 
@@ -200,23 +415,39 @@ onUnmounted(() => {
               扫码关联
             </button>
           </template>
+
           <template v-else-if="qrState === 'loading'">
             <div class="wa-popup-status wa-popup-status--loading">{{ qrMessage }}</div>
           </template>
+
+          <template v-else-if="qrState === 'installing'">
+            <div class="wa-popup-status wa-popup-status--loading">{{ qrMessage }}</div>
+            <div class="wa-progress-track">
+              <div class="wa-progress-bar" :style="{ width: installProgress + '%' }" />
+            </div>
+          </template>
+
           <template v-else-if="qrState === 'waiting'">
             <div class="wa-popup-qr">
-              <img v-if="qrUrl" :src="qrUrl" alt="WhatsApp QR" class="wa-popup-qr-img" />
+              <img v-if="qrUrl" :src="qrUrl" alt="WhatsApp QR" class="wa-popup-qr-img">
             </div>
             <div class="wa-popup-status wa-popup-status--loading">{{ qrMessage }}</div>
           </template>
+
           <template v-else-if="qrState === 'success'">
             <div class="wa-popup-status wa-popup-status--ok">{{ qrMessage }}</div>
           </template>
+
           <template v-else-if="qrState === 'failed'">
             <div class="wa-popup-status wa-popup-status--err">{{ qrMessage }}</div>
-            <button class="wa-popup-btn wa-popup-btn--primary wa-popup-btn--full" @click="startQrFlow">
-              重试
-            </button>
+            <div class="wa-popup-actions">
+              <button class="wa-popup-btn wa-popup-btn--primary" @click="startQrFlow">
+                重试
+              </button>
+              <button class="wa-popup-btn" @click="openChannelSetup">
+                渠道设置
+              </button>
+            </div>
           </template>
         </template>
       </div>
@@ -369,6 +600,20 @@ onUnmounted(() => {
 }
 .wa-popup-btn--full {
   width: 100%;
+}
+
+/* Progress bar */
+.wa-progress-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--lc-border);
+  overflow: hidden;
+}
+.wa-progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--lc-accent), #06b6d4);
+  transition: width 0.4s ease;
 }
 
 /* Transition */

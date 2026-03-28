@@ -57,6 +57,8 @@
   --lc-body-bg-mid: #f4f7fb;
   --lc-body-bg-to: #f1f5f9;
   --lc-body-grid-color: rgba(15, 23, 42, 0.035);
+  --lc-sidebar-w: 210px;
+  --lc-sidebar-speed: 0.22s;
 }
 
 /* ── 暗色主题覆盖 ─────────────────────────────────────────────── */

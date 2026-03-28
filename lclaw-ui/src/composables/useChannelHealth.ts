@@ -52,7 +52,18 @@ async function tryAutoRecovery(): Promise<void> {
   autoRecoveryAttempted = true;
   try {
     await gc.request("web.login.start", { force: false });
-    // Refresh health after recovery attempt
+    await new Promise((r) => setTimeout(r, 4000));
+    const h = await fetchHealth();
+    whatsAppHealth.value = h;
+    if (h && h.running) return;
+
+    const { getDidClawDesktopApi } = await import("@/lib/electron-bridge");
+    const api = getDidClawDesktopApi();
+    if (!api?.restartOpenClawGateway) return;
+    const result = await api.restartOpenClawGateway();
+    if (!result?.ok) return;
+    await gw.reloadConnection();
+    await new Promise((r) => setTimeout(r, 6000));
     whatsAppHealth.value = await fetchHealth();
   } catch {
     // Silently ignore — recovery is best-effort
