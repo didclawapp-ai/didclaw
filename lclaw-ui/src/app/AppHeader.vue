@@ -69,6 +69,14 @@ const currentLocale = computed({
   set: (v: LocaleCode) => localSettings.switchLocale(v),
 });
 
+const localeToggleTitle = computed(() =>
+  currentLocale.value === "zh" ? "Switch to English" : "切换到中文",
+);
+
+function toggleLocale(): void {
+  currentLocale.value = currentLocale.value === "zh" ? "en" : "zh";
+}
+
 function showInlineError(msg: string): void {
   inlineError.value = msg;
   if (errorTimer !== null) clearTimeout(errorTimer);
@@ -85,6 +93,12 @@ defineExpose({ showInlineError });
   <header class="top">
     <div class="top-row">
       <div class="left-group">
+        <div class="brand">
+          <span class="brand-glyph" aria-hidden="true" />
+          <h1 class="brand-title">
+            <span class="brand-d">D</span><span class="brand-mid">idCl</span><span class="brand-tail">aw</span>
+          </h1>
+        </div>
         <button
           type="button"
           class="conn-led"
@@ -105,40 +119,31 @@ defineExpose({ showInlineError });
             <span class="conn-switch-thumb" />
           </span>
         </button>
-        <div class="brand">
-          <span class="brand-glyph" aria-hidden="true" />
-          <h1 class="brand-title">
-            <span class="brand-d">D</span><span class="brand-mid">idCl</span><span class="brand-tail">aw</span>
-          </h1>
-        </div>
         <div class="header-quick-tools">
           <button
             type="button"
-            class="header-theme-btn"
+            class="header-icon-btn"
             :title="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
+            :aria-label="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
             @click="themeStore.toggle()"
           >
-            <span aria-hidden="true">{{ themeStore.mode === 'dark' ? '☀' : '☾' }}</span>
-            <span>{{ themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark') }}</span>
+            <span class="header-icon-glyph" aria-hidden="true">{{ themeStore.mode === 'dark' ? '☀' : '☾' }}</span>
           </button>
-          <div class="header-locale-switcher" :aria-label="t('settings.languageLabel')">
-            <button
-              type="button"
-              class="header-locale-btn"
-              :class="{ active: currentLocale === 'zh' }"
-              @click="currentLocale = 'zh'"
-            >
-              中
-            </button>
-            <button
-              type="button"
-              class="header-locale-btn"
-              :class="{ active: currentLocale === 'en' }"
-              @click="currentLocale = 'en'"
-            >
-              EN
-            </button>
-          </div>
+          <button
+            type="button"
+            class="header-icon-btn header-icon-btn--locale"
+            :class="`header-icon-btn--${currentLocale}`"
+            :title="localeToggleTitle"
+            :aria-label="localeToggleTitle"
+            @click="toggleLocale"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="header-icon-svg">
+              <path
+                d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9Zm5.93 8h-3.06a14.9 14.9 0 0 0-1.37-5.02A7.03 7.03 0 0 1 17.93 11Zm-5.93 8c-.8 0-2.12-2.02-2.56-5h5.12c-.44 2.98-1.76 5-2.56 5Zm-2.86-7a12.8 12.8 0 0 1 0-2h5.72a12.8 12.8 0 0 1 0 2H9.14Zm-4.07 0c.12-1.09.5-2.1 1.08-3h2.52a15.7 15.7 0 0 0 0 6H6.15a6.95 6.95 0 0 1-1.08-3Zm6.93-7c.8 0 2.12 2.02 2.56 5H9.44c.44-2.98 1.76-5 2.56-5ZM10.5 5.98A14.9 14.9 0 0 0 9.13 11H6.07a7.03 7.03 0 0 1 4.43-5.02ZM6.07 13h3.06c.24 1.84.72 3.58 1.37 5.02A7.03 7.03 0 0 1 6.07 13Zm7.43 5.02c.65-1.44 1.13-3.18 1.37-5.02h3.06a7.03 7.03 0 0 1-4.43 5.02Z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -182,9 +187,10 @@ defineExpose({ showInlineError });
   height: 42px;
 }
 .left-group {
+  --header-item-gap: 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--header-item-gap);
   min-width: 0;
 }
 
@@ -225,57 +231,48 @@ defineExpose({ showInlineError });
 .header-quick-tools {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-left: 10px;
+  gap: var(--header-item-gap);
+  margin-left: 0;
 }
-.header-theme-btn {
+.header-icon-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--lc-border);
-  background: transparent;
-  color: var(--lc-text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-.header-theme-btn:hover {
-  border-color: var(--lc-border-strong);
-  background: var(--lc-bg-hover);
-  color: var(--lc-text);
-}
-.header-locale-switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid var(--lc-border);
   background: var(--lc-bg-raised);
-}
-.header-locale-btn {
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: none;
-  background: transparent;
   color: var(--lc-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  font-family: inherit;
   cursor: pointer;
-  line-height: 1.6;
-  transition: background 0.12s, color 0.12s;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
-.header-locale-btn.active {
-  background: var(--lc-accent-soft);
-  color: var(--lc-accent);
-}
-.header-locale-btn:hover:not(.active) {
+.header-icon-btn:hover {
+  border-color: var(--lc-border-strong);
+  background: var(--lc-bg-hover);
   color: var(--lc-text);
+  transform: translateY(-1px);
+}
+.header-icon-btn:focus-visible {
+  outline: 2px solid var(--lc-accent);
+  outline-offset: 2px;
+}
+.header-icon-glyph {
+  font-size: 15px;
+  line-height: 1;
+}
+.header-icon-svg {
+  width: 15px;
+  height: 15px;
+}
+.header-icon-btn--locale.header-icon-btn--zh {
+  color: #22d3ee;
+  border-color: rgba(34, 211, 238, 0.35);
+}
+.header-icon-btn--locale.header-icon-btn--en {
+  color: #818cf8;
+  border-color: rgba(129, 140, 248, 0.35);
 }
 
 /* Connection LED */
