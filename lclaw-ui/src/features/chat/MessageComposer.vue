@@ -2,6 +2,7 @@
 import ComposerAttachments from "@/features/chat/ComposerAttachments.vue";
 import SlashCommandPicker from "@/features/chat/SlashCommandPicker.vue";
 import WhatsAppIndicator from "@/features/chat/WhatsAppIndicator.vue";
+import WeChatIndicator from "@/features/chat/WeChatIndicator.vue";
 import {
   extractSlashQuery,
   filterCommands,
@@ -256,6 +257,7 @@ function onDrop(ev: DragEvent): void {
         </button>
       </div>
       <div class="row-right">
+        <WeChatIndicator />
         <WhatsAppIndicator />
         <button
           type="button"
