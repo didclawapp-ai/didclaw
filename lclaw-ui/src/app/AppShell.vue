@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import AppHeader from "@/app/AppHeader.vue";
+import SessionControlBar from "@/app/SessionControlBar.vue";
+import SessionHistoryDialog from "@/app/SessionHistoryDialog.vue";
 import ToolSidebar from "@/app/ToolSidebar.vue";
 import FirstRunWizard from "@/features/onboarding/FirstRunWizard.vue";
 import OpenClawUpdatePrompt from "@/features/openclaw/OpenClawUpdatePrompt.vue";
@@ -16,6 +18,7 @@ import {
 } from "@/lib/chat-message-format";
 import { messageToChatLine } from "@/lib/chat-line";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
+import { sessionDisplayLabel } from "@/lib/session-display";
 import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useFilePreviewStore } from "@/stores/filePreview";
@@ -48,7 +51,7 @@ const preview = usePreviewStore();
 const filePreview = useFilePreviewStore();
 
 const { followLatest, showDiagnosticMessages } = storeToRefs(preview);
-const { sessions, loading: sessionsLoading, error: sessionsError, activeSessionKey, activeSession } =
+const { sessions, allSessions, loading: sessionsLoading, error: sessionsError, activeSessionKey, activeSession } =
   storeToRefs(session);
 const {
   messages,
@@ -79,34 +82,6 @@ const isPreviewPaneOpen = computed(
 
 const previewPaneRef = ref<HTMLElement | null>(null);
 useTauriPreviewWindowStrip(isPreviewPaneOpen, previewPaneRef);
-
-function sessionDisplayLabel(key: string, label?: string): string {
-  const trimmedLabel = label?.trim() ?? "";
-  const endedSuffix = trimmedLabel.endsWith("（已结束）") ? "（已结束）" : "";
-  const compactPeerId = (value: string): string =>
-    value.length > 12 ? `${value.slice(0, 10)}…` : value;
-
-  // UUID-style keys (no colon) are new sessions not yet registered with the gateway
-  if (!key.includes(":")) return "新对话";
-  if (key === "agent:main:main") return `agent:main${endedSuffix}`;
-
-  const whatsappDirect = key.match(/^agent:main:whatsapp:direct:(.+)$/);
-  if (whatsappDirect) {
-    return `WhatsApp ${whatsappDirect[1]}${endedSuffix}`;
-  }
-
-  const feishuDirect = key.match(/^agent:main:feishu:direct:(.+)$/);
-  if (feishuDirect) {
-    return `Feishu ${compactPeerId(feishuDirect[1])}${endedSuffix}`;
-  }
-
-  if (key.startsWith("agent:main:openclaw-weixin:")) {
-    return `WeChat${endedSuffix}`;
-  }
-
-  if (trimmedLabel) return trimmedLabel;
-  return key;
-}
 
 const activeSessionLabel = computed(() => {
   const row = activeSession.value;
@@ -140,6 +115,9 @@ const sessionSelectOptions = computed(() =>
     flashing: flashingSessionKeys.value.includes(s.key),
   })),
 );
+
+const historyDialogOpen = ref(false);
+const canOpenHistorySessions = computed(() => allSessions.value.length > 0);
 
 const canCloseActiveSession = computed(
   () => Boolean(activeSessionKey.value) && activeSessionKey.value !== "agent:main:main",
@@ -179,6 +157,10 @@ function cycleSession(direction: 1 | -1): void {
 }
 
 function onGlobalKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape" && historyDialogOpen.value) {
+    historyDialogOpen.value = false;
+    return;
+  }
   if (!event.ctrlKey || event.altKey || event.metaKey || event.key !== "Tab") {
     return;
   }
@@ -288,6 +270,19 @@ function closeActiveSession(): void {
   void session.closeSession(key);
 }
 
+function openHistoryDialog(): void {
+  historyDialogOpen.value = true;
+}
+
+function closeHistoryDialog(): void {
+  historyDialogOpen.value = false;
+}
+
+function openHistorySession(key: string): void {
+  historyDialogOpen.value = false;
+  void session.selectSession(key);
+}
+
 function newChat(): void {
   void session.selectSession(window.crypto.randomUUID());
 }
@@ -340,88 +335,29 @@ async function pickLocalFileForPreview(): Promise<void> {
       <ToolSidebar />
       <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
         <aside class="left">
-          <div class="left-session">
-            <div class="session-toolbar">
-              <button
-                type="button"
-                class="lc-btn lc-btn-primary lc-btn-xs new-chat-btn"
-                title="开始一个新的对话（当前对话将保留在历史列表中）"
-                @click="newChat"
-              >
-                ＋ 新建对话
-              </button>
-            </div>
-            <div class="panel-title session-panel-head">
-              <span class="session-head-label">会话</span>
-              <select
-                class="session-switch-select"
-                :value="activeSessionKey ?? ''"
-                :disabled="sessionsLoading || sessions.length === 0"
-                :title="activeSessionKey ?? '当前会话'"
-                @change="onSessionSelectChange(($event.target as HTMLSelectElement).value)"
-              >
-                <option value="" disabled>
-                  {{ activeSessionLabel || "请选择会话" }}
-                </option>
-                <option
-                  v-for="row in sessionSelectOptions"
-                  :key="row.key"
-                  :value="row.key"
-                >
-                  {{ row.flashing ? "• " : "" }}{{ row.label }}
-                </option>
-              </select>
-              <button
-                v-if="canCloseActiveSession"
-                type="button"
-                class="lc-btn lc-btn-ghost lc-btn-xs session-close-btn"
-                :title="'关闭当前会话（仅从列表隐藏；后续有新消息会再次出现）'"
-                @click="closeActiveSession"
-              >
-                关闭
-              </button>
-              <div v-if="isDidClawElectron()" class="session-model-tools">
-                <select
-                  v-if="showOpenClawModelSelect"
-                  class="session-model-select"
-                  :value="openClawPrimaryModel"
-                  :disabled="openClawPrimaryBusy"
-                  :title="
-                    openClawPrimaryPickerError ??
-                      '在这里切换「默认用哪个 AI 模型」。选好后会保存到本机；新对话一般会按这个来。'
-                  "
-                  @change="
-                    void chat.setOpenClawPrimaryModel(($event.target as HTMLSelectElement).value)
-                  "
-                >
-                  <option v-if="!openClawPrimaryModel" value="" disabled>请选择默认模型…</option>
-                  <option
-                    v-for="row in openClawModelPickerRows"
-                    :key="row.value"
-                    :value="row.value"
-                  >
-                    {{ row.label }}
-                  </option>
-                </select>
-                <button
-                  type="button"
-                  class="lc-btn lc-btn-ghost lc-btn-xs session-model-manage"
-                  title="打开本机设置，可改密钥、接口地址或恢复备份"
-                  @click="localSettings.open('ai')"
-                >
-                  更多设置
-                </button>
-              </div>
-            </div>
-            <p v-if="isDidClawElectron() && openClawPrimaryPickerError" class="err small session-model-err">
-              {{ openClawPrimaryPickerError }}
-            </p>
-            <p v-if="isDidClawElectron() && openClawConfigHint" class="muted small session-config-hint">
-              {{ openClawConfigHint }}
-            </p>
-            <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
-            <div v-if="sessionsLoading" class="muted">加载中…</div>
-          </div>
+          <SessionControlBar
+            :active-session-key="activeSessionKey"
+            :active-session-label="activeSessionLabel"
+            :session-select-options="sessionSelectOptions"
+            :sessions-loading="sessionsLoading"
+            :can-close-active-session="canCloseActiveSession"
+            :can-open-history-sessions="canOpenHistorySessions"
+            :is-desktop="isDidClawElectron()"
+            :show-open-claw-model-select="showOpenClawModelSelect"
+            :open-claw-primary-model="openClawPrimaryModel"
+            :open-claw-model-picker-rows="openClawModelPickerRows"
+            :open-claw-primary-busy="openClawPrimaryBusy"
+            :open-claw-primary-picker-error="openClawPrimaryPickerError"
+            :open-claw-config-hint="openClawConfigHint"
+            @new-chat="newChat"
+            @select-session="onSessionSelectChange"
+            @close-active-session="closeActiveSession"
+            @open-history="openHistoryDialog"
+            @set-primary-model="void chat.setOpenClawPrimaryModel($event)"
+            @open-ai-settings="localSettings.open('ai')"
+          />
+          <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
+          <div v-if="sessionsLoading" class="muted">加载中…</div>
 
           <div class="left-conversation">
             <div class="panel-title row-title">
@@ -522,6 +458,13 @@ async function pickLocalFileForPreview(): Promise<void> {
         </section>
       </div>
     </div>
+    <SessionHistoryDialog
+      :open="historyDialogOpen"
+      :rows="allSessions"
+      :active-session-key="activeSessionKey"
+      @close="closeHistoryDialog"
+      @select="openHistorySession"
+    />
   </div>
 </template>
 
@@ -577,19 +520,6 @@ async function pickLocalFileForPreview(): Promise<void> {
   flex-direction: column;
   min-height: 0;
   background: var(--lc-surface-panel);
-}
-.left-session {
-  flex-shrink: 0;
-}
-.session-toolbar {
-  padding: 8px 10px 0;
-}
-.new-chat-btn {
-  width: 100%;
-  justify-content: center;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  border-color: rgba(6, 182, 212, 0.55);
 }
 .left-conversation {
   flex: 1;
@@ -682,89 +612,6 @@ async function pickLocalFileForPreview(): Promise<void> {
 .preview-close-btn:hover {
   color: var(--lc-text);
   background: var(--lc-bg-elevated);
-}
-.panel-title.session-panel-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 12px;
-}
-.session-head-label {
-  flex-shrink: 0;
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--lc-text-muted);
-}
-.session-switch-select {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-family: var(--lc-font);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.35;
-  padding: 6px 8px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-accent);
-  background: var(--lc-accent-soft);
-  color: var(--lc-accent);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  appearance: none;
-  cursor: pointer;
-}
-.session-switch-select:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-.session-close-btn {
-  flex-shrink: 0;
-  padding-inline: 8px;
-}
-.session-model-tools {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  min-width: 0;
-}
-.session-model-select {
-  flex: 0 1 160px;
-  min-width: 72px;
-  max-width: min(48%, 220px);
-  font-size: 11px;
-  font-family: inherit;
-  padding: 4px 6px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-border);
-  background: var(--lc-bg-raised);
-  color: var(--lc-text);
-  cursor: pointer;
-}
-.session-model-select:disabled {
-  opacity: 0.55;
-  cursor: wait;
-}
-.session-model-manage {
-  flex-shrink: 0;
-  white-space: nowrap;
-  padding-inline: 8px;
-}
-.session-model-err {
-  margin: -4px 0 6px;
-  padding: 0 14px;
-}
-.session-config-hint {
-  margin: -2px 0 8px;
-  padding: 0 14px;
-  line-height: 1.45;
-  font-size: 11px;
-  color: var(--lc-text-muted);
 }
 .panel-title.row-title {
   display: flex;

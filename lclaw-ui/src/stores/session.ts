@@ -39,6 +39,7 @@ function ghostRowForKey(prevSnap: SessionRow[], key: string): SessionRow {
 
 export const useSessionStore = defineStore("session", () => {
   const sessions = ref<SessionRow[]>([]);
+  const allSessions = ref<SessionRow[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
   const activeSessionKey = ref<string | null>(null);
@@ -97,14 +98,15 @@ export const useSessionStore = defineStore("session", () => {
       if (!parsed.success) {
         error.value = `会话列表格式异常：${formatZodIssues(parsed.error)}`;
         sessions.value = [];
+        allSessions.value = [];
         return false;
       }
       const list = parsed.data.sessions ?? [];
-      const serverSessions = filterVisibleServerSessions(
-        list.filter((s) => typeof s.key === "string") as SessionRow[],
-      );
+      const rawServerSessions = list.filter((s) => typeof s.key === "string") as SessionRow[];
+      const serverSessions = filterVisibleServerSessions(rawServerSessions);
 
       let merged: SessionRow[];
+      let mergedAll: SessionRow[];
       if (serverSessions.length === 0) {
         // 新装或尚未产生任何会话时，网关常返回空列表；与 OpenClaw 一致默认主会话键 agent:main:main。
         if (prevKey && prevKey !== DEFAULT_MAIN_SESSION_KEY) {
@@ -119,7 +121,20 @@ export const useSessionStore = defineStore("session", () => {
         merged = serverSessions;
       }
 
+      if (rawServerSessions.length === 0) {
+        if (prevKey && prevKey !== DEFAULT_MAIN_SESSION_KEY) {
+          mergedAll = [ghostRowForKey(prevSnap, prevKey), { key: DEFAULT_MAIN_SESSION_KEY, label: "main" }];
+        } else {
+          mergedAll = [{ key: DEFAULT_MAIN_SESSION_KEY, label: "main" }];
+        }
+      } else if (prevKey && !rawServerSessions.some((s) => s.key === prevKey)) {
+        mergedAll = [ghostRowForKey(prevSnap, prevKey), ...rawServerSessions];
+      } else {
+        mergedAll = rawServerSessions;
+      }
+
       sessions.value = merged;
+      allSessions.value = mergedAll;
 
       const activeInMerged =
         activeSessionKey.value != null &&
@@ -215,6 +230,7 @@ export const useSessionStore = defineStore("session", () => {
 
   return {
     sessions,
+    allSessions,
     loading,
     error,
     activeSessionKey,
