@@ -184,6 +184,7 @@ pub fn run() {
             commands::write_channel_config,
             commands::check_channel_plugin_installed,
             commands::cleanup_channel_residue,
+            commands::configure_feishu_plugin,
             commands::start_channel_qr_flow,
         ])
         .build(tauri::generate_context!())

@@ -67,6 +67,12 @@ function tauriApi(): DidClawElectronApi {
       invoke("check_channel_plugin_installed", { channel }),
     cleanupChannelResidue: (channel: string) =>
       invoke("cleanup_channel_residue", { channel }),
+    configureFeishuPlugin: (payload: { appId: string; appSecret: string; domain: string }) =>
+      invoke("configure_feishu_plugin", {
+        appId: payload.appId,
+        appSecret: payload.appSecret,
+        domain: payload.domain,
+      }),
     startChannelQrFlow: (channel: string, gatewayUrl: string, flowId: string) =>
       invoke("start_channel_qr_flow", { channel, gatewayUrl, flowId }),
     getOpenClawSetupStatus: () => invoke("get_open_claw_setup_status"),

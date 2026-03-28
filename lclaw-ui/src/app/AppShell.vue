@@ -83,6 +83,8 @@ useTauriPreviewWindowStrip(isPreviewPaneOpen, previewPaneRef);
 function sessionDisplayLabel(key: string, label?: string): string {
   const trimmedLabel = label?.trim() ?? "";
   const endedSuffix = trimmedLabel.endsWith("（已结束）") ? "（已结束）" : "";
+  const compactPeerId = (value: string): string =>
+    value.length > 12 ? `${value.slice(0, 10)}…` : value;
 
   // UUID-style keys (no colon) are new sessions not yet registered with the gateway
   if (!key.includes(":")) return "新对话";
@@ -91,6 +93,11 @@ function sessionDisplayLabel(key: string, label?: string): string {
   const whatsappDirect = key.match(/^agent:main:whatsapp:direct:(.+)$/);
   if (whatsappDirect) {
     return `WhatsApp ${whatsappDirect[1]}${endedSuffix}`;
+  }
+
+  const feishuDirect = key.match(/^agent:main:feishu:direct:(.+)$/);
+  if (feishuDirect) {
+    return `Feishu ${compactPeerId(feishuDirect[1])}${endedSuffix}`;
   }
 
   if (key.startsWith("agent:main:openclaw-weixin:")) {

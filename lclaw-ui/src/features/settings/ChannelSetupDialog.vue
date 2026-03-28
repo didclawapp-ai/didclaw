@@ -25,7 +25,6 @@ const tabs: { id: ChannelId; icon: string }[] = [
   { id: "whatsapp", icon: "💬" },
   { id: "wechat",   icon: "🟢" },
   { id: "feishu",   icon: "🪶" },
-  { id: "discord",  icon: "🎮" },
   { id: "wecom",    icon: "💼" },
 ];
 
@@ -52,6 +51,7 @@ type FeishuInstallState = "idle" | "running" | "success" | "failed";
 const feishuInstallState = ref<FeishuInstallState>("idle");
 const feishuInstallLines = ref<string[]>([]);
 let unlistenFeishuLine: UnlistenFn | null = null;
+let unlistenFeishuQr: UnlistenFn | null = null;
 let unlistenFeishuDone: UnlistenFn | null = null;
 const feishuManualOpen = ref(false);
 const feishuInstallSummary = ref<string | null>(null);
@@ -59,13 +59,118 @@ const feishuSuppressedNoiseCount = ref(0);
 const feishuDomain = ref<"feishu" | "lark">("feishu");
 const feishuNeedsResidueCleanup = ref(false);
 const feishuCleanupBusy = ref(false);
+const feishuQrDataUrl = ref<string | null>(null);
+const feishuTickerText = computed(() =>
+  feishuInstallLines.value.length
+    ? feishuInstallLines.value.join("   •   ")
+    : "等待飞书安装日志…",
+);
+
+function isFeishuQrLine(line: string): boolean {
+  return line.length >= 16 && /^[█▀▄ ]+$/u.test(line);
+}
+
+function extractFeishuQrBlock(lines: string[]): string[] {
+  let best: string[] = [];
+  let current: string[] = [];
+  for (const line of lines) {
+    if (isFeishuQrLine(line)) {
+      current.push(line);
+      continue;
+    }
+    if (current.length > best.length) {
+      best = current;
+    }
+    current = [];
+  }
+  if (current.length > best.length) {
+    best = current;
+  }
+  return best.length >= 10 ? best : [];
+}
+
+function buildSvgQrDataUrl(block: string[]): string | null {
+  if (!block.length) return null;
+  const width = Math.max(...block.map((line) => line.length));
+  const rows: boolean[][] = [];
+
+  for (const rawLine of block) {
+    const line = rawLine.padEnd(width, " ");
+    const top: boolean[] = [];
+    const bottom: boolean[] = [];
+    for (const ch of line) {
+      switch (ch) {
+        case "█":
+          top.push(true);
+          bottom.push(true);
+          break;
+        case "▀":
+          top.push(true);
+          bottom.push(false);
+          break;
+        case "▄":
+          top.push(false);
+          bottom.push(true);
+          break;
+        default:
+          top.push(false);
+          bottom.push(false);
+          break;
+      }
+    }
+    rows.push(top, bottom);
+  }
+
+  if (!rows.length || !rows[0]?.length) return null;
+
+  const height = rows.length;
+  const matrixWidth = rows[0].length;
+  const margin = 4;
+  const scale = 6;
+  const svgWidth = (matrixWidth + margin * 2) * scale;
+  const svgHeight = (height + margin * 2) * scale;
+
+  const rects: string[] = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < matrixWidth; x += 1) {
+      if (!rows[y]?.[x]) continue;
+      rects.push(
+        `<rect x="${(x + margin) * scale}" y="${(y + margin) * scale}" width="${scale}" height="${scale}" fill="#000"/>`,
+      );
+    }
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/>${rects.join("")}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function refreshFeishuQrData(): void {
+  feishuQrDataUrl.value = buildSvgQrDataUrl(extractFeishuQrBlock(feishuInstallLines.value));
+}
+
+async function setFeishuQrUrl(url: string | null): Promise<void> {
+  if (!url) {
+    feishuQrDataUrl.value = null;
+    return;
+  }
+  try {
+    feishuQrDataUrl.value = await QRCode.toDataURL(url, {
+      width: 220,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    });
+  } catch {
+    feishuQrDataUrl.value = null;
+  }
+}
 
 function feishuLineSuggestsResidue(line: string): boolean {
-  return /plugin already exists|plugin not found:\s*openclaw-lark|openclaw-lark/i.test(line);
+  return /plugin already exists|plugin not found:\s*openclaw-lark|delete it first/i.test(line);
 }
 
 function shouldSuppressFeishuLine(line: string): boolean {
   return (
+    /^npm warn Unknown env config /i.test(line) ||
     /plugins\.entries\.whatsapp: plugin whatsapp: duplicate plugin id detected/i.test(line) ||
     /extensions[\\/](whatsapp)[\\/]/i.test(line)
   );
@@ -94,6 +199,7 @@ function pushFeishuLines(raw?: string | null): void {
     next.push(line);
   }
   feishuInstallLines.value = next.slice(-300);
+  refreshFeishuQrData();
 }
 
 async function ensureOpenClawReadyForFeishu(): Promise<boolean> {
@@ -152,6 +258,7 @@ async function cleanupFeishuResidue(): Promise<void> {
     const removedCount = result.removed.length + result.removedDirs.length;
     feishuNeedsResidueCleanup.value = false;
     feishuInstallLines.value = [];
+    feishuQrDataUrl.value = null;
     feishuSuppressedNoiseCount.value = 0;
     feishuInstallState.value = "idle";
     feishuInstallSummary.value =
@@ -175,6 +282,7 @@ async function startFeishuInstall(): Promise<void> {
 
   feishuInstallState.value = "running";
   feishuInstallLines.value = [];
+  feishuQrDataUrl.value = null;
   feishuInstallSummary.value = "正在运行飞书官方安装向导，请按终端提示完成创建/关联机器人。";
   feishuSuppressedNoiseCount.value = 0;
   feishuNeedsResidueCleanup.value = false;
@@ -191,10 +299,16 @@ async function startFeishuInstall(): Promise<void> {
     if (e.payload.flowId !== feishuFlowId) return;
     pushFeishuLines(e.payload.line);
   });
+  unlistenFeishuQr?.();
+  unlistenFeishuQr = await listen<{ flowId?: string; url: string }>("channel:qr", (e) => {
+    if (e.payload.flowId !== feishuFlowId) return;
+    void setFeishuQrUrl(e.payload.url);
+  });
   unlistenFeishuDone?.();
   unlistenFeishuDone = await listen<{ flowId?: string; ok: boolean; exitCode?: number; error?: string }>("channel:done", (e) => {
     if (e.payload.flowId !== feishuFlowId) return;
     unlistenFeishuLine?.(); unlistenFeishuLine = null;
+    unlistenFeishuQr?.(); unlistenFeishuQr = null;
     unlistenFeishuDone?.(); unlistenFeishuDone = null;
     if (!e.payload.ok) {
       feishuInstallState.value = "failed";
@@ -216,6 +330,9 @@ async function startFeishuInstall(): Promise<void> {
     feishuInstallState.value = "failed";
     feishuInstallSummary.value = "启动飞书安装向导失败";
     pushFeishuLines(`Error: ${e}`);
+    unlistenFeishuLine?.(); unlistenFeishuLine = null;
+    unlistenFeishuQr?.(); unlistenFeishuQr = null;
+    unlistenFeishuDone?.(); unlistenFeishuDone = null;
   }
 }
 
@@ -666,27 +783,45 @@ async function installWecomPlugin(): Promise<void> {
 
 async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
   const api = getDidClawDesktopApi();
-  if (!api?.writeChannelConfig) return;
+  if (!api) return;
 
   let payload: Record<string, unknown> = {};
   if (channelKey === "feishu") {
     const appId = feishuAppId.value.trim();
     const appSecret = feishuAppSecret.value.trim();
     if (!appId || !appSecret) { showToast("请填写 App ID 和 App Secret", true); return; }
-    payload = {
-      domain: feishuDomain.value,
-      accounts: { main: { appId, appSecret } },
-    };
+    if (!api.configureFeishuPlugin) {
+      showToast("当前桌面端不支持写入飞书官方插件配置，请先重启应用更新桌面端。", true);
+      return;
+    }
+    busy.value = true;
+    try {
+      const r = await api.configureFeishuPlugin({ appId, appSecret, domain: feishuDomain.value });
+      if (r.ok) {
+        showToast("已写入飞书官方插件配置");
+      } else {
+        showToast(`保存失败：${r.error}`, true);
+      }
+    } catch (e) {
+      showToast(t("channel.saveFail") + `：${e}`, true);
+    } finally {
+      busy.value = false;
+    }
+    return;
   } else if (channelKey === "discord") {
+    if (!api.writeChannelConfig) return;
     const token = discordToken.value.trim();
     if (!token) { showToast("请填写 Bot Token", true); return; }
     payload = { accounts: { main: { token } } };
   } else if (channelKey === "wecom") {
+    if (!api.writeChannelConfig) return;
     const botId = wecomBotId.value.trim();
     const secret = wecomSecret.value.trim();
     if (!botId || !secret) { showToast("请填写 Bot ID 和 Secret", true); return; }
     payload = { accounts: { main: { botId, secret } } };
   }
+
+  if (!api.writeChannelConfig) return;
 
   payload = withChannelReadyPatch(channelKey, payload);
 
@@ -742,6 +877,7 @@ function cleanupListeners(): void {
   unlistenWaLine?.();  unlistenWaLine = null;
   unlistenWaDone?.();  unlistenWaDone = null;
   unlistenFeishuLine?.(); unlistenFeishuLine = null;
+  unlistenFeishuQr?.(); unlistenFeishuQr = null;
   unlistenFeishuDone?.(); unlistenFeishuDone = null;
   unlistenWechatLine?.(); unlistenWechatLine = null;
   unlistenWechatQr?.();  unlistenWechatQr = null;
@@ -1230,12 +1366,19 @@ onUnmounted(() => {
               >
                 已省略 {{ feishuSuppressedNoiseCount }} 条与飞书安装无关的重复插件警告，避免干扰查看。
               </p>
+              <div v-if="feishuQrDataUrl" class="ch-qr-wrap" style="margin-top: 8px;">
+                <img
+                  :src="feishuQrDataUrl"
+                  class="ch-qr-img"
+                  alt="Feishu QR code"
+                />
+              </div>
 
-              <!-- Terminal output -->
-              <div v-if="feishuInstallLines.length" class="ch-terminal" style="margin-top: 8px;">
-                <div class="ch-terminal-head">{{ t('channel.qrOutputLabel') }}</div>
-                <pre class="ch-terminal-body"><template v-for="(ln, i) in feishuInstallLines" :key="i">{{ ln }}
-</template></pre>
+              <div v-if="feishuInstallLines.length" class="ch-wechat-ticker" style="margin-top: 8px;">
+                <div class="ch-wechat-ticker__track">
+                  <span class="ch-wechat-ticker__text">{{ feishuTickerText }}</span>
+                  <span class="ch-wechat-ticker__text" aria-hidden="true">{{ feishuTickerText }}</span>
+                </div>
               </div>
 
               <div class="ch-actions" style="margin-top: 8px;">

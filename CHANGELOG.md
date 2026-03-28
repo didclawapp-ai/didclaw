@@ -15,6 +15,7 @@
 
 - **飞书渠道安装配置体验补齐**：飞书安装向导现在会先检查 OpenClaw 环境是否已初始化，未安装时直接给出明确提示；安装成功后自动补写 `channels.feishu.enabled=true`，并在弹窗中提示后续的 `重启 Gateway`、`/feishu start` 与 `/feishu auth` 验证步骤。手动配置路径新增 `Feishu / Lark` 区域选择，同时过滤安装日志里与飞书无关的重复 WhatsApp 插件警告，避免误导用户。
 - **飞书安装失败时支持一键清理残留**：新增桌面端飞书残留清理能力；当安装日志出现 `plugin already exists` / `openclaw-lark` 残留特征时，渠道弹窗会直接提示并提供「清理飞书残留」按钮，自动清掉 `channels.feishu`、`plugins.entries/install` 中的飞书残项以及 `~/.openclaw/extensions/openclaw-lark` 目录，方便用户立即重试安装。
+- **飞书插件已安装时跳过重装，直接进入扫码配置**：桌面端现在会先检查 `~/.openclaw/extensions/openclaw-lark` 是否已完整安装（含 `package.json` 与 `node_modules`）。若已存在，则不再重复执行 `@larksuite/openclaw-lark install` 的安装/更新链路，而是直接调用飞书注册接口生成二维码并轮询返回的机器人凭据，写回官方插件所需的 `channels.feishu.appId/appSecret/domain` 与 `plugins.entries.openclaw-lark` 配置，显著减少重复安装导致的失败与日志噪音。
 - **清理两处历史 lint error**：`InlineToolTimeline.vue` 中恒为 `false && ...` 的占位表达式改为直接 `false`，去掉 `no-constant-binary-expression`；`AboutView.vue` 空模板改为最小合法根节点，去掉 `vue/valid-template-root`。以上调整不改变现有功能行为。
 
 ## [0.5.0] - 2026-03-28

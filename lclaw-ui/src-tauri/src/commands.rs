@@ -401,6 +401,19 @@ pub fn cleanup_channel_residue(channel: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub fn configure_feishu_plugin(
+    app_id: String,
+    app_secret: String,
+    domain: String,
+) -> Result<Value, String> {
+    Ok(crate::openclaw_channel_config::configure_feishu_plugin(
+        &app_id,
+        &app_secret,
+        &domain,
+    ))
+}
+
+#[tauri::command]
 pub async fn start_channel_qr_flow(
     app: tauri::AppHandle,
     channel: String,

@@ -212,6 +212,11 @@ interface DidClawElectronApi {
       }
     | { ok: false; error: string }
   >;
+  configureFeishuPlugin?(payload: {
+    appId: string;
+    appSecret: string;
+    domain: string;
+  }): Promise<{ ok: true; backupPath?: string | null } | { ok: false; error: string }>;
   /** 启动 QR 登录流，通过 Tauri 事件推送输出；flowId 用于隔离并发流的事件 */
   startChannelQrFlow?(
     channel: string,

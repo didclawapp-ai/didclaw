@@ -5,6 +5,108 @@ use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::Path;
 
+fn upsert_string_array(obj: &mut Map<String, Value>, key: &str, value: &str) {
+    if !obj.get(key).map(|v| v.is_array()).unwrap_or(false) {
+        obj.insert(key.to_string(), json!([]));
+    }
+    let arr = obj.get_mut(key).unwrap().as_array_mut().unwrap();
+    if !arr.iter().any(|v| v.as_str() == Some(value)) {
+        arr.push(json!(value));
+    }
+}
+
+fn ensure_feishu_plugin_config(
+    app_id: &str,
+    app_secret: &str,
+    domain: &str,
+    open_id: Option<&str>,
+) -> Result<Value, String> {
+    let config_path = openclaw_config_path()?;
+    let dir = openclaw_dir()?;
+
+    let mut root: Value = match fs::read_to_string(&config_path) {
+        Ok(raw) => serde_json::from_str(&raw)
+            .map_err(|_| "openclaw.json 无法解析为 JSON，已中止写入".to_string())?,
+        Err(e) if is_enoent(&e) => json!({}),
+        Err(e) => return Err(e.to_string()),
+    };
+
+    let backup = backup_if_exists(&config_path).map_err(|e| format!("备份失败，已中止：{e}"))?;
+
+    if !root.is_object() {
+        root = json!({});
+    }
+    let root_map = root.as_object_mut().unwrap();
+
+    if !root_map.get("channels").map(|v| v.is_object()).unwrap_or(false) {
+        root_map.insert("channels".into(), json!({}));
+    }
+    let channels = root_map.get_mut("channels").unwrap().as_object_mut().unwrap();
+    if !channels.get("feishu").map(|v| v.is_object()).unwrap_or(false) {
+        channels.insert("feishu".into(), json!({}));
+    }
+    let feishu = channels.get_mut("feishu").unwrap().as_object_mut().unwrap();
+    feishu.insert("enabled".into(), json!(true));
+    feishu.insert("appId".into(), json!(app_id));
+    feishu.insert("appSecret".into(), json!(app_secret));
+    feishu.insert("domain".into(), json!(domain));
+    if !feishu.contains_key("connectionMode") {
+        feishu.insert("connectionMode".into(), json!("websocket"));
+    }
+    if !feishu.contains_key("requireMention") {
+        feishu.insert("requireMention".into(), json!(true));
+    }
+
+    if let Some(id) = open_id {
+        feishu.insert("dmPolicy".into(), json!("allowlist"));
+        upsert_string_array(feishu, "allowFrom", id);
+        if !feishu.contains_key("groupPolicy") {
+            feishu.insert("groupPolicy".into(), json!("allowlist"));
+        }
+        upsert_string_array(feishu, "groupAllowFrom", id);
+        if !feishu.get("groups").map(|v| v.is_object()).unwrap_or(false) {
+            feishu.insert("groups".into(), json!({"*": {"enabled": true}}));
+        }
+    } else {
+        if !feishu.contains_key("dmPolicy") {
+            feishu.insert("dmPolicy".into(), json!("pairing"));
+        }
+        if !feishu.contains_key("groupPolicy") {
+            feishu.insert("groupPolicy".into(), json!("open"));
+        }
+    }
+
+    if !root_map.get("plugins").map(|v| v.is_object()).unwrap_or(false) {
+        root_map.insert("plugins".into(), json!({}));
+    }
+    let plugins = root_map.get_mut("plugins").unwrap().as_object_mut().unwrap();
+
+    if !plugins.get("allow").map(|v| v.is_array()).unwrap_or(false) {
+        plugins.insert("allow".into(), json!([]));
+    }
+    let allow = plugins.get_mut("allow").unwrap().as_array_mut().unwrap();
+    allow.retain(|v| v.as_str() != Some("feishu"));
+    if !allow.iter().any(|v| v.as_str() == Some("openclaw-lark")) {
+        allow.push(json!("openclaw-lark"));
+    }
+
+    if !plugins.get("entries").map(|v| v.is_object()).unwrap_or(false) {
+        plugins.insert("entries".into(), json!({}));
+    }
+    let entries = plugins.get_mut("entries").unwrap().as_object_mut().unwrap();
+    entries.insert("feishu".into(), json!({"enabled": false}));
+    entries.insert("openclaw-lark".into(), json!({"enabled": true}));
+
+    let out = serde_json::to_string_pretty(&root)
+        .map(|s| format!("{s}\n"))
+        .map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::write(&config_path, out).map_err(|e| e.to_string())?;
+
+    let backup_json = if backup.is_empty() { Value::Null } else { json!(backup) };
+    Ok(json!({"ok": true, "backupPath": backup_json}))
+}
+
 // ── 备份辅助 ──────────────────────────────────────────────────────────────────
 
 fn backup_if_exists(config_path: &Path) -> Result<String, String> {
@@ -244,6 +346,17 @@ pub fn cleanup_channel_residue(channel: &str) -> Value {
     })
 }
 
+pub fn configure_feishu_plugin(
+    app_id: &str,
+    app_secret: &str,
+    domain: &str,
+) -> Value {
+    match ensure_feishu_plugin_config(app_id, app_secret, domain, None) {
+        Ok(v) => v,
+        Err(e) => json!({"ok": false, "error": e}),
+    }
+}
+
 // ── start_channel_qr_flow ────────────────────────────────────────────────────
 
 /// 剥离 ANSI/VT100 转义序列（`\x1b[…m` 及常见控制码），返回纯文本。
@@ -324,6 +437,359 @@ fn resolve_npx_executable() -> Option<String> {
     None
 }
 
+fn installed_feishu_plugin_version() -> Option<String> {
+    let dir = openclaw_dir().ok()?;
+    let root = dir.join("extensions").join("openclaw-lark");
+    let pkg = root.join("package.json");
+    let node_modules = root.join("node_modules");
+    if !pkg.is_file() || !node_modules.is_dir() {
+        return None;
+    }
+    let raw = fs::read_to_string(pkg).ok()?;
+    let value: Value = serde_json::from_str(&raw).ok()?;
+    value.get("version")?.as_str().map(ToOwned::to_owned)
+}
+
+fn feishu_plugin_root() -> Option<std::path::PathBuf> {
+    openclaw_dir().ok().map(|dir| dir.join("extensions").join("openclaw-lark"))
+}
+
+fn cleanup_incomplete_feishu_plugin_dir() -> Result<bool, String> {
+    let Some(root) = feishu_plugin_root() else {
+        return Ok(false);
+    };
+    if !root.exists() {
+        return Ok(false);
+    }
+    if installed_feishu_plugin_version().is_some() {
+        return Ok(false);
+    }
+    fs::remove_dir_all(&root)
+        .map_err(|e| format!("删除不完整飞书插件目录失败（{}）：{}", root.display(), e))?;
+    Ok(true)
+}
+
+fn feishu_accounts_base(domain: &str) -> &'static str {
+    match domain {
+        "lark" => "https://accounts.larksuite.com",
+        _ => "https://accounts.feishu.cn",
+    }
+}
+
+fn feishu_registration_post(base: &str, params: &[(&str, &str)]) -> Result<Value, String> {
+    let body = url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(params.iter().copied())
+        .finish();
+    let url = format!("{base}/oauth/v1/app/registration");
+    let resp = ureq::post(&url)
+        .set("Content-Type", "application/x-www-form-urlencoded")
+        .send_string(&body);
+
+    match resp {
+        Ok(r) => r.into_json::<Value>().map_err(|e| e.to_string()),
+        Err(ureq::Error::Status(_, r)) => r.into_json::<Value>().map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn run_feishu_existing_plugin_flow(
+    app: tauri::AppHandle,
+    flow_id: String,
+    installed_version: String,
+) -> Value {
+    use std::time::{Duration, Instant};
+    use tauri::Emitter;
+
+    let _ = app.emit(
+        "channel:line",
+        json!({
+            "flowId": &flow_id,
+            "stream": "stdout",
+            "line": format!("已检测到本地飞书插件 v{installed_version}，跳过重复安装，直接开始扫码配置…"),
+        }),
+    );
+
+    let init = match feishu_registration_post(feishu_accounts_base("feishu"), &[("action", "init")]) {
+        Ok(v) => v,
+        Err(e) => {
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": e}));
+            return json!({"ok": false, "error": e});
+        }
+    };
+    let supported = init
+        .get("supported_auth_methods")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().any(|v| v.as_str() == Some("client_secret")))
+        .unwrap_or(false);
+    if !supported {
+        let msg = "当前飞书环境不支持 client_secret 授权流程";
+        let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+        return json!({"ok": false, "error": msg});
+    }
+
+    let begin = match feishu_registration_post(
+        feishu_accounts_base("feishu"),
+        &[
+            ("action", "begin"),
+            ("archetype", "PersonalAgent"),
+            ("auth_method", "client_secret"),
+            ("request_user_info", "open_id"),
+        ],
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": e}));
+            return json!({"ok": false, "error": e});
+        }
+    };
+
+    let mut qr_url = match begin.get("verification_uri_complete").and_then(|v| v.as_str()) {
+        Some(v) => v.to_string(),
+        None => {
+            let msg = "飞书返回结果缺少 verification_uri_complete";
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+            return json!({"ok": false, "error": msg});
+        }
+    };
+    if let Ok(mut parsed) = url::Url::parse(&qr_url) {
+        parsed.query_pairs_mut().append_pair("from", "onboard");
+        qr_url = parsed.to_string();
+    }
+    let _ = app.emit(
+        "channel:line",
+        json!({"flowId": &flow_id, "stream": "stdout", "line": "请使用飞书扫码完成机器人配置…"}),
+    );
+    let _ = app.emit("channel:qr", json!({"flowId": &flow_id, "url": &qr_url}));
+
+    let device_code = match begin.get("device_code").and_then(|v| v.as_str()) {
+        Some(v) => v.to_string(),
+        None => {
+            let msg = "飞书返回结果缺少 device_code";
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+            return json!({"ok": false, "error": msg});
+        }
+    };
+
+    let mut interval = begin.get("interval").and_then(|v| v.as_u64()).unwrap_or(5);
+    let expire_in = begin.get("expire_in").and_then(|v| v.as_u64()).unwrap_or(600);
+    let started = Instant::now();
+    let mut domain = "feishu".to_string();
+
+    while started.elapsed() < Duration::from_secs(expire_in) {
+        let poll = match feishu_registration_post(
+            feishu_accounts_base(&domain),
+            &[("action", "poll"), ("device_code", &device_code)],
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": e}));
+                return json!({"ok": false, "error": e});
+            }
+        };
+
+        if poll
+            .get("user_info")
+            .and_then(|v| v.get("tenant_brand"))
+            .and_then(|v| v.as_str())
+            == Some("lark")
+            && domain != "lark"
+        {
+            domain = "lark".into();
+            let _ = app.emit(
+                "channel:line",
+                json!({"flowId": &flow_id, "stream": "stdout", "line": "检测到 Lark 国际版租户，已切换到 Lark 域名继续获取配置…"}),
+            );
+            continue;
+        }
+
+        let app_id = poll.get("client_id").and_then(|v| v.as_str());
+        let app_secret = poll.get("client_secret").and_then(|v| v.as_str());
+        if let (Some(app_id), Some(app_secret)) = (app_id, app_secret) {
+            let open_id = poll
+                .get("user_info")
+                .and_then(|v| v.get("open_id"))
+                .and_then(|v| v.as_str());
+            match ensure_feishu_plugin_config(app_id, app_secret, &domain, open_id) {
+                Ok(_) => {
+                    let _ = app.emit(
+                        "channel:line",
+                        json!({"flowId": &flow_id, "stream": "stdout", "line": "已获取并写入飞书机器人配置，请重启 Gateway 使其生效。"}),
+                    );
+                    let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": true, "skippedInstall": true}));
+                    return json!({"ok": true, "skippedInstall": true, "installedVersion": installed_version});
+                }
+                Err(e) => {
+                    let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": e}));
+                    return json!({"ok": false, "error": e});
+                }
+            }
+        }
+
+        if let Some(err) = poll.get("error").and_then(|v| v.as_str()) {
+            match err {
+                "authorization_pending" => {}
+                "slow_down" => interval += 5,
+                "access_denied" => {
+                    let msg = "用户取消了飞书扫码授权";
+                    let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+                    return json!({"ok": false, "error": msg});
+                }
+                "expired_token" => {
+                    let msg = "飞书扫码会话已过期，请重试";
+                    let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+                    return json!({"ok": false, "error": msg});
+                }
+                other => {
+                    let msg = format!(
+                        "飞书配置失败：{}{}",
+                        other,
+                        poll.get("error_description")
+                            .and_then(|v| v.as_str())
+                            .map(|s| format!(" ({s})"))
+                            .unwrap_or_default()
+                    );
+                    let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+                    return json!({"ok": false, "error": msg});
+                }
+            }
+        }
+
+        std::thread::sleep(Duration::from_secs(interval));
+    }
+
+    let msg = "飞书扫码超时，请重试";
+    let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+    json!({"ok": false, "error": msg})
+}
+
+async fn run_feishu_install_and_config_flow(
+    app: tauri::AppHandle,
+    flow_id: String,
+    openclaw_exe: String,
+) -> Value {
+    use std::process::Stdio;
+    use tauri::Emitter;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    use tokio::process::Command;
+
+    if let Some(version) = installed_feishu_plugin_version() {
+        return match tokio::task::spawn_blocking(move || {
+            run_feishu_existing_plugin_flow(app, flow_id, version)
+        })
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => json!({"ok": false, "error": e.to_string()}),
+        };
+    }
+
+    match cleanup_incomplete_feishu_plugin_dir() {
+        Ok(true) => {
+            let _ = app.emit(
+                "channel:line",
+                json!({"flowId": &flow_id, "stream": "stdout", "line": "检测到未完成的飞书插件目录，已自动清理后重新安装…"}),
+            );
+        }
+        Ok(false) => {}
+        Err(e) => {
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": e}));
+            return json!({"ok": false, "error": e});
+        }
+    }
+
+    let mut cmd = Command::new(&openclaw_exe);
+    cmd.args(["plugins", "install", "@larksuite/openclaw-lark"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    {
+        #[allow(unused_imports)]
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            let msg = format!("启动飞书插件安装失败：{e}");
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+            return json!({"ok": false, "error": msg});
+        }
+    };
+
+    let stdout = match child.stdout.take() {
+        Some(v) => v,
+        None => {
+            let msg = "飞书插件安装未提供 stdout".to_string();
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+            return json!({"ok": false, "error": msg});
+        }
+    };
+    let stderr = match child.stderr.take() {
+        Some(v) => v,
+        None => {
+            let msg = "飞书插件安装未提供 stderr".to_string();
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+            return json!({"ok": false, "error": msg});
+        }
+    };
+
+    let app_out = app.clone();
+    let fid_out = flow_id.clone();
+    let stdout_task = tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_out.emit("channel:line", json!({"flowId": &fid_out, "stream": "stdout", "line": &line}));
+            let clean = strip_ansi(line.trim());
+            if let Some(url) = first_url_token(clean.trim()) {
+                let _ = app_out.emit("channel:qr", json!({"flowId": &fid_out, "url": url}));
+            }
+        }
+    });
+
+    let app_err = app.clone();
+    let fid_err = flow_id.clone();
+    let stderr_task = tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = app_err.emit("channel:line", json!({"flowId": &fid_err, "stream": "stderr", "line": &line}));
+            let clean = strip_ansi(line.trim());
+            if let Some(url) = first_url_token(clean.trim()) {
+                let _ = app_err.emit("channel:qr", json!({"flowId": &fid_err, "url": url}));
+            }
+        }
+    });
+
+    let _ = tokio::join!(stdout_task, stderr_task);
+
+    let status = match child.wait().await {
+        Ok(v) => v,
+        Err(e) => {
+            let msg = e.to_string();
+            let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+            return json!({"ok": false, "error": msg});
+        }
+    };
+
+    if !status.success() {
+        let msg = format!("飞书插件安装失败（退出码 {}）", status.code().unwrap_or(-1));
+        let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "exitCode": status.code().unwrap_or(-1), "error": msg}));
+        return json!({"ok": false, "error": msg, "exitCode": status.code().unwrap_or(-1)});
+    }
+
+    let Some(version) = installed_feishu_plugin_version() else {
+        let msg = "飞书插件安装完成，但未检测到完整的 openclaw-lark 目录".to_string();
+        let _ = app.emit("channel:done", json!({"flowId": &flow_id, "ok": false, "error": msg}));
+        return json!({"ok": false, "error": msg});
+    };
+
+    match tokio::task::spawn_blocking(move || run_feishu_existing_plugin_flow(app, flow_id, version)).await {
+        Ok(v) => v,
+        Err(e) => json!({"ok": false, "error": e.to_string()}),
+    }
+}
+
 /// 流式运行渠道 QR 登录命令，逐行向前端推送事件：
 /// - `channel:line`  → `{flowId, stream: "stdout"|"stderr", line: string}`
 /// - `channel:qr`    → `{flowId, url: string}`（检测到 https:// 行时）
@@ -347,17 +813,16 @@ pub async fn start_channel_qr_flow(
         None => return json!({"ok": false, "error": "找不到 openclaw，请先完成安装向导"}),
     };
 
+    if channel == "feishu" {
+        return run_feishu_install_and_config_flow(app, flow_id, exe).await;
+    }
+
     // 飞书使用独立的 npx 安装命令；微信/WhatsApp 走 openclaw CLI 登录。
     let (exe_resolved, args_resolved): (String, Vec<String>) = match channel.as_str() {
         "whatsapp" => (
             exe,
             vec!["channels".into(), "login".into(), "--channel".into(), "whatsapp".into()],
         ),
-        "feishu" => {
-            // 查找 npx（Windows 上通常是 npx.cmd）
-            let npx = resolve_npx_executable().unwrap_or_else(|| "npx".into());
-            (npx, vec!["-y".into(), "@larksuite/openclaw-lark".into(), "install".into()])
-        }
         "wechat" => (
             exe,
             vec![
