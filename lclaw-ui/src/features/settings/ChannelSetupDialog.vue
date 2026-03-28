@@ -569,6 +569,8 @@ const wecomSecret = ref("");
 
 // WeCom plugin install
 const wecomPluginInstalling = ref(false);
+const wecomPluginInstalled = ref<boolean | null>(null);
+const wecomPluginChecking = ref(false);
 
 const WECOM_PLUGIN_SPEC = "@wecom/wecom-openclaw-plugin";
 const WHATSAPP_PLUGIN_SPEC = "@openclaw/whatsapp";
@@ -767,19 +769,66 @@ async function ensureChannelReady(
   return true;
 }
 
-async function installWecomPlugin(): Promise<void> {
+async function refreshWecomPluginInstalled(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (!api?.checkChannelPluginInstalled) {
+    wecomPluginInstalled.value = null;
+    return;
+  }
+  wecomPluginChecking.value = true;
+  try {
+    const result = await api.checkChannelPluginInstalled("wecom");
+    if (result.ok) {
+      wecomPluginInstalled.value = result.installed;
+    } else {
+      wecomPluginInstalled.value = null;
+    }
+  } catch {
+    wecomPluginInstalled.value = null;
+  } finally {
+    wecomPluginChecking.value = false;
+  }
+}
+
+async function ensureWecomPluginInstalled(): Promise<boolean> {
+  const api = getDidClawDesktopApi();
+  if (api?.checkChannelPluginInstalled) {
+    try {
+      const installedState = await api.checkChannelPluginInstalled("wecom");
+      if (installedState.ok) {
+        wecomPluginInstalled.value = installedState.installed;
+        if (installedState.installed) {
+          return true;
+        }
+      }
+    } catch {
+      /* fall through to install path */
+    }
+  }
+
   wecomPluginInstalling.value = true;
   try {
-    await ensureChannelReady("wecom", {
+    const ready = await ensureChannelReady("wecom", {
       installPlugin: true,
-      successToast: t("channel.pluginInstallOk"),
+      installFailureMessage: t("channel.wecom.installFail"),
     });
-  } catch (e) {
-    showToast(t("channel.pluginInstallFail") + `：${e}`, true);
+    if (ready) {
+      wecomPluginInstalled.value = true;
+    }
+    return ready;
   } finally {
     wecomPluginInstalling.value = false;
   }
 }
+
+const wecomPrimaryActionLabel = computed(() => {
+  if (busy.value || wecomPluginInstalling.value) {
+    return t("common.saving");
+  }
+  return wecomPluginInstalled.value === true
+    ? t("channel.wecom.saveAndEnableBtn")
+    : t("channel.wecom.installAndSaveBtn");
+});
 
 async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
   const api = getDidClawDesktopApi();
@@ -828,17 +877,16 @@ async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
   busy.value = true;
   try {
     if (channelKey === "wecom") {
-      wecomPluginInstalling.value = true;
-      const ready = await ensureChannelReady("wecom", {
-        installPlugin: true,
-      });
-      wecomPluginInstalling.value = false;
+      const ready = await ensureWecomPluginInstalled();
       if (!ready) {
         return;
       }
     }
     const r = await api.writeChannelConfig(channelKey, payload);
     if (r.ok) {
+      if (channelKey === "wecom") {
+        wecomPluginInstalled.value = true;
+      }
       showToast(t("channel.saveOk"));
     } else {
       showToast(t("channel.saveFail") + `：${(r as { error: string }).error}`, true);
@@ -846,7 +894,6 @@ async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
   } catch (e) {
     showToast(t("channel.saveFail") + `：${e}`, true);
   } finally {
-    wecomPluginInstalling.value = false;
     busy.value = false;
   }
 }
@@ -1199,6 +1246,16 @@ watch(
   },
 );
 
+watch(
+  () => [props.modelValue, activeTab.value] as const,
+  ([dialogOpen, tab]) => {
+    if (dialogOpen && tab === "wecom") {
+      void refreshWecomPluginInstalled();
+    }
+  },
+  { immediate: true },
+);
+
 onUnmounted(() => {
   if (autoCloseTimer !== null) {
     clearTimeout(autoCloseTimer);
@@ -1548,15 +1605,20 @@ onUnmounted(() => {
               <a :href="t('channel.wecom.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
             </p>
 
-            <!-- Plugin install -->
-            <div class="ch-plugin-row">
-              <code class="ch-code">{{ WECOM_PLUGIN_SPEC }}</code>
-              <button
-                type="button"
-                class="ch-btn ch-btn--sm"
-                :disabled="wecomPluginInstalling"
-                @click="installWecomPlugin"
-              >{{ wecomPluginInstalling ? t('channel.pluginInstalling') : t('channel.pluginInstallBtn') }}</button>
+            <div class="ch-install-card">
+              <div class="ch-install-cmd-row">
+                <code class="ch-code ch-code--block">{{ WECOM_PLUGIN_SPEC }}</code>
+              </div>
+              <div class="ch-qr-status" style="margin-top: 8px;">
+                <span v-if="wecomPluginInstalling" class="ch-status-running">{{ t('channel.pluginInstalling') }}</span>
+                <span v-else-if="wecomPluginChecking" class="ch-status-idle">{{ t('channel.wecom.pluginChecking') }}</span>
+                <span v-else-if="wecomPluginInstalled === true" class="ch-status-ok">✓ {{ t('channel.wecom.pluginInstalled') }}</span>
+                <span v-else-if="wecomPluginInstalled === false" class="ch-status-idle">{{ t('channel.wecom.pluginMissing') }}</span>
+                <span v-else class="ch-status-idle">{{ t('channel.wecom.pluginAutoInstall') }}</span>
+              </div>
+              <p class="ch-restart-hint" style="margin-top: 8px;">
+                {{ t('channel.wecom.quickHint') }}
+              </p>
             </div>
 
             <div class="ch-form">
@@ -1567,8 +1629,8 @@ onUnmounted(() => {
             </div>
             <p class="ch-restart-hint">{{ t('channel.restartHint') }}</p>
             <div class="ch-actions">
-              <button type="button" class="ch-btn ch-btn--primary" :disabled="busy" @click="saveCredentialChannel('wecom')">
-                {{ busy ? t('common.saving') : t('channel.saveBtn') }}
+              <button type="button" class="ch-btn ch-btn--primary" :disabled="busy || wecomPluginInstalling" @click="saveCredentialChannel('wecom')">
+                {{ wecomPrimaryActionLabel }}
               </button>
             </div>
           </div>

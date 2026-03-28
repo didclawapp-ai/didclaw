@@ -208,6 +208,7 @@ pub fn write_channel_config(channel_key: &str, payload: Value) -> Value {
 pub fn check_channel_plugin_installed(channel: &str) -> Value {
     let plugin_id = match channel {
         "wechat" => "openclaw-weixin",
+        "wecom" => "wecom-openclaw-plugin",
         _ => {
             return json!({
                 "ok": false,
@@ -393,48 +394,6 @@ fn first_url_token(s: &str) -> Option<&str> {
                 || token.starts_with("data:image/")
         })
         .map(|token| token.trim_matches(|c| matches!(c, '"' | '\'' | '(' | ')' | '[' | ']')))
-}
-
-/// 查找 npx 可执行文件（Windows 优先 npx.cmd，fallback 到 PATH 中的 npx）。
-fn resolve_npx_executable() -> Option<String> {
-    #[cfg(windows)]
-    {
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            let p = std::path::PathBuf::from(&appdata).join("npm").join("npx.cmd");
-            if p.is_file() {
-                return Some(p.to_string_lossy().into_owned());
-            }
-        }
-        for base in &[r"C:\Program Files\nodejs", r"C:\Program Files (x86)\nodejs"] {
-            let p = std::path::PathBuf::from(base).join("npx.cmd");
-            if p.is_file() {
-                return Some(p.to_string_lossy().into_owned());
-            }
-        }
-        if let Ok(out) = std::process::Command::new("where").arg("npx").output() {
-            if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout);
-                if let Some(line) = s.lines().next() {
-                    let t = line.trim();
-                    if !t.is_empty() { return Some(t.to_owned()); }
-                }
-            }
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        for c in &["/usr/local/bin/npx", "/usr/bin/npx"] {
-            if std::path::Path::new(c).is_file() { return Some(c.to_string()); }
-        }
-        if let Ok(out) = std::process::Command::new("which").arg("npx").output() {
-            if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout);
-                let t = s.trim();
-                if !t.is_empty() { return Some(t.to_owned()); }
-            }
-        }
-    }
-    None
 }
 
 fn installed_feishu_plugin_version() -> Option<String> {
