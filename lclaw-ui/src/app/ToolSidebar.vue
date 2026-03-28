@@ -13,17 +13,14 @@ import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useSessionStore } from "@/stores/session";
-import { useThemeStore } from "@/stores/theme";
 import { storeToRefs } from "pinia";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { i18n, type LocaleCode } from "@/i18n";
 
 const { t } = useI18n();
 const gw = useGatewayStore();
 const session = useSessionStore();
 const chat = useChatStore();
-const themeStore = useThemeStore();
 const localSettings = useLocalSettingsStore();
 
 const { status, lastError, helloInfo, url } = storeToRefs(gw);
@@ -46,11 +43,6 @@ let copyTimer: number | null = null;
 const showGatewayLocal = computed({
   get: () => localSettings.visible,
   set: (v: boolean) => { if (!v) localSettings.close(); },
-});
-
-const currentLocale = computed({
-  get: () => (i18n.global.locale as { value: LocaleCode }).value,
-  set: (v: LocaleCode) => localSettings.switchLocale(v),
 });
 
 function onMouseEnter(): void {
@@ -171,43 +163,6 @@ function onRedoFirstRunWizard(): void {
           <span class="ts-icon" aria-hidden="true">&#x2699;</span>
           <span class="ts-label">{{ t('header.skillsBtn') }}</span>
         </button>
-      </li>
-
-      <li class="ts-sep" role="separator" />
-
-      <li>
-        <button
-          type="button"
-          class="ts-item"
-          :title="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
-          @click="themeStore.toggle()"
-        >
-          <span class="ts-icon" aria-hidden="true">{{ themeStore.mode === 'dark' ? '&#x2600;' : '&#x1F319;' }}</span>
-          <span class="ts-label">{{ themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark') }}</span>
-        </button>
-      </li>
-      <li>
-        <div class="ts-locale-row">
-          <span class="ts-icon" aria-hidden="true">&#x1F310;</span>
-          <div class="ts-locale-switcher" :aria-label="t('settings.languageLabel')">
-            <button
-              type="button"
-              class="ts-locale-btn"
-              :class="{ active: currentLocale === 'zh' }"
-              @click="currentLocale = 'zh'"
-            >
-              中
-            </button>
-            <button
-              type="button"
-              class="ts-locale-btn"
-              :class="{ active: currentLocale === 'en' }"
-              @click="currentLocale = 'en'"
-            >
-              EN
-            </button>
-          </div>
-        </div>
       </li>
 
       <li class="ts-sep" role="separator" />
@@ -365,40 +320,4 @@ function onRedoFirstRunWizard(): void {
   background: var(--lc-border);
 }
 
-.ts-locale-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 16px;
-}
-
-.ts-locale-switcher {
-  display: flex;
-  gap: 2px;
-}
-
-.ts-locale-btn {
-  padding: 2px 7px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-border);
-  background: transparent;
-  color: var(--lc-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  line-height: 1.6;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-
-.ts-locale-btn.active {
-  background: var(--lc-accent-soft);
-  border-color: var(--lc-accent);
-  color: var(--lc-accent);
-}
-
-.ts-locale-btn:hover:not(.active) {
-  border-color: var(--lc-border-strong);
-  color: var(--lc-text);
-}
 </style>

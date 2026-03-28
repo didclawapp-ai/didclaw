@@ -1,11 +1,16 @@
 <script setup lang="ts">
+import { i18n, type LocaleCode } from "@/i18n";
 import { useGatewayStore } from "@/stores/gateway";
+import { useLocalSettingsStore } from "@/stores/localSettings";
+import { useThemeStore } from "@/stores/theme";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
 const gw = useGatewayStore();
+const localSettings = useLocalSettingsStore();
+const themeStore = useThemeStore();
 const { status, lastError, url } = storeToRefs(gw);
 
 const inlineError = ref<string | null>(null);
@@ -59,6 +64,11 @@ const connLedAriaLabel = computed(() => {
   }
 });
 
+const currentLocale = computed({
+  get: () => (i18n.global.locale as { value: LocaleCode }).value,
+  set: (v: LocaleCode) => localSettings.switchLocale(v),
+});
+
 function showInlineError(msg: string): void {
   inlineError.value = msg;
   if (errorTimer !== null) clearTimeout(errorTimer);
@@ -100,6 +110,35 @@ defineExpose({ showInlineError });
           <h1 class="brand-title">
             <span class="brand-d">D</span><span class="brand-mid">idCl</span><span class="brand-tail">aw</span>
           </h1>
+        </div>
+        <div class="header-quick-tools">
+          <button
+            type="button"
+            class="header-theme-btn"
+            :title="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
+            @click="themeStore.toggle()"
+          >
+            <span aria-hidden="true">{{ themeStore.mode === 'dark' ? '☀' : '☾' }}</span>
+            <span>{{ themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark') }}</span>
+          </button>
+          <div class="header-locale-switcher" :aria-label="t('settings.languageLabel')">
+            <button
+              type="button"
+              class="header-locale-btn"
+              :class="{ active: currentLocale === 'zh' }"
+              @click="currentLocale = 'zh'"
+            >
+              中
+            </button>
+            <button
+              type="button"
+              class="header-locale-btn"
+              :class="{ active: currentLocale === 'en' }"
+              @click="currentLocale = 'en'"
+            >
+              EN
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -182,6 +221,61 @@ defineExpose({ showInlineError });
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+.header-quick-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 10px;
+}
+.header-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--lc-border);
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.header-theme-btn:hover {
+  border-color: var(--lc-border-strong);
+  background: var(--lc-bg-hover);
+  color: var(--lc-text);
+}
+.header-locale-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+}
+.header-locale-btn {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.6;
+  transition: background 0.12s, color 0.12s;
+}
+.header-locale-btn.active {
+  background: var(--lc-accent-soft);
+  color: var(--lc-accent);
+}
+.header-locale-btn:hover:not(.active) {
+  color: var(--lc-text);
 }
 
 /* Connection LED */

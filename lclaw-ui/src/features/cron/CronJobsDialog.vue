@@ -85,31 +85,69 @@ const deleteAfterRun = ref(true);
 
 /** 投递（隔离任务）；主会话任务不展示 */
 const deliveryMode = ref<"none" | "announce">("announce");
-const deliveryChannel = ref("last");
+type DeliveryChannel = "last" | "whatsapp" | "feishu" | "wecom";
+const deliveryChannel = ref<DeliveryChannel>("last");
 const deliveryTo = ref("");
 const deliveryBestEffort = ref(true);
+
+const deliveryChannelOptions = computed((): { value: DeliveryChannel; label: string }[] => [
+  { value: "last", label: t("cron.deliveryChannelLast") },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "feishu", label: "Feishu" },
+  { value: "wecom", label: "WeCom" },
+]);
+
+function deliveryChannelLabel(channel: DeliveryChannel): string {
+  return deliveryChannelOptions.value.find((item) => item.value === channel)?.label ?? channel;
+}
+
+function inferDeliveryTargetFromSessionKey(sessionKey: string | null | undefined): {
+  channel: DeliveryChannel;
+  to: string;
+} | null {
+  if (!sessionKey) {
+    return null;
+  }
+  const whatsappDirect = sessionKey.match(/^agent:[^:]+:whatsapp:direct:(.+)$/);
+  if (whatsappDirect?.[1]) {
+    return { channel: "whatsapp", to: whatsappDirect[1] };
+  }
+  const feishuDirect = sessionKey.match(/^agent:[^:]+:feishu:direct:(.+)$/);
+  if (feishuDirect?.[1]) {
+    return { channel: "feishu", to: feishuDirect[1] };
+  }
+  return null;
+}
+
+function applyDeliveryPrefillFromActiveSession(): void {
+  const inferred = inferDeliveryTargetFromSessionKey(sessions.activeSessionKey);
+  if (!inferred) {
+    deliveryChannel.value = "last";
+    deliveryTo.value = "";
+    return;
+  }
+  deliveryChannel.value = inferred.channel;
+  deliveryTo.value = inferred.to;
+}
 
 /** 选了具体频道（非 last/空）时，to 字段为必填 */
 const deliveryToRequired = computed(
   () =>
     deliveryMode.value === "announce" &&
-    deliveryChannel.value !== "" &&
     deliveryChannel.value !== "last",
 );
 
 /** 根据所选频道返回对应的 to 字段占位提示 */
 const deliveryToPlaceholder = computed((): string => {
   switch (deliveryChannel.value) {
-    case "whatsapp":    return t("cron.deliveryToPlaceholderWhatsapp");
-    case "telegram":   return t("cron.deliveryToPlaceholderTelegram");
-    case "slack":      return t("cron.deliveryToPlaceholderSlack");
-    case "discord":    return t("cron.deliveryToPlaceholderDiscord");
-    case "mattermost": return t("cron.deliveryToPlaceholderMattermost");
-    case "signal":     return t("cron.deliveryToPlaceholderSignal");
-    case "imessage":   return t("cron.deliveryToPlaceholderImessage");
-    default:           return t("cron.deliveryToPlaceholder");
+    case "whatsapp": return t("cron.deliveryToPlaceholderWhatsapp");
+    case "feishu": return t("cron.deliveryToPlaceholderFeishu");
+    case "wecom": return t("cron.deliveryToPlaceholderWecom");
+    default: return t("cron.deliveryToPlaceholder");
   }
 });
+
+const activeSessionDeliveryPrefill = computed(() => inferDeliveryTargetFromSessionKey(sessions.activeSessionKey));
 
 const createBusy = ref(false);
 const createError = ref<string | null>(null);
@@ -144,8 +182,7 @@ function resetCreateForm(): void {
   timeoutSecondsInput.value = "";
   deleteAfterRun.value = true;
   deliveryMode.value = "announce";
-  deliveryChannel.value = "last";
-  deliveryTo.value = "";
+  applyDeliveryPrefillFromActiveSession();
   deliveryBestEffort.value = true;
   quickSchedule.value = "daily";
   quickScheduleTime.value = "09:00";
@@ -842,6 +879,17 @@ watch(simpleNotify, (v) => {
   deliveryMode.value = v ? "announce" : "none";
 }, { immediate: true });
 
+watch(
+  [open, panelTab],
+  ([dialogOpen, tab], [prevOpen, prevTab]) => {
+    const enteringCreate = dialogOpen && tab === "create" && (!prevOpen || prevTab !== "create");
+    if (enteringCreate) {
+      resetCreateForm();
+    }
+  },
+  { immediate: false },
+);
+
 
 function buildSchedule():
   | { kind: "at"; at: string }
@@ -929,7 +977,7 @@ async function submitCreate(): Promise<void> {
     }
   }
   if (sessionTarget.value === "isolated" && deliveryToRequired.value && !deliveryTo.value.trim()) {
-    createError.value = t("cron.errNoDeliveryTo", { channel: deliveryChannel.value });
+    createError.value = t("cron.errNoDeliveryTo", { channel: deliveryChannelLabel(deliveryChannel.value) });
     return;
   }
 
@@ -1451,14 +1499,13 @@ async function removeJob(jobId: string): Promise<void> {
                 <label class="cron-field">
                   <span class="cron-label">{{ t('cron.deliveryChannelLabel') }}</span>
                   <select v-model="deliveryChannel" class="cron-select">
-                    <option value="last">{{ t('cron.deliveryChannelLast') }}</option>
-                    <option value="slack">Slack</option>
-                    <option value="telegram">Telegram</option>
-                    <option value="discord">Discord</option>
-                    <option value="whatsapp">WhatsApp</option>
-                    <option value="signal">Signal</option>
-                    <option value="imessage">iMessage</option>
-                    <option value="mattermost">Mattermost</option>
+                    <option
+                      v-for="opt in deliveryChannelOptions"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.label }}
+                    </option>
                   </select>
                 </label>
                 <label class="cron-field">
@@ -1470,6 +1517,15 @@ async function removeJob(jobId: string): Promise<void> {
                   <input v-model="deliveryTo" type="text" class="cron-input"
                     :placeholder="deliveryToPlaceholder" />
                 </label>
+                <p
+                  v-if="activeSessionDeliveryPrefill && deliveryTo === activeSessionDeliveryPrefill.to && deliveryChannel === activeSessionDeliveryPrefill.channel"
+                  class="muted small cron-field-hint"
+                >
+                  {{ t('cron.deliveryPrefillHint', { channel: deliveryChannelLabel(activeSessionDeliveryPrefill.channel) }) }}
+                </p>
+                <p class="muted small cron-field-hint">
+                  {{ t('cron.deliveryChannelHint') }}
+                </p>
                 <label class="cron-check">
                   <input v-model="deliveryBestEffort" type="checkbox" />
                   {{ t('cron.deliveryBestEffort') }}
