@@ -42,7 +42,11 @@ async function fetchAllHealth(): Promise<void> {
       { probe: false, timeoutMs: 8000 },
     );
     whatsAppHealth.value = parseChannelEntry(res?.channels?.whatsapp);
-    wechatHealth.value = parseChannelEntry(res?.channels?.wechat);
+    // WeChat personal channel is registered by plugin id `openclaw-weixin`.
+    // Keep a legacy `wechat` fallback in case an older gateway aliases it.
+    wechatHealth.value = parseChannelEntry(
+      res?.channels?.["openclaw-weixin"] ?? res?.channels?.wechat,
+    );
   } catch {
     // leave values unchanged on error
   }

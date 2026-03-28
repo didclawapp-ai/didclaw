@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useChannelHealth, queryWechatHealthNow } from "@/composables/useChannelHealth";
 import { useGatewayStore } from "@/stores/gateway";
+import { useSessionStore } from "@/stores/session";
 import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 import { storeToRefs } from "pinia";
 import { computed, ref, onUnmounted, watch } from "vue";
@@ -9,9 +10,12 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import QRCode from "qrcode";
 
 const WECHAT_PLUGIN_SPEC = "@tencent-weixin/openclaw-weixin";
+const WECHAT_SESSION_PREFIX = "agent:main:openclaw-weixin:";
 
 const gw = useGatewayStore();
+const sessionStore = useSessionStore();
 const { status: gwStatus } = storeToRefs(gw);
+const { sessions } = storeToRefs(sessionStore);
 const { wechatHealth } = useChannelHealth();
 
 const popupOpen = ref(false);
@@ -33,21 +37,30 @@ function cleanupListeners(): void {
 
 type IndicatorColor = "green" | "amber" | "red" | "gray";
 
+const hasWechatSession = computed(() =>
+  sessions.value.some((row) => row.key.startsWith(WECHAT_SESSION_PREFIX) && row.localOnly !== true),
+);
+
 const indicatorColor = computed<IndicatorColor>(() => {
-  if (gwStatus.value !== "connected" || !wechatHealth.value) return "gray";
+  if (gwStatus.value !== "connected") return "gray";
+  if (!wechatHealth.value) return hasWechatSession.value ? "green" : "gray";
   const h = wechatHealth.value;
-  if (h.linked && h.running && h.connected) return "green";
-  if (h.linked) return "amber";
+  // WeChat plugin health may not expose a stable `linked` flag.
+  // If the channel is already running and connected, treat it as ready.
+  if ((h.running && h.connected) || hasWechatSession.value) return "green";
+  if (h.linked || h.running || h.connected) return "amber";
   return "red";
 });
 
 const indicatorTitle = computed(() => {
   if (gwStatus.value !== "connected") return "Gateway 未连接";
-  if (!wechatHealth.value) return "微信状态未知";
+  if (!wechatHealth.value) return hasWechatSession.value ? "微信已连接" : "微信状态未知";
   const h = wechatHealth.value;
-  if (h.linked && h.running && h.connected) return "微信已连接";
+  if ((h.running && h.connected) || hasWechatSession.value) return "微信已连接";
   if (h.linked && !h.running) return "微信会话已绑定但未运行";
   if (h.linked && !h.connected) return "微信会话已绑定但未连接";
+  if (h.running && !h.connected) return "微信渠道已启动但未连接";
+  if (!h.running && h.connected) return "微信渠道连接中";
   return "微信未关联";
 });
 
@@ -88,6 +101,23 @@ onUnmounted(() => {
 
 function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+async function ensureGatewayConnected(timeoutMs = 18000): Promise<boolean> {
+  const isConnected = () => (gwStatus.value as string) === "connected";
+  if (isConnected()) return true;
+  await delay(2000);
+  if (isConnected()) return true;
+  await gw.reloadConnection();
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (isConnected()) {
+      await delay(800);
+      return true;
+    }
+    await delay(500);
+  }
+  return false;
 }
 
 async function waitForGatewayConnected(timeoutMs = 25000): Promise<boolean> {
@@ -201,6 +231,14 @@ async function startQrFlow(): Promise<void> {
   const pluginReady = await ensureWechatPluginInstalled();
   if (!pluginReady) return;
 
+  if (gwStatus.value !== "connected") {
+    qrMessage.value = "网关正在重启，等待恢复连接…";
+    const reconnected = await ensureGatewayConnected();
+    qrMessage.value = reconnected
+      ? "网关已恢复连接，正在启动微信登录…"
+      : "网关重连超时，仍将尝试启动微信登录…";
+  }
+
   qrMessage.value = "正在启动微信登录…";
   cleanupListeners();
   const flowId = crypto.randomUUID();
@@ -271,16 +309,26 @@ async function onWechatScanSuccess(): Promise<void> {
   }
 
   await delay(5000);
-  const h = await queryWechatHealthNow();
-  if (h?.running) {
+  if (gwStatus.value === "connected") {
+    const h = await queryWechatHealthNow();
+    if (h?.running) {
+      qrState.value = "success";
+      qrMessage.value = "微信关联成功";
+      scheduleAutoClose();
+      return;
+    }
+  }
+
+  qrMessage.value = "等待 Gateway 恢复连接…";
+  const reconnected = await ensureGatewayConnected(35000);
+  if (!reconnected) {
     qrState.value = "success";
-    qrMessage.value = "微信关联成功";
-    scheduleAutoClose();
+    qrMessage.value = "绑定成功，但 Gateway 仍在初始化，请稍后重试或手动重启 Gateway";
     return;
   }
 
-  await gw.reloadConnection();
-  const deadline = Date.now() + 30000;
+  qrMessage.value = "Gateway 已恢复，正在校验微信渠道状态…";
+  const deadline = Date.now() + 35000;
   while (Date.now() < deadline) {
     await delay(1000);
     if (gwStatus.value === "connected") {
@@ -378,8 +426,8 @@ function scheduleAutoClose(): void {
         <template v-else-if="indicatorColor === 'amber'">
           <div class="wc-popup-status wc-popup-status--warn">
             {{ wechatHealth?.lastError
-              ? `已绑定，未运行（${wechatHealth.lastError}）`
-              : '已绑定，渠道未运行' }}
+              ? `微信渠道未就绪（${wechatHealth.lastError}）`
+              : '微信渠道未完全就绪' }}
           </div>
           <div
             v-if="reconnectMessage"
