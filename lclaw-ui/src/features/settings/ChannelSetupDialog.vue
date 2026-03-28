@@ -265,7 +265,7 @@ async function startWechatInstall(): Promise<void> {
       return;
     }
     // 扫码成功后：
-    // 1. 显式写入 openclaw.json 的 channels.wechat.enabled = true，确保网关加载此渠道
+    // 1. 显式写入 openclaw.json 的 channels.openclaw-weixin.enabled = true，确保网关加载此渠道
     // 2. 耐心等待 Gateway 自行重载（微信插件加载需要 10-25s），不主动 kill 进程
     //    - 先等 5s 沉淀（CLI 退出后 Gateway 可能正在重启，立刻 reloadConnection 会打断）
     //    - 再轮询最多 35s，Gateway 自行恢复则直接标记成功
@@ -274,7 +274,7 @@ async function startWechatInstall(): Promise<void> {
     void (async () => {
       const writeApi = getDidClawDesktopApi();
       if (writeApi?.writeChannelConfig) {
-        const writeResult = await writeApi.writeChannelConfig("wechat", { enabled: true });
+        const writeResult = await writeApi.writeChannelConfig("openclaw-weixin", { enabled: true });
         if (!writeResult.ok) {
           pushWechatLines(`⚠ 写入渠道配置失败（${(writeResult as { error?: string }).error ?? "unknown"}），网关可能不会自动加载微信渠道。`);
         }

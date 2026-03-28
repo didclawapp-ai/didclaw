@@ -266,7 +266,7 @@ async function onWechatScanSuccess(): Promise<void> {
   const writeApi = getDidClawDesktopApi();
   if (writeApi?.writeChannelConfig) {
     try {
-      await writeApi.writeChannelConfig("wechat", { enabled: true });
+      await writeApi.writeChannelConfig("openclaw-weixin", { enabled: true });
     } catch { /* ignore */ }
   }
 

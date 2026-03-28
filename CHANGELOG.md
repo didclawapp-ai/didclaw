@@ -19,6 +19,7 @@
 
 ### 修复
 
+- **微信渠道配置写入 key 错误**：`writeChannelConfig("wechat", ...)` 写入的是 OpenClaw 不认识的 channel id `wechat`，导致 `openclaw doctor` 报 `unknown channel id: wechat`。正确 channel key 为插件注册名 `openclaw-weixin`。修复 `ChannelSetupDialog.vue` 和 `WeChatIndicator.vue` 两处调用，并清理已污染的 `~/.openclaw/openclaw.json` 中的 `channels.wechat` 字段。
 - **OpenClaw 卸载后 FirstRunWizard 不弹出**：用户此前完成过初始化向导后，`isFirstRunModelStepComplete()` 标记留在 KV 中。如果之后卸载了 OpenClaw（`~/.openclaw` 目录不存在），向导仍被跳过。修复：在 `refreshStatus` 中优先检查 `openclawDirExists`，若为 false 则无论 KV 标记如何均显示环境安装步骤。同时在 WhatsApp 指示器的自动安装流程中增加 OpenClaw 环境预检，未安装时提示用户先完成初始化。
 - **WhatsApp 扫码绑定成功后渠道未运行**：扫码绑定成功（`linked=true`）但渠道进程未启动（`running=false`），点击"重新连接"仅发一次 `web.login.start` 无后续验证。修复：① 扫码成功后等待 3 秒验证渠道 `running` 状态，若仍未启动则自动重启 Gateway 并等待渠道就绪；② "重新连接"按钮改为渐进式策略：先尝试 `web.login.start` + 等待验证，失败后自动升级为 Gateway 重启，并在弹窗中实时显示进度文字；③ 后台自动恢复（`tryAutoRecovery`）同样增加 Gateway 重启兜底，覆盖 `linked=true, running=false` 长期停滞的场景。
 - **WhatsApp「已绑定」状态与官方 UI 不一致**：当 WhatsApp 会话 `linked=true` 但渠道实际未运行（`running=false`）或未连接（`connected=false`）时，DidClaw 仍显示绿色「已有绑定会话，无需重新扫码」。修复：在检测到无需扫码后额外调用 `channels.status` 获取完整渠道健康状态（`running`、`connected`、`lastError`），若渠道未正常运行则以警告色显示具体原因（含网关返回的 `lastError`），并提示用户「重新连接」或「重启 Gateway」；此状态下不再自动关闭对话框。
