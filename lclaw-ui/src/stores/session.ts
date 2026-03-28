@@ -42,8 +42,34 @@ export const useSessionStore = defineStore("session", () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const activeSessionKey = ref<string | null>(null);
+  const hiddenSessionClosedAt = ref<Record<string, number>>({});
 
   const activeSession = computed(() => sessions.value.find((s) => s.key === activeSessionKey.value) ?? null);
+
+  function filterVisibleServerSessions(rows: SessionRow[]): SessionRow[] {
+    const hidden = hiddenSessionClosedAt.value;
+    let nextHidden: Record<string, number> | null = null;
+    const visible = rows.filter((row) => {
+      if (row.key === DEFAULT_MAIN_SESSION_KEY) {
+        return true;
+      }
+      const closedAt = hidden[row.key];
+      if (closedAt == null) {
+        return true;
+      }
+      const lastActiveAt = typeof row.lastActiveAt === "number" ? row.lastActiveAt : 0;
+      if (lastActiveAt > closedAt) {
+        nextHidden = nextHidden ?? { ...hidden };
+        delete nextHidden[row.key];
+        return true;
+      }
+      return false;
+    });
+    if (nextHidden) {
+      hiddenSessionClosedAt.value = nextHidden;
+    }
+    return visible;
+  }
 
   /**
    * 刷新会话列表。
@@ -74,7 +100,9 @@ export const useSessionStore = defineStore("session", () => {
         return false;
       }
       const list = parsed.data.sessions ?? [];
-      const serverSessions = list.filter((s) => typeof s.key === "string") as SessionRow[];
+      const serverSessions = filterVisibleServerSessions(
+        list.filter((s) => typeof s.key === "string") as SessionRow[],
+      );
 
       let merged: SessionRow[];
       if (serverSessions.length === 0) {
@@ -158,6 +186,33 @@ export const useSessionStore = defineStore("session", () => {
     await chat.loadHistory();
   }
 
+  async function closeSession(key: string): Promise<void> {
+    if (!key || key === DEFAULT_MAIN_SESSION_KEY) {
+      return;
+    }
+    hiddenSessionClosedAt.value = {
+      ...hiddenSessionClosedAt.value,
+      [key]: Date.now(),
+    };
+
+    let nextSessions = sessions.value.filter((row) => row.key !== key);
+    if (!nextSessions.some((row) => row.key === DEFAULT_MAIN_SESSION_KEY)) {
+      nextSessions = [{ key: DEFAULT_MAIN_SESSION_KEY, label: "main" }, ...nextSessions];
+    }
+    sessions.value = nextSessions;
+
+    if (activeSessionKey.value !== key) {
+      return;
+    }
+    const fallbackKey =
+      nextSessions.find((row) => row.key === DEFAULT_MAIN_SESSION_KEY)?.key ?? nextSessions[0]?.key ?? null;
+    if (!fallbackKey) {
+      activeSessionKey.value = null;
+      return;
+    }
+    await selectSession(fallbackKey);
+  }
+
   return {
     sessions,
     loading,
@@ -166,6 +221,7 @@ export const useSessionStore = defineStore("session", () => {
     activeSession,
     refresh,
     selectSession,
+    closeSession,
     patchSessionModel,
   };
 });

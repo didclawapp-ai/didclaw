@@ -134,6 +134,10 @@ const sessionSelectOptions = computed(() =>
   })),
 );
 
+const canCloseActiveSession = computed(
+  () => Boolean(activeSessionKey.value) && activeSessionKey.value !== "agent:main:main",
+);
+
 /** 有注册表行或已有 primary 时显示下拉（纯空配置仅保留「管理模型」） */
 const showOpenClawModelSelect = computed(
   () =>
@@ -269,6 +273,14 @@ function onSessionSelectChange(key: string): void {
   void session.selectSession(key);
 }
 
+function closeActiveSession(): void {
+  const key = activeSessionKey.value;
+  if (!key || key === "agent:main:main") {
+    return;
+  }
+  void session.closeSession(key);
+}
+
 function newChat(): void {
   void session.selectSession(window.crypto.randomUUID());
 }
@@ -352,6 +364,15 @@ async function pickLocalFileForPreview(): Promise<void> {
                   {{ row.flashing ? "• " : "" }}{{ row.label }}
                 </option>
               </select>
+              <button
+                v-if="canCloseActiveSession"
+                type="button"
+                class="lc-btn lc-btn-ghost lc-btn-xs session-close-btn"
+                :title="'关闭当前会话（仅从列表隐藏；后续有新消息会再次出现）'"
+                @click="closeActiveSession"
+              >
+                关闭
+              </button>
               <div v-if="isDidClawElectron()" class="session-model-tools">
                 <select
                   v-if="showOpenClawModelSelect"
@@ -693,6 +714,10 @@ async function pickLocalFileForPreview(): Promise<void> {
 .session-switch-select:disabled {
   opacity: 0.55;
   cursor: wait;
+}
+.session-close-btn {
+  flex-shrink: 0;
+  padding-inline: 8px;
 }
 .session-model-tools {
   display: flex;

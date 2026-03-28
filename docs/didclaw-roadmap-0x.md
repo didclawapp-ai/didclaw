@@ -237,6 +237,51 @@
 
 ---
 
+### P1-6 会话多窗口（Multi-Window Sessions）
+
+**目标**：允许用户将任意会话弹出到独立窗口，同时观察 / 操作多个会话（如 `main`、WhatsApp、微信子会话并行），为后续多 Agent 并行运行打下基础。
+
+**背景与动机**
+- 当前架构为严格的单窗口 + 单活跃会话：全局唯一 `activeSessionKey`、单一 `messages` 缓冲、一个 Tauri 窗口
+- Channel 接入（P1-3）引入了多子会话（`openclaw-weixin:direct:<id>` 等），用户已有并行查看需求
+- 未来多 Agent 场景（每个 Agent 独立 session）需要 UI 同时展示多个会话的能力；本条目完成后，多 Agent 仅需增加 Agent 管理层，无需再改窗口/状态架构
+
+**技术方案**
+
+_Phase 1 — 状态架构改造（per-window session context）_
+- 引入 `windowId` 概念：主窗口 `main`，弹出窗口 `session:<sessionKey>`
+- 将 `session.activeSessionKey` + `chat.messages` 从全局单例改为 per-window 上下文（Map 或 `provide/inject` 作用域 store）
+- Gateway 事件分发器根据事件中 `sessionKey` 将 `chat` / `agent` delta 路由到对应 window context，而非只推送给"当前活跃会话"
+- Exec 审批（`approval.ts`）保持全局：任何窗口均可响应
+
+_Phase 2 — Tauri 多窗口_
+- 新增 Tauri 命令 `open_session_window(session_key, label)` → `WebviewWindowBuilder`
+- 弹出窗口加载同一 `index.html`，通过 URL query `?sessionKey=xxx&windowId=yyy` 传参
+- 弹出窗口挂载精简 App Shell：仅 ChatMessageList + MessageComposer + RunStatusBar，无侧边栏、无顶栏设置
+- `capabilities` / 权限文件需为子窗口声明与 `main` 相同的 IPC 权限
+- 窗口管理：主窗口维护已弹出窗口列表；关闭弹出窗口时回收资源；主窗口关闭时关闭所有弹出窗口
+
+_Phase 3 — UX 与联动_
+- 会话下拉选择器 / 会话列表增加「弹出到新窗口」图标按钮
+- 已弹出会话在主窗口会话列表中标记（如 `↗` 图标），点击时聚焦到对应窗口而非本地切换
+- 弹出窗口标题栏显示 session 名称 + Token 用量
+- 键盘快捷键：`Ctrl + Shift + N`（弹出当前会话）、弹出窗口中 `Ctrl + W`（关闭并收回主窗口）
+- `useTauriPreviewWindowStrip` 仅作用于主窗口，弹出窗口不做宽度联动
+
+**已识别的难点 / 风险**
+- Gateway 连接唯一性：当前 `GatewayClient` 为单例；弹出窗口不另建 WebSocket，而是共享主窗口连接 + 跨窗口 IPC 或 BroadcastChannel 转发事件
+- Pinia 作用域隔离：Tauri 多窗口为独立 JS 上下文（各有独立 Pinia），需通过 Tauri IPC 或 BroadcastChannel 实现跨窗口状态同步（Gateway 状态、session 列表、审批队列等）
+- `selectSession` 副作用（abort streaming、reset preview）需限定在触发窗口内，不影响其他窗口
+
+**工作范围**
+- [ ] Phase 1：per-window session context 重构（`session.ts`、`chat.ts`、`gateway.ts` 事件路由）
+- [ ] Phase 2：Tauri 命令 `open_session_window` + 弹出窗口 App Shell + capabilities 配置
+- [ ] Phase 3：弹出/收回 UX、窗口列表管理、快捷键
+- [ ] 跨窗口通信机制（BroadcastChannel / Tauri IPC event）
+- [ ] 弹出窗口内 Exec 审批 / Slash 命令 / 流式输出 验证
+
+---
+
 ## 优先级执行顺序建议
 
 ```
@@ -244,7 +289,7 @@
      ↓
 ✅ P1-4 Slash 命令  →  ✅ P1-2 Exec 审批  →  ✅ P1-5 故障切换  →  ✅ P1-3 渠道接入
      ↓
-P1-1 常驻指令
+P1-1 常驻指令  →  P1-6 会话多窗口（Phase 1 → 2 → 3）
 ```
 
 ---
@@ -264,6 +309,7 @@ P1-1 常驻指令
 | P1-4 Slash 命令提示 | ✅ 完成 | `/` 触发浮层，红/黄/绿风险色标注 |
 | P1-5 模型故障切换 | ✅ 完成 | AI 配置页备用模型管理，写入 `fallbacks` 配置 |
 | P1-1 常驻指令 | 🔲 待做 | Standing Orders 图形化编辑 |
+| P1-6 会话多窗口 | 🔲 待做 | 弹出独立会话窗口，多 Agent 并行基础 |
 
 ---
 
@@ -274,6 +320,7 @@ P1-1 常驻指令
 | 上一版 | 0.3.x | AI 配置、i18n、Doctor、备份恢复、Token 用量 — P0 全部完成 |
 | 上一版 | 0.4.0 | Slash 命令、Exec 审批、模型故障切换 — P1 部分完成 |
 | 当前 | 0.5.0 | 消息渠道接入（WhatsApp/飞书/Discord/企业微信）— **P1 主体完成** |
-| P1 完整 | 0.6.0 | 常驻指令（P1-1） |
+| 下一步 | 0.6.0 | 常驻指令（P1-1） |
+| 多窗口 | 0.7.0 | 会话多窗口（P1-6）— 多 Agent 并行基础 |
 | 发布候选 | 0.9.0 | 功能冻结、Bug 修复、文档完善 |
 | Product Hunt 发布 | 1.0.0 | 正式发布 |
