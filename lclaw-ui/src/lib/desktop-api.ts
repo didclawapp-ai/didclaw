@@ -65,6 +65,8 @@ function tauriApi(): DidClawElectronApi {
       invoke("write_channel_config", { channelKey, payload }),
     checkChannelPluginInstalled: (channel: string) =>
       invoke("check_channel_plugin_installed", { channel }),
+    cleanupChannelResidue: (channel: string) =>
+      invoke("cleanup_channel_residue", { channel }),
     startChannelQrFlow: (channel: string, gatewayUrl: string, flowId: string) =>
       invoke("start_channel_qr_flow", { channel, gatewayUrl, flowId }),
     getOpenClawSetupStatus: () => invoke("get_open_claw_setup_status"),

@@ -54,30 +54,159 @@ const feishuInstallLines = ref<string[]>([]);
 let unlistenFeishuLine: UnlistenFn | null = null;
 let unlistenFeishuDone: UnlistenFn | null = null;
 const feishuManualOpen = ref(false);
+const feishuInstallSummary = ref<string | null>(null);
+const feishuSuppressedNoiseCount = ref(0);
+const feishuDomain = ref<"feishu" | "lark">("feishu");
+const feishuNeedsResidueCleanup = ref(false);
+const feishuCleanupBusy = ref(false);
+
+function feishuLineSuggestsResidue(line: string): boolean {
+  return /plugin already exists|plugin not found:\s*openclaw-lark|openclaw-lark/i.test(line);
+}
+
+function shouldSuppressFeishuLine(line: string): boolean {
+  return (
+    /plugins\.entries\.whatsapp: plugin whatsapp: duplicate plugin id detected/i.test(line) ||
+    /extensions[\\/](whatsapp)[\\/]/i.test(line)
+  );
+}
+
+function pushFeishuLines(raw?: string | null): void {
+  if (!raw) return;
+  const chunks = raw
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean);
+  if (!chunks.length) return;
+
+  const next = [...feishuInstallLines.value];
+  for (const line of chunks) {
+    if (feishuLineSuggestsResidue(line)) {
+      feishuNeedsResidueCleanup.value = true;
+    }
+    if (shouldSuppressFeishuLine(line)) {
+      feishuSuppressedNoiseCount.value += 1;
+      continue;
+    }
+    if (next[next.length - 1] === line) {
+      continue;
+    }
+    next.push(line);
+  }
+  feishuInstallLines.value = next.slice(-300);
+}
+
+async function ensureOpenClawReadyForFeishu(): Promise<boolean> {
+  const api = getDidClawDesktopApi();
+  if (!api?.getOpenClawSetupStatus) {
+    return true;
+  }
+  try {
+    const s = await api.getOpenClawSetupStatus();
+    if (!s.openclawDirExists || !s.openclawCli?.ok) {
+      feishuInstallState.value = "failed";
+      feishuInstallSummary.value = "请先完成 OpenClaw 初始化安装（重启应用将弹出向导）";
+      return false;
+    }
+  } catch {
+    /* ignore and continue */
+  }
+  return true;
+}
+
+async function finalizeFeishuInstall(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (api?.writeChannelConfig) {
+    try {
+      const result = await api.writeChannelConfig("feishu", { enabled: true });
+      if (!result.ok) {
+        pushFeishuLines(
+          `⚠ 已完成飞书安装向导，但启用 channels.feishu.enabled 失败：${(result as { error?: string }).error ?? "unknown"}`,
+        );
+      }
+    } catch (e) {
+      pushFeishuLines(`⚠ 已完成飞书安装向导，但写入飞书渠道配置失败：${String((e as Error)?.message ?? e)}`);
+    }
+  }
+
+  feishuManualOpen.value = false;
+  feishuNeedsResidueCleanup.value = false;
+  feishuInstallState.value = "success";
+  feishuInstallSummary.value = "安装向导已完成。请重启 Gateway，然后在飞书里发送 /feishu start 验证；若需要用户身份授权，可发送 /feishu auth。";
+}
+
+async function cleanupFeishuResidue(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (!api?.cleanupChannelResidue) {
+    feishuInstallSummary.value = "当前桌面端不支持自动清理飞书残留，请手动删除 ~/.openclaw/extensions/openclaw-lark 并清理 openclaw.json 中的飞书配置。";
+    return;
+  }
+
+  feishuCleanupBusy.value = true;
+  try {
+    const result = await api.cleanupChannelResidue("feishu");
+    if (!result.ok) {
+      feishuInstallSummary.value = `清理飞书残留失败：${result.error}`;
+      return;
+    }
+    const removedCount = result.removed.length + result.removedDirs.length;
+    feishuNeedsResidueCleanup.value = false;
+    feishuInstallLines.value = [];
+    feishuSuppressedNoiseCount.value = 0;
+    feishuInstallState.value = "idle";
+    feishuInstallSummary.value =
+      removedCount > 0
+        ? "已清理飞书残留配置，可以重新运行安装向导。"
+        : "未发现飞书残留目录；若仍失败，可直接重新运行安装向导。";
+  } catch (e) {
+    feishuInstallSummary.value = `清理飞书残留失败：${String((e as Error)?.message ?? e)}`;
+  } finally {
+    feishuCleanupBusy.value = false;
+  }
+}
 
 async function startFeishuInstall(): Promise<void> {
   const api = getDidClawDesktopApi();
-  if (!api?.startChannelQrFlow) return;
+  if (!api?.startChannelQrFlow) {
+    feishuInstallState.value = "failed";
+    feishuInstallSummary.value = "当前桌面端不支持飞书安装向导";
+    return;
+  }
 
   feishuInstallState.value = "running";
   feishuInstallLines.value = [];
+  feishuInstallSummary.value = "正在运行飞书官方安装向导，请按终端提示完成创建/关联机器人。";
+  feishuSuppressedNoiseCount.value = 0;
+  feishuNeedsResidueCleanup.value = false;
+
+  const envReady = await ensureOpenClawReadyForFeishu();
+  if (!envReady) {
+    return;
+  }
 
   const feishuFlowId = crypto.randomUUID();
 
   unlistenFeishuLine?.();
   unlistenFeishuLine = await listen<{ flowId?: string; stream: string; line: string }>("channel:line", (e) => {
     if (e.payload.flowId !== feishuFlowId) return;
-    feishuInstallLines.value = [...feishuInstallLines.value, e.payload.line];
-    if (feishuInstallLines.value.length > 300) {
-      feishuInstallLines.value = feishuInstallLines.value.slice(-300);
-    }
+    pushFeishuLines(e.payload.line);
   });
   unlistenFeishuDone?.();
-  unlistenFeishuDone = await listen<{ flowId?: string; ok: boolean }>("channel:done", (e) => {
+  unlistenFeishuDone = await listen<{ flowId?: string; ok: boolean; exitCode?: number; error?: string }>("channel:done", (e) => {
     if (e.payload.flowId !== feishuFlowId) return;
-    feishuInstallState.value = e.payload.ok ? "success" : "failed";
     unlistenFeishuLine?.(); unlistenFeishuLine = null;
     unlistenFeishuDone?.(); unlistenFeishuDone = null;
+    if (!e.payload.ok) {
+      feishuInstallState.value = "failed";
+      feishuInstallSummary.value = feishuNeedsResidueCleanup.value
+        ? "检测到旧的飞书插件残留，请先点下方“清理飞书残留”再重新运行安装向导。"
+        : `安装向导退出失败（退出码 ${e.payload.exitCode ?? "?"}）`;
+      if (e.payload.error) {
+        pushFeishuLines(`Error: ${e.payload.error}`);
+      }
+      return;
+    }
+    void finalizeFeishuInstall();
   });
 
   try {
@@ -85,7 +214,8 @@ async function startFeishuInstall(): Promise<void> {
     await api.startChannelQrFlow("feishu", gatewayUrl, feishuFlowId);
   } catch (e) {
     feishuInstallState.value = "failed";
-    feishuInstallLines.value = [...feishuInstallLines.value, `Error: ${e}`];
+    feishuInstallSummary.value = "启动飞书安装向导失败";
+    pushFeishuLines(`Error: ${e}`);
   }
 }
 
@@ -543,7 +673,10 @@ async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
     const appId = feishuAppId.value.trim();
     const appSecret = feishuAppSecret.value.trim();
     if (!appId || !appSecret) { showToast("请填写 App ID 和 App Secret", true); return; }
-    payload = { accounts: { main: { appId, appSecret } } };
+    payload = {
+      domain: feishuDomain.value,
+      accounts: { main: { appId, appSecret } },
+    };
   } else if (channelKey === "discord") {
     const token = discordToken.value.trim();
     if (!token) { showToast("请填写 Bot Token", true); return; }
@@ -1087,6 +1220,16 @@ onUnmounted(() => {
                 <span v-else-if="feishuInstallState === 'success'" class="ch-status-ok">✓ {{ t('channel.feishu.installSuccess') }}</span>
                 <span v-else class="ch-status-err">✗ {{ t('channel.feishu.installFail') }}</span>
               </div>
+              <p v-if="feishuInstallSummary" class="ch-restart-hint" style="margin-top: 8px;">
+                {{ feishuInstallSummary }}
+              </p>
+              <p
+                v-if="feishuSuppressedNoiseCount > 0"
+                class="muted small"
+                style="margin-top: 6px;"
+              >
+                已省略 {{ feishuSuppressedNoiseCount }} 条与飞书安装无关的重复插件警告，避免干扰查看。
+              </p>
 
               <!-- Terminal output -->
               <div v-if="feishuInstallLines.length" class="ch-terminal" style="margin-top: 8px;">
@@ -1108,6 +1251,23 @@ onUnmounted(() => {
                 <button v-if="feishuInstallState === 'success'" type="button" class="ch-btn ch-btn--primary" @click="restartGateway">
                   🔄 重启 Gateway 立即生效
                 </button>
+                <button
+                  v-if="feishuInstallState === 'success'"
+                  type="button"
+                  class="ch-btn"
+                  @click="startFeishuInstall"
+                >
+                  重新运行向导
+                </button>
+                <button
+                  v-if="feishuNeedsResidueCleanup"
+                  type="button"
+                  class="ch-btn"
+                  :disabled="feishuCleanupBusy"
+                  @click="cleanupFeishuResidue"
+                >
+                  {{ feishuCleanupBusy ? '清理中…' : '清理飞书残留' }}
+                </button>
               </div>
             </div>
 
@@ -1117,6 +1277,11 @@ onUnmounted(() => {
             </button>
             <template v-if="feishuManualOpen">
               <div class="ch-form">
+                <label class="ch-label">{{ t('channel.feishu.domain') }}</label>
+                <select v-model="feishuDomain" class="ch-select">
+                  <option value="feishu">{{ t('channel.feishu.domainFeishu') }}</option>
+                  <option value="lark">{{ t('channel.feishu.domainLark') }}</option>
+                </select>
                 <label class="ch-label">{{ t('channel.feishu.appId') }}</label>
                 <input v-model="feishuAppId" type="text" class="ch-input" :placeholder="t('channel.feishu.appIdPlh')" />
                 <label class="ch-label">{{ t('channel.feishu.appSecret') }}</label>

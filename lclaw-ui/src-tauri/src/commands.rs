@@ -396,6 +396,11 @@ pub fn check_channel_plugin_installed(channel: String) -> Result<Value, String> 
 }
 
 #[tauri::command]
+pub fn cleanup_channel_residue(channel: String) -> Result<Value, String> {
+    Ok(crate::openclaw_channel_config::cleanup_channel_residue(&channel))
+}
+
+#[tauri::command]
 pub async fn start_channel_qr_flow(
     app: tauri::AppHandle,
     channel: String,

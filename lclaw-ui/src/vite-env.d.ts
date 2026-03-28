@@ -202,6 +202,16 @@ interface DidClawElectronApi {
     | { ok: true; channel: string; pluginId: string; installed: boolean }
     | { ok: false; error: string }
   >;
+  cleanupChannelResidue?(channel: string): Promise<
+    | {
+        ok: true;
+        channel: string;
+        removed: string[];
+        removedDirs: string[];
+        backupPath?: string | null;
+      }
+    | { ok: false; error: string }
+  >;
   /** 启动 QR 登录流，通过 Tauri 事件推送输出；flowId 用于隔离并发流的事件 */
   startChannelQrFlow?(
     channel: string,

@@ -129,6 +129,121 @@ pub fn check_channel_plugin_installed(channel: &str) -> Value {
     })
 }
 
+/// 清理已知渠道的残留配置与扩展目录（当前主要用于飞书安装失败后的恢复）。
+pub fn cleanup_channel_residue(channel: &str) -> Value {
+    let config_path = match openclaw_config_path() {
+        Ok(p) => p,
+        Err(e) => return json!({"ok": false, "error": e}),
+    };
+    let dir = match openclaw_dir() {
+        Ok(d) => d,
+        Err(e) => return json!({"ok": false, "error": e}),
+    };
+
+    let mut root: Value = match fs::read_to_string(&config_path) {
+        Ok(raw) => match serde_json::from_str(&raw) {
+            Ok(v) => v,
+            Err(_) => return json!({"ok": false, "error": "openclaw.json 无法解析为 JSON，已中止清理"}),
+        },
+        Err(e) if is_enoent(&e) => json!({}),
+        Err(e) => return json!({"ok": false, "error": e.to_string()}),
+    };
+
+    let backup = match backup_if_exists(&config_path) {
+        Ok(s) => s,
+        Err(e) => return json!({"ok": false, "error": format!("备份失败，已中止：{e}")}),
+    };
+
+    if !root.is_object() {
+        root = json!({});
+    }
+
+    let mut removed: Vec<String> = Vec::new();
+    let root_map = root.as_object_mut().unwrap();
+
+    match channel {
+        "feishu" => {
+            if let Some(channels) = root_map.get_mut("channels").and_then(|v| v.as_object_mut()) {
+                if channels.remove("feishu").is_some() {
+                    removed.push("channels.feishu".into());
+                }
+            }
+
+            if let Some(plugins) = root_map.get_mut("plugins").and_then(|v| v.as_object_mut()) {
+                if let Some(entries) = plugins.get_mut("entries").and_then(|v| v.as_object_mut()) {
+                    for key in ["feishu", "openclaw-lark"] {
+                        if entries.remove(key).is_some() {
+                            removed.push(format!("plugins.entries.{key}"));
+                        }
+                    }
+                }
+                if let Some(installs) = plugins.get_mut("installs").and_then(|v| v.as_object_mut()) {
+                    for key in ["feishu", "openclaw-lark"] {
+                        if installs.remove(key).is_some() {
+                            removed.push(format!("plugins.installs.{key}"));
+                        }
+                    }
+                }
+                if let Some(paths) = plugins
+                    .get_mut("load")
+                    .and_then(|v| v.as_object_mut())
+                    .and_then(|load| load.get_mut("paths"))
+                    .and_then(|v| v.as_array_mut())
+                {
+                    let before = paths.len();
+                    paths.retain(|item| {
+                        item.as_str()
+                            .map(|s| !s.to_ascii_lowercase().contains("openclaw-lark"))
+                            .unwrap_or(true)
+                    });
+                    if before != paths.len() {
+                        removed.push("plugins.load.paths[*openclaw-lark*]".into());
+                    }
+                }
+            }
+        }
+        _ => {
+            return json!({
+                "ok": false,
+                "error": format!("不支持清理残留的渠道: {channel}")
+            })
+        }
+    }
+
+    let mut removed_dirs: Vec<String> = Vec::new();
+    for name in ["openclaw-lark", "feishu"] {
+        let p = dir.join("extensions").join(name);
+        if p.is_dir() {
+            if let Err(e) = fs::remove_dir_all(&p) {
+                return json!({"ok": false, "error": format!("删除目录失败（{}）：{}", p.display(), e)});
+            }
+            removed_dirs.push(p.to_string_lossy().to_string());
+        }
+    }
+
+    if !removed.is_empty() {
+        let out = match serde_json::to_string_pretty(&root) {
+            Ok(s) => format!("{s}\n"),
+            Err(e) => return json!({"ok": false, "error": e.to_string()}),
+        };
+        if let Err(e) = fs::create_dir_all(&dir) {
+            return json!({"ok": false, "error": e.to_string()});
+        }
+        if let Err(e) = fs::write(&config_path, out) {
+            return json!({"ok": false, "error": e.to_string()});
+        }
+    }
+
+    let backup_json = if backup.is_empty() { Value::Null } else { json!(backup) };
+    json!({
+        "ok": true,
+        "channel": channel,
+        "removed": removed,
+        "removedDirs": removed_dirs,
+        "backupPath": backup_json
+    })
+}
+
 // ── start_channel_qr_flow ────────────────────────────────────────────────────
 
 /// 剥离 ANSI/VT100 转义序列（`\x1b[…m` 及常见控制码），返回纯文本。
