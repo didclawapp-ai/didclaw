@@ -8,6 +8,8 @@ import { isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import QRCode from "qrcode";
 
+const WECHAT_PLUGIN_SPEC = "@tencent-weixin/openclaw-weixin";
+
 const gw = useGatewayStore();
 const { status: gwStatus } = storeToRefs(gw);
 const { wechatHealth } = useChannelHealth();
@@ -112,6 +114,62 @@ async function renderQr(url: string): Promise<void> {
   }
 }
 
+function isMissingTauriCommandError(error: unknown): boolean {
+  const msg = String((error as Error)?.message ?? error ?? "");
+  return /not allowed|command not found|unknown command/i.test(msg);
+}
+
+function looksLikePluginAlreadyInstalled(result: {
+  ok: boolean;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
+}): boolean {
+  const combined = [result.error, result.stdout, result.stderr].filter(Boolean).join("\n");
+  return /plugin already exists|already at \d+\.\d+\.\d+/i.test(combined);
+}
+
+async function ensureWechatPluginInstalled(): Promise<boolean> {
+  const api = getDidClawDesktopApi();
+
+  if (api?.checkChannelPluginInstalled) {
+    try {
+      const state = await api.checkChannelPluginInstalled("wechat");
+      if (!state.ok) {
+        qrState.value = "failed";
+        qrMessage.value = `检测微信插件失败：${state.error ?? "未知错误"}`;
+        return false;
+      }
+      if (state.installed) return true;
+    } catch (err) {
+      if (!isMissingTauriCommandError(err)) {
+        qrState.value = "failed";
+        qrMessage.value = `检测微信插件失败：${String((err as Error)?.message ?? err)}`;
+        return false;
+      }
+      // Tauri command not registered yet — fall through to install
+    }
+  }
+
+  if (!api?.openclawPluginsInstall) {
+    qrState.value = "failed";
+    qrMessage.value = "桌面端不支持自动安装微信插件，请打开渠道设置手动操作";
+    return false;
+  }
+
+  qrMessage.value = "正在安装微信插件…";
+  const result = await api.openclawPluginsInstall({ packageSpec: WECHAT_PLUGIN_SPEC });
+  if (!result.ok) {
+    if (looksLikePluginAlreadyInstalled(result)) return true;
+    qrState.value = "failed";
+    qrMessage.value = `微信插件安装失败：${(result as { error?: string }).error ?? "未知错误"}`;
+    return false;
+  }
+
+  qrMessage.value = "微信插件安装完成，正在启动扫码…";
+  return true;
+}
+
 async function startQrFlow(): Promise<void> {
   if (!isTauri()) {
     openChannelSetup();
@@ -138,8 +196,12 @@ async function startQrFlow(): Promise<void> {
 
   qrState.value = "loading";
   qrDataUrl.value = null;
-  qrMessage.value = "正在启动微信登录…";
+  qrMessage.value = "正在检查微信插件…";
 
+  const pluginReady = await ensureWechatPluginInstalled();
+  if (!pluginReady) return;
+
+  qrMessage.value = "正在启动微信登录…";
   cleanupListeners();
   const flowId = crypto.randomUUID();
 
