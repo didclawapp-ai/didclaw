@@ -32,7 +32,7 @@ import {
 import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayAfterControlUiMerge";
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -81,9 +81,23 @@ const previewPaneRef = ref<HTMLElement | null>(null);
 useTauriPreviewWindowStrip(isPreviewPaneOpen, previewPaneRef);
 
 function sessionDisplayLabel(key: string, label?: string): string {
-  if (label?.trim()) return label.trim();
+  const trimmedLabel = label?.trim() ?? "";
+  const endedSuffix = trimmedLabel.endsWith("（已结束）") ? "（已结束）" : "";
+
   // UUID-style keys (no colon) are new sessions not yet registered with the gateway
   if (!key.includes(":")) return "新对话";
+  if (key === "agent:main:main") return `agent:main${endedSuffix}`;
+
+  const whatsappDirect = key.match(/^agent:main:whatsapp:direct:(.+)$/);
+  if (whatsappDirect) {
+    return `WhatsApp ${whatsappDirect[1]}${endedSuffix}`;
+  }
+
+  if (key.startsWith("agent:main:openclaw-weixin:")) {
+    return `WeChat${endedSuffix}`;
+  }
+
+  if (trimmedLabel) return trimmedLabel;
   return key;
 }
 
@@ -111,14 +125,14 @@ const sessionTokenUsage = computed(() => {
   return { in: inp ?? 0, out: out ?? 0 };
 });
 
-/** 标题栏已展示当前会话，下列表只列「可切换到的其他会话」，避免重复大块高亮 */
-const otherSessions = computed(() => {
-  const cur = activeSessionKey.value;
-  if (!cur) {
-    return sessions.value;
-  }
-  return sessions.value.filter((s) => s.key !== cur);
-});
+const sessionSelectOptions = computed(() =>
+  sessions.value.map((s) => ({
+    key: s.key,
+    label: sessionDisplayLabel(s.key, s.label),
+    active: s.key === activeSessionKey.value,
+    flashing: flashingSessionKeys.value.includes(s.key),
+  })),
+);
 
 /** 有注册表行或已有 primary 时显示下拉（纯空配置仅保留「管理模型」） */
 const showOpenClawModelSelect = computed(
@@ -136,7 +150,33 @@ function onDeferredBannerDismiss(): void {
   syncDeferredModelBannerFromStorage();
 }
 
+function cycleSession(direction: 1 | -1): void {
+  const rows = sessions.value;
+  const count = rows.length;
+  if (count <= 1) {
+    return;
+  }
+  const current = activeSessionKey.value;
+  const currentIndex = rows.findIndex((row) => row.key === current);
+  const startIndex = currentIndex >= 0 ? currentIndex : 0;
+  const nextIndex = (startIndex + direction + count) % count;
+  const nextKey = rows[nextIndex]?.key;
+  if (!nextKey || nextKey === current) {
+    return;
+  }
+  void session.selectSession(nextKey);
+}
+
+function onGlobalKeydown(event: KeyboardEvent): void {
+  if (!event.ctrlKey || event.altKey || event.metaKey || event.key !== "Tab") {
+    return;
+  }
+  event.preventDefault();
+  cycleSession(event.shiftKey ? -1 : 1);
+}
+
 onMounted(() => {
+  window.addEventListener("keydown", onGlobalKeydown);
   if (isDidClawElectron()) {
     syncDeferredModelBannerFromStorage();
     void chat.refreshOpenClawModelPicker();
@@ -170,6 +210,10 @@ onMounted(() => {
       }
     })();
   });
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onGlobalKeydown);
 });
 
 const displayLines = computed(() => {
@@ -216,6 +260,13 @@ function onSelectMessage(index: number) {
     text: line.text,
     listText: line.listText,
   });
+}
+
+function onSessionSelectChange(key: string): void {
+  if (!key || key === activeSessionKey.value) {
+    return;
+  }
+  void session.selectSession(key);
 }
 
 function newChat(): void {
@@ -283,11 +334,24 @@ async function pickLocalFileForPreview(): Promise<void> {
             </div>
             <div class="panel-title session-panel-head">
               <span class="session-head-label">会话</span>
-              <span
-                class="session-active-chip"
-                :class="{ 'session-active-chip--empty': !activeSessionKey }"
+              <select
+                class="session-switch-select"
+                :value="activeSessionKey ?? ''"
+                :disabled="sessionsLoading || sessions.length === 0"
                 :title="activeSessionKey ?? '当前会话'"
-              >{{ activeSessionLabel || "—" }}</span>
+                @change="onSessionSelectChange(($event.target as HTMLSelectElement).value)"
+              >
+                <option value="" disabled>
+                  {{ activeSessionLabel || "请选择会话" }}
+                </option>
+                <option
+                  v-for="row in sessionSelectOptions"
+                  :key="row.key"
+                  :value="row.key"
+                >
+                  {{ row.flashing ? "• " : "" }}{{ row.label }}
+                </option>
+              </select>
               <div v-if="isDidClawElectron()" class="session-model-tools">
                 <select
                   v-if="showOpenClawModelSelect"
@@ -329,19 +393,6 @@ async function pickLocalFileForPreview(): Promise<void> {
             </p>
             <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
             <div v-if="sessionsLoading" class="muted">加载中…</div>
-            <ul v-else-if="otherSessions.length > 0" class="sess">
-              <li v-for="s in otherSessions" :key="s.key">
-                <button
-                  type="button"
-                  class="sess-btn"
-                  :class="{ 'sess-btn--activity': flashingSessionKeys.includes(s.key) }"
-                  :title="s.key"
-                  @click="session.selectSession(s.key)"
-                >
-                  {{ sessionDisplayLabel(s.key, s.label) }}
-                </button>
-              </li>
-            </ul>
           </div>
 
           <div class="left-conversation">
@@ -621,14 +672,14 @@ async function pickLocalFileForPreview(): Promise<void> {
   text-transform: uppercase;
   color: var(--lc-text-muted);
 }
-.session-active-chip {
+.session-switch-select {
   flex: 1 1 auto;
   min-width: 0;
   font-family: var(--lc-font);
   font-size: 12px;
   font-weight: 500;
-  line-height: 1.3;
-  padding: 4px 8px;
+  line-height: 1.35;
+  padding: 6px 8px;
   border-radius: var(--lc-radius-sm);
   border: 1px solid var(--lc-accent);
   background: var(--lc-accent-soft);
@@ -636,12 +687,12 @@ async function pickLocalFileForPreview(): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  appearance: none;
+  cursor: pointer;
 }
-.session-active-chip--empty {
+.session-switch-select:disabled {
   opacity: 0.55;
-  border-color: var(--lc-border);
-  background: var(--lc-bg-raised);
-  color: var(--lc-text-muted);
+  cursor: wait;
 }
 .session-model-tools {
   display: flex;
@@ -744,50 +795,6 @@ async function pickLocalFileForPreview(): Promise<void> {
 .filter-hint strong {
   color: var(--lc-accent);
   font-weight: 600;
-}
-.sess {
-  list-style: none;
-  margin: 0;
-  padding: 10px;
-  max-height: 160px;
-  overflow: auto;
-  border-bottom: 1px solid var(--lc-border);
-  flex-shrink: 0;
-}
-.sess-btn {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 9px 12px;
-  margin-bottom: 6px;
-  border: 1px solid var(--lc-border);
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-bg-raised);
-  color: var(--lc-text);
-  font-size: 13px;
-  cursor: pointer;
-  font-family: inherit;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    box-shadow 0.15s ease;
-}
-.sess-btn:hover {
-  border-color: var(--lc-border-strong);
-  background: var(--lc-bg-elevated);
-}
-.sess-btn--activity {
-  border-color: var(--lc-accent) !important;
-  color: var(--lc-accent) !important;
-  background: var(--lc-accent-soft, rgba(6, 182, 212, 0.08)) !important;
-  animation: sess-activity-flash 0.5s ease-out;
-}
-@keyframes sess-activity-flash {
-  0% { background: rgba(6, 182, 212, 0.32) !important; }
-  100% { background: var(--lc-accent-soft, rgba(6, 182, 212, 0.08)) !important; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .sess-btn--activity { animation: none; }
 }
 .err {
   color: var(--lc-error);

@@ -6,6 +6,14 @@
 
 ## [未发布]
 
+### 新增
+
+- **会话栏切换体验收敛**：会话栏从叠加式按钮列表改为单个下拉选择，减少多渠道 / 多子会话时的顶部占用；新增 `Ctrl + Tab` / `Ctrl + Shift + Tab` 快捷键用于前后切换会话，并对常见会话 key 做显示过滤（如 `WhatsApp +手机号`、`WeChat`、`agent:main`），降低长 session key 的视觉噪音。
+
+### 修复
+
+- **清理两处历史 lint error**：`InlineToolTimeline.vue` 中恒为 `false && ...` 的占位表达式改为直接 `false`，去掉 `no-constant-binary-expression`；`AboutView.vue` 空模板改为最小合法根节点，去掉 `vue/valid-template-root`。以上调整不改变现有功能行为。
+
 ## [0.5.0] - 2026-03-28
 
 ### 新增

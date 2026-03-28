@@ -3,4 +3,6 @@ import { useRouter } from "vue-router";
 const router = useRouter();
 router.replace("/");
 </script>
-<template></template>
+<template>
+  <div />
+</template>
