@@ -6,9 +6,12 @@
 
 ## [未发布]
 
+## [0.6.0] - 2026-03-30
+
 ### 新增
 
 - **DidClaw 客户端在线升级**：侧边栏「关于」区新增「检查更新」按钮，启动 30 秒后也会自动静默检查一次；发现新版本时弹出对话框，显示当前版本、最新版本与更新说明，点击「下载并安装」自动下载安装包并启动安装程序；已检查过的版本可点「稍后提醒」跳过，不再重复弹出。更新清单地址由构建变量 `VITE_DIDCLAW_UPDATE_ENDPOINT` 配置（未配置时静默跳过）；清单为标准 JSON 格式，支持 Windows / macOS / Linux 独立下载链接。
+- **`gen-update-manifest.js` 发布脚本**：打包后一键生成 `didclaw-update.json`，自动读取 `package.json` 版本号，支持 `--windows/macos/linux` 平台链接、`--notes/--notes-file` 更新说明、`--output` 输出路径。
 
 ### 修复
 
