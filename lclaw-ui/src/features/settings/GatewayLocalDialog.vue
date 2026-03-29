@@ -79,6 +79,7 @@ const aiSnapshot = ref<OpenClawAiSnapshot>({
   primaryModel: "",
   fallbacks: [],
   modelRefs: [],
+  imageGenerationModel: "",
 });
 
 /** 与 api、authHeader 等一并写入 provider（模板或从已有配置带出） */

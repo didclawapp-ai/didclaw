@@ -8,6 +8,8 @@
 
 ### 优化
 
+- **图片生成独立配置区块**：AI 配置页新增专属「图片生成」区块，MiniMax（image-01）与 Google Gemini（gemini-3-pro-image-preview）各有独立卡片；用户点击卡片展开后输入 API Key（已配置对话模型者自动预填）再点「开启图片生成」即可；当前已开启的图片生成模型在标题栏实时显示，并可随时一键关闭；移除了原先嵌入 MiniMax 对话卡片内的「🎨 图片生成」子选项，入口更清晰。
+- **Google Gemini 推荐卡片**：`provider-catalog` 补充 Google 服务商条目（Gemini 3.1 Pro / Flash / Flash-Lite，OpenAI 兼容接口），AI 配置页推荐服务现在共展示 13 张服务商卡片。
 - **MiniMax 图片生成支持**：AI 配置页 MiniMax 卡片新增「🎨 图片生成」开关区块，勾选后点「应用」即自动将 `minimax/image-01` 写入图片生成配置；聊天消息中 AI 返回的图片 URL（`data:image/`、`.png/.jpg/.webp/.gif` 等）现在直接内联显示图片，不再只显示链接胶囊，点击图片可放大预览，加载失败时降级为原来的链接样式；`provider-catalog.ts` 新增 `imageModels`/`defaultImageModel` 字段供后续其他服务商扩展。
 - **会话消息卡片间距加大**：`margin-bottom` 从 6 px 调整为 12 px，容器内边距从 `8px 10px` 调整为 `10px 14px`，卡片之间不再紧挨，阅读更轻松。
 - **侧边栏 UI 视觉美化**：用带圆角背景的 SVG 图标盒取代原有 Emoji 字符，各菜单分组新增「功能」/「系统」分区标签；hover 时显示左侧高亮竖条动效；「重启 AI 服务」图标盒采用红色警示调色，「已复制」状态切换为绿色；底部「关于」区域以细分隔线隔开并降低视觉权重；侧边栏标题区增加 DidClaw 品牌 gem 徽标；同步将「重启网关」/「网关诊断」标签改为「重启 AI 服务」/「AI 诊断」，与渠道对话框保持一致。

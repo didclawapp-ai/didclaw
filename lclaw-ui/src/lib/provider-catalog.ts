@@ -134,6 +134,23 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   },
   // ── 国际 ────────────────────────────────────────────────────
   {
+    id: "google",
+    name: "Google Gemini",
+    icon: "✨",
+    description: "Gemini 3.1 Pro / Flash 多模态旗舰，支持图片生成",
+    color: "#4285f4",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    baseUrlLabel: "Google AI Studio",
+    apiKeyRequired: true,
+    apiKeyPlaceholder: "粘贴 Google AI Studio API Key（AIza...）",
+    models: ["gemini-3.1-pro", "gemini-3.1-flash", "gemini-3.1-flash-lite"],
+    defaultModel: "gemini-3.1-pro",
+    imageModels: ["google/gemini-3-pro-image-preview"],
+    defaultImageModel: "google/gemini-3-pro-image-preview",
+    extras: { api: "openai-completions" },
+    docsUrl: "https://docs.openclaw.ai/zh-CN/providers/google",
+  },
+  {
     id: "anthropic",
     name: "Anthropic（Claude）",
     icon: "💎",
@@ -229,4 +246,55 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
 /** 通过 id 查找目录条目 */
 export function findCatalogEntry(id: string): ProviderCatalogEntry | undefined {
   return PROVIDER_CATALOG.find((e) => e.id === id);
+}
+
+// ── 图片生成目录 ─────────────────────────────────────────────
+
+export type ImageGenCatalogEntry = {
+  /** 唯一 ID，用于区分多张图片卡 */
+  id: string;
+  /** 对应聊天 provider 的 id（用于预填 API Key） */
+  providerId: string;
+  name: string;
+  icon: string;
+  description: string;
+  color: string;
+  /** 写入 agents.defaults.imageGenerationModel.primary 的值 */
+  modelRef: string;
+  /** 用于界面展示的模型简名 */
+  modelLabel: string;
+  apiKeyPlaceholder: string;
+  docsUrl?: string;
+};
+
+export const IMAGE_GEN_CATALOG: readonly ImageGenCatalogEntry[] = [
+  {
+    id: "minimax-image",
+    providerId: "minimax",
+    name: "MiniMax 图片生成",
+    icon: "🎨",
+    description: "商业级文生图与图片编辑，支持多种风格与宽高比",
+    color: "#8b5cf6",
+    modelRef: "minimax/image-01",
+    modelLabel: "image-01",
+    apiKeyPlaceholder: "粘贴 MiniMax API Key（与对话模型相同）",
+    docsUrl: "https://docs.openclaw.ai/zh-CN/providers/minimax",
+  },
+  {
+    id: "google-image",
+    providerId: "google",
+    name: "Google Gemini 图片生成",
+    icon: "🖼️",
+    description: "Gemini 原生图片生成，精准理解文本意图",
+    color: "#4285f4",
+    modelRef: "google/gemini-3-pro-image-preview",
+    modelLabel: "gemini-3-pro-image-preview",
+    apiKeyPlaceholder: "粘贴 Google AI Studio API Key（AIza...）",
+    docsUrl: "https://ai.google.dev/gemini-api/docs/image-generation",
+  },
+];
+
+/** 通过 id 查找图片生成条目 */
+export function findImageGenEntry(id: string): ImageGenCatalogEntry | undefined {
+  return IMAGE_GEN_CATALOG.find((e) => e.id === id);
 }

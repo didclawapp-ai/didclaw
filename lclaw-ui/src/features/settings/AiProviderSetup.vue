@@ -10,6 +10,11 @@ import {
   type OpenClawAiProviderView,
   type OpenClawAiSnapshot,
 } from "@/lib/openclaw-ai-config";
+import {
+  findCatalogEntry,
+  IMAGE_GEN_CATALOG,
+  type ImageGenCatalogEntry,
+} from "@/lib/provider-catalog";
 import { useChatStore } from "@/stores/chat";
 import { computed, ref, watch } from "vue";
 
@@ -39,8 +44,15 @@ const editingBaseUrl = ref("");
 const modelEditMode = ref(false);
 const modelEditText = ref("");
 
-/** 展开面板时，用户对图片生成的选择：'' = 不改变，'minimax/image-01' = 启用某模型，'off' = 关闭 */
+/** 展开面板时，用户对图片生成的选择（嵌入式，已废弃，保留以防编译错误） */
 const imageModelChoice = ref<string>("");
+
+/** 当前展开的图片生成卡 id */
+const expandedImgId = ref<string | null>(null);
+/** 图片生成卡编辑中的 API Key */
+const imgEditingKey = ref("");
+const imgShowKey = ref(false);
+const imgBusy = ref(false);
 
 const busy = ref(false);
 const toast = ref<string | null>(null);
@@ -286,12 +298,6 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
     const nextPrimaryRef = preferredPrimaryRef(view, modelIds);
     const modelPatch: Record<string, unknown> = {};
     if (setPrimary) modelPatch.primary = nextPrimaryRef;
-    // Write imageGenerationModel if user made a choice
-    if (imageModelChoice.value && imageModelChoice.value !== "off") {
-      modelPatch.imageGenerationModel = { primary: imageModelChoice.value };
-    } else if (imageModelChoice.value === "off") {
-      modelPatch.imageGenerationModel = null;
-    }
     const mr = await api.writeOpenClawModelConfig({
       model: Object.keys(modelPatch).length > 0 ? modelPatch : undefined,
       models: existingModels,
@@ -308,12 +314,10 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
     chat.flashOpenClawConfigHint();
     afterOpenClawProvidersSaved();
     afterOpenClawModelConfigSaved();
-    const imgNote = imageModelChoice.value && imageModelChoice.value !== "off"
-      ? "，图片生成已开启" : "";
     setToast(
       setPrimary
-        ? `✓ 已保存并将 ${view.displayName} 设为主力模型${imgNote}`
-        : `✓ ${view.displayName} 配置已保存${imgNote}`,
+        ? `✓ 已保存并将 ${view.displayName} 设为主力模型`
+        : `✓ ${view.displayName} 配置已保存`,
     );
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -358,6 +362,82 @@ async function removeProvider(view: OpenClawAiProviderView) {
     setToast(`已移除 ${view.displayName}`);
   } finally {
     busy.value = false;
+  }
+}
+
+// ── 图片生成卡 ────────────────────────────────────────────────
+
+/** 展开 / 折叠图片生成卡，并预填 Key */
+function toggleImgCard(entry: ImageGenCatalogEntry) {
+  if (expandedImgId.value === entry.id) {
+    expandedImgId.value = null;
+    imgEditingKey.value = "";
+    imgShowKey.value = false;
+    return;
+  }
+  expandedImgId.value = entry.id;
+  imgShowKey.value = false;
+  // 预填：若对应聊天 provider 已配置，从 providers 里取 key
+  const providerData = aiSnapshot.value.providers?.[entry.providerId] as
+    | Record<string, unknown>
+    | undefined;
+  imgEditingKey.value = typeof providerData?.apiKey === "string"
+    ? providerData.apiKey
+    : "";
+}
+
+async function applyImageGen(entry: ImageGenCatalogEntry) {
+  const api = getDidClawDesktopApi();
+  if (!api?.writeOpenClawModelConfig) return;
+
+  imgBusy.value = true;
+  try {
+    // If key is given, also ensure provider is configured
+    const keyTrimmed = imgEditingKey.value.trim();
+    if (keyTrimmed && api.writeOpenClawProvidersPatch) {
+      const existing = aiSnapshot.value.providers?.[entry.providerId] as
+        | Record<string, unknown>
+        | undefined;
+      const provEntry = findCatalogEntry(entry.providerId);
+      const models: Record<string, Record<string, unknown>> = {};
+      if (existing?.models && typeof existing.models === "object") {
+        Object.assign(models, existing.models);
+      } else if (provEntry?.models) {
+        for (const m of provEntry.models) models[m] = {};
+      }
+      await api.writeOpenClawProvidersPatch({
+        patch: { [entry.providerId]: { ...existing, apiKey: keyTrimmed, models } },
+      });
+    }
+
+    const mr = await api.writeOpenClawModelConfig({
+      model: { imageGenerationModel: { primary: entry.modelRef } },
+    });
+    if (!mr.ok) {
+      error.value = String(mr.error || "保存图片生成模型失败");
+      return;
+    }
+    await loadAll();
+    expandedImgId.value = null;
+    imgEditingKey.value = "";
+    afterOpenClawModelConfigSaved();
+    setToast(`✓ 图片生成模型已设置为 ${entry.modelLabel}`);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    imgBusy.value = false;
+  }
+}
+
+async function removeImageGen() {
+  const api = getDidClawDesktopApi();
+  if (!api?.writeOpenClawModelConfig) return;
+  const mr = await api.writeOpenClawModelConfig({
+    model: { imageGenerationModel: null },
+  });
+  if (mr.ok) {
+    await loadAll();
+    setToast("已关闭图片生成");
   }
 }
 </script>
@@ -458,6 +538,94 @@ async function removeProvider(view: OpenClawAiProviderView) {
             <span v-else class="aips-badge aips-badge--warn">待配置</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ── 图片生成 ──────────────────────────────────────────── -->
+    <div class="aips-section">
+      <div class="aips-section-head">
+        <h3 class="aips-section-title">图片生成</h3>
+        <p class="aips-section-hint">
+          开启后，在聊天中描述想要的图片，AI 会直接绘图并显示在对话里。
+          <template v-if="aiSnapshot.imageGenerationModel">
+            当前：<strong>{{ aiSnapshot.imageGenerationModel }}</strong>
+            <button type="button" class="aips-img-off-btn" @click="removeImageGen">关闭</button>
+          </template>
+        </p>
+      </div>
+      <div class="aips-grid">
+        <template v-for="imgEntry in IMAGE_GEN_CATALOG" :key="imgEntry.id">
+          <!-- Collapsed card -->
+          <div
+            v-if="expandedImgId !== imgEntry.id"
+            class="aips-card aips-card--img"
+            :class="{ 'aips-card--configured': aiSnapshot.imageGenerationModel === imgEntry.modelRef }"
+            :style="{ '--card-color': imgEntry.color }"
+            @click="toggleImgCard(imgEntry)"
+          >
+            <div class="aips-card-head">
+              <span class="aips-card-icon" :style="{ background: imgEntry.color + '22', color: imgEntry.color }">
+                {{ imgEntry.icon }}
+              </span>
+              <div class="aips-card-meta">
+                <span class="aips-card-name">{{ imgEntry.name }}</span>
+                <span class="aips-card-desc">{{ imgEntry.description }}</span>
+                <span class="aips-card-model-hint">{{ imgEntry.modelLabel }}</span>
+              </div>
+            </div>
+            <div class="aips-card-footer">
+              <span
+                class="aips-status-tag"
+                :class="aiSnapshot.imageGenerationModel === imgEntry.modelRef ? 'aips-status-tag--on' : 'aips-status-tag--off'"
+              >
+                {{ aiSnapshot.imageGenerationModel === imgEntry.modelRef ? '已开启' : '未开启' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Expanded card -->
+          <div
+            v-else
+            class="aips-card aips-card--img aips-card--active aips-card--expanded"
+            :style="{ '--card-color': imgEntry.color }"
+          >
+            <div class="aips-panel-header">
+              <span class="aips-panel-icon" :style="{ background: imgEntry.color + '22', color: imgEntry.color }">{{ imgEntry.icon }}</span>
+              <span class="aips-panel-name">{{ imgEntry.name }}</span>
+              <span class="aips-panel-model">{{ imgEntry.modelLabel }}</span>
+            </div>
+            <p class="aips-hint" style="margin-bottom:12px;">
+              开启后在对话中直接描述图片，AI 即可绘制并嵌入对话。图片生成使用与对话相同的 API Key，已在上方配置过则自动预填。
+            </p>
+            <div class="aips-field">
+              <label class="aips-field-label">API Key</label>
+              <div class="aips-key-row">
+                <input
+                  v-model="imgEditingKey"
+                  :type="imgShowKey ? 'text' : 'password'"
+                  class="aips-input"
+                  :placeholder="imgEntry.apiKeyPlaceholder"
+                  autocomplete="off"
+                />
+                <button type="button" class="aips-ghost-btn" @click="imgShowKey = !imgShowKey">
+                  {{ imgShowKey ? '隐藏' : '显示' }}
+                </button>
+              </div>
+              <p class="aips-hint">不填则直接复用已配置的 Key，填写后会同步更新。</p>
+            </div>
+            <div class="aips-panel-actions">
+              <button type="button" class="aips-ghost-btn" :disabled="imgBusy" @click="toggleImgCard(imgEntry)">取消</button>
+              <button
+                type="button"
+                class="aips-primary-btn"
+                :disabled="imgBusy"
+                @click="applyImageGen(imgEntry)"
+              >
+                {{ imgBusy ? '保存中…' : '开启图片生成' }}
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -594,36 +762,6 @@ async function removeProvider(view: OpenClawAiProviderView) {
               当前这里展示的是推荐默认模型；一旦保存，会同步写入 OpenClaw 配置。
             </p>
           </template>
-        </div>
-
-        <!-- Image generation section (only for providers with imageModels) -->
-        <div v-if="expandedProvider.catalog?.imageModels?.length" class="aips-field aips-field--img">
-          <div class="aips-field-label-row">
-            <span class="aips-field-label">🎨 图片生成</span>
-            <span class="aips-img-badge-new">新功能</span>
-          </div>
-          <p class="aips-hint">开启后，在聊天中说「帮我画一张…」AI 会直接生成图片并显示在对话里。</p>
-          <div class="aips-img-options">
-            <label class="aips-img-option" :class="{ 'aips-img-option--active': !imageModelChoice }">
-              <input v-model="imageModelChoice" type="radio" value="" class="aips-img-radio" />
-              <span class="aips-img-option-label">暂不开启</span>
-            </label>
-            <label
-              v-for="m in expandedProvider.catalog.imageModels"
-              :key="m"
-              class="aips-img-option"
-              :class="{ 'aips-img-option--active': imageModelChoice === m }"
-            >
-              <input v-model="imageModelChoice" type="radio" :value="m" class="aips-img-radio" />
-              <span class="aips-img-option-label">
-                开启图片生成
-                <span class="aips-img-model-id">{{ m }}</span>
-              </span>
-            </label>
-          </div>
-          <p v-if="imageModelChoice && imageModelChoice !== 'off'" class="aips-hint aips-hint--ok">
-            ✓ 点下方「应用」后生效，之后在聊天里直接描述想要的图片即可。
-          </p>
         </div>
 
         <div class="aips-panel-actions">
@@ -1198,5 +1336,48 @@ async function removeProvider(view: OpenClawAiProviderView) {
 .aips-hint--ok {
   color: #16a34a;
   font-size: 11px;
+}
+
+/* ── 独立图片生成卡 ── */
+.aips-card--img {
+  cursor: pointer;
+}
+.aips-card--img .aips-card-model-hint {
+  font-family: var(--lc-mono);
+  font-size: 10px;
+  color: var(--lc-text-muted);
+  margin-top: 2px;
+}
+.aips-status-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+.aips-status-tag--on {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+.aips-status-tag--off {
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text-muted);
+}
+.aips-img-off-btn {
+  border: none;
+  background: none;
+  color: var(--lc-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0 4px;
+  margin-left: 4px;
+}
+.aips-img-off-btn:hover {
+  color: #dc2626;
+}
+.aips-card--expanded {
+  grid-column: 1 / -1;
 }
 </style>
