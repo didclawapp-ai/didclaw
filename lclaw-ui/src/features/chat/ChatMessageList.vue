@@ -137,19 +137,13 @@ onMounted(() => {
         position: 'relative',
       }"
     >
+      <!-- Outer shell is the measured element; padding-bottom creates the inter-card gap -->
       <div
         v-for="item in virtualizer.getVirtualItems()"
         :key="String(item.key)"
         :ref="rowRef"
-        class="row"
         :data-index="item.index"
-        :class="[
-          'role-' + (lines[item.index]?.role ?? 'unknown'),
-          {
-            selected: selectedIndex === item.index,
-            stream: lines[item.index]?.streaming,
-          },
-        ]"
+        class="row-shell"
         :style="{
           position: 'absolute',
           top: 0,
@@ -157,15 +151,26 @@ onMounted(() => {
           width: '100%',
           transform: `translateY(${item.start}px)`,
         }"
-        @click="onRowClick(item.index)"
       >
-        <div class="row-head">
-          <span class="tag">{{ roleLabel(lines[item.index]?.role ?? "?") }}</span>
-          <span v-if="lines[item.index]?.timeLabel" class="time">{{
-            lines[item.index]?.timeLabel
-          }}</span>
+        <div
+          class="row"
+          :class="[
+            'role-' + (lines[item.index]?.role ?? 'unknown'),
+            {
+              selected: selectedIndex === item.index,
+              stream: lines[item.index]?.streaming,
+            },
+          ]"
+          @click="onRowClick(item.index)"
+        >
+          <div class="row-head">
+            <span class="tag">{{ roleLabel(lines[item.index]?.role ?? "?") }}</span>
+            <span v-if="lines[item.index]?.timeLabel" class="time">{{
+              lines[item.index]?.timeLabel
+            }}</span>
+          </div>
+          <ChatLineBody class="txt" :text="lines[item.index]?.listText ?? lines[item.index]?.text ?? ''" />
         </div>
-        <ChatLineBody class="txt" :text="lines[item.index]?.listText ?? lines[item.index]?.text ?? ''" />
       </div>
     </div>
   </div>
@@ -177,6 +182,10 @@ onMounted(() => {
   min-height: 120px;
   overflow: auto;
   padding: 10px 14px 16px;
+}
+.row-shell {
+  padding-bottom: 14px;
+  box-sizing: border-box;
 }
 .row-head {
   display: flex;
@@ -197,7 +206,7 @@ onMounted(() => {
   align-items: stretch;
   gap: 6px;
   padding: 10px 12px 12px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   border-radius: var(--lc-radius-sm);
   border: 1px solid var(--lc-border);
   cursor: pointer;
