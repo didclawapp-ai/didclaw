@@ -126,6 +126,10 @@ interface DidClawElectronApi {
       }
     | { ok: false; error: string }
   >;
+  /** Patch `env` section in openclaw.json. Null values remove the key. */
+  writeOpenClawEnv?(payload: {
+    patch: Record<string, string | null>;
+  }): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;
   /** 对比本机 `openclaw --version` 与 npm 最新版（需联网） */
   checkOpenclawUpdate?(): Promise<
     | {

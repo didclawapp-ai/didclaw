@@ -569,6 +569,11 @@ pub fn write_open_claw_model_config(payload: Value) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub fn write_open_claw_env(payload: Value) -> Result<Value, String> {
+    Ok(crate::openclaw_model_config::write_open_claw_env(payload))
+}
+
+#[tauri::command]
 pub fn write_open_claw_skill_enabled(skill_key: String, enabled: bool) -> Result<Value, String> {
     Ok(crate::openclaw_skill_config::write_open_claw_skill_enabled(
         &skill_key, enabled,

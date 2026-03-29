@@ -220,6 +220,83 @@ pub fn write_open_claw_model_config(payload: Value) -> Value {
     }
 }
 
+/// Patch `env` section in `openclaw.json`.
+/// `patch` keys with `null` values are removed; string values are set.
+pub fn write_open_claw_env(payload: Value) -> Value {
+    let patch_obj = match payload.get("patch").and_then(|v| v.as_object()) {
+        Some(o) => o,
+        None => return json!({"ok": false, "error": "patch 无效"}),
+    };
+
+    let config_path = match openclaw_config_path() {
+        Ok(p) => p,
+        Err(e) => return json!({"ok": false, "error": e}),
+    };
+    let dir = match crate::openclaw_common::openclaw_dir() {
+        Ok(d) => d,
+        Err(e) => return json!({"ok": false, "error": e}),
+    };
+
+    let mut root: Value = match fs::read_to_string(&config_path) {
+        Ok(raw) => match serde_json::from_str(&raw) {
+            Ok(v) => v,
+            Err(_) => return json!({"ok": false, "error": "当前 openclaw.json 无法解析为 JSON"}),
+        },
+        Err(e) if is_enoent(&e) => json!({}),
+        Err(e) => return json!({"ok": false, "error": e.to_string()}),
+    };
+
+    let backup_path_str = match backup_current_file_if_exists(&config_path) {
+        Ok(s) => s,
+        Err(e) => return json!({"ok": false, "error": format!("备份失败：{e}")}),
+    };
+
+    if !root.is_object() {
+        root = json!({});
+    }
+    let root_map = root.as_object_mut().unwrap();
+
+    if !root_map.get("env").map(|v| v.is_object()).unwrap_or(false) {
+        root_map.insert("env".into(), json!({}));
+    }
+    let env = root_map.get_mut("env").unwrap().as_object_mut().unwrap();
+
+    for (k, v) in patch_obj {
+        if v.is_null() {
+            env.remove(k);
+        } else if let Some(s) = v.as_str() {
+            if s.is_empty() {
+                env.remove(k);
+            } else {
+                env.insert(k.clone(), json!(s));
+            }
+        }
+    }
+
+    // Remove the env object entirely if empty to keep config clean
+    if env.is_empty() {
+        root_map.remove("env");
+    }
+
+    let out = match serde_json::to_string_pretty(&root) {
+        Ok(s) => format!("{s}\n"),
+        Err(e) => return json!({"ok": false, "error": e.to_string()}),
+    };
+
+    if let Err(e) = fs::create_dir_all(&dir) {
+        return json!({"ok": false, "error": e.to_string()});
+    }
+    if let Err(e) = fs::write(&config_path, out) {
+        return json!({"ok": false, "error": e.to_string()});
+    }
+
+    if backup_path_str.is_empty() {
+        json!({"ok": true})
+    } else {
+        json!({"ok": true, "backupPath": backup_path_str})
+    }
+}
+
 fn file_mtime_ms(path: &Path) -> u128 {
     fs::metadata(path)
         .and_then(|m| m.modified())

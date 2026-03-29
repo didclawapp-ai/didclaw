@@ -264,6 +264,8 @@ export type ImageGenCatalogEntry = {
   /** 用于界面展示的模型简名 */
   modelLabel: string;
   apiKeyPlaceholder: string;
+  /** OpenClaw 图片生成插件所需的 env var 名（写入 openclaw.json env 段） */
+  envKey: string;
   docsUrl?: string;
 };
 
@@ -278,6 +280,7 @@ export const IMAGE_GEN_CATALOG: readonly ImageGenCatalogEntry[] = [
     modelRef: "minimax/image-01",
     modelLabel: "image-01",
     apiKeyPlaceholder: "粘贴 MiniMax API Key（与对话模型相同）",
+    envKey: "MINIMAX_API_KEY",
     docsUrl: "https://docs.openclaw.ai/zh-CN/providers/minimax",
   },
   {
@@ -290,6 +293,7 @@ export const IMAGE_GEN_CATALOG: readonly ImageGenCatalogEntry[] = [
     modelRef: "google/gemini-3-pro-image-preview",
     modelLabel: "gemini-3-pro-image-preview",
     apiKeyPlaceholder: "粘贴 Google AI Studio API Key（AIza...）",
+    envKey: "GEMINI_API_KEY",
     docsUrl: "https://ai.google.dev/gemini-api/docs/image-generation",
   },
 ];

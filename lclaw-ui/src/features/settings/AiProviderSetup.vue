@@ -307,6 +307,16 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
       return;
     }
 
+    // If this provider has image generation capability, also sync the env var
+    // so image generation plugins can find the key without manual setup
+    const savedKey = editingKey.value.trim();
+    if (savedKey && view.catalog?.imageModels?.length && api.writeOpenClawEnv) {
+      const imgEntry = IMAGE_GEN_CATALOG.find((e) => e.providerId === view.id);
+      if (imgEntry) {
+        await api.writeOpenClawEnv({ patch: { [imgEntry.envKey]: savedKey } });
+      }
+    }
+
     await loadAll();
     expandedId.value = null;
     modelEditMode.value = false;
@@ -353,6 +363,14 @@ async function removeProvider(view: OpenClawAiProviderView) {
       error.value = String(mr.error || "清理模型引用失败");
       return;
     }
+    // Clean up env var if this provider had image generation
+    if (view.catalog?.imageModels?.length && api.writeOpenClawEnv) {
+      const imgEntry = IMAGE_GEN_CATALOG.find((e) => e.providerId === view.id);
+      if (imgEntry) {
+        await api.writeOpenClawEnv({ patch: { [imgEntry.envKey]: null } });
+      }
+    }
+
     await loadAll();
     expandedId.value = null;
     void chat.refreshOpenClawModelPicker();
@@ -418,6 +436,16 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
       error.value = String(mr.error || "保存图片生成模型失败");
       return;
     }
+
+    // Write env var so the image generation plugin can find the key
+    const resolvedKey = imgEditingKey.value.trim() || (() => {
+      const pd = aiSnapshot.value.providers?.[entry.providerId] as Record<string, unknown> | undefined;
+      return typeof pd?.apiKey === "string" ? pd.apiKey : "";
+    })();
+    if (resolvedKey && api.writeOpenClawEnv) {
+      await api.writeOpenClawEnv({ patch: { [entry.envKey]: resolvedKey } });
+    }
+
     await loadAll();
     expandedImgId.value = null;
     imgEditingKey.value = "";
