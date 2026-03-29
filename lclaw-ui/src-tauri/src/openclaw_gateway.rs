@@ -491,12 +491,36 @@ fn read_didclaw_gateway_err_log_tail(max_bytes: usize) -> String {
     String::from_utf8_lossy(&buf[..n]).trim().to_string()
 }
 
-fn kill_managed_gateway_process() {
+fn kill_managed_gateway_process() -> bool {
     let mut g = MANAGED_CHILD.lock().expect("MANAGED_CHILD mutex poisoned");
     if let Some(mut c) = g.take() {
         let _ = c.kill();
         let _ = c.wait();
+        return true;
     }
+    false
+}
+
+fn gateway_stop_output_looks_safe(text: &str) -> bool {
+    let l = text.to_ascii_lowercase();
+    l.contains("not running")
+        || l.contains("already stopped")
+        || l.contains("not installed")
+        || l.contains("no installed gateway")
+        || l.contains("no service")
+        || l.contains("service is not installed")
+}
+
+fn resolve_configured_openclaw_executable(
+    app: &tauri::AppHandle,
+) -> Result<Option<String>, String> {
+    let merged = crate::gateway_local::read_merged_map(app)?;
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    Ok(resolve_open_claw_executable(exe_opt))
 }
 
 /// 退出应用时关闭仍带标题的网关控制台窗口（例如此前由其它方式拉起、或旧版本遗留）。
@@ -530,6 +554,82 @@ pub fn dispose_managed_open_claw_gateway(app: &tauri::AppHandle) {
     if kill_on_quit {
         kill_managed_gateway_process();
     }
+}
+
+/// 升级前先停止 Gateway，避免 Windows 上 npm 覆盖全局 openclaw 包时被运行中的进程锁文件。
+pub fn stop_open_claw_gateway_service(app: &tauri::AppHandle) -> Value {
+    let managed_stopped = kill_managed_gateway_process();
+
+    let exe = match resolve_configured_openclaw_executable(app) {
+        Ok(Some(exe)) => exe,
+        Ok(None) => {
+            return json!({
+                "ok": managed_stopped,
+                "error": if managed_stopped {
+                    Value::Null
+                } else {
+                    json!("未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。")
+                }
+            });
+        }
+        Err(e) => {
+            return json!({
+                "ok": managed_stopped,
+                "error": if managed_stopped { Value::Null } else { json!(e) }
+            });
+        }
+    };
+
+    let output = Command::new(exe.trim())
+        .arg("gateway")
+        .arg("stop")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+
+    let output = match output {
+        Ok(o) => o,
+        Err(e) => {
+            if managed_stopped {
+                return json!({ "ok": true });
+            }
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw gateway stop 失败：{e}")
+            });
+        }
+    };
+
+    if output.status.success() {
+        return json!({ "ok": true });
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = [stderr.as_str(), stdout.as_str()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if managed_stopped || gateway_stop_output_looks_safe(&detail) {
+        return json!({ "ok": true });
+    }
+
+    let detail = if detail.is_empty() {
+        output
+            .status
+            .code()
+            .map(|c| format!("退出码 {c}"))
+            .unwrap_or_else(|| "进程异常退出".into())
+    } else {
+        detail
+    };
+    json!({
+        "ok": false,
+        "error": format!("停止 Gateway 失败：{detail}")
+    })
 }
 
 // NOTE: run_openclaw_gateway_restart_captured 已删除——Windows 下 openclaw gateway restart
@@ -882,22 +982,17 @@ fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
 pub fn restart_open_claw_gateway_service(app: &tauri::AppHandle) -> Value {
     kill_managed_gateway_process();
 
-    let merged = match crate::gateway_local::read_merged_map(app) {
-        Ok(m) => m,
+    let exe = match resolve_configured_openclaw_executable(app) {
+        Ok(Some(exe)) => exe,
+        Ok(None) => {
+            return json!({
+                "ok": false,
+                "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+            });
+        }
         Err(e) => {
             return json!({ "ok": false, "error": e });
         }
-    };
-    let exe_opt = merged
-        .get("openclawExecutable")
-        .and_then(|v| v.as_str())
-        .map(str::trim)
-        .filter(|s| !s.is_empty());
-    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
-        return json!({
-            "ok": false,
-            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
-        });
     };
 
     // Windows：直接 kill + spawn，避免触发 SIGUSR1 导致 ERR_UNKNOWN_SIGNAL

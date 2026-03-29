@@ -226,6 +226,11 @@ pub fn restart_open_claw_gateway(app: tauri::AppHandle) -> Result<Value, String>
 }
 
 #[tauri::command]
+pub fn stop_open_claw_gateway(app: tauri::AppHandle) -> Result<Value, String> {
+    Ok(crate::openclaw_gateway::stop_open_claw_gateway_service(&app))
+}
+
+#[tauri::command]
 pub fn openclaw_plugins_install(
     app: tauri::AppHandle,
     package_spec: String,
@@ -400,6 +405,82 @@ pub async fn openclaw_skills_check(app: tauri::AppHandle) -> Result<Value, Strin
     })
     .await
     .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn clawhub_packages_search(
+    query: String,
+    limit: Option<u32>,
+    family: Option<String>,
+    channel: Option<String>,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Result<Value, String> {
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_clawhub::clawhub_packages_search_service(
+            &query,
+            limit,
+            family.as_deref(),
+            channel.as_deref(),
+            clawhub_token.as_deref(),
+            clawhub_registry.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??)
+}
+
+#[tauri::command]
+pub async fn clawhub_package_detail(
+    name: String,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Result<Value, String> {
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_clawhub::clawhub_package_detail_service(
+            &name,
+            clawhub_token.as_deref(),
+            clawhub_registry.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??)
+}
+
+#[tauri::command]
+pub async fn clawhub_skill_detail(
+    slug: String,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Result<Value, String> {
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_clawhub::clawhub_skill_detail_service(
+            &slug,
+            clawhub_token.as_deref(),
+            clawhub_registry.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??)
+}
+
+#[tauri::command]
+pub async fn clawhub_download_skill_zip(
+    slug: String,
+    version: Option<String>,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::openclaw_clawhub::clawhub_download_skill_zip_service(
+            &slug,
+            version.as_deref(),
+            clawhub_token.as_deref(),
+            clawhub_registry.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

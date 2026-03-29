@@ -35,6 +35,7 @@ function tauriApi(): DidClawElectronApi {
     ensureOpenClawGateway: (payload) =>
       invoke("ensure_open_claw_gateway", { wsUrl: payload.wsUrl }),
     restartOpenClawGateway: () => invoke("restart_open_claw_gateway"),
+    stopOpenClawGateway: () => invoke("stop_open_claw_gateway"),
     openclawPluginsInstall: (payload: {
       packageSpec: string;
       clawhubToken?: string;

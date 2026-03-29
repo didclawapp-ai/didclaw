@@ -16,8 +16,11 @@ const upgradeBusy = ref(false);
 /** upgrade done — show restart prompt instead of the update notice */
 const upgradeSuccess = ref(false);
 const upgradeError = ref<string | null>(null);
+const upgradeLogTail = ref<string | null>(null);
 const restartBusy = ref(false);
 const restartDone = ref(false);
+const restartError = ref<string | null>(null);
+const restartMessage = ref<string | null>(null);
 
 const gw = useGatewayStore();
 
@@ -76,7 +79,40 @@ function dismissForThisRelease(): void {
   open.value = false;
   upgradeSuccess.value = false;
   upgradeError.value = null;
+  upgradeLogTail.value = null;
+  restartError.value = null;
+  restartMessage.value = null;
   restartDone.value = false;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function extractUpgradeLogTail(log: string | null | undefined): string | null {
+  if (typeof log !== "string" || !log.trim()) {
+    return null;
+  }
+  const lines = log
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line && line !== "--- streamed ---");
+  if (!lines.length) {
+    return null;
+  }
+  return lines.slice(-6).join("\n");
+}
+
+function formatUpgradeFailure(res: {
+  error?: string | null;
+  exitCode: number;
+  log?: string | null;
+}): string {
+  const err =
+    typeof res.error === "string" && res.error.trim() ? res.error.trim() : `退出码 ${res.exitCode}`;
+  const tail = extractUpgradeLogTail(res.log);
+  upgradeLogTail.value = tail;
+  return tail ? `${err}。日志末尾已附上。` : err;
 }
 
 async function onWindowsScriptUpgrade(): Promise<void> {
@@ -87,41 +123,103 @@ async function onWindowsScriptUpgrade(): Promise<void> {
   }
   upgradeBusy.value = true;
   upgradeError.value = null;
+  upgradeLogTail.value = null;
+  let gatewayStopped = false;
   try {
+    if (api.stopOpenClawGateway) {
+      gw.disconnect();
+      restartMessage.value = "正在停止当前 Gateway…";
+      const stopRes = await api.stopOpenClawGateway();
+      if (!stopRes?.ok) {
+        upgradeError.value = stopRes?.error ?? "停止 Gateway 失败";
+        window.setTimeout(() => {
+          gw.connect();
+        }, 800);
+        return;
+      }
+      gatewayStopped = true;
+    }
+    restartMessage.value = "正在升级 OpenClaw…";
     // upgrade: true → -Upgrade -SkipOnboard → always runs npm install + openclaw doctor
     const res = await api.runEnsureOpenclawWindowsInstall({ skipOnboard: true, upgrade: true });
     if (res.ok) {
       dismissForThisRelease();
       upgradeSuccess.value = true;
       open.value = true;
+      currentVersion.value = latestVersion.value || currentVersion.value;
+      restartMessage.value = "升级完成，正在重启 Gateway 并恢复连接…";
+      await onRestartGateway(true);
     } else {
-      const err =
-        typeof res.error === "string" && res.error.trim()
-          ? res.error.trim()
-          : `退出码 ${res.exitCode}`;
-      upgradeError.value = err;
+      upgradeError.value = formatUpgradeFailure(res);
+      restartMessage.value = null;
+      if (gatewayStopped) {
+        window.setTimeout(() => {
+          gw.connect();
+        }, 1_200);
+      }
+    }
+  } catch (error) {
+    upgradeError.value = error instanceof Error ? error.message : "升级过程中出现未知错误";
+    restartMessage.value = null;
+    if (gatewayStopped) {
+      window.setTimeout(() => {
+        gw.connect();
+      }, 1_200);
     }
   } finally {
     upgradeBusy.value = false;
   }
 }
 
-async function onRestartGateway(): Promise<void> {
+async function waitForGatewayConnected(timeoutMs = 20_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  const isConnected = () => gw.status === "connected";
+  while (Date.now() < deadline) {
+    if (isConnected()) {
+      await delay(800);
+      return true;
+    }
+    await delay(500);
+  }
+  return false;
+}
+
+async function onRestartGateway(auto = false): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.restartOpenClawGateway) {
+    restartError.value = "当前环境不支持自动重启 Gateway，请稍后手动重启。";
     return;
   }
   restartBusy.value = true;
+  restartError.value = null;
+  restartDone.value = false;
+  restartMessage.value = auto ? "正在重启 Gateway…" : "正在重启 Gateway…";
   try {
-    await api.restartOpenClawGateway();
+    const result = await api.restartOpenClawGateway();
+    if (!result?.ok) {
+      restartError.value = (result as { error?: string }).error ?? "重启 Gateway 失败";
+      restartMessage.value = null;
+      return;
+    }
+    restartMessage.value = "Gateway 已重启，正在恢复桌面端连接…";
     restartDone.value = true;
-    gw.disconnect();
-    window.setTimeout(() => {
-      gw.connect();
-    }, 2_000);
+    await gw.reloadConnection();
+    const reconnected = await waitForGatewayConnected();
+    if (!reconnected) {
+      restartDone.value = false;
+      restartError.value = "Gateway 已重启，但桌面端暂未恢复连接，请稍后重试。";
+      restartMessage.value = null;
+      return;
+    }
+    restartDone.value = true;
+    restartMessage.value = "网关已重启，桌面端连接已恢复。";
   } finally {
     restartBusy.value = false;
   }
+}
+
+function onRestartGatewayClick(): void {
+  void onRestartGateway(false);
 }
 </script>
 
@@ -141,23 +239,25 @@ async function onRestartGateway(): Promise<void> {
           <h2 id="ocu-title-done" class="ocu-title">升级完成</h2>
           <p class="ocu-note small muted">
             OpenClaw 已更新至最新版本，配置迁移（<code>openclaw doctor</code>）已自动执行。
-            需要<strong>重启网关</strong>才能使新版本生效。
+            DidClaw 会自动重启网关并恢复连接。
           </p>
+          <p v-if="restartMessage" class="ocu-note small">{{ restartMessage }}</p>
           <p v-if="restartDone" class="ocu-restart-ok small">
-            网关正在重启，连接将在几秒后自动恢复。
+            网关已重启，桌面端已重新连接到最新版本的 OpenClaw。
           </p>
+          <p v-if="restartError" class="ocu-error small">{{ restartError }}</p>
           <div class="ocu-actions">
             <button
               v-if="!restartDone"
               type="button"
               class="lc-btn lc-btn-primary lc-btn-sm"
               :disabled="restartBusy"
-              @click="onRestartGateway"
+              @click="onRestartGatewayClick"
             >
-              {{ restartBusy ? "重启中…" : "立即重启网关" }}
+              {{ restartBusy ? "正在恢复连接…" : "重新尝试重启网关" }}
             </button>
             <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismissForThisRelease">
-              {{ restartDone ? "关闭" : "稍后手动重启" }}
+              {{ restartDone ? "关闭" : "稍后手动处理" }}
             </button>
           </div>
         </template>
@@ -180,6 +280,7 @@ async function onRestartGateway(): Promise<void> {
             升级失败：{{ upgradeError }}。可在终端手动执行
             <code class="ocu-code">npm install -g openclaw@latest</code>
           </p>
+          <pre v-if="upgradeLogTail" class="ocu-log-tail"><code>{{ upgradeLogTail }}</code></pre>
           <p v-if="!upgradeError" class="ocu-cli small">
             手动方式：<code class="ocu-code">npm install -g openclaw@latest</code>
           </p>
@@ -305,5 +406,18 @@ async function onRestartGateway(): Promise<void> {
   color: #f87171;
   margin: 0 0 0.55rem;
   line-height: 1.5;
+}
+
+.ocu-log-tail {
+  margin: 0 0 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--lc-text, #e8e8e8);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

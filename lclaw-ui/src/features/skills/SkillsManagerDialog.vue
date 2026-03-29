@@ -591,10 +591,16 @@ async function onSearch(): Promise<void> {
       searchHits.value = r.results ?? [];
       return;
     }
-    const [skillsResult, packagesResult] = await Promise.all([
+    const [skillsSettled, packagesSettled] = await Promise.allSettled([
       openclawSkillsSearch(q, { limit: 20, ...auth }),
       clawhubPackagesSearch(q, { limit: 30, ...auth }),
     ]);
+    if (skillsSettled.status !== "fulfilled" && packagesSettled.status !== "fulfilled") {
+      throw skillsSettled.reason ?? packagesSettled.reason;
+    }
+    const skillsResult = skillsSettled.status === "fulfilled" ? skillsSettled.value : { results: [] };
+    const packagesResult =
+      packagesSettled.status === "fulfilled" ? packagesSettled.value : { results: [] as ClawhubCatalogHit[] };
     const skillHits: ClawhubCatalogHit[] = (skillsResult.results ?? []).map((item) => ({
       score: item.score ?? 0,
       slug: item.slug,
@@ -608,6 +614,9 @@ async function onSearch(): Promise<void> {
       (item) => item.family === "code-plugin" || item.family === "bundle-plugin",
     );
     searchHits.value = sortCatalogHits([...skillHits, ...pluginHits]);
+    if (!skillHits.length && packagesSettled.status !== "fulfilled") {
+      searchError.value = "ClawHub 插件目录暂不可用，当前仅支持本机 OpenClaw 技能搜索。";
+    }
   } catch (e) {
     searchError.value = formatClawhubErr(e);
     searchHits.value = [];

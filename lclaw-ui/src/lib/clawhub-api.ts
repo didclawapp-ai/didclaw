@@ -5,6 +5,7 @@
  */
 
 import { didclawKvReadSync, didclawKvWriteSync } from "@/lib/didclaw-kv";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 
 const DEFAULT_REGISTRY = "https://clawhub.ai";
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -272,6 +273,19 @@ function normalizePackageFamily(f: string | undefined): ClawhubPackageFamily {
   return "skill";
 }
 
+function shouldUseDesktopProxy(): boolean {
+  return isTauri();
+}
+
+function base64ToArrayBuffer(base64Data: string): ArrayBuffer {
+  const binary = atob(base64Data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 function mapPackageSearchRow(row: ClawhubPackageSearchRow): ClawhubCatalogHit {
   const p = row.package;
   const family = normalizePackageFamily(p.family);
@@ -405,6 +419,21 @@ export async function clawhubPackagesSearch(
   if (!q) {
     return { results: [] };
   }
+  const stored = getStoredClawhubClientOptions();
+  const registry = opts.registry?.trim() || stored.registry;
+  const token = opts.token?.trim() || stored.token;
+  if (shouldUseDesktopProxy()) {
+    const raw = await invoke<ClawhubPackagesSearchResponse>("clawhub_packages_search", {
+      query: q,
+      limit: clampPackagesSearchLimit(opts.limit ?? 30),
+      family: opts.family ?? null,
+      channel: opts.channel ?? null,
+      clawhubToken: token ?? null,
+      clawhubRegistry: registry ?? null,
+    });
+    const rows = raw.results ?? [];
+    return { results: rows.map(mapPackageSearchRow) };
+  }
   const params = new URLSearchParams();
   params.set("q", q);
   params.set("limit", String(clampPackagesSearchLimit(opts.limit ?? 30)));
@@ -414,10 +443,7 @@ export async function clawhubPackagesSearch(
   if (opts.channel) {
     params.set("channel", opts.channel);
   }
-  const stored = getStoredClawhubClientOptions();
-  const registry = opts.registry?.trim() || stored.registry;
   const url = apiUrl(registry, "/api/v1/packages/search", params);
-  const token = opts.token?.trim() || stored.token;
   const raw = await fetchJson<ClawhubPackagesSearchResponse>(url, { method: "GET" }, token);
   const rows = raw.results ?? [];
   return { results: rows.map(mapPackageSearchRow) };
@@ -434,8 +460,15 @@ export async function clawhubPackageDetail(
   const n = assertSafePackageName(name);
   const stored = getStoredClawhubClientOptions();
   const registry = opts.registry?.trim() || stored.registry;
-  const url = apiUrl(registry, `/api/v1/packages/${encodeURIComponent(n)}`);
   const token = opts.token?.trim() || stored.token;
+  if (shouldUseDesktopProxy()) {
+    return invoke<ClawhubPackageDetail>("clawhub_package_detail", {
+      name: n,
+      clawhubToken: token ?? null,
+      clawhubRegistry: registry ?? null,
+    });
+  }
+  const url = apiUrl(registry, `/api/v1/packages/${encodeURIComponent(n)}`);
   return fetchJson<ClawhubPackageDetail>(url, { method: "GET" }, token);
 }
 
@@ -495,8 +528,15 @@ export async function clawhubSkillDetail(
   const s = assertSafeSlug(slug);
   const stored = getStoredClawhubClientOptions();
   const registry = opts.registry?.trim() || stored.registry;
-  const url = apiUrl(registry, `/api/v1/skills/${encodeURIComponent(s)}`);
   const token = opts.token?.trim() || stored.token;
+  if (shouldUseDesktopProxy()) {
+    return invoke<ClawhubSkillDetail>("clawhub_skill_detail", {
+      slug: s,
+      clawhubToken: token ?? null,
+      clawhubRegistry: registry ?? null,
+    });
+  }
+  const url = apiUrl(registry, `/api/v1/skills/${encodeURIComponent(s)}`);
   return fetchJson<ClawhubSkillDetail>(url, { method: "GET" }, token);
 }
 
@@ -516,8 +556,17 @@ export async function clawhubDownloadSkillZip(
   }
   const stored = getStoredClawhubClientOptions();
   const registry = opts.registry?.trim() || stored.registry;
-  const url = apiUrl(registry, "/api/v1/download", params);
   const token = opts.token?.trim() || stored.token;
+  if (shouldUseDesktopProxy()) {
+    const base64Data = await invoke<string>("clawhub_download_skill_zip", {
+      slug: s,
+      version: opts.version?.trim() || null,
+      clawhubToken: token ?? null,
+      clawhubRegistry: registry ?? null,
+    });
+    return base64ToArrayBuffer(base64Data);
+  }
+  const url = apiUrl(registry, "/api/v1/download", params);
   return fetchBinary(url, token);
 }
 

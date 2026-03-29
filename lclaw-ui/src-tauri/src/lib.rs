@@ -1,6 +1,7 @@
 mod commands;
 mod didclaw_db;
 mod openclaw_backup;
+mod openclaw_clawhub;
 mod openclaw_channel_config;
 mod gateway_local;
 mod gateway_tunnel;
@@ -159,6 +160,7 @@ pub fn run() {
             commands::didclaw_kv_remove,
             commands::ensure_open_claw_gateway,
             commands::restart_open_claw_gateway,
+            commands::stop_open_claw_gateway,
             commands::openclaw_plugins_install,
             commands::plugins_pick_package_file,
             commands::openclaw_plugins_list,
@@ -171,6 +173,10 @@ pub fn run() {
             commands::openclaw_skills_install,
             commands::openclaw_skills_update,
             commands::openclaw_skills_check,
+            commands::clawhub_packages_search,
+            commands::clawhub_package_detail,
+            commands::clawhub_skill_detail,
+            commands::clawhub_download_skill_zip,
             commands::gateway_tunnel_open,
             commands::gateway_tunnel_send,
             commands::gateway_tunnel_close,

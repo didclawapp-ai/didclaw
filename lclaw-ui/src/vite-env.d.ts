@@ -77,6 +77,8 @@ interface DidClawElectronApi {
   >;
   /** 执行 `openclaw gateway restart`（系统已安装的服务/计划任务） */
   restartOpenClawGateway?(): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** 升级前停止 Gateway，避免 Windows 全局升级时文件被占用 */
+  stopOpenClawGateway?(): Promise<{ ok: true } | { ok: false; error: string }>;
   /** 执行 `openclaw plugins install <spec>`（如 ClawHub：`clawhub:@scope/name`） */
   openclawPluginsInstall?(payload: {
     packageSpec: string;
