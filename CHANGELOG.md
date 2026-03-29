@@ -6,6 +6,11 @@
 
 ## [未发布]
 
+### 修复
+
+- **图片生成开启后导致聊天模型丢失**：`applyImageGen` 保存时未传 `models` 参数，导致后端清空 `agents.defaults.models`，造成主力聊天模型（如 `moonshot/kimi-k2.5`）被识别为 Unknown；现已在写入时同时携带 `...existingModel` 与 `models: aiSnapshot.value.models`，防止覆盖现有配置。
+- **Kimi 推荐模型列表过时**：目录中 `kimi-k1.5` 已废弃，同步为 OpenClaw 3.28 文档中的最新 K2 系列（kimi-k2.5、kimi-k2-turbo-preview、kimi-k2-thinking、kimi-k2-thinking-turbo）。
+
 ### 优化
 
 - **图片生成独立配置区块**：AI 配置页新增专属「图片生成」区块，MiniMax（image-01）与 Google Gemini（gemini-3-pro-image-preview）各有独立卡片；用户点击卡片展开后输入 API Key（已配置对话模型者自动预填）再点「开启图片生成」即可；当前已开启的图片生成模型在标题栏实时显示，并可随时一键关闭；移除了原先嵌入 MiniMax 对话卡片内的「🎨 图片生成」子选项，入口更清晰。

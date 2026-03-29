@@ -410,8 +410,11 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
       });
     }
 
+    // Merge into existing defaults to avoid wiping primary/fallbacks/other fields
+    const existingModel = aiSnapshot.value.model as Record<string, unknown>;
     const mr = await api.writeOpenClawModelConfig({
-      model: { imageGenerationModel: { primary: entry.modelRef } },
+      model: { ...existingModel, imageGenerationModel: { primary: entry.modelRef } },
+      models: aiSnapshot.value.models,
     });
     if (!mr.ok) {
       error.value = String(mr.error || "保存图片生成模型失败");
@@ -432,8 +435,10 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
 async function removeImageGen() {
   const api = getDidClawDesktopApi();
   if (!api?.writeOpenClawModelConfig) return;
+  const existingModel = aiSnapshot.value.model as Record<string, unknown>;
   const mr = await api.writeOpenClawModelConfig({
-    model: { imageGenerationModel: null },
+    model: { ...existingModel, imageGenerationModel: null },
+    models: aiSnapshot.value.models,
   });
   if (mr.ok) {
     await loadAll();
