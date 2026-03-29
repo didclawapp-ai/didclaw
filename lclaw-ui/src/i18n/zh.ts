@@ -578,7 +578,7 @@ export default {
       name: "WhatsApp",
       desc: "全球 30 亿用户，扫码绑定手机号。",
       docLink: "https://docs.openclaw.ai/channels/whatsapp",
-      hint: "运行登录命令后，用 WhatsApp 扫描弹出的二维码完成绑定。国内需翻墙。",
+      hint: "运行登录命令后，用 WhatsApp 扫描弹出的二维码完成绑定。",
     },
     wechat: {
       name: "微信",
