@@ -109,6 +109,19 @@ interface DidClawElectronApi {
     | { ok: true; providers: Record<string, unknown>; defaultAgentId: string }
     | { ok: false; error: string }
   >;
+  readOpenClawAiSnapshot?(): Promise<
+    | {
+        ok: true;
+        defaultAgentId: string;
+        providers: Record<string, unknown>;
+        model: Record<string, unknown>;
+        models: Record<string, unknown>;
+        primaryModel: string;
+        fallbacks: string[];
+        modelRefs: string[];
+      }
+    | { ok: false; error: string }
+  >;
   /** 对比本机 `openclaw --version` 与 npm 最新版（需联网） */
   checkOpenclawUpdate?(): Promise<
     | {

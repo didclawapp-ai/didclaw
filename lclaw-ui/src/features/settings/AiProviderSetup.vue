@@ -1,34 +1,40 @@
 <script setup lang="ts">
-import { PROVIDER_CATALOG, type ProviderCatalogEntry } from "@/lib/provider-catalog";
-import { getDidClawDesktopApi } from "@/lib/electron-bridge";
-import { useChatStore } from "@/stores/chat";
 import { afterOpenClawModelConfigSaved, afterOpenClawProvidersSaved } from "@/composables/modelConfigDeferred";
+import { getDidClawDesktopApi } from "@/lib/electron-bridge";
+import {
+  buildAiProviderViews,
+  buildFallbackSuggestions,
+  buildProviderEditorState,
+  readOpenClawAiSnapshot,
+  stripProviderModelRefs,
+  type OpenClawAiProviderView,
+  type OpenClawAiSnapshot,
+} from "@/lib/openclaw-ai-config";
+import { useChatStore } from "@/stores/chat";
 import { computed, ref, watch } from "vue";
 
 const props = defineProps<{ open: boolean }>();
 
 const chat = useChatStore();
 
-/** 已从 OpenClaw 读取的 provider 配置快照 */
-const savedProviders = ref<Record<string, Record<string, unknown>>>({});
-/** 当前主力模型，如 "zai/glm-5" */
-const currentPrimary = ref("");
-/** 备用模型列表（故障切换顺序），如 ["openai/gpt-4o-mini"] */
+const aiSnapshot = ref<OpenClawAiSnapshot>({
+  defaultAgentId: "main",
+  providers: {},
+  model: {},
+  models: {},
+  primaryModel: "",
+  fallbacks: [],
+  modelRefs: [],
+});
 const fallbackModels = ref<string[]>([]);
 const fallbackInput = ref("");
 const fallbackBusy = ref(false);
 
-/** 展开的卡片 id */
 const expandedId = ref<string | null>(null);
-/** 编辑中的 API Key */
 const editingKey = ref("");
-/** 是否显示明文 */
 const showKey = ref(false);
-/** 当前选择的接口节点：main | alt */
 const nodeChoice = ref<"main" | "alt">("main");
-/** 可编辑的接口地址 */
 const editingBaseUrl = ref("");
-/** 可编辑的模型列表（comma-separated 编辑态） */
 const modelEditMode = ref(false);
 const modelEditText = ref("");
 
@@ -40,67 +46,56 @@ const error = ref<string | null>(null);
 function setToast(msg: string) {
   toast.value = msg;
   error.value = null;
-  if (toastTimer.value) clearTimeout(toastTimer.value);
-  toastTimer.value = setTimeout(() => { toast.value = null; }, 5000);
+  if (toastTimer.value) {
+    clearTimeout(toastTimer.value);
+  }
+  toastTimer.value = setTimeout(() => {
+    toast.value = null;
+  }, 5000);
 }
 
-watch(() => props.open, (v) => {
-  if (v) void loadAll();
-  else {
-    expandedId.value = null;
-    toast.value = null;
-    error.value = null;
-  }
-}, { immediate: true });
+const providerGroups = computed(() => buildAiProviderViews(aiSnapshot.value));
+const recommendedProviders = computed(() => providerGroups.value.recommended);
+const detectedProviders = computed(() => providerGroups.value.detected);
+const allProviders = computed(() => providerGroups.value.all);
+const currentPrimary = computed(() => aiSnapshot.value.primaryModel);
+const availableFallbackSuggestions = computed(() => buildFallbackSuggestions({
+  ...aiSnapshot.value,
+  fallbacks: fallbackModels.value,
+}));
+const expandedProvider = computed<OpenClawAiProviderView | null>(() =>
+  allProviders.value.find((item) => item.id === expandedId.value) ?? null,
+);
+
+watch(
+  () => props.open,
+  (v) => {
+    if (v) {
+      void loadAll();
+    } else {
+      expandedId.value = null;
+      toast.value = null;
+      error.value = null;
+    }
+  },
+  { immediate: true },
+);
 
 async function loadAll() {
-  const api = getDidClawDesktopApi();
-  if (!api) return;
   try {
-    const [pr, mr] = await Promise.all([
-      api.readOpenClawProviders?.(),
-      api.readOpenClawModelConfig?.(),
-    ]);
-    if (pr?.ok && pr.providers) {
-      const next: Record<string, Record<string, unknown>> = {};
-      for (const [k, v] of Object.entries(pr.providers)) {
-        if (v && typeof v === "object" && !Array.isArray(v)) {
-          next[k] = v as Record<string, unknown>;
-        }
-      }
-      savedProviders.value = next;
-    }
-    if (mr?.ok && mr.model?.primary) {
-      currentPrimary.value = String(mr.model.primary);
-    }
-    if (mr?.ok && Array.isArray((mr.model as Record<string, unknown>)?.fallbacks)) {
-      fallbackModels.value = ((mr.model as Record<string, unknown>).fallbacks as unknown[])
-        .filter((v) => typeof v === "string" && v.trim())
-        .map((v) => String(v).trim());
-    }
-  } catch { /* ignore */ }
-}
-
-/** 所有已配置 provider 下的完整模型引用（provider/model），排除当前主力 */
-const availableFallbackSuggestions = computed<string[]>(() => {
-  const results: string[] = [];
-  for (const entry of PROVIDER_CATALOG) {
-    const snap = savedProviders.value[entry.id];
-    if (!snap) continue;
-    const models = modelsFromSnap(snap, entry);
-    for (const m of models) {
-      const ref = `${entry.id}/${m}`;
-      if (ref !== currentPrimary.value && !fallbackModels.value.includes(ref)) {
-        results.push(ref);
-      }
-    }
+    const snapshot = await readOpenClawAiSnapshot();
+    aiSnapshot.value = snapshot;
+    fallbackModels.value = [...snapshot.fallbacks];
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
   }
-  return results;
-});
+}
 
 function addFallback(model: string): void {
   const v = model.trim();
-  if (!v || fallbackModels.value.includes(v)) return;
+  if (!v || fallbackModels.value.includes(v)) {
+    return;
+  }
   fallbackModels.value = [...fallbackModels.value, v];
   fallbackInput.value = "";
 }
@@ -111,16 +106,23 @@ function removeFallback(model: string): void {
 
 async function saveFallbacks(): Promise<void> {
   const api = getDidClawDesktopApi();
-  if (!api?.writeOpenClawModelConfig) return;
+  if (!api?.writeOpenClawModelConfig) {
+    return;
+  }
   fallbackBusy.value = true;
   try {
     const r = await api.writeOpenClawModelConfig({ model: { fallbacks: fallbackModels.value } });
-    if (r.ok) {
-      setToast("备用模型已保存");
-      afterOpenClawModelConfigSaved();
-    } else {
+    if (!r.ok) {
       error.value = String(r.error || "保存失败");
+      return;
     }
+    aiSnapshot.value = {
+      ...aiSnapshot.value,
+      fallbacks: [...fallbackModels.value],
+      model: { ...aiSnapshot.value.model, fallbacks: [...fallbackModels.value] },
+    };
+    setToast("备用模型已保存");
+    afterOpenClawModelConfigSaved();
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -128,163 +130,168 @@ async function saveFallbacks(): Promise<void> {
   }
 }
 
-function isConfigured(entry: ProviderCatalogEntry): boolean {
-  const snap = savedProviders.value[entry.id];
-  if (!snap) return false;
-  if (!entry.apiKeyRequired) return true;
-  const k = snap.apiKey;
-  return typeof k === "string" && k.trim().length > 0;
-}
-
-function isPrimary(entry: ProviderCatalogEntry): boolean {
-  return currentPrimary.value.startsWith(entry.id + "/");
-}
-
 function currentPrimaryLabel(): string {
-  if (!currentPrimary.value) return "未设置";
-  const [pid, mid] = currentPrimary.value.split("/");
-  const entry = PROVIDER_CATALOG.find((e) => e.id === pid);
-  return entry ? `${entry.icon} ${entry.name} · ${mid}` : currentPrimary.value;
+  if (!currentPrimary.value) {
+    return "未设置";
+  }
+  const provider = allProviders.value.find((item) => currentPrimary.value.startsWith(`${item.id}/`));
+  if (!provider) {
+    return currentPrimary.value;
+  }
+  const modelId = currentPrimary.value.slice(provider.id.length + 1);
+  return `${provider.icon} ${provider.displayName} · ${modelId}`;
 }
 
-function expandCard(entry: ProviderCatalogEntry) {
-  if (expandedId.value === entry.id) {
-    expandedId.value = null;
+function activeBaseUrl(view: OpenClawAiProviderView): string {
+  if (nodeChoice.value === "alt" && view.baseUrlAlt) {
+    return view.baseUrlAlt;
+  }
+  return view.catalog?.baseUrl ?? view.baseUrl;
+}
+
+function useMainNode(): void {
+  if (!expandedProvider.value) {
     return;
   }
-  expandedId.value = entry.id;
-  showKey.value = false;
-  modelEditMode.value = false;
   nodeChoice.value = "main";
-  // 填充已有 Key
-  const snap = savedProviders.value[entry.id];
-  const existingKey = snap?.apiKey;
-  editingKey.value = typeof existingKey === "string" ? existingKey : "";
-  // 填充已有接口地址（优先已保存的，否则取目录默认）
-  const existingUrl = snap?.baseUrl ?? snap?.baseURL;
-  editingBaseUrl.value = typeof existingUrl === "string" && existingUrl.trim()
-    ? existingUrl.trim()
-    : entry.baseUrl;
-  // 模型列表
-  const currentModels = modelsFromSnap(snap, entry);
-  modelEditText.value = currentModels.join(", ");
+  editingBaseUrl.value = expandedProvider.value.catalog?.baseUrl ?? expandedProvider.value.baseUrl;
 }
 
-function modelsFromSnap(snap: Record<string, unknown> | undefined, entry: ProviderCatalogEntry): string[] {
-  const raw = snap?.models;
-  if (Array.isArray(raw) && raw.length > 0) {
-    return raw.map((m) => (m && typeof m === "object" ? (m as { id?: string }).id ?? "" : String(m))).filter(Boolean);
+function useAltNode(): void {
+  if (!expandedProvider.value?.baseUrlAlt) {
+    return;
   }
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    return Object.keys(raw as Record<string, unknown>);
-  }
-  return entry.models.slice();
+  nodeChoice.value = "alt";
+  editingBaseUrl.value = expandedProvider.value.baseUrlAlt;
 }
 
-function activeBaseUrl(entry: ProviderCatalogEntry): string {
-  return nodeChoice.value === "alt" && entry.baseUrlAlt ? entry.baseUrlAlt : entry.baseUrl;
-}
-
-/** 切换节点时将预置地址同步到输入框 */
-function onNodeChange(entry: ProviderCatalogEntry, choice: "main" | "alt") {
-  nodeChoice.value = choice;
-  editingBaseUrl.value = activeBaseUrl(entry);
-}
-
-function editedModels(entry: ProviderCatalogEntry): string[] {
-  // modelEditText 在 expandCard 时由 snap 初始化，用户编辑后保持最新值。
-  // 无论编辑模式是否关闭（"完成"按钮只切显示形态），只要文本非空就以它为准；
-  // 仅在文本为空时（未展开过该卡片）回退到 snap / 目录默认值。
+function resolveProviderModels(view: OpenClawAiProviderView): string[] {
   if (modelEditMode.value || modelEditText.value.trim()) {
     return modelEditText.value
       .split(/[,\n]+/)
       .map((s) => s.trim())
       .filter(Boolean);
   }
-  const snap = savedProviders.value[entry.id];
-  return modelsFromSnap(snap, entry);
+  return view.models;
 }
 
-async function applyProvider(entry: ProviderCatalogEntry, setPrimary: boolean) {
+function expandCard(view: OpenClawAiProviderView) {
+  if (expandedId.value === view.id) {
+    expandedId.value = null;
+    return;
+  }
+  expandedId.value = view.id;
+  showKey.value = false;
+  modelEditMode.value = false;
+
+  const editor = buildProviderEditorState(view.id, aiSnapshot.value);
+  editingKey.value = editor.apiKey;
+  editingBaseUrl.value = editor.baseUrl || view.baseUrl || view.catalog?.baseUrl || "";
+  nodeChoice.value =
+    view.baseUrlAlt && editingBaseUrl.value.trim() === view.baseUrlAlt.trim() ? "alt" : "main";
+  modelEditText.value = (editor.modelIds.length > 0 ? editor.modelIds : view.models).join(", ");
+}
+
+function preferredPrimaryRef(view: OpenClawAiProviderView, modelIds: string[]): string {
+  const current = currentPrimary.value;
+  if (current.startsWith(`${view.id}/`)) {
+    const currentModel = current.slice(view.id.length + 1);
+    if (modelIds.includes(currentModel)) {
+      return current;
+    }
+  }
+  if (view.defaultModel && modelIds.includes(view.defaultModel)) {
+    return `${view.id}/${view.defaultModel}`;
+  }
+  return `${view.id}/${modelIds[0]}`;
+}
+
+function expandedProviderModels(): string[] {
+  return expandedProvider.value ? resolveProviderModels(expandedProvider.value) : [];
+}
+
+function expandedProviderDefaultModel(): string {
+  return expandedProvider.value?.defaultModel || "未设置";
+}
+
+function providerModelsSummary(view: OpenClawAiProviderView): string {
+  if (!view.models.length) {
+    return "尚未检测到模型";
+  }
+  return view.modelsSource === "configured"
+    ? `${view.models.length} 个已配置模型`
+    : `${view.models.length} 个推荐模型`;
+}
+
+async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) {
   const api = getDidClawDesktopApi();
-  if (!api?.writeOpenClawProvidersPatch || !api?.writeOpenClawModelConfig) return;
+  if (!api?.writeOpenClawProvidersPatch || !api?.writeOpenClawModelConfig) {
+    return;
+  }
+
+  const modelIds = resolveProviderModels(view);
+  if (modelIds.length === 0) {
+    error.value = "至少保留一个模型 ID。";
+    return;
+  }
 
   error.value = null;
   busy.value = true;
   try {
     const models: Record<string, Record<string, unknown>> = {};
-    for (const mid of editedModels(entry)) {
+    for (const mid of modelIds) {
       models[mid] = {};
     }
+
     const providerBody: Record<string, unknown> = {
-      baseUrl: editingBaseUrl.value.trim() || activeBaseUrl(entry),
+      baseUrl: editingBaseUrl.value.trim() || activeBaseUrl(view),
       models,
-      ...entry.extras,
+      ...view.extras,
     };
-    if (entry.apiKeyRequired) {
+    if (view.apiKeyRequired || editingKey.value.trim()) {
       providerBody.apiKey = editingKey.value.trim();
-    } else {
-      // Ollama needs a placeholder key
-      providerBody.apiKey = "ollama-local";
     }
 
-    const pr = await api.writeOpenClawProvidersPatch({ patch: { [entry.id]: providerBody } });
+    const pr = await api.writeOpenClawProvidersPatch({ patch: { [view.id]: providerBody } });
     if (!pr.ok) {
       error.value = String(pr.error || "保存失败");
       return;
     }
 
-    // Read current model config to preserve models from other providers
-    const existingConfig = await api.readOpenClawModelConfig?.();
     const existingModels: Record<string, Record<string, unknown>> = {};
-    if (existingConfig?.ok) {
-      const em = existingConfig.models as Record<string, unknown> | undefined;
-      if (em && typeof em === "object") {
-        for (const [k, v] of Object.entries(em)) {
-          // Keep models that belong to other providers
-          if (!k.startsWith(`${entry.id}/`)) {
-            existingModels[k] = (v && typeof v === "object" && !Array.isArray(v))
-              ? (v as Record<string, unknown>)
-              : {};
-          }
-        }
+    for (const [ref, body] of Object.entries(aiSnapshot.value.models)) {
+      if (!ref.startsWith(`${view.id}/`)) {
+        existingModels[ref] = { ...body };
       }
     }
-
-    // Build model refs for this provider: "providerId/modelId"
-    const thisProviderModels: Record<string, Record<string, unknown>> = {};
-    for (const mid of editedModels(entry)) {
-      thisProviderModels[`${entry.id}/${mid}`] = {};
+    for (const modelId of modelIds) {
+      const ref = `${view.id}/${modelId}`;
+      const previous = aiSnapshot.value.models[ref];
+      existingModels[ref] = previous ? { ...previous } : {};
     }
-    const mergedModels = { ...existingModels, ...thisProviderModels };
 
-    const primaryRef = `${entry.id}/${entry.defaultModel}`;
+    const nextPrimaryRef = preferredPrimaryRef(view, modelIds);
     const mr = await api.writeOpenClawModelConfig({
-      model: setPrimary ? { primary: primaryRef } : undefined,
-      models: mergedModels,
+      model: setPrimary ? { primary: nextPrimaryRef } : undefined,
+      models: existingModels,
     });
     if (!mr.ok) {
       error.value = String(mr.error || "设置模型失败");
       return;
     }
-    if (setPrimary) {
-      currentPrimary.value = primaryRef;
-    }
 
-    // 刷新
-    savedProviders.value = {
-      ...savedProviders.value,
-      [entry.id]: { ...providerBody },
-    };
+    await loadAll();
     expandedId.value = null;
     modelEditMode.value = false;
     void chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
     afterOpenClawProvidersSaved();
-    if (setPrimary) afterOpenClawModelConfigSaved();
-    setToast(setPrimary
-      ? `✓ 已保存并将 ${entry.name} 设为主力模型`
-      : `✓ ${entry.name} 配置已保存`);
+    afterOpenClawModelConfigSaved();
+    setToast(
+      setPrimary
+        ? `✓ 已保存并将 ${view.displayName} 设为主力模型`
+        : `✓ ${view.displayName} 配置已保存`,
+    );
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -292,22 +299,40 @@ async function applyProvider(entry: ProviderCatalogEntry, setPrimary: boolean) {
   }
 }
 
-async function removeProvider(entry: ProviderCatalogEntry) {
-  if (!window.confirm(`确定移除「${entry.name}」的配置？`)) return;
+async function removeProvider(view: OpenClawAiProviderView) {
+  if (!window.confirm(`确定移除「${view.displayName}」的配置？`)) {
+    return;
+  }
   const api = getDidClawDesktopApi();
-  if (!api?.writeOpenClawProvidersPatch) return;
+  if (!api?.writeOpenClawProvidersPatch || !api.writeOpenClawModelConfig) {
+    return;
+  }
   busy.value = true;
   try {
-    await api.writeOpenClawProvidersPatch({ patch: { [entry.id]: null } });
-    const next = { ...savedProviders.value };
-    delete next[entry.id];
-    savedProviders.value = next;
-    if (currentPrimary.value.startsWith(entry.id + "/")) {
-      currentPrimary.value = "";
+    const r = await api.writeOpenClawProvidersPatch({ patch: { [view.id]: null } });
+    if (!r.ok) {
+      error.value = String(r.error || "移除失败");
+      return;
     }
+    const trimmed = stripProviderModelRefs(aiSnapshot.value, view.id);
+    const mr = await api.writeOpenClawModelConfig({
+      model: {
+        primary: trimmed.primaryModel,
+        fallbacks: trimmed.fallbacks,
+      },
+      models: trimmed.models,
+    });
+    if (!mr.ok) {
+      error.value = String(mr.error || "清理模型引用失败");
+      return;
+    }
+    await loadAll();
     expandedId.value = null;
     void chat.refreshOpenClawModelPicker();
-    setToast(`已移除 ${entry.name}`);
+    chat.flashOpenClawConfigHint();
+    afterOpenClawProvidersSaved();
+    afterOpenClawModelConfigSaved();
+    setToast(`已移除 ${view.displayName}`);
   } finally {
     busy.value = false;
   }
@@ -316,13 +341,11 @@ async function removeProvider(entry: ProviderCatalogEntry) {
 
 <template>
   <div class="aips">
-    <!-- 当前主力模型 -->
     <div class="aips-primary-bar" :class="{ 'aips-primary-bar--set': currentPrimary }">
       <span class="aips-primary-label">当前主力模型</span>
       <span class="aips-primary-value">{{ currentPrimaryLabel() }}</span>
     </div>
 
-    <!-- 备用模型（故障切换）-->
     <div class="aips-fallback">
       <div class="aips-fallback-head">
         <span class="aips-fallback-title">备用模型（故障切换）</span>
@@ -378,151 +401,202 @@ async function removeProvider(entry: ProviderCatalogEntry) {
     <p v-if="toast" class="aips-toast">{{ toast }}</p>
     <p v-if="error" class="aips-error">{{ error }}</p>
 
-    <!-- 服务商卡片网格 -->
-    <div class="aips-grid">
-      <div
-        v-for="entry in PROVIDER_CATALOG"
-        :key="entry.id"
-        class="aips-card"
-        :class="{
-          'aips-card--active': expandedId === entry.id,
-          'aips-card--configured': isConfigured(entry),
-          'aips-card--primary': isPrimary(entry),
-        }"
-        :style="{ '--card-color': entry.color }"
-        @click="expandCard(entry)"
-      >
-        <div class="aips-card-body">
-          <div class="aips-card-name">{{ entry.name }}</div>
-          <div class="aips-card-desc">{{ entry.description }}</div>
-        </div>
-        <div class="aips-card-status">
-          <span v-if="isPrimary(entry)" class="aips-badge aips-badge--primary">主力</span>
-          <span v-else-if="isConfigured(entry)" class="aips-badge aips-badge--ok">已配置</span>
+    <div class="aips-section">
+      <div class="aips-section-head">
+        <h3 class="aips-section-title">推荐服务</h3>
+        <p class="aips-section-hint">保留适合普通用户的推荐卡片，但优先显示 OpenClaw 当前真实配置。</p>
+      </div>
+      <div class="aips-grid">
+        <div
+          v-for="provider in recommendedProviders"
+          :key="provider.id"
+          class="aips-card"
+          :class="{
+            'aips-card--active': expandedId === provider.id,
+            'aips-card--configured': provider.isConfigured,
+            'aips-card--primary': provider.isPrimary,
+          }"
+          :style="{ '--card-color': provider.color }"
+          @click="expandCard(provider)"
+        >
+          <div class="aips-card-body">
+            <div class="aips-card-name">{{ provider.displayName }}</div>
+            <div class="aips-card-desc">{{ provider.description }}</div>
+            <div class="aips-card-meta">
+              <span>{{ providerModelsSummary(provider) }}</span>
+              <span v-if="provider.baseUrl" class="aips-card-meta-mono">{{ provider.baseUrl }}</span>
+            </div>
+          </div>
+          <div class="aips-card-status">
+            <span v-if="provider.isPrimary" class="aips-badge aips-badge--primary">主力</span>
+            <span v-else-if="provider.authState === 'configured'" class="aips-badge aips-badge--ok">已配置</span>
+            <span v-else-if="provider.authState === 'notRequired'" class="aips-badge aips-badge--neutral">免密钥</span>
+            <span v-else class="aips-badge aips-badge--warn">待配置</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 展开配置面板 -->
+    <div v-if="detectedProviders.length" class="aips-section">
+      <div class="aips-section-head">
+        <h3 class="aips-section-title">检测到的其他配置</h3>
+        <p class="aips-section-hint">这些 Provider 来自你当前的 OpenClaw 配置，未纳入推荐卡片目录。</p>
+      </div>
+      <div class="aips-grid">
+        <div
+          v-for="provider in detectedProviders"
+          :key="provider.id"
+          class="aips-card"
+          :class="{
+            'aips-card--active': expandedId === provider.id,
+            'aips-card--configured': provider.isConfigured,
+            'aips-card--primary': provider.isPrimary,
+          }"
+          :style="{ '--card-color': provider.color }"
+          @click="expandCard(provider)"
+        >
+          <div class="aips-card-body">
+            <div class="aips-card-name">{{ provider.displayName }}</div>
+            <div class="aips-card-desc">{{ provider.description }}</div>
+            <div class="aips-card-meta">
+              <span>{{ provider.id }}</span>
+              <span v-if="provider.models.length">{{ providerModelsSummary(provider) }}</span>
+            </div>
+          </div>
+          <div class="aips-card-status">
+            <span class="aips-badge aips-badge--neutral">已检测</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <Transition name="aips-panel">
-      <div v-if="expandedId" class="aips-panel">
-        <template v-for="entry in PROVIDER_CATALOG" :key="entry.id">
-          <template v-if="entry.id === expandedId">
-            <div class="aips-panel-head" :style="{ borderColor: entry.color }">
-              <span class="aips-panel-title">{{ entry.name }}</span>
-              <a v-if="entry.docsUrl" :href="entry.docsUrl" target="_blank" rel="noopener" class="aips-panel-docs">文档 ↗</a>
-              <button type="button" class="aips-panel-close" @click="expandedId = null">✕</button>
-            </div>
+      <div v-if="expandedProvider" class="aips-panel">
+        <div class="aips-panel-head" :style="{ borderColor: expandedProvider.color }">
+          <span class="aips-panel-title">{{ expandedProvider.displayName }}</span>
+          <span class="aips-panel-source">{{ expandedProvider.source === "recommended" ? "推荐服务" : "检测到的配置" }}</span>
+          <a
+            v-if="expandedProvider.docsUrl"
+            :href="expandedProvider.docsUrl"
+            target="_blank"
+            rel="noopener"
+            class="aips-panel-docs"
+          >文档 ↗</a>
+          <button type="button" class="aips-panel-close" @click="expandedId = null">✕</button>
+        </div>
 
-            <!-- 接口地址 -->
-            <div class="aips-field">
-              <div class="aips-field-label-row">
-                <span class="aips-field-label">接口地址</span>
-                <div v-if="entry.baseUrlAlt" class="aips-node-pills">
-                  <button
-                    type="button"
-                    class="aips-node-pill"
-                    :class="{ 'aips-node-pill--active': nodeChoice === 'main' }"
-                    @click="onNodeChange(entry, 'main')"
-                  >{{ entry.baseUrlLabel }}</button>
-                  <button
-                    type="button"
-                    class="aips-node-pill"
-                    :class="{ 'aips-node-pill--active': nodeChoice === 'alt' }"
-                    @click="onNodeChange(entry, 'alt')"
-                  >{{ entry.baseUrlAltLabel }}</button>
-                </div>
-              </div>
-              <input
-                v-model="editingBaseUrl"
-                type="text"
-                class="aips-key-input"
-                placeholder="https://..."
-                autocomplete="off"
-                spellcheck="false"
-              />
-            </div>
-
-            <!-- API Key -->
-            <div v-if="entry.apiKeyRequired" class="aips-field">
-              <span class="aips-field-label">API Key</span>
-              <div class="aips-key-row">
-                <input
-                  v-model="editingKey"
-                  :type="showKey ? 'text' : 'password'"
-                  class="aips-key-input"
-                  :placeholder="entry.apiKeyPlaceholder"
-                  autocomplete="off"
-                />
-                <button type="button" class="aips-ghost-btn aips-eye-btn" @click="showKey = !showKey">
-                  {{ showKey ? "隐藏" : "显示" }}
-                </button>
-              </div>
-            </div>
-            <div v-else class="aips-field">
-              <span class="aips-field-label">API Key</span>
-              <span class="aips-url-hint">无需密钥，直接应用即可</span>
-            </div>
-
-            <!-- 模型列表 -->
-            <div class="aips-field">
-              <div class="aips-field-label-row">
-                <span class="aips-field-label">模型</span>
-                <button type="button" class="aips-ghost-btn aips-sm-btn"
-                  @click="() => { modelEditMode = !modelEditMode; if (modelEditMode) modelEditText = editedModels(entry).join(', ') }">
-                  {{ modelEditMode ? "完成" : "编辑" }}
-                </button>
-              </div>
-              <template v-if="modelEditMode">
-                <textarea
-                  v-model="modelEditText"
-                  class="aips-model-textarea"
-                  placeholder="每行或用逗号分隔，如: glm-5, glm-4.7"
-                  rows="3"
-                />
-                <p class="aips-hint">每行或逗号分隔一个模型 ID，点"应用"后写入配置</p>
-              </template>
-              <template v-else>
-                <div class="aips-model-chips">
-                  <span
-                    v-for="m in editedModels(entry)"
-                    :key="m"
-                    class="aips-chip"
-                    :class="{ 'aips-chip--default': m === entry.defaultModel }"
-                  >{{ m }}</span>
-                </div>
-                <p class="aips-hint">默认主力：<strong>{{ entry.defaultModel }}</strong>（应用后自动设置）</p>
-              </template>
-            </div>
-
-            <!-- 操作按钮 -->
-            <div class="aips-panel-actions">
+        <div class="aips-field">
+          <div class="aips-field-label-row">
+            <span class="aips-field-label">接口地址</span>
+            <div v-if="expandedProvider.baseUrlAlt" class="aips-node-pills">
               <button
-                v-if="isConfigured(entry)"
                 type="button"
-                class="aips-ghost-btn aips-danger-btn"
-                :disabled="busy"
-                @click="removeProvider(entry)"
-              >移除</button>
-              <div class="aips-panel-actions-right">
-                <button type="button" class="aips-ghost-btn" @click="expandedId = null">取消</button>
-                <button
-                  v-if="!isPrimary(entry)"
-                  type="button"
-                  class="aips-primary-btn aips-ghost-btn"
-                  :disabled="busy || (entry.apiKeyRequired && !editingKey.trim())"
-                  @click="applyProvider(entry, false)"
-                >{{ busy ? "保存中…" : "仅保存" }}</button>
-                <button
-                  type="button"
-                  class="aips-apply-btn"
-                  :disabled="busy || (entry.apiKeyRequired && !editingKey.trim())"
-                  @click="applyProvider(entry, true)"
-                >{{ busy ? "应用中…" : isPrimary(entry) ? "更新" : "应用并设为主力" }}</button>
-              </div>
+                class="aips-node-pill"
+                :class="{ 'aips-node-pill--active': nodeChoice === 'main' }"
+                @click="useMainNode()"
+              >{{ expandedProvider.baseUrlLabel }}</button>
+              <button
+                type="button"
+                class="aips-node-pill"
+                :class="{ 'aips-node-pill--active': nodeChoice === 'alt' }"
+                @click="useAltNode()"
+              >{{ expandedProvider.baseUrlAltLabel }}</button>
             </div>
+          </div>
+          <input
+            v-model="editingBaseUrl"
+            type="text"
+            class="aips-key-input"
+            placeholder="https://..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+
+        <div v-if="expandedProvider.apiKeyRequired" class="aips-field">
+          <span class="aips-field-label">API Key</span>
+          <div class="aips-key-row">
+            <input
+              v-model="editingKey"
+              :type="showKey ? 'text' : 'password'"
+              class="aips-key-input"
+              :placeholder="expandedProvider.catalog?.apiKeyPlaceholder || '粘贴 API Key'"
+              autocomplete="off"
+            />
+            <button type="button" class="aips-ghost-btn aips-eye-btn" @click="showKey = !showKey">
+              {{ showKey ? "隐藏" : "显示" }}
+            </button>
+          </div>
+        </div>
+        <div v-else class="aips-field">
+          <span class="aips-field-label">API Key</span>
+          <span class="aips-url-hint">无需密钥，直接应用即可</span>
+        </div>
+
+        <div class="aips-field">
+          <div class="aips-field-label-row">
+            <span class="aips-field-label">模型</span>
+            <button
+              type="button"
+              class="aips-ghost-btn aips-sm-btn"
+              @click="() => { modelEditMode = !modelEditMode; if (modelEditMode) modelEditText = expandedProviderModels().join(', '); }"
+            >
+              {{ modelEditMode ? "完成" : "编辑" }}
+            </button>
+          </div>
+          <template v-if="modelEditMode">
+            <textarea
+              v-model="modelEditText"
+              class="aips-model-textarea"
+              placeholder="每行或用逗号分隔，如: glm-5, glm-4.7"
+              rows="3"
+            />
+            <p class="aips-hint">每行或逗号分隔一个模型 ID，点“应用”后写入配置。</p>
           </template>
-        </template>
+          <template v-else>
+            <div class="aips-model-chips">
+              <span
+                v-for="m in expandedProviderModels()"
+                :key="m"
+                class="aips-chip"
+                :class="{ 'aips-chip--default': m === expandedProviderDefaultModel() }"
+              >{{ m }}</span>
+            </div>
+            <p class="aips-hint">
+              默认主力：<strong>{{ expandedProviderDefaultModel() }}</strong>
+              （应用并设为主力时优先使用）
+            </p>
+            <p v-if="expandedProvider.modelsSource === 'recommended'" class="aips-hint">
+              当前这里展示的是推荐默认模型；一旦保存，会同步写入 OpenClaw 配置。
+            </p>
+          </template>
+        </div>
+
+        <div class="aips-panel-actions">
+          <button
+            v-if="expandedProvider.raw"
+            type="button"
+            class="aips-ghost-btn aips-danger-btn"
+            :disabled="busy"
+            @click="removeProvider(expandedProvider)"
+          >移除</button>
+          <div class="aips-panel-actions-right">
+            <button type="button" class="aips-ghost-btn" @click="expandedId = null">取消</button>
+            <button
+              v-if="!expandedProvider.isPrimary"
+              type="button"
+              class="aips-primary-btn aips-ghost-btn"
+              :disabled="busy || (expandedProvider.apiKeyRequired && !editingKey.trim())"
+              @click="applyProvider(expandedProvider, false)"
+            >{{ busy ? "保存中…" : "仅保存" }}</button>
+            <button
+              type="button"
+              class="aips-apply-btn"
+              :disabled="busy || (expandedProvider.apiKeyRequired && !editingKey.trim())"
+              @click="applyProvider(expandedProvider, true)"
+            >{{ busy ? "应用中…" : expandedProvider.isPrimary ? "更新" : "应用并设为主力" }}</button>
+          </div>
+        </div>
       </div>
     </Transition>
   </div>
@@ -583,6 +657,29 @@ async function removeProvider(entry: ProviderCatalogEntry) {
   border: 1px solid rgba(239,68,68,0.25);
 }
 
+.aips-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.aips-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.aips-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+.aips-section-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--lc-text-muted);
+}
+
 /* ── 卡片网格 ── */
 .aips-grid {
   display: grid;
@@ -635,6 +732,20 @@ async function removeProvider(entry: ProviderCatalogEntry) {
   white-space: nowrap;
   margin-top: 2px;
 }
+.aips-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--lc-text-dim, var(--lc-text-muted));
+}
+.aips-card-meta-mono {
+  font-family: var(--lc-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .aips-card-status {
   flex-shrink: 0;
 }
@@ -654,8 +765,18 @@ async function removeProvider(entry: ProviderCatalogEntry) {
   background: rgba(6,182,212,0.12);
   color: var(--lc-accent);
 }
+.aips-badge--warn {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+.aips-badge--neutral {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
 [data-theme="dark"] .aips-badge--ok { color: #4ade80; }
 [data-theme="dark"] .aips-badge--primary { color: #67e8f9; }
+[data-theme="dark"] .aips-badge--warn { color: #fbbf24; }
+[data-theme="dark"] .aips-badge--neutral { color: #cbd5e1; }
 
 /* ── 配置面板 ── */
 .aips-panel {
@@ -678,6 +799,10 @@ async function removeProvider(entry: ProviderCatalogEntry) {
   flex: 1;
   font-weight: 700;
   font-size: 14px;
+}
+.aips-panel-source {
+  font-size: 11px;
+  color: var(--lc-text-muted);
 }
 .aips-panel-docs {
   font-size: 11px;

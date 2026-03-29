@@ -11,6 +11,7 @@ import {
 import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
 import { OPENCLAW_AFTER_WRITE_HINT } from "@/lib/openclaw-config-hint";
+import { buildModelPickerRows, readOpenClawAiSnapshot } from "@/lib/openclaw-ai-config";
 import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import {
@@ -207,41 +208,15 @@ export const useChatStore = defineStore("chat", () => {
 
   async function refreshOpenClawModelPicker(): Promise<void> {
     openClawPrimaryPickerError.value = null;
-    const desktop = getDidClawDesktopApi();
-    if (!isDidClawElectron() || !desktop?.readOpenClawModelConfig) {
+    if (!isDidClawElectron()) {
       openClawPrimaryModel.value = "";
       openClawModelPickerRows.value = [];
       return;
     }
     try {
-      const r = await desktop.readOpenClawModelConfig();
-      if (!r.ok) {
-        openClawPrimaryModel.value = "";
-        openClawModelPickerRows.value = [];
-        openClawPrimaryPickerError.value = r.error;
-        return;
-      }
-      const primary =
-        r.model && typeof r.model.primary === "string" ? r.model.primary.trim() : "";
-      openClawPrimaryModel.value = primary;
-      const models = r.models as Record<string, unknown>;
-      const keys = Object.keys(models).sort();
-      const rows = keys.map((k) => {
-        const v = models[k];
-        let alias = "";
-        if (v && typeof v === "object" && !Array.isArray(v)) {
-          const a = (v as { alias?: unknown }).alias;
-          if (typeof a === "string" && a.trim()) {
-            alias = a.trim();
-          }
-        }
-        return { value: k, label: alias ? `${k}（${alias}）` : k };
-      });
-      if (primary && !rows.some((x) => x.value === primary)) {
-        rows.push({ value: primary, label: `${primary}（当前默认）` });
-      }
-      rows.sort((a, b) => a.value.localeCompare(b.value));
-      openClawModelPickerRows.value = rows;
+      const snapshot = await readOpenClawAiSnapshot();
+      openClawPrimaryModel.value = snapshot.primaryModel;
+      openClawModelPickerRows.value = buildModelPickerRows(snapshot);
     } catch (e) {
       openClawPrimaryModel.value = "";
       openClawModelPickerRows.value = [];

@@ -537,6 +537,11 @@ pub fn read_open_claw_providers() -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub fn read_open_claw_ai_snapshot() -> Result<Value, String> {
+    Ok(crate::openclaw_ai_snapshot::read_open_claw_ai_snapshot())
+}
+
+#[tauri::command]
 pub fn write_open_claw_providers_patch(payload: Value) -> Result<Value, String> {
     Ok(crate::openclaw_providers::write_open_claw_providers_patch(payload))
 }

@@ -10,6 +10,7 @@
 
 - **桌面端技能/插件市场改走 OpenClaw CLI**：技能搜索、安装、更新改为通过本机 `openclaw skills search/install/update` 执行，插件安装继续通过 `openclaw plugins install`；技能管理面板补齐 OpenClaw 官方风格的 Ready / Needs Setup 建议、插件 update / uninstall、以及更完整的 inspect 信息展示，减少对前端直连 ClawHub API 的依赖并与上游行为保持一致。
 - **ClawHub 凭据改为用户级本机存储**：新增本机 `ClawHub Token / Registry` 保存入口，凭据写入 DidClaw 本地 SQLite KV，供桌面端匿名 HTTP 请求和 `openclaw skills/plugins` CLI 共同复用；正式构建不再依赖作者个人 `VITE_CLAWHUB_TOKEN`，为后续远程用户登录验证接入预留统一落点。
+- **AI 配置页改为与 OpenClaw 真源同步的混合模式**：桌面端新增统一的 AI 快照读取接口，把 provider、主模型、fallback 与 model refs 聚合成一份状态；推荐卡片页现在优先显示 OpenClaw 实际配置，并补充“检测到的其他配置”区域，旧高级 providers/model 面板与聊天模型选择器也改为复用同一份快照，减少固定预设与真实配置漂移。
 
 - **会话栏切换体验收敛**：会话栏从叠加式按钮列表改为单个下拉选择，减少多渠道 / 多子会话时的顶部占用；新增 `Ctrl + Tab` / `Ctrl + Shift + Tab` 快捷键用于前后切换会话，并对常见会话 key 做显示过滤（如 `WhatsApp +手机号`、`WeChat`、`agent:main`），降低长 session key 的视觉噪音。
 - **会话支持本地关闭隐藏**：会话栏新增「关闭」按钮，可将当前非主会话仅从本地列表中隐藏，方便用户暂时收起微信 / WhatsApp 等会话；该操作不会删除后端真实会话，若后续该会话又收到新消息、`lastActiveAt` 更新后会自动重新出现。

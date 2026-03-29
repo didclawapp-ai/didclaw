@@ -1,8 +1,5 @@
-/**
- * 小白向：预置常见 AI 服务的接口地址与模型名（不含密钥）。
- * 国内 / 国际节点与默认模型 ID 对齐 OpenClaw 源码（onboard-auth.models、auth-choice 等）。
- * @see OpenClaw: provider-auth-helpers / minimax-portal-auth / auth-choice.preferred-provider
- */
+import { findCatalogEntry } from "@/lib/provider-catalog";
+
 export type ProviderPresetBucket = "cn" | "intl";
 
 export type ProviderSetupPreset = {
@@ -18,119 +15,130 @@ export type ProviderSetupPreset = {
   extras: Record<string, unknown>;
 };
 
-/** OpenClaw: MINIMAX_CN_API_BASE_URL / MINIMAX_API_BASE_URL + MINIMAX_MODEL_CATALOG */
-const MINIMAX_INTL_MODELS = ["MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.7"] as const;
+function requireCatalogEntry(id: string) {
+  const entry = findCatalogEntry(id);
+  if (!entry) {
+    throw new Error(`Missing provider catalog entry: ${id}`);
+  }
+  return entry;
+}
+
+const minimax = requireCatalogEntry("minimax");
+const moonshot = requireCatalogEntry("moonshot");
+const zai = requireCatalogEntry("zai");
+const xiaomi = requireCatalogEntry("xiaomi");
+const deepseek = requireCatalogEntry("deepseek");
+const openai = requireCatalogEntry("openai");
+const anthropic = requireCatalogEntry("anthropic");
+const openrouter = requireCatalogEntry("openrouter");
+const mistral = requireCatalogEntry("mistral");
+const xai = requireCatalogEntry("xai");
+const ollama = requireCatalogEntry("ollama");
 
 export const PROVIDER_SETUP_PRESETS: readonly ProviderSetupPreset[] = [
   {
     id: "minimax",
     label: "MiniMax（国内）",
     bucket: "cn",
-    baseUrl: "https://api.minimaxi.com/anthropic",
-    modelIds: ["MiniMax-M2.7", "MiniMax-M2.5"],
-    extras: { api: "anthropic-messages", authHeader: true },
+    baseUrl: minimax.baseUrl,
+    modelIds: minimax.models.filter((id) => id !== "MiniMax-M2.5-highspeed"),
+    extras: { ...minimax.extras },
   },
   {
     id: "minimax",
     label: "MiniMax（国际·OpenClaw 默认）",
     bucket: "intl",
-    baseUrl: "https://api.minimax.io/anthropic",
-    modelIds: [...MINIMAX_INTL_MODELS],
-    extras: { api: "anthropic-messages", authHeader: true },
+    baseUrl: minimax.baseUrlAlt ?? minimax.baseUrl,
+    modelIds: [...minimax.models],
+    extras: { ...minimax.extras },
   },
   {
     id: "moonshot",
     label: "Kimi（国内）",
     bucket: "cn",
-    baseUrl: "https://api.moonshot.cn/v1",
-    modelIds: ["kimi-k2.5"],
-    extras: { api: "openai-completions" },
+    baseUrl: moonshot.baseUrl,
+    modelIds: [moonshot.defaultModel],
+    extras: { ...moonshot.extras },
   },
   {
     id: "moonshot",
     label: "Kimi（国际·OpenClaw 默认）",
     bucket: "intl",
-    baseUrl: "https://api.moonshot.ai/v1",
-    modelIds: ["kimi-k2.5"],
-    extras: { api: "openai-completions" },
+    baseUrl: moonshot.baseUrlAlt ?? moonshot.baseUrl,
+    modelIds: [moonshot.defaultModel],
+    extras: { ...moonshot.extras },
   },
   {
     id: "zai",
     label: "智谱 GLM（国内）",
     bucket: "cn",
-    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-    /** 不含 glm-image：生图为 /images/generations，不能作 OpenClaw 流式对话主模型 */
-    modelIds: ["glm-5", "glm-4.7", "glm-4.7-flash", "glm-4.7-flashx"],
-    extras: { api: "openai-completions" },
+    baseUrl: zai.baseUrl,
+    modelIds: [...zai.models],
+    extras: { ...zai.extras },
   },
   {
     id: "zai",
     label: "智谱 GLM（国际·OpenClaw 默认）",
     bucket: "intl",
-    baseUrl: "https://api.z.ai/api/paas/v4",
-    /** 同上，不设 glm-image 为对话主模型 */
-    modelIds: ["glm-5", "glm-4.7", "glm-4.7-flash", "glm-4.7-flashx"],
-    extras: { api: "openai-completions" },
+    baseUrl: zai.baseUrlAlt ?? zai.baseUrl,
+    modelIds: [...zai.models],
+    extras: { ...zai.extras },
   },
   {
     id: "xiaomi",
     label: "小米 MiMo",
     bucket: "cn",
-    baseUrl: "https://api.xiaomimimo.com/anthropic",
-    modelIds: ["mimo-v2-flash", "mimo-v2-pro"],
-    extras: { api: "anthropic-messages", authHeader: true },
+    baseUrl: xiaomi.baseUrl,
+    modelIds: [...xiaomi.models],
+    extras: { ...xiaomi.extras },
   },
   {
     id: "deepseek",
     label: "DeepSeek",
     bucket: "cn",
-    baseUrl: "https://api.deepseek.com/v1",
-    modelIds: ["deepseek-chat", "deepseek-reasoner"],
-    extras: { api: "openai-completions" },
+    baseUrl: deepseek.baseUrl,
+    modelIds: [...deepseek.models],
+    extras: { ...deepseek.extras },
   },
   {
     id: "openai",
     label: "OpenAI",
     bucket: "intl",
-    baseUrl: "https://api.openai.com/v1",
-    modelIds: ["gpt-5.1-codex", "gpt-4o"],
-    extras: { api: "openai-completions" },
+    baseUrl: openai.baseUrl,
+    modelIds: [...openai.models],
+    extras: { ...openai.extras },
   },
   {
     id: "anthropic",
     label: "Anthropic（Claude）",
     bucket: "intl",
-    baseUrl: "https://api.anthropic.com",
-    modelIds: ["claude-sonnet-4-6"],
-    extras: { api: "anthropic-messages", authHeader: true },
+    baseUrl: anthropic.baseUrl,
+    modelIds: [...anthropic.models],
+    extras: { ...anthropic.extras },
   },
   {
     id: "openrouter",
     label: "OpenRouter",
     bucket: "intl",
-    baseUrl: "https://openrouter.ai/api/v1",
-    /**
-     * `auto`：按 OpenRouter 策略选模型（常为付费档，适合正经用）。
-     * `free`：官方 Free Models Router（② 里只填 free），能通但模型池小、质量参差，仅适合试连通，不适合龙虾/LCLaw 主力法律助手场景。
-     */
-    modelIds: ["auto", "free"],
-    extras: { api: "openai-completions" },
+    baseUrl: openrouter.baseUrl,
+    modelIds: [...openrouter.models],
+    extras: { ...openrouter.extras },
   },
   {
     id: "mistral",
     label: "Mistral",
     bucket: "intl",
-    baseUrl: "https://api.mistral.ai/v1",
-    modelIds: ["mistral-large-latest"],
-    extras: { api: "openai-completions" },
+    baseUrl: mistral.baseUrl,
+    modelIds: [...mistral.models],
+    extras: { ...mistral.extras },
   },
   {
     id: "xai",
     label: "xAI（Grok）",
     bucket: "intl",
-    baseUrl: "https://api.x.ai/v1",
-    modelIds: ["grok-4"],
-    extras: { api: "openai-completions" },
+    baseUrl: xai.baseUrl,
+    modelIds: [...xai.models],
+    extras: { ...xai.extras },
   },
 ] as const;
 
@@ -142,20 +150,20 @@ export type PrimaryModelQuickPick = {
 
 /** ③ 选模型：与 OpenClaw 默认 ref 对齐 */
 export const PRIMARY_MODEL_QUICK_PICKS: readonly PrimaryModelQuickPick[] = [
-  { label: "Ollama · llama3.2（本机）", ref: "ollama/llama3.2", bucket: "cn" },
+  { label: "Ollama · llama3.2（本机）", ref: `ollama/${ollama.models[0]}`, bucket: "cn" },
   { label: "Ollama · qwen2.5:7b（本机）", ref: "ollama/qwen2.5:7b", bucket: "cn" },
   { label: "MiniMax M2.7", ref: "minimax/MiniMax-M2.7", bucket: "cn" },
   { label: "MiniMax M2.5", ref: "minimax/MiniMax-M2.5", bucket: "cn" },
-  { label: "Kimi K2.5", ref: "moonshot/kimi-k2.5", bucket: "cn" },
-  { label: "智谱 GLM-5", ref: "zai/glm-5", bucket: "cn" },
+  { label: "Kimi K2.5", ref: `moonshot/${moonshot.defaultModel}`, bucket: "cn" },
+  { label: "智谱 GLM-5", ref: `zai/${zai.models[0]}`, bucket: "cn" },
   { label: "智谱 GLM-4.7", ref: "zai/glm-4.7", bucket: "cn" },
   { label: "小米 MiMo Flash", ref: "xiaomi/mimo-v2-flash", bucket: "cn" },
-  { label: "DeepSeek Chat", ref: "deepseek/deepseek-chat", bucket: "cn" },
+  { label: "DeepSeek Chat", ref: `deepseek/${deepseek.models[0]}`, bucket: "cn" },
   { label: "DeepSeek Reasoner", ref: "deepseek/deepseek-reasoner", bucket: "cn" },
   { label: "OpenAI GPT-5.1 Codex", ref: "openai/gpt-5.1-codex", bucket: "intl" },
-  { label: "OpenAI GPT-4o", ref: "openai/gpt-4o", bucket: "intl" },
-  { label: "Claude Sonnet 4.6", ref: "anthropic/claude-sonnet-4-6", bucket: "intl" },
-  { label: "OpenRouter Auto", ref: "openrouter/auto", bucket: "intl" },
-  { label: "Mistral Large", ref: "mistral/mistral-large-latest", bucket: "intl" },
-  { label: "Grok 4", ref: "xai/grok-4", bucket: "intl" },
+  { label: "OpenAI GPT-4o", ref: `openai/${openai.defaultModel}`, bucket: "intl" },
+  { label: "Claude Sonnet 4.6", ref: `anthropic/${anthropic.defaultModel}`, bucket: "intl" },
+  { label: "OpenRouter Auto", ref: `openrouter/${openrouter.defaultModel}`, bucket: "intl" },
+  { label: "Mistral Large", ref: `mistral/${mistral.defaultModel}`, bucket: "intl" },
+  { label: "Grok 4", ref: `xai/${xai.defaultModel}`, bucket: "intl" },
 ] as const;

@@ -47,6 +47,7 @@ commands.allow = [
   "write_open_claw_model_config",
   "restore_open_claw_config_to_latest_backup",
   "read_open_claw_providers",
+  "read_open_claw_ai_snapshot",
   "write_open_claw_providers_patch",
   "skills_default_install_root",
   "skills_list_installed",

@@ -11,6 +11,13 @@ import {
   PROVIDER_SETUP_PRESETS,
   type ProviderSetupPreset,
 } from "@/lib/openclaw-presets";
+import {
+  buildProviderEditorState,
+  readOpenClawAiSnapshot,
+  snapshotToAliasRows,
+  stripProviderModelRefs,
+  type OpenClawAiSnapshot,
+} from "@/lib/openclaw-ai-config";
 import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
 import { OPENCLAW_PROVIDER_ID_RE } from "@/lib/openclaw-provider-id";
 import { gatewayUrlFromEnv, useGatewayStore } from "@/stores/gateway";
@@ -64,6 +71,15 @@ const showPvApiKey = ref(false);
 const provError = ref<string | null>(null);
 const provToast = ref<string | null>(null);
 const provBusy = ref(false);
+const aiSnapshot = ref<OpenClawAiSnapshot>({
+  defaultAgentId: "main",
+  providers: {},
+  model: {},
+  models: {},
+  primaryModel: "",
+  fallbacks: [],
+  modelRefs: [],
+});
 
 /** 与 api、authHeader 等一并写入 provider（模板或从已有配置带出） */
 const pvProviderExtras = ref<Record<string, unknown>>({});
@@ -113,40 +129,14 @@ async function loadGatewayForm(): Promise<void> {
   }
 }
 
-function rowFromModels(models: Record<string, unknown>): AliasRow[] {
-  return Object.keys(models)
-    .sort()
-    .map((k) => {
-      const v = models[k];
-      let alias = "";
-      if (v && typeof v === "object" && !Array.isArray(v)) {
-        const a = (v as { alias?: unknown }).alias;
-        if (typeof a === "string") {
-          alias = a;
-        }
-      }
-      return { ref: k, alias };
-    });
-}
-
 async function loadModelForm(): Promise<void> {
   modelError.value = null;
   modelToast.value = null;
-  const api = getDidClawDesktopApi();
-  if (!api?.readOpenClawModelConfig) {
-    return;
-  }
   try {
-    const r = await api.readOpenClawModelConfig();
-    if (!r.ok) {
-      modelError.value = r.error;
-      primaryModel.value = "";
-      aliasRows.value = [];
-      return;
-    }
-    const p = r.model?.primary;
-    primaryModel.value = typeof p === "string" ? p : "";
-    aliasRows.value = rowFromModels(r.models as Record<string, unknown>);
+    const snapshot = await readOpenClawAiSnapshot();
+    aiSnapshot.value = snapshot;
+    primaryModel.value = snapshot.primaryModel;
+    aliasRows.value = snapshotToAliasRows(snapshot);
   } catch (e) {
     modelError.value = e instanceof Error ? e.message : String(e);
     primaryModel.value = "";
@@ -158,18 +148,6 @@ async function loadAll(): Promise<void> {
   await loadGatewayForm();
   await loadModelForm();
   await loadProvidersForm();
-}
-
-function readProviderBaseUrl(s: Record<string, unknown>): string {
-  const a = s.baseUrl;
-  const b = s.baseURL;
-  if (typeof a === "string") {
-    return a;
-  }
-  if (typeof b === "string") {
-    return b;
-  }
-  return "";
 }
 
 function urlFieldForSnapshot(s: Record<string, unknown> | undefined): "baseUrl" | "baseURL" {
@@ -185,44 +163,6 @@ function urlFieldForSnapshot(s: Record<string, unknown> | undefined): "baseUrl" 
   return "baseUrl";
 }
 
-function readProviderApiKey(s: Record<string, unknown>): string {
-  const k = s.apiKey;
-  return typeof k === "string" ? k : "";
-}
-
-function modelIdsFromProviderModels(m: unknown): string[] {
-  if (Array.isArray(m)) {
-    const ids: string[] = [];
-    for (const x of m) {
-      if (x && typeof x === "object" && !Array.isArray(x)) {
-        const id = (x as { id?: unknown }).id;
-        if (typeof id === "string" && id.trim()) {
-          ids.push(id.trim());
-        }
-      }
-    }
-    return [...new Set(ids)].sort();
-  }
-  if (m && typeof m === "object" && !Array.isArray(m)) {
-    return Object.keys(m as Record<string, unknown>).sort();
-  }
-  return [];
-}
-
-function extractProviderExtras(s: Record<string, unknown> | undefined): Record<string, unknown> {
-  if (!s) {
-    return {};
-  }
-  const out: Record<string, unknown> = {};
-  if (typeof s.api === "string" && s.api.trim()) {
-    out.api = s.api.trim();
-  }
-  if (s.authHeader === true) {
-    out.authHeader = true;
-  }
-  return out;
-}
-
 function syncProviderFormFromSelection(): void {
   const k = selectedProviderKey.value;
   if (!k || !providerSnapshots.value[k]) {
@@ -232,11 +172,11 @@ function syncProviderFormFromSelection(): void {
     pvProviderExtras.value = {};
     return;
   }
-  const s = providerSnapshots.value[k];
-  pvBaseUrl.value = readProviderBaseUrl(s);
-  pvApiKey.value = readProviderApiKey(s);
-  pvModelRows.value = modelIdsFromProviderModels(s.models).map((id) => ({ id }));
-  pvProviderExtras.value = extractProviderExtras(s);
+  const editor = buildProviderEditorState(k, aiSnapshot.value);
+  pvBaseUrl.value = editor.baseUrl;
+  pvApiKey.value = editor.apiKey;
+  pvModelRows.value = editor.modelIds.map((id) => ({ id }));
+  pvProviderExtras.value = editor.extras;
 }
 
 function applyProviderPreset(preset: ProviderSetupPreset): void {
@@ -312,24 +252,12 @@ function onModelPresetSelect(bucket: "cn" | "intl", e: Event): void {
 async function loadProvidersForm(): Promise<void> {
   provError.value = null;
   provToast.value = null;
-  const api = getDidClawDesktopApi();
-  if (!api?.readOpenClawProviders) {
-    return;
-  }
   try {
-    const r = await api.readOpenClawProviders();
-    if (!r.ok) {
-      provError.value = r.error;
-      providerSnapshots.value = {};
-      selectedProviderKey.value = "";
-      syncProviderFormFromSelection();
-      return;
-    }
+    const snapshot = await readOpenClawAiSnapshot();
+    aiSnapshot.value = snapshot;
     const next: Record<string, Record<string, unknown>> = {};
-    for (const [key, v] of Object.entries(r.providers)) {
-      if (v && typeof v === "object" && !Array.isArray(v)) {
-        next[key] = { ...(v as Record<string, unknown>) };
-      }
+    for (const [key, v] of Object.entries(snapshot.providers)) {
+      next[key] = { ...v };
     }
     providerSnapshots.value = next;
     if (!creatingNewProvider.value) {
@@ -467,9 +395,11 @@ async function onSaveProvider(): Promise<void> {
     creatingNewProvider.value = false;
     selectedProviderKey.value = id;
     await loadProvidersForm();
+    await loadModelForm();
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
     void afterOpenClawProvidersSaved();
+    afterOpenClawModelConfigSaved();
   } catch (e) {
     provError.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -490,7 +420,7 @@ async function onDeleteProvider(): Promise<void> {
   provError.value = null;
   provToast.value = null;
   const api = getDidClawDesktopApi();
-  if (!api?.writeOpenClawProvidersPatch) {
+  if (!api?.writeOpenClawProvidersPatch || !api.writeOpenClawModelConfig) {
     provError.value = t("settings.desktopOnlyProviders");
     return;
   }
@@ -501,11 +431,28 @@ async function onDeleteProvider(): Promise<void> {
       provError.value = formatProvidersWriteError(r);
       return;
     }
+    const trimmed = stripProviderModelRefs(aiSnapshot.value, id);
+    const modelResult = await api.writeOpenClawModelConfig({
+      model: {
+        primary: trimmed.primaryModel,
+        fallbacks: trimmed.fallbacks,
+      },
+      models: trimmed.models,
+    });
+    if (!modelResult.ok) {
+      provError.value = modelResult.backupPath
+        ? `${modelResult.error}（备份：${modelResult.backupPath}）`
+        : modelResult.error;
+      return;
+    }
     provToast.value = t("settings.providerDeleted", { id });
     selectedProviderKey.value = "";
     await loadProvidersForm();
+    await loadModelForm();
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
+    void afterOpenClawProvidersSaved();
+    afterOpenClawModelConfigSaved();
   } catch (e) {
     provError.value = e instanceof Error ? e.message : String(e);
   } finally {

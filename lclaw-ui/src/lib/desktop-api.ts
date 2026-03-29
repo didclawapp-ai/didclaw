@@ -52,6 +52,7 @@ function tauriApi(): DidClawElectronApi {
       invoke("write_open_claw_model_config", { payload }),
     restoreOpenClawConfigToLatestBackup: () => invoke("restore_open_claw_config_to_latest_backup"),
     readOpenClawProviders: () => invoke("read_open_claw_providers"),
+    readOpenClawAiSnapshot: () => invoke("read_open_claw_ai_snapshot"),
     readWorkspaceIdentity: () => invoke("read_workspace_identity"),
     writeOpenClawProvidersPatch: (payload) =>
       invoke("write_open_claw_providers_patch", { payload }),

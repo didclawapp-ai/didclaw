@@ -1,6 +1,7 @@
 mod commands;
 mod didclaw_db;
 mod openclaw_backup;
+mod openclaw_ai_snapshot;
 mod openclaw_clawhub;
 mod openclaw_channel_config;
 mod gateway_local;
@@ -184,6 +185,7 @@ pub fn run() {
             commands::write_open_claw_model_config,
             commands::restore_open_claw_config_to_latest_backup,
             commands::read_open_claw_providers,
+            commands::read_open_claw_ai_snapshot,
             commands::write_open_claw_providers_patch,
             commands::skills_default_install_root,
             commands::skills_list_installed,
