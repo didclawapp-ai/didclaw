@@ -78,7 +78,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     baseUrlAltLabel: "国际节点",
     apiKeyRequired: true,
     apiKeyPlaceholder: "粘贴 MiniMax API Key",
-    models: ["MiniMax-M2.7", "MiniMax-M2.5", "MiniMax-M2.5-highspeed"],
+    models: ["MiniMax-M2.7", "MiniMax-M2.7-highspeed"],
     defaultModel: "MiniMax-M2.7",
     imageModels: ["minimax/image-01"],
     defaultImageModel: "minimax/image-01",
