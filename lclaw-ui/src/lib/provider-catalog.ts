@@ -23,6 +23,10 @@ export type ProviderCatalogEntry = {
   models: string[];
   /** 点"应用"时自动设为主力模型 */
   defaultModel: string;
+  /** 该服务商支持的图片生成模型列表（写入 agents.defaults.imageGenerationModel.primary） */
+  imageModels?: string[];
+  /** 点"应用"时自动设为图片生成模型 */
+  defaultImageModel?: string;
   /** OpenClaw provider extras：api、authHeader 等 */
   extras: Record<string, unknown>;
   docsUrl?: string;
@@ -66,7 +70,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     id: "minimax",
     name: "MiniMax",
     icon: "🟣",
-    description: "MiniMax M2.7 旗舰 + 高速版",
+    description: "MiniMax M2.7 旗舰 + 高速版，支持图片生成",
     color: "#8b5cf6",
     baseUrl: "https://api.minimaxi.com/anthropic",
     baseUrlLabel: "国内节点",
@@ -76,6 +80,8 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     apiKeyPlaceholder: "粘贴 MiniMax API Key",
     models: ["MiniMax-M2.7", "MiniMax-M2.5", "MiniMax-M2.5-highspeed"],
     defaultModel: "MiniMax-M2.7",
+    imageModels: ["minimax/image-01"],
+    defaultImageModel: "minimax/image-01",
     extras: { api: "anthropic-messages", authHeader: true },
     docsUrl: "https://docs.openclaw.ai/zh-CN/providers/minimax",
   },

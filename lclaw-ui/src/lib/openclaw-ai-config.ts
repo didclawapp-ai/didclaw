@@ -9,6 +9,8 @@ export type OpenClawAiSnapshot = {
   primaryModel: string;
   fallbacks: string[];
   modelRefs: string[];
+  /** agents.defaults.imageGenerationModel.primary */
+  imageGenerationModel: string;
 };
 
 export type OpenClawAliasRow = {
@@ -135,6 +137,7 @@ export function normalizeOpenClawAiSnapshot(raw: {
   primaryModel?: string;
   fallbacks?: string[];
   modelRefs?: string[];
+  imageGenerationModel?: string;
 }): OpenClawAiSnapshot {
   const providers: Record<string, Record<string, unknown>> = {};
   for (const [id, value] of Object.entries(raw.providers ?? {})) {
@@ -163,6 +166,17 @@ export function normalizeOpenClawAiSnapshot(raw: {
     ...fallbacks,
   ]);
 
+  // Read imageGenerationModel: try raw field first, then model.imageGenerationModel.primary
+  let imageGenerationModel = "";
+  if (typeof raw.imageGenerationModel === "string" && raw.imageGenerationModel.trim()) {
+    imageGenerationModel = raw.imageGenerationModel.trim();
+  } else {
+    const imgConfig = model.imageGenerationModel;
+    if (isRecord(imgConfig) && typeof imgConfig.primary === "string") {
+      imageGenerationModel = imgConfig.primary.trim();
+    }
+  }
+
   return {
     defaultAgentId: typeof raw.defaultAgentId === "string" && raw.defaultAgentId.trim()
       ? raw.defaultAgentId.trim()
@@ -173,6 +187,7 @@ export function normalizeOpenClawAiSnapshot(raw: {
     primaryModel,
     fallbacks,
     modelRefs,
+    imageGenerationModel,
   };
 }
 

@@ -25,6 +25,7 @@ const aiSnapshot = ref<OpenClawAiSnapshot>({
   primaryModel: "",
   fallbacks: [],
   modelRefs: [],
+  imageGenerationModel: "",
 });
 const fallbackModels = ref<string[]>([]);
 const fallbackInput = ref("");
@@ -37,6 +38,9 @@ const nodeChoice = ref<"main" | "alt">("main");
 const editingBaseUrl = ref("");
 const modelEditMode = ref(false);
 const modelEditText = ref("");
+
+/** 展开面板时，用户对图片生成的选择：'' = 不改变，'minimax/image-01' = 启用某模型，'off' = 关闭 */
+const imageModelChoice = ref<string>("");
 
 const busy = ref(false);
 const toast = ref<string | null>(null);
@@ -190,6 +194,15 @@ function expandCard(view: OpenClawAiProviderView) {
   nodeChoice.value =
     view.baseUrlAlt && editingBaseUrl.value.trim() === view.baseUrlAlt.trim() ? "alt" : "main";
   modelEditText.value = (editor.modelIds.length > 0 ? editor.modelIds : view.models).join(", ");
+
+  // Initialize image model choice from current snapshot or provider default
+  const currentImgModel = aiSnapshot.value.imageGenerationModel;
+  if (view.catalog?.imageModels?.length) {
+    const providerOwnsCurrentImg = view.catalog.imageModels.includes(currentImgModel);
+    imageModelChoice.value = providerOwnsCurrentImg ? currentImgModel : "";
+  } else {
+    imageModelChoice.value = "";
+  }
 }
 
 function preferredPrimaryRef(view: OpenClawAiProviderView, modelIds: string[]): string {
@@ -271,8 +284,16 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
     }
 
     const nextPrimaryRef = preferredPrimaryRef(view, modelIds);
+    const modelPatch: Record<string, unknown> = {};
+    if (setPrimary) modelPatch.primary = nextPrimaryRef;
+    // Write imageGenerationModel if user made a choice
+    if (imageModelChoice.value && imageModelChoice.value !== "off") {
+      modelPatch.imageGenerationModel = { primary: imageModelChoice.value };
+    } else if (imageModelChoice.value === "off") {
+      modelPatch.imageGenerationModel = null;
+    }
     const mr = await api.writeOpenClawModelConfig({
-      model: setPrimary ? { primary: nextPrimaryRef } : undefined,
+      model: Object.keys(modelPatch).length > 0 ? modelPatch : undefined,
       models: existingModels,
     });
     if (!mr.ok) {
@@ -287,10 +308,12 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
     chat.flashOpenClawConfigHint();
     afterOpenClawProvidersSaved();
     afterOpenClawModelConfigSaved();
+    const imgNote = imageModelChoice.value && imageModelChoice.value !== "off"
+      ? "，图片生成已开启" : "";
     setToast(
       setPrimary
-        ? `✓ 已保存并将 ${view.displayName} 设为主力模型`
-        : `✓ ${view.displayName} 配置已保存`,
+        ? `✓ 已保存并将 ${view.displayName} 设为主力模型${imgNote}`
+        : `✓ ${view.displayName} 配置已保存${imgNote}`,
     );
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -428,6 +451,7 @@ async function removeProvider(view: OpenClawAiProviderView) {
             </div>
           </div>
           <div class="aips-card-status">
+            <span v-if="provider.catalog?.imageModels?.length" class="aips-badge aips-badge--img" title="此服务商支持 AI 图片生成">🎨</span>
             <span v-if="provider.isPrimary" class="aips-badge aips-badge--primary">主力</span>
             <span v-else-if="provider.authState === 'configured'" class="aips-badge aips-badge--ok">已配置</span>
             <span v-else-if="provider.authState === 'notRequired'" class="aips-badge aips-badge--neutral">免密钥</span>
@@ -570,6 +594,36 @@ async function removeProvider(view: OpenClawAiProviderView) {
               当前这里展示的是推荐默认模型；一旦保存，会同步写入 OpenClaw 配置。
             </p>
           </template>
+        </div>
+
+        <!-- Image generation section (only for providers with imageModels) -->
+        <div v-if="expandedProvider.catalog?.imageModels?.length" class="aips-field aips-field--img">
+          <div class="aips-field-label-row">
+            <span class="aips-field-label">🎨 图片生成</span>
+            <span class="aips-img-badge-new">新功能</span>
+          </div>
+          <p class="aips-hint">开启后，在聊天中说「帮我画一张…」AI 会直接生成图片并显示在对话里。</p>
+          <div class="aips-img-options">
+            <label class="aips-img-option" :class="{ 'aips-img-option--active': !imageModelChoice }">
+              <input v-model="imageModelChoice" type="radio" value="" class="aips-img-radio" />
+              <span class="aips-img-option-label">暂不开启</span>
+            </label>
+            <label
+              v-for="m in expandedProvider.catalog.imageModels"
+              :key="m"
+              class="aips-img-option"
+              :class="{ 'aips-img-option--active': imageModelChoice === m }"
+            >
+              <input v-model="imageModelChoice" type="radio" :value="m" class="aips-img-radio" />
+              <span class="aips-img-option-label">
+                开启图片生成
+                <span class="aips-img-model-id">{{ m }}</span>
+              </span>
+            </label>
+          </div>
+          <p v-if="imageModelChoice && imageModelChoice !== 'off'" class="aips-hint aips-hint--ok">
+            ✓ 点下方「应用」后生效，之后在聊天里直接描述想要的图片即可。
+          </p>
         </div>
 
         <div class="aips-panel-actions">
@@ -1070,5 +1124,79 @@ async function removeProvider(view: OpenClawAiProviderView) {
   align-self: flex-start;
   color: var(--lc-accent);
   border-color: rgba(6,182,212,0.4);
+}
+
+/* ── 图片生成 ── */
+.aips-badge--img {
+  font-size: 13px;
+  padding: 0 2px;
+  background: transparent;
+  border: none;
+}
+.aips-field--img {
+  background: rgba(139, 92, 246, 0.04);
+  border: 1px solid rgba(139, 92, 246, 0.18);
+  border-radius: var(--lc-radius-sm);
+  padding: 10px 12px;
+  gap: 6px;
+}
+.aips-img-badge-new {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.15);
+  color: #7c3aed;
+  letter-spacing: 0.04em;
+}
+.aips-img-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.aips-img-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.aips-img-option:hover {
+  border-color: rgba(139, 92, 246, 0.35);
+  background: rgba(139, 92, 246, 0.06);
+}
+.aips-img-option--active {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.08);
+}
+.aips-img-radio {
+  accent-color: #7c3aed;
+  flex-shrink: 0;
+}
+.aips-img-option-label {
+  font-size: 13px;
+  color: var(--lc-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.aips-img-model-id {
+  font-family: var(--lc-mono);
+  font-size: 11px;
+  color: var(--lc-text-muted);
+  background: var(--lc-bg-elevated);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--lc-border);
+}
+.aips-hint--ok {
+  color: #16a34a;
+  font-size: 11px;
 }
 </style>

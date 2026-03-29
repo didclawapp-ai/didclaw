@@ -57,6 +57,18 @@ function canElectronLocalOps(url: string): boolean {
   return isDidClawElectron() && isLocalFileUrl(url);
 }
 
+/** Returns true when the URL should be rendered as an inline image rather than a link chip. */
+function isImageUrl(url: string): boolean {
+  const u = url.trim();
+  if (/^data:image\//i.test(u)) return true;
+  try {
+    const path = new URL(u).pathname.toLowerCase();
+    return /\.(png|jpe?g|webp|gif|svg)(\?|$)/.test(path);
+  } catch {
+    return /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(u);
+  }
+}
+
 function onLink(url: string, label: string, ev: MouseEvent): void {
   ev.stopPropagation();
   const u = url.trim();
@@ -64,6 +76,17 @@ function onLink(url: string, label: string, ev: MouseEvent): void {
     return;
   }
   void filePreview.openUrl(url, label);
+}
+
+function onImageClick(url: string, label: string, ev: MouseEvent): void {
+  ev.stopPropagation();
+  void filePreview.openUrl(url, label);
+}
+
+/** Track which image URLs failed to load; fall back to link chip */
+const failedImages = ref(new Set<string>());
+function onImageError(url: string): void {
+  failedImages.value = new Set([...failedImages.value, url]);
 }
 
 async function ctxSaveAs(): Promise<void> {
@@ -148,6 +171,24 @@ async function ctxCopyLink(): Promise<void> {
   <div class="body">
     <template v-for="(seg, i) in segments" :key="i">
       <span v-if="seg.type === 'text'" class="txt-plain">{{ seg.text }}</span>
+      <!-- Inline image rendering for image URLs -->
+      <template v-else-if="isImageUrl(seg.url) && !failedImages.has(seg.url)">
+        <span class="img-block">
+          <img
+            :src="seg.url"
+            :alt="seg.label"
+            class="inline-img"
+            loading="lazy"
+            @click="onImageClick(seg.url, seg.label, $event)"
+            @contextmenu="openCtxMenu(seg.url, seg.label, $event)"
+            @error="onImageError(seg.url)"
+          >
+          <span class="img-caption" @click="onImageClick(seg.url, seg.label, $event)">
+            点击查看大图
+          </span>
+        </span>
+      </template>
+      <!-- Default: link chip for non-image URLs or failed images -->
       <button
         v-else
         type="button"
@@ -260,6 +301,40 @@ async function ctxCopyLink(): Promise<void> {
   border-color: var(--lc-accent);
   background: linear-gradient(145deg, rgba(6, 182, 212, 0.22), rgba(99, 102, 241, 0.12));
   box-shadow: 0 2px 10px rgba(6, 182, 212, 0.15);
+}
+/* ── Inline image ── */
+.img-block {
+  display: block;
+  margin: 8px 0 4px;
+  max-width: 100%;
+}
+.inline-img {
+  display: block;
+  max-width: 100%;
+  max-height: 400px;
+  width: auto;
+  height: auto;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  box-shadow: var(--lc-shadow-sm);
+  cursor: zoom-in;
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
+  object-fit: contain;
+}
+.inline-img:hover {
+  box-shadow: var(--lc-shadow-md);
+  opacity: 0.92;
+}
+.img-caption {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--lc-text-muted);
+  cursor: pointer;
+}
+.img-caption:hover {
+  color: var(--lc-accent);
+  text-decoration: underline;
 }
 .link-ctx-scrim {
   position: fixed;
