@@ -1,5 +1,6 @@
 mod commands;
 mod didclaw_db;
+mod didclaw_update;
 mod openclaw_backup;
 mod openclaw_ai_snapshot;
 mod openclaw_clawhub;
@@ -211,6 +212,8 @@ pub fn run() {
             commands::cleanup_channel_residue,
             commands::configure_feishu_plugin,
             commands::start_channel_qr_flow,
+            commands::check_didclaw_update,
+            commands::install_didclaw_update,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

@@ -5,6 +5,7 @@ import SessionHistoryDialog from "@/app/SessionHistoryDialog.vue";
 import ToolSidebar from "@/app/ToolSidebar.vue";
 import FirstRunWizard from "@/features/onboarding/FirstRunWizard.vue";
 import OpenClawUpdatePrompt from "@/features/openclaw/OpenClawUpdatePrompt.vue";
+import DidClawUpdatePrompt from "@/features/update/DidClawUpdatePrompt.vue";
 import ChatRunStatusBar from "@/features/chat/ChatRunStatusBar.vue";
 import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import InlineToolTimeline from "@/features/chat/InlineToolTimeline.vue";
@@ -331,6 +332,7 @@ async function pickLocalFileForPreview(): Promise<void> {
   <div class="shell">
     <FirstRunWizard v-if="isDidClawElectron()" />
     <OpenClawUpdatePrompt v-if="isDidClawElectron()" />
+    <DidClawUpdatePrompt />
     <ExecApprovalDialog />
     <AppHeader />
     <div

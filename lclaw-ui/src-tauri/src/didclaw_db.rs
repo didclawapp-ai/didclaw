@@ -21,6 +21,7 @@ const ALLOWED_USER_KV_KEYS: &[&str] = &[
     "didclaw.clawhubToken",
     "didclaw.clawhubRegistry",
     "didclaw.openclawUpdate.dismissedLatest",
+    "didclaw.appUpdate.dismissedVersion",
 ];
 
 const MAX_USER_KV_KEY_LEN: usize = 128;

@@ -38,7 +38,10 @@ const doctorDialogOpen = ref(false);
 const backupDialogOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
+const checkUpdateBusy = ref(false);
+const checkUpdateDone = ref(false);
 let copyTimer: number | null = null;
+let checkUpdateDoneTimer: number | null = null;
 
 const showGatewayLocal = computed({
   get: () => localSettings.visible,
@@ -121,6 +124,29 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("didclaw-open-channel-dialog", onOpenChannelDialog);
 });
+
+async function onCheckUpdate(): Promise<void> {
+  if (checkUpdateBusy.value) return;
+  checkUpdateBusy.value = true;
+  checkUpdateDone.value = false;
+  if (checkUpdateDoneTimer !== null) {
+    clearTimeout(checkUpdateDoneTimer);
+    checkUpdateDoneTimer = null;
+  }
+  try {
+    // Dispatch event so DidClawUpdatePrompt handles the check and may open its dialog
+    window.dispatchEvent(new CustomEvent("didclaw-check-app-update"));
+    // Show "already up to date" feedback after a brief delay (prompt handles the dialog if update found)
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 2_500));
+    checkUpdateDone.value = true;
+    checkUpdateDoneTimer = window.setTimeout(() => {
+      checkUpdateDone.value = false;
+      checkUpdateDoneTimer = null;
+    }, 3_000);
+  } finally {
+    checkUpdateBusy.value = false;
+  }
+}
 
 function onRedoFirstRunWizard(): void {
   if (!window.confirm(t("header.redoOnboardingConfirm"))) return;
@@ -248,6 +274,26 @@ function onRedoFirstRunWizard(): void {
 
       <!-- About -->
       <li class="ts-sep-thin" role="separator" />
+      <li v-if="isDidClawElectron()">
+        <button
+          type="button"
+          class="ts-item"
+          :class="{ 'ts-item--success': checkUpdateDone }"
+          :disabled="checkUpdateBusy"
+          @click="onCheckUpdate"
+        >
+          <span class="ts-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 2v5l2.5-2.5" />
+              <path d="M8 7 5.5 4.5" />
+              <path d="M2.5 9A5.5 5.5 0 1 0 4.5 4.5" />
+            </svg>
+          </span>
+          <span class="ts-label">
+            {{ checkUpdateBusy ? "检查中…" : checkUpdateDone ? "已是最新版" : "检查更新" }}
+          </span>
+        </button>
+      </li>
       <li>
         <button type="button" class="ts-item ts-item--muted" @click="aboutDialogOpen = true">
           <span class="ts-icon" aria-hidden="true">

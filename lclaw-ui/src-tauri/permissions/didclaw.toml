@@ -65,4 +65,6 @@ commands.allow = [
   "restore_openclaw_config",
   "write_channel_config",
   "start_channel_qr_flow",
+  "check_didclaw_update",
+  "install_didclaw_update",
 ]

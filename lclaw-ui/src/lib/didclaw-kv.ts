@@ -15,6 +15,7 @@ export const DIDCLAW_KV_KEYS = [
   "didclaw.clawhubToken",
   "didclaw.clawhubRegistry",
   "didclaw.openclawUpdate.dismissedLatest",
+  "didclaw.appUpdate.dismissedVersion",
 ] as const;
 
 export type DidclawKvKey = (typeof DIDCLAW_KV_KEYS)[number];

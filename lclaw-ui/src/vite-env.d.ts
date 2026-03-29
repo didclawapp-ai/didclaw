@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_LINK_ALLOWLIST?: string;
   /** ClawHub Registry 根 URL，默认生产为 https://clawhub.ai */
   readonly VITE_CLAWHUB_REGISTRY?: string;
+  /** DidClaw 自更新清单端点 URL（返回 { version, notes, date, platforms: { windows, macos, linux } }） */
+  readonly VITE_DIDCLAW_UPDATE_ENDPOINT?: string;
 }
 
 interface ImportMeta {
@@ -130,6 +132,25 @@ interface DidClawElectronApi {
   writeOpenClawEnv?(payload: {
     patch: Record<string, string | null>;
   }): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;
+  /** 检查 DidClaw 自身是否有新版本（从 VITE_DIDCLAW_UPDATE_ENDPOINT 端点拉取清单） */
+  checkDidClawUpdate?(payload: { endpoint?: string }): Promise<
+    | {
+        ok: true;
+        currentVersion: string;
+        latestVersion: string | null;
+        updateAvailable: boolean;
+        downloadUrl?: string | null;
+        notes?: string | null;
+        date?: string | null;
+        platform?: string;
+        noEndpoint?: boolean;
+      }
+    | { ok: false; currentVersion?: string; error: string }
+  >;
+  /** 下载指定 URL 的安装包并启动；下载较大时耗时较长 */
+  installDidClawUpdate?(payload: { downloadUrl: string }): Promise<
+    { ok: true; installerPath: string } | { ok: false; error: string }
+  >;
   /** 对比本机 `openclaw --version` 与 npm 最新版（需联网） */
   checkOpenclawUpdate?(): Promise<
     | {

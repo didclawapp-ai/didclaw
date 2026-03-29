@@ -180,6 +180,33 @@ pub async fn check_openclaw_update(app: tauri::AppHandle) -> Result<Value, Strin
 }
 
 #[tauri::command]
+pub async fn check_didclaw_update(
+    app: tauri::AppHandle,
+    endpoint: Option<String>,
+) -> Result<Value, String> {
+    let app = app.clone();
+    let endpoint = endpoint.unwrap_or_default();
+    let v = tokio::task::spawn_blocking(move || {
+        crate::didclaw_update::check_didclaw_update_impl(&app, &endpoint)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(v)
+}
+
+#[tauri::command]
+pub async fn install_didclaw_update(download_url: String) -> Result<Value, String> {
+    let url = download_url.clone();
+    let path = tokio::task::spawn_blocking(move || {
+        crate::didclaw_update::install_didclaw_update_impl(&url)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e)?;
+    Ok(json!({ "ok": true, "installerPath": path }))
+}
+
+#[tauri::command]
 pub async fn run_ensure_openclaw_windows_install(
     app: tauri::AppHandle,
     skip_onboard: bool,
