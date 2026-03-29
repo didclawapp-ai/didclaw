@@ -596,7 +596,7 @@ async function removeImageGen() {
           </template>
         </p>
       </div>
-      <div class="aips-grid">
+      <div class="aips-grid aips-grid--img">
         <template v-for="imgEntry in IMAGE_GEN_CATALOG" :key="imgEntry.id">
           <!-- Collapsed card -->
           <div
@@ -1381,30 +1381,38 @@ async function removeImageGen() {
   font-size: 11px;
 }
 
+/* ── 独立图片生成网格（比普通卡片宽） ── */
+.aips-grid--img {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
 /* ── 独立图片生成卡 ── */
 .aips-card--img {
   cursor: pointer;
-  align-items: flex-start;
   flex-direction: column;
+  align-items: stretch;
   gap: 6px;
+  overflow: hidden;
 }
 .aips-card--img .aips-card-head {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  width: 100%;
   min-width: 0;
 }
 .aips-card--img .aips-card-meta {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 .aips-card--img .aips-card-name {
   white-space: normal;
+  word-break: break-word;
   overflow: visible;
 }
 .aips-card--img .aips-card-desc {
   white-space: normal;
+  word-break: break-word;
   overflow: visible;
   text-overflow: unset;
   line-height: 1.4;
@@ -1417,6 +1425,9 @@ async function removeImageGen() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.aips-card--img .aips-card-footer {
+  margin-top: 2px;
 }
 .aips-status-tag {
   display: inline-block;
