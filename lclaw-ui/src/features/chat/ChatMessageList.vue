@@ -176,7 +176,7 @@ onMounted(() => {
   flex: 1;
   min-height: 120px;
   overflow: auto;
-  padding: 8px 10px 12px;
+  padding: 10px 14px 16px;
 }
 .row-head {
   display: flex;
@@ -197,7 +197,7 @@ onMounted(() => {
   align-items: stretch;
   gap: 6px;
   padding: 10px 12px 12px;
-  margin-bottom: 6px;
+  margin-bottom: 12px;
   border-radius: var(--lc-radius-sm);
   border: 1px solid var(--lc-border);
   cursor: pointer;
