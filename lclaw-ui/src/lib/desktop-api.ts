@@ -81,6 +81,10 @@ function tauriApi(): DidClawElectronApi {
       }),
     startChannelQrFlow: (channel: string, gatewayUrl: string, flowId: string) =>
       invoke("start_channel_qr_flow", { channel, gatewayUrl, flowId }),
+    checkDidClawUpdate: (payload) =>
+      invoke("check_didclaw_update", { endpoint: payload?.endpoint ?? null }),
+    installDidClawUpdate: (payload) =>
+      invoke("install_didclaw_update", { downloadUrl: payload.downloadUrl }),
     getOpenClawSetupStatus: () => invoke("get_open_claw_setup_status"),
     checkOpenclawUpdate: () => invoke("check_openclaw_update"),
     runEnsureOpenclawWindowsInstall: (payload: { skipOnboard: boolean; upgrade?: boolean }) =>

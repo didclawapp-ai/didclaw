@@ -134,15 +134,27 @@ async function onCheckUpdate(): Promise<void> {
     checkUpdateDoneTimer = null;
   }
   try {
-    // Dispatch event so DidClawUpdatePrompt handles the check and may open its dialog
-    window.dispatchEvent(new CustomEvent("didclaw-check-app-update"));
-    // Show "already up to date" feedback after a brief delay (prompt handles the dialog if update found)
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 2_500));
-    checkUpdateDone.value = true;
-    checkUpdateDoneTimer = window.setTimeout(() => {
-      checkUpdateDone.value = false;
-      checkUpdateDoneTimer = null;
-    }, 3_000);
+    const result = await new Promise<{ updateAvailable: boolean }>((resolve) => {
+      const onResult = (e: Event) => {
+        window.removeEventListener("didclaw-check-app-update-result", onResult);
+        resolve((e as CustomEvent).detail ?? { updateAvailable: false });
+      };
+      window.addEventListener("didclaw-check-app-update-result", onResult);
+      window.dispatchEvent(new CustomEvent("didclaw-check-app-update"));
+      // Timeout after 8s in case of network error
+      window.setTimeout(() => {
+        window.removeEventListener("didclaw-check-app-update-result", onResult);
+        resolve({ updateAvailable: false });
+      }, 8_000);
+    });
+    // Only show "已是最新版" when no update was found; if update found the dialog handles it
+    if (!result.updateAvailable) {
+      checkUpdateDone.value = true;
+      checkUpdateDoneTimer = window.setTimeout(() => {
+        checkUpdateDone.value = false;
+        checkUpdateDoneTimer = null;
+      }, 3_000);
+    }
   } finally {
     checkUpdateBusy.value = false;
   }

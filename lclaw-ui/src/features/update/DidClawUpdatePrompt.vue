@@ -24,10 +24,14 @@ function getEndpoint(): string {
   return (import.meta.env.VITE_DIDCLAW_UPDATE_ENDPOINT ?? "").trim();
 }
 
+function emitResult(updateAvailable: boolean): void {
+  window.dispatchEvent(new CustomEvent("didclaw-check-app-update-result", { detail: { updateAvailable } }));
+}
+
 async function runCheck(silent = true): Promise<void> {
-  if (!isDidClawElectron()) return;
+  if (!isDidClawElectron()) { emitResult(false); return; }
   const api = getDidClawDesktopApi();
-  if (!api?.checkDidClawUpdate) return;
+  if (!api?.checkDidClawUpdate) { emitResult(false); return; }
 
   checking.value = true;
   checkError.value = null;
@@ -36,19 +40,24 @@ async function runCheck(silent = true): Promise<void> {
     const res = await api.checkDidClawUpdate({ endpoint: getEndpoint() || undefined });
     if (!res || res.ok === false) {
       if (!silent) checkError.value = ("error" in res ? res.error : null) ?? "检查失败";
+      emitResult(false);
       return;
     }
     if (res.noEndpoint) {
       noEndpoint.value = true;
       if (!silent) checkError.value = "未配置更新地址（VITE_DIDCLAW_UPDATE_ENDPOINT）";
+      emitResult(false);
       return;
     }
-    if (!res.updateAvailable || !res.latestVersion?.trim()) return;
+    if (!res.updateAvailable || !res.latestVersion?.trim()) {
+      emitResult(false);
+      return;
+    }
 
     const lv = res.latestVersion.trim();
     if (silent) {
       try {
-        if (didclawKvReadSync(DISMISS_KEY) === lv) return;
+        if (didclawKvReadSync(DISMISS_KEY) === lv) { emitResult(false); return; }
       } catch { /* ignore */ }
     }
 
@@ -61,8 +70,10 @@ async function runCheck(silent = true): Promise<void> {
     installerLaunched.value = false;
     installBusy.value = false;
     open.value = true;
+    emitResult(true);
   } catch (e) {
     if (!silent) checkError.value = e instanceof Error ? e.message : "检查更新时出错";
+    emitResult(false);
   } finally {
     checking.value = false;
   }
