@@ -99,6 +99,8 @@ interface DidClawElectronApi {
   writeOpenClawModelConfig(payload: {
     model?: Record<string, unknown>;
     models?: Record<string, Record<string, unknown>>;
+    /** Writes agents.defaults.imageGenerationModel (top-level sibling of `model`). Pass null to remove. */
+    imageGenerationModel?: Record<string, unknown> | null;
   }): Promise<
     | { ok: true; backupPath?: string }
     | { ok: false; error: string; backupPath?: string }

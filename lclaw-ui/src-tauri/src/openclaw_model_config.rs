@@ -178,6 +178,15 @@ pub fn write_open_claw_model_config(payload: Value) -> Value {
         defaults.insert("models".into(), Value::Object(next));
     }
 
+    // Write agents.defaults.imageGenerationModel as a top-level sibling of `model`
+    if let Some(igv) = payload_obj.get("imageGenerationModel") {
+        if igv.is_null() {
+            defaults.remove("imageGenerationModel");
+        } else {
+            defaults.insert("imageGenerationModel".into(), igv.clone());
+        }
+    }
+
     let out = match serde_json::to_string_pretty(&root) {
         Ok(s) => format!("{s}\n"),
         Err(e) => {

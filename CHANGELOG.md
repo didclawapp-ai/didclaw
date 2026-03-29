@@ -8,7 +8,7 @@
 
 ### 修复
 
-- **图片生成开启后导致聊天模型丢失**：`applyImageGen` 保存时未传 `models` 参数，导致后端清空 `agents.defaults.models`，造成主力聊天模型（如 `moonshot/kimi-k2.5`）被识别为 Unknown；现已在写入时同时携带 `...existingModel` 与 `models: aiSnapshot.value.models`，防止覆盖现有配置。
+- **图片生成配置写入位置错误导致 config 损坏**：`imageGenerationModel` 应写入 `agents.defaults.imageGenerationModel`（与 `model` 平级），但代码误将其 merge 进 `agents.defaults.model`，导致 OpenClaw 3.28 schema 校验报 "Invalid input"。修复方案：在 Rust `write_open_claw_model_config` 命令中增加 `imageGenerationModel` 独立 payload 参数，直接写到 `agents.defaults` 顶层；同步更新前端 `vite-env.d.ts` 类型与 `applyImageGen` / `removeImageGen` 调用方式。
 - **Kimi 推荐模型列表过时**：目录中 `kimi-k1.5` 已废弃，同步为 OpenClaw 3.28 文档中的最新 K2 系列（kimi-k2.5、kimi-k2-turbo-preview、kimi-k2-thinking、kimi-k2-thinking-turbo）。
 
 ### 优化
