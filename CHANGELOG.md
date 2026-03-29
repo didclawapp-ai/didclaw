@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 优化
+
+- **技能管理界面文案面向普通用户优化**：Tab 标签由技术名称（ClawHub / OpenClaw / 共享目录 / 本机安装）改为用户易懂的表述（技能市场 / 已安装 / 本地技能库 / 手动导入）；顶部说明文字去除 CLI 命令、workspace 等技术术语，改为一句面向用户价值的简洁描述；搜索空白状态提示由技术说明改为引导性文字；快捷搜索标签去掉双语混排，仅保留中文。
+
 ### 新增
 
 - **桌面端技能/插件市场改走 OpenClaw CLI**：技能搜索、安装、更新改为通过本机 `openclaw skills search/install/update` 执行，插件安装继续通过 `openclaw plugins install`；技能管理面板补齐 OpenClaw 官方风格的 Ready / Needs Setup 建议、插件 update / uninstall、以及更完整的 inspect 信息展示，减少对前端直连 ClawHub API 的依赖并与上游行为保持一致。

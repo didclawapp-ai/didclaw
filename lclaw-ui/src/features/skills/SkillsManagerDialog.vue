@@ -643,17 +643,17 @@ async function jumpToClawHubSearch(query: string): Promise<void> {
 
 /** 快捷搜索：中英合并 query，适配 ClawHub 以英文技能为主的索引；按钮展示双语标签 */
 const CLAWHUB_QUICK_SEARCH_ITEMS: ReadonlyArray<{ label: string; query: string }> = [
-  { label: "搜索 · search", query: "search 搜索" },
-  { label: "代理 · proxy", query: "proxy 代理 VPN" },
-  { label: "代码 · code", query: "code programming 代码" },
-  { label: "免费 · free", query: "free open source 免费" },
-  { label: "文档 · docs", query: "documentation docs 文档" },
-  { label: "邮件 · email", query: "email mail 邮件" },
-  { label: "日历 · calendar", query: "calendar schedule 日历" },
-  { label: "数据库 · database", query: "database sql 数据库" },
-  { label: "自动化 · automation", query: "automation workflow 自动化" },
-  { label: "API · 接口", query: "API REST HTTP 接口" },
-  { label: "插件 · plugin", query: "plugin" },
+  { label: "搜索", query: "search 搜索" },
+  { label: "代理", query: "proxy 代理 VPN" },
+  { label: "代码", query: "code programming 代码" },
+  { label: "免费", query: "free open source 免费" },
+  { label: "文档", query: "documentation docs 文档" },
+  { label: "邮件", query: "email mail 邮件" },
+  { label: "日历", query: "calendar schedule 日历" },
+  { label: "数据库", query: "database sql 数据库" },
+  { label: "自动化", query: "automation workflow 自动化" },
+  { label: "API 接口", query: "API REST HTTP 接口" },
+  { label: "插件", query: "plugin" },
 ];
 
 function resetSearchLimits(): void {
@@ -1525,11 +1525,11 @@ const selectedOpenclawPlugin = computed(() => {
 
         <div class="skills-panel-top">
           <p class="skills-lead muted small">
-            在 <strong>ClawHub</strong> 搜索并安装技能或插件；市场技能默认通过 OpenClaw CLI 安装到当前 workspace，插件也通过 OpenClaw CLI 管理；ZIP/文件夹导入只会写入下方共享 <code>skills</code> 目录。
+            在技能市场中发现并安装技能，AI 会立即获得新能力。
           </p>
 
           <div v-if="isTauri()" class="skills-root-row">
-            <label class="skills-root-label">本机导入 Skills 目录</label>
+            <label class="skills-root-label">手动导入目录</label>
             <input
               v-model="installRoot"
               type="text"
@@ -1539,10 +1539,10 @@ const selectedOpenclawPlugin = computed(() => {
             >
           </div>
           <p v-if="isTauri()" class="muted small skills-root-note">
-            这里仅用于“共享目录”与“本机安装”页的 ZIP/文件夹导入。OpenClaw 2026.03.24 起，市场技能建议通过 <code>openclaw skills install</code> 安装到活动 workspace；共享 skills 目录仍推荐使用 <code>~/.openclaw/skills</code>，更适合手动导入和团队共用。
+            从「本地技能库」或「手动导入」页面通过 ZIP/文件夹安装的技能将写入此目录。
           </p>
           <p v-else class="muted small skills-web-hint">
-            当前为网页模式：可搜索 ClawHub；写入本机 skills 或安装插件需使用桌面版。
+            当前为网页模式，可浏览技能市场；安装技能需使用桌面版。
           </p>
         </div>
 
@@ -1556,7 +1556,7 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'browse'"
               @click="subTab = 'browse'"
             >
-              ClawHub
+              技能市场
             </button>
             <button
               type="button"
@@ -1566,7 +1566,7 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'openclaw'"
               @click="subTab = 'openclaw'"
             >
-              OpenClaw
+              已安装
             </button>
             <button
               type="button"
@@ -1576,7 +1576,7 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'installed'"
               @click="subTab = 'installed'"
             >
-              共享目录
+              本地技能库
             </button>
             <button
               type="button"
@@ -1586,7 +1586,7 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'local'"
               @click="subTab = 'local'"
             >
-              本机安装
+              手动导入
             </button>
           </nav>
 
@@ -1671,7 +1671,7 @@ const selectedOpenclawPlugin = computed(() => {
           <div ref="hubResultsRegionEl" class="hub-results-region" aria-live="polite">
             <p v-if="searchLoading" class="muted small hub-results-status">搜索中…</p>
             <p v-else-if="!searchHits.length" class="muted small hub-results-empty">
-              输入关键词或点击「快捷搜索」；桌面版会用 OpenClaw CLI 搜索技能，并补充显示匿名 ClawHub 插件结果。技能安装到当前 OpenClaw workspace，插件走 OpenClaw CLI。
+              搜索技能名称，或点击快捷标签开始探索
             </p>
             <template v-else>
               <div v-if="hubResultsView === 'cards'" class="hub-card-grid">
