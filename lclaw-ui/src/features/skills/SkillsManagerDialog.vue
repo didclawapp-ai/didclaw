@@ -18,12 +18,14 @@ import { openExternalUrl } from "@/lib/open-external";
 import {
   arrayBufferToBase64,
   getStoredSkillsInstallRoot,
+  openclawSkillsInfo,
   openclawPluginsInspect,
   openclawPluginsList,
   openclawPluginsSetEnabled,
   openclawPluginsUninstall,
   openclawSkillsInstall,
   openclawSkillsSearch,
+  writeOpenClawSkillEnabled,
   openclawPluginsUpdate,
   openclawSkillsCheck,
   openclawSkillsList,
@@ -98,6 +100,7 @@ const installBusy = ref(false);
 /** 当前正在安装的技能 slug；仅该卡片/对应项显示「安装中…」，避免全局误判 */
 const installingSlug = ref<string | null>(null);
 const openclawSkillActionBusyName = ref<string | null>(null);
+const openclawSkillToggleBusyName = ref<string | null>(null);
 const installMessage = ref<string | null>(null);
 const installMessageAction = ref<{ label: string; url: string } | null>(null);
 type MessageKind = "success" | "error" | "info";
@@ -559,6 +562,31 @@ async function toggleOpenClawPlugin(plugin: OpenClawPluginItem): Promise<void> {
     setInstallMessage(e instanceof Error ? e.message : String(e), "error");
   } finally {
     openclawPluginToggleBusyId.value = null;
+  }
+}
+
+async function toggleOpenClawSkill(skill: OpenClawSkillItem): Promise<void> {
+  const name = skill.name.trim();
+  if (!name) {
+    return;
+  }
+  const enable = skill.disabled;
+  openclawSkillToggleBusyName.value = name;
+  try {
+    const info = await openclawSkillsInfo(name);
+    const skillKey = info.skillKey?.trim() || name;
+    await writeOpenClawSkillEnabled(skillKey, enable);
+    setInstallMessage(
+      enable
+        ? `已启用技能「${name}」。配置会在下次 agent 轮次生效。`
+        : `已禁用技能「${name}」。配置会在下次 agent 轮次生效。`,
+      "success",
+    );
+    await loadOpenClawCatalog(true);
+  } catch (e) {
+    setInstallMessage(e instanceof Error ? e.message : String(e), "error");
+  } finally {
+    openclawSkillToggleBusyName.value = null;
   }
 }
 
@@ -1868,13 +1896,29 @@ const selectedOpenclawPlugin = computed(() => {
                               <span class="openclaw-pill">{{ skillStatusLabel(skill) }}</span>
                               <span class="openclaw-pill openclaw-pill--muted">{{ skillSourceLabel(skill) }}</span>
                             </div>
-                            <a
-                              v-if="skill.homepage"
-                              :href="skill.homepage"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="openclaw-link"
-                            >主页</a>
+                            <div class="openclaw-item-actions">
+                              <button
+                                type="button"
+                                class="lc-btn lc-btn-ghost lc-btn-xs"
+                                :disabled="openclawSkillToggleBusyName === skill.name || installBusy"
+                                @click.stop="toggleOpenClawSkill(skill)"
+                              >
+                                {{
+                                  openclawSkillToggleBusyName === skill.name
+                                    ? "处理中…"
+                                    : skill.disabled
+                                      ? "启用"
+                                      : "禁用"
+                                }}
+                              </button>
+                              <a
+                                v-if="skill.homepage"
+                                :href="skill.homepage"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="openclaw-link"
+                              >主页</a>
+                            </div>
                           </div>
                           <p class="openclaw-item-desc">{{ truncateSummary(skill.description, 260) }}</p>
                           <p v-if="!skill.eligible && skillSetupHint(skill)" class="muted small openclaw-setup-hint">
@@ -1918,13 +1962,29 @@ const selectedOpenclawPlugin = computed(() => {
                               <span class="openclaw-pill">{{ skillStatusLabel(skill) }}</span>
                               <span class="openclaw-pill openclaw-pill--muted">{{ skillSourceLabel(skill) }}</span>
                             </div>
-                            <a
-                              v-if="skill.homepage"
-                              :href="skill.homepage"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="openclaw-link"
-                            >主页</a>
+                            <div class="openclaw-item-actions">
+                              <button
+                                type="button"
+                                class="lc-btn lc-btn-ghost lc-btn-xs"
+                                :disabled="openclawSkillToggleBusyName === skill.name || installBusy"
+                                @click.stop="toggleOpenClawSkill(skill)"
+                              >
+                                {{
+                                  openclawSkillToggleBusyName === skill.name
+                                    ? "处理中…"
+                                    : skill.disabled
+                                      ? "启用"
+                                      : "禁用"
+                                }}
+                              </button>
+                              <a
+                                v-if="skill.homepage"
+                                :href="skill.homepage"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="openclaw-link"
+                              >主页</a>
+                            </div>
                           </div>
                           <p class="openclaw-item-desc">{{ truncateSummary(skill.description, 260) }}</p>
                           <p v-if="!skill.eligible && skillSetupHint(skill)" class="muted small openclaw-setup-hint">
@@ -2048,6 +2108,20 @@ const selectedOpenclawPlugin = computed(() => {
                         </div>
                       </div>
                       <div class="openclaw-detail-actions">
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-ghost lc-btn-sm"
+                          :disabled="openclawSkillToggleBusyName === selectedOpenclawSkill.name || installBusy"
+                          @click="toggleOpenClawSkill(selectedOpenclawSkill)"
+                        >
+                          {{
+                            openclawSkillToggleBusyName === selectedOpenclawSkill.name
+                              ? "处理中…"
+                              : selectedOpenclawSkill.disabled
+                                ? "启用技能"
+                                : "禁用技能"
+                          }}
+                        </button>
                         <button
                           v-if="!selectedOpenclawSkill.bundled"
                           type="button"

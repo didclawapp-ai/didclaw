@@ -372,6 +372,19 @@ pub async fn openclaw_skills_search(
 }
 
 #[tauri::command]
+pub async fn openclaw_skills_info(
+    app: tauri::AppHandle,
+    skill_name: String,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::inspect_open_claw_skill_service(&app, &skill_name)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
 pub async fn openclaw_skills_install(
     app: tauri::AppHandle,
     skill_slug: String,
@@ -553,6 +566,13 @@ pub fn read_open_claw_model_config() -> Result<Value, String> {
 #[tauri::command]
 pub fn write_open_claw_model_config(payload: Value) -> Result<Value, String> {
     Ok(crate::openclaw_model_config::write_open_claw_model_config(payload))
+}
+
+#[tauri::command]
+pub fn write_open_claw_skill_enabled(skill_key: String, enabled: bool) -> Result<Value, String> {
+    Ok(crate::openclaw_skill_config::write_open_claw_skill_enabled(
+        &skill_key, enabled,
+    ))
 }
 
 #[tauri::command]

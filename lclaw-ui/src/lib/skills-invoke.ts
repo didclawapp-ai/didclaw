@@ -75,6 +75,13 @@ export type OpenClawSkillsCheckResult = {
   }>;
 };
 
+export type OpenClawSkillInfoResult = {
+  name?: string;
+  skillKey?: string | null;
+  disabled?: boolean;
+  bundled?: boolean;
+};
+
 export type OpenClawPluginItem = {
   id: string;
   name?: string | null;
@@ -269,6 +276,45 @@ export async function openclawSkillsSearch(
   }
   return {
     results: Array.isArray(r?.results) ? r.results : [],
+  };
+}
+
+export async function openclawSkillsInfo(skillName: string): Promise<OpenClawSkillInfoResult> {
+  if (!isTauri()) {
+    return {};
+  }
+  const r = await invoke<OpenClawSkillInfoResult & { ok?: boolean; error?: string }>(
+    "openclaw_skills_info",
+    {
+      skillName,
+    },
+  );
+  if (r && typeof r === "object" && "ok" in r && r.ok === false) {
+    throw new Error(r.error || "OpenClaw skills info failed");
+  }
+  return r ?? {};
+}
+
+export async function writeOpenClawSkillEnabled(
+  skillKey: string,
+  enabled: boolean,
+): Promise<{ ok: boolean; backupPath?: string | null }> {
+  if (!isTauri()) {
+    return { ok: false };
+  }
+  const r = await invoke<{ ok?: boolean; error?: string; backupPath?: string | null }>(
+    "write_open_claw_skill_enabled",
+    {
+      skillKey,
+      enabled,
+    },
+  );
+  if (r && typeof r === "object" && r.ok === false) {
+    throw new Error(r.error || "Write OpenClaw skill enabled failed");
+  }
+  return {
+    ok: r?.ok === true,
+    backupPath: r?.backupPath,
   };
 }
 

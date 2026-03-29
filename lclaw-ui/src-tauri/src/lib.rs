@@ -14,6 +14,7 @@ mod openclaw_gateway_origins;
 mod openclaw_version_check;
 mod openclaw_model_config;
 mod openclaw_providers;
+mod openclaw_skill_config;
 mod paths;
 mod preview_local;
 mod skills;
@@ -172,6 +173,7 @@ pub fn run() {
             commands::openclaw_plugins_uninstall,
             commands::openclaw_skills_list,
             commands::openclaw_skills_search,
+            commands::openclaw_skills_info,
             commands::openclaw_skills_install,
             commands::openclaw_skills_update,
             commands::openclaw_skills_uninstall,
@@ -185,6 +187,7 @@ pub fn run() {
             commands::gateway_tunnel_close,
             commands::read_open_claw_model_config,
             commands::write_open_claw_model_config,
+            commands::write_open_claw_skill_enabled,
             commands::restore_open_claw_config_to_latest_backup,
             commands::read_open_claw_providers,
             commands::read_open_claw_ai_snapshot,
