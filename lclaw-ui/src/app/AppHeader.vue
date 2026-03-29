@@ -122,12 +122,21 @@ defineExpose({ showInlineError });
         <div class="header-quick-tools">
           <button
             type="button"
-            class="header-icon-btn"
+            class="header-icon-btn header-icon-btn--theme"
+            :class="themeStore.mode === 'dark' ? 'header-icon-btn--dark' : 'header-icon-btn--light'"
             :title="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
             :aria-label="themeStore.mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')"
             @click="themeStore.toggle()"
           >
-            <span class="header-icon-glyph" aria-hidden="true">{{ themeStore.mode === 'dark' ? '☀' : '☾' }}</span>
+            <!-- sun: shown when in dark mode (click to go light) -->
+            <svg v-if="themeStore.mode === 'dark'" viewBox="0 0 24 24" aria-hidden="true" class="header-icon-svg">
+              <circle cx="12" cy="12" r="4" fill="currentColor" />
+              <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+            </svg>
+            <!-- moon: shown when in light mode (click to go dark) -->
+            <svg v-else viewBox="0 0 24 24" aria-hidden="true" class="header-icon-svg">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" />
+            </svg>
           </button>
           <button
             type="button"
@@ -137,12 +146,7 @@ defineExpose({ showInlineError });
             :aria-label="localeToggleTitle"
             @click="toggleLocale"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="header-icon-svg">
-              <path
-                d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9Zm5.93 8h-3.06a14.9 14.9 0 0 0-1.37-5.02A7.03 7.03 0 0 1 17.93 11Zm-5.93 8c-.8 0-2.12-2.02-2.56-5h5.12c-.44 2.98-1.76 5-2.56 5Zm-2.86-7a12.8 12.8 0 0 1 0-2h5.72a12.8 12.8 0 0 1 0 2H9.14Zm-4.07 0c.12-1.09.5-2.1 1.08-3h2.52a15.7 15.7 0 0 0 0 6H6.15a6.95 6.95 0 0 1-1.08-3Zm6.93-7c.8 0 2.12 2.02 2.56 5H9.44c.44-2.98 1.76-5 2.56-5ZM10.5 5.98A14.9 14.9 0 0 0 9.13 11H6.07a7.03 7.03 0 0 1 4.43-5.02ZM6.07 13h3.06c.24 1.84.72 3.58 1.37 5.02A7.03 7.03 0 0 1 6.07 13Zm7.43 5.02c.65-1.44 1.13-3.18 1.37-5.02h3.06a7.03 7.03 0 0 1-4.43 5.02Z"
-                fill="currentColor"
-              />
-            </svg>
+            <span class="header-lang-label" aria-hidden="true">{{ currentLocale === 'zh' ? '中' : 'En' }}</span>
           </button>
         </div>
       </div>
@@ -258,13 +262,25 @@ defineExpose({ showInlineError });
   outline: 2px solid var(--lc-accent);
   outline-offset: 2px;
 }
-.header-icon-glyph {
-  font-size: 15px;
-  line-height: 1;
-}
 .header-icon-svg {
   width: 15px;
   height: 15px;
+  flex-shrink: 0;
+}
+.header-lang-label {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-family: system-ui, sans-serif;
+}
+.header-icon-btn--theme.header-icon-btn--dark {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+}
+.header-icon-btn--theme.header-icon-btn--light {
+  color: #818cf8;
+  border-color: rgba(129, 140, 248, 0.35);
 }
 .header-icon-btn--locale.header-icon-btn--zh {
   color: #22d3ee;
