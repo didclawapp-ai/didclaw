@@ -45,7 +45,7 @@ import {
   skillsResolveInstallRoot,
 } from "@/lib/skills-invoke";
 import { isTauri } from "@tauri-apps/api/core";
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -68,6 +68,7 @@ const searchQuery = ref("");
 const searchLoading = ref(false);
 const searchHits = ref<ClawhubCatalogHit[]>([]);
 const searchError = ref<string | null>(null);
+const hubResultsRegionEl = ref<HTMLElement | null>(null);
 const INITIAL_SEARCH_LIMITS = {
   skills: 20,
   packages: 30,
@@ -738,11 +739,16 @@ async function loadMoreSearchHits(): Promise<void> {
   if (!canLoadMoreSearchHits.value) {
     return;
   }
+  const seenKeys = new Set(searchHits.value.map(catalogHitKey));
   if (isTauri()) {
     skillSearchLimit.value += SEARCH_LIMIT_STEPS.skills;
   }
   packageSearchLimit.value += SEARCH_LIMIT_STEPS.packages;
   await onSearch(false);
+  const firstNewHit = searchHits.value.find((item) => !seenKeys.has(catalogHitKey(item)));
+  if (firstNewHit) {
+    await scrollToCatalogHit(catalogHitKey(firstNewHit));
+  }
 }
 
 async function selectHubSlug(slug: string, family: ClawhubPackageFamily): Promise<void> {
@@ -812,6 +818,21 @@ function appendCatalogHits(
     return true;
   });
   return appended.length ? [...existing, ...appended] : existing;
+}
+
+function catalogHitKey(hit: ClawhubCatalogHit): string {
+  return `${hit.family}:${hit.slug}`;
+}
+
+async function scrollToCatalogHit(key: string): Promise<void> {
+  await nextTick();
+  const container = hubResultsRegionEl.value;
+  if (!container) {
+    return;
+  }
+  const escaped = key.replace(/["\\]/g, "\\$&");
+  const target = container.querySelector<HTMLElement>(`[data-catalog-hit-key="${escaped}"]`);
+  target?.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
 function pluginPackageSpec(slug: string): string {
@@ -1619,14 +1640,19 @@ const selectedOpenclawPlugin = computed(() => {
             </div>
           </div>
 
-          <div class="hub-results-region" aria-live="polite">
+          <div ref="hubResultsRegionEl" class="hub-results-region" aria-live="polite">
             <p v-if="searchLoading" class="muted small hub-results-status">搜索中…</p>
             <p v-else-if="!searchHits.length" class="muted small hub-results-empty">
               输入关键词或点击「快捷搜索」；桌面版会用 OpenClaw CLI 搜索技能，并补充显示匿名 ClawHub 插件结果。技能安装到当前 OpenClaw workspace，插件走 OpenClaw CLI。
             </p>
             <template v-else>
               <div v-if="hubResultsView === 'cards'" class="hub-card-grid">
-                <article v-for="h in searchHits" :key="`${h.family}:${h.slug}`" class="hub-result-card">
+                <article
+                  v-for="h in searchHits"
+                  :key="`${h.family}:${h.slug}`"
+                  class="hub-result-card"
+                  :data-catalog-hit-key="catalogHitKey(h)"
+                >
                   <header class="hub-card-head">
                     <h3 class="hub-card-title">{{ h.displayName?.trim() || h.slug }}</h3>
                     <span class="hub-card-family">{{ familyLabel(h.family) }}</span>
@@ -1653,7 +1679,12 @@ const selectedOpenclawPlugin = computed(() => {
                 </article>
               </div>
               <ul v-else class="hub-result-list" role="list">
-                <li v-for="h in searchHits" :key="`${h.family}:${h.slug}`" class="hub-list-row">
+                <li
+                  v-for="h in searchHits"
+                  :key="`${h.family}:${h.slug}`"
+                  class="hub-list-row"
+                  :data-catalog-hit-key="catalogHitKey(h)"
+                >
                   <div class="hub-list-text">
                     <div class="hub-list-title-row">
                       <span class="hub-list-name">{{ h.displayName?.trim() || h.slug }}</span>
