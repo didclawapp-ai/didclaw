@@ -181,6 +181,24 @@ fn read_agent_models_providers_map(path: &Path) -> Result<Map<String, Value>, St
     Ok(pr.clone())
 }
 
+/// Mask `apiKey` fields before returning to frontend: keep first 4 chars + "****".
+/// Prevents full keys from leaking into AI conversation context.
+fn mask_providers_api_keys(providers: &mut Map<String, Value>) {
+    for (_, prov) in providers.iter_mut() {
+        let Some(p) = prov.as_object_mut() else { continue };
+        if let Some(key_val) = p.get("apiKey") {
+            if let Some(k) = key_val.as_str() {
+                let masked = if k.len() > 4 {
+                    format!("{}****", &k[..4])
+                } else {
+                    "****".to_string()
+                };
+                p.insert("apiKey".to_string(), json!(masked));
+            }
+        }
+    }
+}
+
 pub fn read_open_claw_providers() -> Value {
     let config_path = match openclaw_config_path() {
         Ok(p) => p,
@@ -204,6 +222,7 @@ pub fn read_open_claw_providers() -> Value {
             if let Ok(auth_path) = agent_auth_profiles_json_path(&agent_id) {
                 enrich_providers_with_auth_profiles(&mut merged, &auth_path);
             }
+            mask_providers_api_keys(&mut merged);
             return json!({
                 "ok": true,
                 "providers": Value::Object(merged),
@@ -234,6 +253,7 @@ pub fn read_open_claw_providers() -> Value {
     if let Ok(auth_path) = agent_auth_profiles_json_path(&agent_id) {
         enrich_providers_with_auth_profiles(&mut merged, &auth_path);
     }
+    mask_providers_api_keys(&mut merged);
     json!({
         "ok": true,
         "providers": Value::Object(merged),

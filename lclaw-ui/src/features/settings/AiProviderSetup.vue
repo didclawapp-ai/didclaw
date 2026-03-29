@@ -273,8 +273,11 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
       models,
       ...view.extras,
     };
-    if (view.apiKeyRequired || editingKey.value.trim()) {
-      providerBody.apiKey = editingKey.value.trim();
+    const keyToWrite = editingKey.value.trim();
+    // Reject masked placeholder values (e.g. "sk-a****") returned by the read API
+    const isRealKey = keyToWrite && !keyToWrite.endsWith("****");
+    if (view.apiKeyRequired || isRealKey) {
+      if (isRealKey) providerBody.apiKey = keyToWrite;
     }
 
     const pr = await api.writeOpenClawProvidersPatch({ patch: { [view.id]: providerBody } });
@@ -410,7 +413,7 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
 
   imgBusy.value = true;
   try {
-    // If key is given, also ensure provider is configured
+    // If key is given, also ensure provider is configured with all required fields
     const keyTrimmed = imgEditingKey.value.trim();
     if (keyTrimmed && api.writeOpenClawProvidersPatch) {
       const existing = aiSnapshot.value.providers?.[entry.providerId] as
@@ -423,8 +426,17 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
       } else if (provEntry?.models) {
         for (const m of provEntry.models) models[m] = {};
       }
+      // Ensure catalog defaults (baseUrl, api, authHeader etc.) are always present
+      // so the provider is fully valid even when user configures image gen first
+      const providerPatch: Record<string, unknown> = {
+        ...(provEntry?.baseUrl ? { baseUrl: provEntry.baseUrl } : {}),
+        ...(provEntry?.extras ?? {}),
+        ...existing,
+        apiKey: keyTrimmed,
+        models,
+      };
       await api.writeOpenClawProvidersPatch({
-        patch: { [entry.providerId]: { ...existing, apiKey: keyTrimmed, models } },
+        patch: { [entry.providerId]: providerPatch },
       });
     }
 
@@ -438,9 +450,13 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
     }
 
     // Write env var so the image generation plugin can find the key
-    const resolvedKey = imgEditingKey.value.trim() || (() => {
+    // Exclude masked placeholder values (e.g. "sk-a****") from the read API
+    const resolvedKey = (() => {
+      const typed = imgEditingKey.value.trim();
+      if (typed && !typed.endsWith("****")) return typed;
       const pd = aiSnapshot.value.providers?.[entry.providerId] as Record<string, unknown> | undefined;
-      return typeof pd?.apiKey === "string" ? pd.apiKey : "";
+      const stored = typeof pd?.apiKey === "string" ? pd.apiKey : "";
+      return stored.endsWith("****") ? "" : stored;
     })();
     if (resolvedKey && api.writeOpenClawEnv) {
       await api.writeOpenClawEnv({ patch: { [entry.envKey]: resolvedKey } });
@@ -450,7 +466,7 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
     expandedImgId.value = null;
     imgEditingKey.value = "";
     afterOpenClawModelConfigSaved();
-    setToast(`✓ 图片生成模型已设置为 ${entry.modelLabel}`);
+    setToast(`✓ 图片生成已开启（${entry.modelLabel}）— 请重启网关后生效`);
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -1368,12 +1384,39 @@ async function removeImageGen() {
 /* ── 独立图片生成卡 ── */
 .aips-card--img {
   cursor: pointer;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+}
+.aips-card--img .aips-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.aips-card--img .aips-card-meta {
+  flex: 1;
+  min-width: 0;
+}
+.aips-card--img .aips-card-name {
+  white-space: normal;
+  overflow: visible;
+}
+.aips-card--img .aips-card-desc {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: 1.4;
 }
 .aips-card--img .aips-card-model-hint {
   font-family: var(--lc-mono);
   font-size: 10px;
   color: var(--lc-text-muted);
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .aips-status-tag {
   display: inline-block;

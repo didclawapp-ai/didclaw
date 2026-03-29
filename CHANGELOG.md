@@ -8,6 +8,10 @@
 
 ### 修复
 
+- **MiniMax 无流式输出**：MiniMax 配置使用 `/anthropic` 兼容端点（`api: "anthropic-messages"`），该端点不支持 SSE 流式，导致响应一次性输出。改为使用原生 `/v1` 端点（`api: "openai-completions"`），流式输出恢复正常。
+- **API Key 明文泄露风险**：`readOpenClawProviders` 返回给前端的数据包含完整 API Key，AI Agent 读取 providers 数据时可能将 Key 输出到对话中。修复方案：在 Rust 层 `read_open_claw_providers` 返回前调用 `mask_providers_api_keys`，将所有 provider 的 `apiKey` 脱敏为前4位 + `****`；前端 `applyProvider` 和 `applyImageGen` 写回时检测 `****` 后缀，过滤掉脱敏占位值，避免将假值写入配置。
+- **`write_open_claw_env` 命令未加入 ACL 白名单**：`permissions/didclaw.toml` 的 `invoke-all` 列表缺少该命令，导致前端调用时报 "Command not allowed by ACL" 错误，图片生成 env var 无法写入。已补充注册。
+- **首次配置图片生成时 provider 字段不完整**：用户若跳过对话配置直接使用图片生成卡片，`applyImageGen` 写入的 provider patch 缺少 `baseUrl`、`api`、`authHeader` 等必要字段，导致对话模型随后也无法使用。修复方案：在 `applyImageGen` 中，构建 provider patch 时优先以目录默认值（`provEntry.baseUrl` + `provEntry.extras`）兜底，再以现有配置叠加，确保即使用户首次配置图片生成也会写入完整 provider 配置；成功 toast 同步提示用户重启网关后生效。
 - **新用户配置图片生成时 env var 未写入**：OpenClaw 内置图片生成插件需要 `MINIMAX_API_KEY` / `GEMINI_API_KEY` 等环境变量，而之前 `applyImageGen` 只写了 `imageGenerationModel` 路径，未写入 `openclaw.json` 的 `env` 段，导致新用户开启图片生成后必然失败。修复方案：新增 Rust `write_open_claw_env` 命令；`IMAGE_GEN_CATALOG` 新增 `envKey` 字段；`applyImageGen` 现在同步写入对应 env var；`applyProvider` 保存有图片能力的 provider 时也顺带写 env var；`removeProvider` 时清理对应 env var。
 - **图片生成配置写入位置错误导致 config 损坏**：`imageGenerationModel` 应写入 `agents.defaults.imageGenerationModel`（与 `model` 平级），但代码误将其 merge 进 `agents.defaults.model`，导致 OpenClaw 3.28 schema 校验报 "Invalid input"。修复方案：在 Rust `write_open_claw_model_config` 命令中增加 `imageGenerationModel` 独立 payload 参数，直接写到 `agents.defaults` 顶层；同步更新前端 `vite-env.d.ts` 类型与 `applyImageGen` / `removeImageGen` 调用方式。
 - **Kimi 推荐模型列表过时**：目录中 `kimi-k1.5` 已废弃，同步为 OpenClaw 3.28 文档中的最新 K2 系列（kimi-k2.5、kimi-k2-turbo-preview、kimi-k2-thinking、kimi-k2-thinking-turbo）。

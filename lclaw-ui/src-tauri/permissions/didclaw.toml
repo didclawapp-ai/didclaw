@@ -51,6 +51,7 @@ commands.allow = [
   "read_open_claw_providers",
   "read_open_claw_ai_snapshot",
   "write_open_claw_providers_patch",
+  "write_open_claw_env",
   "skills_default_install_root",
   "skills_list_installed",
   "skills_install_zip_base64",
