@@ -18,6 +18,8 @@ const ALLOWED_USER_KV_KEYS: &[&str] = &[
     "didclaw_model_wizard_snooze_until",
     "didclaw_setup_wizard_snooze_until",
     "didclaw.skillsInstallRoot",
+    "didclaw.clawhubToken",
+    "didclaw.clawhubRegistry",
     "didclaw.openclawUpdate.dismissedLatest",
 ];
 

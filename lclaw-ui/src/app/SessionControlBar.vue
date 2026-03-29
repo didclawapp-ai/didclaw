@@ -11,7 +11,7 @@ type ModelOption = {
   label: string;
 };
 
-const props = defineProps<{
+defineProps<{
   activeSessionKey: string | null;
   activeSessionLabel: string;
   sessionSelectOptions: SessionOption[];

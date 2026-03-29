@@ -45,6 +45,7 @@ function tauriApi(): DidClawElectronApi {
         clawhubToken: payload.clawhubToken?.trim() || null,
         clawhubRegistry: payload.clawhubRegistry?.trim() || null,
       }),
+    openclawPluginsPickPackageFile: () => invoke("plugins_pick_package_file"),
     readOpenClawModelConfig: () => invoke("read_open_claw_model_config"),
     writeOpenClawModelConfig: (payload) =>
       invoke("write_open_claw_model_config", { payload }),

@@ -241,6 +241,168 @@ pub fn openclaw_plugins_install(
 }
 
 #[tauri::command]
+pub fn plugins_pick_package_file() -> Result<Option<String>, String> {
+    Ok(crate::openclaw_gateway::pick_plugin_package_file())
+}
+
+#[tauri::command]
+pub async fn openclaw_plugins_list(
+    app: tauri::AppHandle,
+    enabled_only: Option<bool>,
+) -> Result<Value, String> {
+    let app = app.clone();
+    let enabled_only = enabled_only.unwrap_or(false);
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::list_open_claw_plugins_service(&app, enabled_only)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_plugins_inspect(
+    app: tauri::AppHandle,
+    plugin_id: String,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::inspect_open_claw_plugin_service(&app, &plugin_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_plugins_set_enabled(
+    app: tauri::AppHandle,
+    plugin_id: String,
+    enabled: bool,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::set_open_claw_plugin_enabled_service(&app, &plugin_id, enabled)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_plugins_update(
+    app: tauri::AppHandle,
+    plugin_id: String,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::update_open_claw_plugin_service(&app, &plugin_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_plugins_uninstall(
+    app: tauri::AppHandle,
+    plugin_id: String,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::uninstall_open_claw_plugin_service(&app, &plugin_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_skills_list(
+    app: tauri::AppHandle,
+    eligible_only: Option<bool>,
+    verbose: Option<bool>,
+) -> Result<Value, String> {
+    let app = app.clone();
+    let eligible_only = eligible_only.unwrap_or(false);
+    let verbose = verbose.unwrap_or(false);
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::list_open_claw_skills_service(&app, eligible_only, verbose)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_skills_search(
+    app: tauri::AppHandle,
+    query: String,
+    limit: Option<u32>,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::search_open_claw_skills_service(
+            &app,
+            &query,
+            limit,
+            clawhub_token.as_deref(),
+            clawhub_registry.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_skills_install(
+    app: tauri::AppHandle,
+    skill_slug: String,
+    version: Option<String>,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::install_open_claw_skill_service(
+            &app,
+            &skill_slug,
+            version.as_deref(),
+            clawhub_token.as_deref(),
+            clawhub_registry.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_skills_update(
+    app: tauri::AppHandle,
+    skill_name: String,
+    clawhub_token: Option<String>,
+    clawhub_registry: Option<String>,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::update_open_claw_skill_service(
+            &app,
+            &skill_name,
+            clawhub_token.as_deref(),
+            clawhub_registry.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_skills_check(app: tauri::AppHandle) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::check_open_claw_skills_service(&app)
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
 pub async fn gateway_tunnel_open(
     app: tauri::AppHandle,
     state: tauri::State<'_, std::sync::Arc<tokio::sync::Mutex<crate::gateway_tunnel::GatewayTunnelSlot>>>,

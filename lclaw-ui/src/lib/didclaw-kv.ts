@@ -12,6 +12,8 @@ export const DIDCLAW_KV_KEYS = [
   "didclaw_model_wizard_snooze_until",
   "didclaw_setup_wizard_snooze_until",
   "didclaw.skillsInstallRoot",
+  "didclaw.clawhubToken",
+  "didclaw.clawhubRegistry",
   "didclaw.openclawUpdate.dismissedLatest",
 ] as const;
 

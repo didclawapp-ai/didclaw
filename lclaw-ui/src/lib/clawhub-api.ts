@@ -4,8 +4,12 @@
  * 技能专用：`GET /api/v1/search`、`/api/v1/skills` 等仍保留。
  */
 
+import { didclawKvReadSync, didclawKvWriteSync } from "@/lib/didclaw-kv";
+
 const DEFAULT_REGISTRY = "https://clawhub.ai";
 const REQUEST_TIMEOUT_MS = 15_000;
+const CLAWHUB_TOKEN_KEY = "didclaw.clawhubToken";
+const CLAWHUB_REGISTRY_KEY = "didclaw.clawhubRegistry";
 /** 429 时最多额外重试次数（含首次共 maxRetries+1 次）；下载单次等待可达数十秒 */
 const RATE_LIMIT_MAX_RETRIES_JSON = 3;
 const RATE_LIMIT_MAX_RETRIES_BINARY = 6;
@@ -359,36 +363,30 @@ async function fetchBinary(url: string, token?: string): Promise<ArrayBuffer> {
 export type ClawhubClientOptions = {
   /** Registry 根 URL，默认 `VITE_CLAWHUB_REGISTRY` 或 https://clawhub.ai */
   registry?: string;
-  /** 可选；与官方 CLI 一致，部分部署可能不要求 */
+  /** 可选；为未来的用户级登录态预留，桌面正式版默认不内置 token */
   token?: string;
 };
 
-/**
- * 从 `VITE_CLAWHUB_TOKEN` 读取鉴权，供搜索 / 详情 / 下载等与 CLI `--token` 一致。
- * 注意：Vite 会把该变量打进客户端产物，勿将含真实 token 的 `.env` 提交到 Git。
- */
-export function clawhubAuthFromEnv(): Pick<ClawhubClientOptions, "token"> {
-  const token = import.meta.env.VITE_CLAWHUB_TOKEN?.trim();
-  return token ? { token } : {};
+export function getStoredClawhubClientOptions(): ClawhubClientOptions {
+  try {
+    const token = didclawKvReadSync(CLAWHUB_TOKEN_KEY)?.trim() || undefined;
+    const registry = didclawKvReadSync(CLAWHUB_REGISTRY_KEY)?.trim() || undefined;
+    return {
+      token,
+      registry,
+    };
+  } catch {
+    return {};
+  }
 }
 
-/**
- * 与 {@link clawhubAuthFromEnv} 同源，并带上 Registry 根 URL（`VITE_CLAWHUB_REGISTRY`）。
- * 供桌面端注入 `openclaw plugins install` 子进程环境变量（OpenClaw 读取 `OPENCLAW_CLAWHUB_TOKEN` / `OPENCLAW_CLAWHUB_URL` 等），可缓解匿名 IP 的 ClawHub 429。
- */
-export function clawhubOpenclawCliEnvFromVite(): { token?: string; registry?: string } {
-  const { token } = clawhubAuthFromEnv();
-  const raw = import.meta.env.VITE_CLAWHUB_REGISTRY?.trim();
-  const registry =
-    raw && raw.length > 0 ? (raw.endsWith("/") ? raw.slice(0, -1) : raw) : undefined;
-  const out: { token?: string; registry?: string } = {};
-  if (token) {
-    out.token = token;
+export function setStoredClawhubClientOptions(opts: ClawhubClientOptions): void {
+  try {
+    didclawKvWriteSync(CLAWHUB_TOKEN_KEY, opts.token?.trim() || null);
+    didclawKvWriteSync(CLAWHUB_REGISTRY_KEY, opts.registry?.trim() || null);
+  } catch {
+    /* ignore */
   }
-  if (registry) {
-    out.registry = registry;
-  }
-  return out;
 }
 
 /**
@@ -416,8 +414,10 @@ export async function clawhubPackagesSearch(
   if (opts.channel) {
     params.set("channel", opts.channel);
   }
-  const url = apiUrl(opts.registry, "/api/v1/packages/search", params);
-  const token = opts.token ?? clawhubAuthFromEnv().token;
+  const stored = getStoredClawhubClientOptions();
+  const registry = opts.registry?.trim() || stored.registry;
+  const url = apiUrl(registry, "/api/v1/packages/search", params);
+  const token = opts.token?.trim() || stored.token;
   const raw = await fetchJson<ClawhubPackagesSearchResponse>(url, { method: "GET" }, token);
   const rows = raw.results ?? [];
   return { results: rows.map(mapPackageSearchRow) };
@@ -432,8 +432,10 @@ export async function clawhubPackageDetail(
   opts: ClawhubClientOptions = {},
 ): Promise<ClawhubPackageDetail> {
   const n = assertSafePackageName(name);
-  const url = apiUrl(opts.registry, `/api/v1/packages/${encodeURIComponent(n)}`);
-  const token = opts.token ?? clawhubAuthFromEnv().token;
+  const stored = getStoredClawhubClientOptions();
+  const registry = opts.registry?.trim() || stored.registry;
+  const url = apiUrl(registry, `/api/v1/packages/${encodeURIComponent(n)}`);
+  const token = opts.token?.trim() || stored.token;
   return fetchJson<ClawhubPackageDetail>(url, { method: "GET" }, token);
 }
 
@@ -454,8 +456,10 @@ export async function clawhubSearch(
   if (opts.limit != null) {
     params.set("limit", String(clampLimit(opts.limit, 25)));
   }
-  const url = apiUrl(opts.registry, "/api/v1/search", params);
-  const token = opts.token ?? clawhubAuthFromEnv().token;
+  const stored = getStoredClawhubClientOptions();
+  const registry = opts.registry?.trim() || stored.registry;
+  const url = apiUrl(registry, "/api/v1/search", params);
+  const token = opts.token?.trim() || stored.token;
   return fetchJson<ClawhubSearchResponse>(url, { method: "GET" }, token);
 }
 
@@ -473,8 +477,10 @@ export async function clawhubListSkills(
   if (apiSort) {
     params.set("sort", apiSort);
   }
-  const url = apiUrl(opts.registry, "/api/v1/skills", params);
-  const token = opts.token ?? clawhubAuthFromEnv().token;
+  const stored = getStoredClawhubClientOptions();
+  const registry = opts.registry?.trim() || stored.registry;
+  const url = apiUrl(registry, "/api/v1/skills", params);
+  const token = opts.token?.trim() || stored.token;
   return fetchJson<ClawhubListResponse>(url, { method: "GET" }, token);
 }
 
@@ -487,8 +493,10 @@ export async function clawhubSkillDetail(
   opts: ClawhubClientOptions = {},
 ): Promise<ClawhubSkillDetail> {
   const s = assertSafeSlug(slug);
-  const url = apiUrl(opts.registry, `/api/v1/skills/${encodeURIComponent(s)}`);
-  const token = opts.token ?? clawhubAuthFromEnv().token;
+  const stored = getStoredClawhubClientOptions();
+  const registry = opts.registry?.trim() || stored.registry;
+  const url = apiUrl(registry, `/api/v1/skills/${encodeURIComponent(s)}`);
+  const token = opts.token?.trim() || stored.token;
   return fetchJson<ClawhubSkillDetail>(url, { method: "GET" }, token);
 }
 
@@ -506,8 +514,10 @@ export async function clawhubDownloadSkillZip(
   if (opts.version?.trim()) {
     params.set("version", opts.version.trim());
   }
-  const url = apiUrl(opts.registry, "/api/v1/download", params);
-  const token = opts.token ?? clawhubAuthFromEnv().token;
+  const stored = getStoredClawhubClientOptions();
+  const registry = opts.registry?.trim() || stored.registry;
+  const url = apiUrl(registry, "/api/v1/download", params);
+  const token = opts.token?.trim() || stored.token;
   return fetchBinary(url, token);
 }
 

@@ -9,11 +9,6 @@ interface ImportMetaEnv {
   readonly VITE_LINK_ALLOWLIST?: string;
   /** ClawHub Registry 根 URL，默认生产为 https://clawhub.ai */
   readonly VITE_CLAWHUB_REGISTRY?: string;
-  /**
-   * ClawHub API token（`clawhub login` 或网页签发，形如 `clh_...`）。
-   * 会随 Vite 注入前端包，勿提交含真实值的 .env；泄露请立即在 ClawHub 作废。
-   */
-  readonly VITE_CLAWHUB_TOKEN?: string;
 }
 
 interface ImportMeta {
@@ -85,14 +80,14 @@ interface DidClawElectronApi {
   /** 执行 `openclaw plugins install <spec>`（如 ClawHub：`clawhub:@scope/name`） */
   openclawPluginsInstall?(payload: {
     packageSpec: string;
-    /** 与 `VITE_CLAWHUB_TOKEN` 同源，注入子进程以走用户配额 */
     clawhubToken?: string;
-    /** 与 `VITE_CLAWHUB_REGISTRY` 同源 */
     clawhubRegistry?: string;
   }): Promise<
     | { ok: true; stdout?: string; stderr?: string }
     | { ok: false; error: string; stdout?: string; stderr?: string }
   >;
+  /** 选择本机插件归档（如 .tgz / .zip） */
+  openclawPluginsPickPackageFile?(): Promise<string | null>;
   readOpenClawModelConfig(): Promise<
     | { ok: true; model: Record<string, unknown>; models: Record<string, unknown> }
     | { ok: false; error: string }

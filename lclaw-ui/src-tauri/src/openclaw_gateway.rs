@@ -10,8 +10,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// 供 `openclaw plugins install` 子进程使用，与 OpenClaw 内置 ClawHub 客户端一致（见 dist clawhub-*.js）。
-fn build_plugins_install_clawhub_env(
+fn build_clawhub_env(
     token: Option<&str>,
     registry: Option<&str>,
 ) -> Vec<(String, String)> {
@@ -726,12 +725,80 @@ pub fn run_open_claw_cli_captured(
     }
 }
 
+fn truncate_error_text(s: &str, max_chars: usize) -> String {
+    let trimmed = s.trim();
+    if trimmed.chars().count() <= max_chars {
+        return trimmed.to_string();
+    }
+    trimmed.chars().take(max_chars).collect::<String>() + "…"
+}
+
+fn parse_json_value_from_cli_output(label: &str, stdout: &str, stderr: &str) -> Result<Value, String> {
+    let candidates = [
+        stdout.trim().to_string(),
+        stderr.trim().to_string(),
+        format!("{}\n{}", stdout.trim(), stderr.trim()).trim().to_string(),
+    ];
+
+    for text in &candidates {
+        if text.is_empty() {
+            continue;
+        }
+        if let Ok(v) = serde_json::from_str::<Value>(text) {
+            return Ok(v);
+        }
+        let trimmed = text.trim();
+        let open = trimmed
+            .char_indices()
+            .find(|(_, ch)| *ch == '{' || *ch == '[')
+            .map(|(idx, ch)| (idx, ch));
+        let Some((start_idx, open_ch)) = open else {
+            continue;
+        };
+        let close_ch = if open_ch == '{' { '}' } else { ']' };
+        let mut end_indices: Vec<usize> = trimmed
+            .char_indices()
+            .filter_map(|(idx, ch)| if ch == close_ch { Some(idx) } else { None })
+            .collect();
+        end_indices.reverse();
+        for end_idx in end_indices.into_iter().take(64) {
+            if end_idx < start_idx {
+                continue;
+            }
+            let slice = &trimmed[start_idx..=end_idx];
+            if let Ok(v) = serde_json::from_str::<Value>(slice) {
+                return Ok(v);
+            }
+        }
+    }
+
+    let detail = [stderr.trim(), stdout.trim()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if detail.is_empty() {
+        return Err(format!("{label} 未返回 JSON 输出"));
+    }
+    Err(format!(
+        "{label} JSON 解析失败：{}",
+        truncate_error_text(&detail, 400)
+    ))
+}
+
 fn run_openclaw_plugins_install_captured(
     exe: &str,
     spec: &str,
     extra_env: &[(String, String)],
 ) -> io::Result<std::process::Output> {
     run_open_claw_cli_captured(exe, &["plugins", "install", spec.trim()], extra_env)
+}
+
+pub fn pick_plugin_package_file() -> Option<String> {
+    rfd::FileDialog::new()
+        .add_filter("Plugin package", &["tgz", "tar", "gz", "zip"])
+        .pick_file()
+        .map(|p| p.to_string_lossy().to_string())
 }
 
 fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
@@ -906,7 +973,6 @@ pub fn restart_open_claw_gateway_service(app: &tauri::AppHandle) -> Value {
 }
 
 /// 调用 `openclaw plugins install <package_spec>`（如 `clawhub:@scope/name`），与官方 CLI 一致。
-/// `clawhub_token` / `clawhub_registry` 会写入子进程环境变量，供 OpenClaw 内置 ClawHub 客户端使用（与 UI 搜索共用 `VITE_CLAWHUB_*` 时可显著缓解匿名 IP 429）。
 pub fn run_open_claw_plugins_install_service(
     app: &tauri::AppHandle,
     package_spec: String,
@@ -939,7 +1005,7 @@ pub fn run_open_claw_plugins_install_service(
         });
     };
 
-    let extra_env = build_plugins_install_clawhub_env(
+    let extra_env = build_clawhub_env(
         clawhub_token.as_deref(),
         clawhub_registry.as_deref(),
     );
@@ -990,13 +1056,9 @@ pub fn run_open_claw_plugins_install_service(
                 .unwrap_or_else(|| "进程异常退出".into());
         }
         let mut err_msg = format!("openclaw plugins install 失败：{detail}");
-        let no_clawhub_token = clawhub_token
-            .as_ref()
-            .map(|s| s.trim().is_empty())
-            .unwrap_or(true);
-        if output_text_looks_like_clawhub_rate_limit(&combined) && no_clawhub_token {
+        if output_text_looks_like_clawhub_rate_limit(&combined) {
             err_msg.push_str(
-                " 提示：ClawHub 对匿名请求限流较严，可在构建环境配置 VITE_CLAWHUB_TOKEN（与技能搜索相同），或在终端执行 clawhub login / 设置环境变量 OPENCLAW_CLAWHUB_TOKEN 后再试。",
+                " 提示：ClawHub 对匿名请求限流较严，可先在终端执行 clawhub login，或稍后重试。",
             );
         }
         return json!({
@@ -1008,6 +1070,626 @@ pub fn run_open_claw_plugins_install_service(
     }
 
     unreachable!("openclaw plugins install: 每次循环均 return")
+}
+
+pub fn search_open_claw_skills_service(
+    app: &tauri::AppHandle,
+    query: &str,
+    limit: Option<u32>,
+    clawhub_token: Option<&str>,
+    clawhub_registry: Option<&str>,
+) -> Value {
+    let q = query.trim();
+    if q.is_empty() {
+        return json!({ "results": [] });
+    }
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+
+    let mut args = vec![
+        "--no-color".to_string(),
+        "skills".to_string(),
+        "search".to_string(),
+        q.to_string(),
+        "--json".to_string(),
+    ];
+    if let Some(limit) = limit.filter(|n| *n > 0) {
+        args.push("--limit".to_string());
+        args.push(limit.min(100).to_string());
+    }
+    let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let extra_env = build_clawhub_env(clawhub_token, clawhub_registry);
+    let out = match run_open_claw_cli_captured(&exe, &arg_refs, &extra_env) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw skills search 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw skills search 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw skills search 失败：{detail}")
+            }
+        });
+    }
+    match parse_json_value_from_cli_output("skills search", &stdout, &stderr) {
+        Ok(v) => v,
+        Err(e) => json!({
+            "ok": false,
+            "error": e
+        }),
+    }
+}
+
+pub fn install_open_claw_skill_service(
+    app: &tauri::AppHandle,
+    skill_slug: &str,
+    version: Option<&str>,
+    clawhub_token: Option<&str>,
+    clawhub_registry: Option<&str>,
+) -> Value {
+    let slug = skill_slug.trim();
+    if slug.is_empty() {
+        return json!({ "ok": false, "error": "skill slug 不能为空" });
+    }
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+
+    let mut args = vec![
+        "--no-color".to_string(),
+        "skills".to_string(),
+        "install".to_string(),
+        slug.to_string(),
+    ];
+    if let Some(version) = version.map(str::trim).filter(|s| !s.is_empty()) {
+        args.push("--version".to_string());
+        args.push(version.to_string());
+    }
+    let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let extra_env = build_clawhub_env(clawhub_token, clawhub_registry);
+    let out = match run_open_claw_cli_captured(&exe, &arg_refs, &extra_env) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw skills install 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw skills install 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw skills install 失败：{detail}")
+            },
+            "stdout": stdout,
+            "stderr": stderr,
+        });
+    }
+    json!({
+        "ok": true,
+        "stdout": stdout,
+        "stderr": stderr,
+    })
+}
+
+pub fn update_open_claw_skill_service(
+    app: &tauri::AppHandle,
+    skill_name: &str,
+    clawhub_token: Option<&str>,
+    clawhub_registry: Option<&str>,
+) -> Value {
+    let name = skill_name.trim();
+    if name.is_empty() {
+        return json!({ "ok": false, "error": "skill name 不能为空" });
+    }
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+    let extra_env = build_clawhub_env(clawhub_token, clawhub_registry);
+    let out = match run_open_claw_cli_captured(
+        &exe,
+        &["--no-color", "skills", "update", name],
+        &extra_env,
+    ) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw skills update 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw skills update 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw skills update 失败：{detail}")
+            },
+            "stdout": stdout,
+            "stderr": stderr,
+        });
+    }
+    json!({
+        "ok": true,
+        "stdout": stdout,
+        "stderr": stderr,
+    })
+}
+
+pub fn list_open_claw_plugins_service(
+    app: &tauri::AppHandle,
+    enabled_only: bool,
+) -> Value {
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+
+    let mut args: Vec<&str> = vec!["--no-color", "plugins", "list", "--json"];
+    if enabled_only {
+        args.push("--enabled");
+    }
+    let out = match run_open_claw_cli_captured(&exe, &args, &[]) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw plugins list 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw plugins list 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw plugins list 失败：{detail}")
+            }
+        });
+    }
+    match parse_json_value_from_cli_output("plugins list", &stdout, &stderr) {
+        Ok(v) => v,
+        Err(e) => json!({
+            "ok": false,
+            "error": e
+        }),
+    }
+}
+
+pub fn inspect_open_claw_plugin_service(app: &tauri::AppHandle, plugin_id: &str) -> Value {
+    let id = plugin_id.trim();
+    if id.is_empty() {
+        return json!({ "ok": false, "error": "plugin id 不能为空" });
+    }
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+    let out = match run_open_claw_cli_captured(&exe, &["--no-color", "plugins", "inspect", id, "--json"], &[]) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw plugins inspect 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw plugins inspect 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw plugins inspect 失败：{detail}")
+            }
+        });
+    }
+    match parse_json_value_from_cli_output("plugins inspect", &stdout, &stderr) {
+        Ok(v) => v,
+        Err(e) => json!({ "ok": false, "error": e }),
+    }
+}
+
+pub fn set_open_claw_plugin_enabled_service(
+    app: &tauri::AppHandle,
+    plugin_id: &str,
+    enabled: bool,
+) -> Value {
+    let id = plugin_id.trim();
+    if id.is_empty() {
+        return json!({ "ok": false, "error": "plugin id 不能为空" });
+    }
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+    let action = if enabled { "enable" } else { "disable" };
+    let out = match run_open_claw_cli_captured(&exe, &["--no-color", "plugins", action, id], &[]) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw plugins {action} 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw plugins {action} 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw plugins {action} 失败：{detail}")
+            },
+            "stdout": stdout,
+            "stderr": stderr,
+        });
+    }
+    json!({
+        "ok": true,
+        "stdout": stdout,
+        "stderr": stderr,
+    })
+}
+
+pub fn update_open_claw_plugin_service(
+    app: &tauri::AppHandle,
+    plugin_id: &str,
+) -> Value {
+    let id = plugin_id.trim();
+    if id.is_empty() {
+        return json!({ "ok": false, "error": "plugin id 不能为空" });
+    }
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+    let out = match run_open_claw_cli_captured(&exe, &["--no-color", "plugins", "update", id], &[]) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw plugins update 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw plugins update 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw plugins update 失败：{detail}")
+            },
+            "stdout": stdout,
+            "stderr": stderr,
+        });
+    }
+    json!({
+        "ok": true,
+        "stdout": stdout,
+        "stderr": stderr,
+    })
+}
+
+pub fn uninstall_open_claw_plugin_service(
+    app: &tauri::AppHandle,
+    plugin_id: &str,
+) -> Value {
+    let id = plugin_id.trim();
+    if id.is_empty() {
+        return json!({ "ok": false, "error": "plugin id 不能为空" });
+    }
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+    let out = match run_open_claw_cli_captured(
+        &exe,
+        &["--no-color", "plugins", "uninstall", id, "--force"],
+        &[],
+    ) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw plugins uninstall 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw plugins uninstall 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw plugins uninstall 失败：{detail}")
+            },
+            "stdout": stdout,
+            "stderr": stderr,
+        });
+    }
+    json!({
+        "ok": true,
+        "stdout": stdout,
+        "stderr": stderr,
+    })
+}
+
+pub fn list_open_claw_skills_service(
+    app: &tauri::AppHandle,
+    eligible_only: bool,
+    verbose: bool,
+) -> Value {
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+
+    let mut args: Vec<&str> = vec!["--no-color", "skills", "list", "--json"];
+    if eligible_only {
+        args.push("--eligible");
+    }
+    if verbose {
+        args.push("--verbose");
+    }
+    let out = match run_open_claw_cli_captured(&exe, &args, &[]) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw skills list 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw skills list 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw skills list 失败：{detail}")
+            }
+        });
+    }
+    match parse_json_value_from_cli_output("skills list", &stdout, &stderr) {
+        Ok(v) => v,
+        Err(e) => json!({
+            "ok": false,
+            "error": e
+        }),
+    }
+}
+
+pub fn check_open_claw_skills_service(app: &tauri::AppHandle) -> Value {
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+
+    let out = match run_open_claw_cli_captured(&exe, &["--no-color", "skills", "check", "--json"], &[]) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw skills check 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw skills check 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw skills check 失败：{detail}")
+            }
+        });
+    }
+    match parse_json_value_from_cli_output("skills check", &stdout, &stderr) {
+        Ok(v) => v,
+        Err(e) => json!({
+            "ok": false,
+            "error": e
+        }),
+    }
 }
 
 pub async fn ensure_open_claw_gateway_running(
