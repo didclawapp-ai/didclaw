@@ -36,6 +36,22 @@ pub fn shell_open_file_url(file_url: String) -> Result<Value, String> {
     Ok(json!({"ok": true}))
 }
 
+#[tauri::command]
+pub fn shell_open_external_url(url: String) -> Result<Value, String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Ok(json!({"ok": false, "error": "链接不能为空"}));
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    let allowed =
+        lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("mailto:");
+    if !allowed {
+        return Ok(json!({"ok": false, "error": "仅支持打开 http/https/mailto 外链"}));
+    }
+    open::that(trimmed).map_err(|e| e.to_string())?;
+    Ok(json!({"ok": true}))
+}
+
 /// 将纯 base64 解码后通过「另存为」写入磁盘（用于聊天内嵌 `data:image/...;base64,...`）。
 #[tauri::command]
 pub fn dialog_save_base64_file(
@@ -392,6 +408,19 @@ pub async fn openclaw_skills_update(
             clawhub_token.as_deref(),
             clawhub_registry.as_deref(),
         )
+    })
+    .await
+    .map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub async fn openclaw_skills_uninstall(
+    app: tauri::AppHandle,
+    skill_name: String,
+) -> Result<Value, String> {
+    let app = app.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        crate::openclaw_gateway::uninstall_open_claw_skill_service(&app, &skill_name)
     })
     .await
     .map_err(|e| e.to_string())?)

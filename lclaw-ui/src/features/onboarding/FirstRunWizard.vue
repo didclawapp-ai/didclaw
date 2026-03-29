@@ -8,6 +8,7 @@ import {
 import { scheduleDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayAfterControlUiMerge";
 import { getDidClawDesktopApi } from "@/lib/electron-bridge";
+import { openExternalUrl } from "@/lib/open-external";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
@@ -72,7 +73,7 @@ function defaultInstallStepRows(): InstallStepRow[] {
 }
 
 function openNodeJsDownload(): void {
-  window.open("https://nodejs.org/en/download", "_blank", "noopener,noreferrer");
+  void openExternalUrl("https://nodejs.org/en/download");
 }
 
 const installStepRows = ref<InstallStepRow[]>(defaultInstallStepRows());

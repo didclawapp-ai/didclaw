@@ -18,6 +18,7 @@ import {
 } from "@/lib/chat-message-format";
 import { messageToChatLine } from "@/lib/chat-line";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
+import { isExternalHttpUrl, openExternalUrl } from "@/lib/open-external";
 import { sessionDisplayLabel } from "@/lib/session-display";
 import { useChatStore } from "@/stores/chat";
 import { useLocalSettingsStore } from "@/stores/localSettings";
@@ -168,8 +169,34 @@ function onGlobalKeydown(event: KeyboardEvent): void {
   cycleSession(event.shiftKey ? -1 : 1);
 }
 
+function onGlobalDocumentClick(event: MouseEvent): void {
+  if (!isDidClawElectron()) {
+    return;
+  }
+  if (event.defaultPrevented || event.button !== 0) {
+    return;
+  }
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const anchor = target.closest("a[href]");
+  if (!(anchor instanceof HTMLAnchorElement)) {
+    return;
+  }
+  const href = anchor.getAttribute("href")?.trim() || "";
+  if (!isExternalHttpUrl(href) || href.startsWith(window.location.origin)) {
+    return;
+  }
+  event.preventDefault();
+  void openExternalUrl(href).catch(() => {
+    window.alert("打开外链失败，请稍后重试。");
+  });
+}
+
 onMounted(() => {
   window.addEventListener("keydown", onGlobalKeydown);
+  document.addEventListener("click", onGlobalDocumentClick, true);
   if (isDidClawElectron()) {
     syncDeferredModelBannerFromStorage();
     void chat.refreshOpenClawModelPicker();
@@ -207,6 +234,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
+  document.removeEventListener("click", onGlobalDocumentClick, true);
 });
 
 const displayLines = computed(() => {

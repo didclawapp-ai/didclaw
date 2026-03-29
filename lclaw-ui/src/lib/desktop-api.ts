@@ -16,6 +16,7 @@ function tauriApi(): DidClawElectronApi {
     isElectron: true,
     openLocalPreview: (fileUrl) => invoke("preview_open_local", { fileUrl }),
     openFileUrlInSystem: (fileUrl) => invoke("shell_open_file_url", { fileUrl }),
+    openExternalUrl: (url) => invoke("shell_open_external_url", { url }),
     saveLocalFileCopyAs: (fileUrl) => invoke("file_save_copy_as", { fileUrl }),
     saveBase64FileAs: (base64Data, defaultFileName) =>
       invoke("dialog_save_base64_file", { base64Data, defaultFileName }),

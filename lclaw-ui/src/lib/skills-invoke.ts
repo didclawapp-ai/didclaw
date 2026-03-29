@@ -324,6 +324,28 @@ export async function openclawSkillsUpdate(
   };
 }
 
+export async function openclawSkillsUninstall(
+  skillName: string,
+): Promise<{ ok: boolean; stdout?: string; stderr?: string }> {
+  if (!isTauri()) {
+    return { ok: false };
+  }
+  const r = await invoke<{ ok?: boolean; error?: string; stdout?: string; stderr?: string }>(
+    "openclaw_skills_uninstall",
+    {
+      skillName,
+    },
+  );
+  if (r && typeof r === "object" && r.ok === false) {
+    throw new Error(r.error || "OpenClaw skills uninstall failed");
+  }
+  return {
+    ok: r?.ok === true,
+    stdout: r?.stdout,
+    stderr: r?.stderr,
+  };
+}
+
 export async function openclawSkillsCheck(): Promise<OpenClawSkillsCheckResult> {
   if (!isTauri()) {
     return {};

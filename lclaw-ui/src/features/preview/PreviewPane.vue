@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { isLibreOfficeMissingError } from "@/lib/libreoffice-preview";
+import { openExternalUrl } from "@/lib/open-external";
 import { hljsLanguageFromUrl, isHttpsUrl, officeOnlineEmbedUrl } from "@/lib/preview-kind";
 import { renderCodePreviewHtml } from "@/lib/render-code-preview";
 import { renderMarkdownPreviewToHtml } from "@/lib/render-markdown-preview";
@@ -72,7 +73,7 @@ const canOpenExternal = computed(() => {
 function openExternal(): void {
   const u = target.value?.url;
   if (u) {
-    window.open(u, "_blank", "noopener,noreferrer");
+    void openExternalUrl(u);
   }
 }
 

@@ -14,6 +14,7 @@ import {
   type ClawhubSkillDetail,
 } from "@/lib/clawhub-api";
 import { getDidClawDesktopApi, isDidClawDesktop } from "@/lib/desktop-api";
+import { openExternalUrl } from "@/lib/open-external";
 import {
   arrayBufferToBase64,
   getStoredSkillsInstallRoot,
@@ -26,6 +27,7 @@ import {
   openclawPluginsUpdate,
   openclawSkillsCheck,
   openclawSkillsList,
+  openclawSkillsUninstall,
   openclawSkillsUpdate,
   type InstalledSkillRow,
   type OpenClawPluginInspectResult,
@@ -66,6 +68,19 @@ const searchQuery = ref("");
 const searchLoading = ref(false);
 const searchHits = ref<ClawhubCatalogHit[]>([]);
 const searchError = ref<string | null>(null);
+const INITIAL_SEARCH_LIMITS = {
+  skills: 20,
+  packages: 30,
+} as const;
+const SEARCH_LIMIT_STEPS = {
+  skills: 20,
+  packages: 30,
+} as const;
+const skillSearchLimit = ref(INITIAL_SEARCH_LIMITS.skills);
+const packageSearchLimit = ref(INITIAL_SEARCH_LIMITS.packages);
+const lastSearchQuery = ref("");
+const lastSkillResultCount = ref(0);
+const lastPackageResultCount = ref(0);
 
 /** ClawHub 主区域：卡片（默认）或列表 */
 const hubResultsView = ref<"cards" | "list">("cards");
@@ -83,12 +98,18 @@ const installBusy = ref(false);
 const installingSlug = ref<string | null>(null);
 const openclawSkillActionBusyName = ref<string | null>(null);
 const installMessage = ref<string | null>(null);
+const installMessageAction = ref<{ label: string; url: string } | null>(null);
 type MessageKind = "success" | "error" | "info";
 const installMessageKind = ref<MessageKind>("info");
 
 let msgTimer: number | null = null;
-function setInstallMessage(msg: string, kind: MessageKind = "info"): void {
+function setInstallMessage(
+  msg: string,
+  kind: MessageKind = "info",
+  action?: { label: string; url: string } | null,
+): void {
   installMessage.value = msg;
+  installMessageAction.value = action ?? null;
   installMessageKind.value = kind;
   if (msgTimer !== null) clearTimeout(msgTimer);
   /* 成功消息 8s 后自动消失，错误保留直到下次操作 */
@@ -162,6 +183,46 @@ function formatClawhubErr(e: unknown): string {
     return e.message + (e.bodySnippet ? ` ${e.bodySnippet}` : "");
   }
   return e instanceof Error ? e.message : String(e);
+}
+
+function buildClawhubSkillPageUrl(slug: string, ownerHandle?: string | null): string {
+  const base = (clawhubRegistry.value || clawhubDefaultRegistry()).trim().replace(/\/+$/, "");
+  const cleanSlug = slug.trim().replace(/^\/+/, "");
+  const cleanOwner = ownerHandle?.trim().replace(/^\/+|\/+$/g, "") || "";
+  if (cleanOwner) {
+    return `${base}/${cleanOwner}/${cleanSlug}`;
+  }
+  return `${base}/skills/${cleanSlug}`;
+}
+
+function isClawhubRateLimitMessage(text: string): boolean {
+  const lower = text.toLowerCase();
+  return lower.includes("429")
+    || lower.includes("rate limit")
+    || lower.includes("download failed")
+    || lower.includes("secondary rate limit");
+}
+
+async function openInstallMessageAction(): Promise<void> {
+  const action = installMessageAction.value;
+  if (!action?.url) {
+    return;
+  }
+  await openExternalUrl(action.url);
+}
+
+async function resolveClawhubSkillPageUrl(slug: string): Promise<string> {
+  const detailOwner =
+    hubSlug.value === slug ? hubDetail.value?.owner?.handle?.trim() || null : null;
+  if (detailOwner) {
+    return buildClawhubSkillPageUrl(slug, detailOwner);
+  }
+  try {
+    const detail = await clawhubSkillDetail(slug, currentClawhubAuth());
+    return buildClawhubSkillPageUrl(slug, detail.owner?.handle);
+  } catch {
+    return buildClawhubSkillPageUrl(slug);
+  }
 }
 
 function slugFromFileName(name: string): string {
@@ -548,7 +609,7 @@ async function jumpToClawHubSearch(query: string): Promise<void> {
   }
   subTab.value = "browse";
   searchQuery.value = q;
-  await onSearch();
+  await onSearch(true);
 }
 
 /** 快捷搜索：中英合并 query，适配 ClawHub 以英文技能为主的索引；按钮展示双语标签 */
@@ -566,7 +627,12 @@ const CLAWHUB_QUICK_SEARCH_ITEMS: ReadonlyArray<{ label: string; query: string }
   { label: "插件 · plugin", query: "plugin" },
 ];
 
-async function onSearch(): Promise<void> {
+function resetSearchLimits(): void {
+  skillSearchLimit.value = INITIAL_SEARCH_LIMITS.skills;
+  packageSearchLimit.value = INITIAL_SEARCH_LIMITS.packages;
+}
+
+async function onSearch(resetLimits = false): Promise<void> {
   const q = searchQuery.value.trim();
   if (!q) {
     searchHits.value = [];
@@ -575,7 +641,14 @@ async function onSearch(): Promise<void> {
     hubDetail.value = null;
     hubPkgDetail.value = null;
     detailError.value = null;
+    lastSearchQuery.value = "";
+    lastSkillResultCount.value = 0;
+    lastPackageResultCount.value = 0;
+    resetSearchLimits();
     return;
+  }
+  if (resetLimits || q !== lastSearchQuery.value) {
+    resetSearchLimits();
   }
   searchLoading.value = true;
   searchError.value = null;
@@ -587,13 +660,19 @@ async function onSearch(): Promise<void> {
   try {
     const auth = currentClawhubAuth();
     if (!isTauri()) {
-      const r = await clawhubPackagesSearch(q, { limit: 30, ...auth });
-      searchHits.value = r.results ?? [];
+      const r = await clawhubPackagesSearch(q, { limit: packageSearchLimit.value, ...auth });
+      const nextHits = r.results ?? [];
+      searchHits.value = resetLimits || q !== lastSearchQuery.value
+        ? nextHits
+        : appendCatalogHits(searchHits.value, nextHits);
+      lastPackageResultCount.value = nextHits.length;
+      lastSkillResultCount.value = 0;
+      lastSearchQuery.value = q;
       return;
     }
     const [skillsSettled, packagesSettled] = await Promise.allSettled([
-      openclawSkillsSearch(q, { limit: 20, ...auth }),
-      clawhubPackagesSearch(q, { limit: 30, ...auth }),
+      openclawSkillsSearch(q, { limit: skillSearchLimit.value, ...auth }),
+      clawhubPackagesSearch(q, { limit: packageSearchLimit.value, ...auth }),
     ]);
     if (skillsSettled.status !== "fulfilled" && packagesSettled.status !== "fulfilled") {
       throw skillsSettled.reason ?? packagesSettled.reason;
@@ -613,7 +692,13 @@ async function onSearch(): Promise<void> {
     const pluginHits = (packagesResult.results ?? []).filter(
       (item) => item.family === "code-plugin" || item.family === "bundle-plugin",
     );
-    searchHits.value = sortCatalogHits([...skillHits, ...pluginHits]);
+    const nextHits = sortCatalogHits([...skillHits, ...pluginHits]);
+    searchHits.value = resetLimits || q !== lastSearchQuery.value
+      ? nextHits
+      : appendCatalogHits(searchHits.value, nextHits);
+    lastSkillResultCount.value = skillHits.length;
+    lastPackageResultCount.value = pluginHits.length;
+    lastSearchQuery.value = q;
     if (!skillHits.length && packagesSettled.status !== "fulfilled") {
       searchError.value = "ClawHub 插件目录暂不可用，当前仅支持本机 OpenClaw 技能搜索。";
     }
@@ -631,7 +716,33 @@ async function onQuickSearch(keyword: string): Promise<void> {
     return;
   }
   searchQuery.value = k;
-  await onSearch();
+  await onSearch(true);
+}
+
+function onSearchSubmit(): void {
+  void onSearch(true);
+}
+
+const canLoadMoreSearchHits = computed(() => {
+  if (searchLoading.value || !searchQuery.value.trim() || searchHits.value.length === 0) {
+    return false;
+  }
+  if (!isTauri()) {
+    return lastPackageResultCount.value >= packageSearchLimit.value;
+  }
+  return lastSkillResultCount.value >= skillSearchLimit.value
+    || lastPackageResultCount.value >= packageSearchLimit.value;
+});
+
+async function loadMoreSearchHits(): Promise<void> {
+  if (!canLoadMoreSearchHits.value) {
+    return;
+  }
+  if (isTauri()) {
+    skillSearchLimit.value += SEARCH_LIMIT_STEPS.skills;
+  }
+  packageSearchLimit.value += SEARCH_LIMIT_STEPS.packages;
+  await onSearch(false);
 }
 
 async function selectHubSlug(slug: string, family: ClawhubPackageFamily): Promise<void> {
@@ -685,6 +796,22 @@ function sortCatalogHits(rows: ClawhubCatalogHit[]): ClawhubCatalogHit[] {
     }
     return (a.displayName ?? a.slug).localeCompare(b.displayName ?? b.slug);
   });
+}
+
+function appendCatalogHits(
+  existing: ClawhubCatalogHit[],
+  incoming: ClawhubCatalogHit[],
+): ClawhubCatalogHit[] {
+  const seen = new Set(existing.map((item) => `${item.family}:${item.slug}`));
+  const appended = incoming.filter((item) => {
+    const key = `${item.family}:${item.slug}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+  return appended.length ? [...existing, ...appended] : existing;
 }
 
 function pluginPackageSpec(slug: string): string {
@@ -814,7 +941,17 @@ async function installOpenClawSkill(
     );
     await loadOpenClawCatalog(true);
   } catch (e) {
-    setInstallMessage(e instanceof Error ? e.message : String(e), "error");
+    const message = e instanceof Error ? e.message : String(e);
+    if (isClawhubRateLimitMessage(message)) {
+      const manualUrl = await resolveClawhubSkillPageUrl(slug);
+      setInstallMessage(
+        "ClawHub 当前下载链路已触发限流（429），通常与匿名 Git/GitHub 托管额度有关。请前往 ClawHub 页面手动下载 ZIP，随后可在“本机安装”页导入到共享 skills 目录。",
+        "error",
+        { label: "去 ClawHub 下载", url: manualUrl },
+      );
+      return;
+    }
+    setInstallMessage(message, "error");
   } finally {
     if (manageBusy) {
       installBusy.value = false;
@@ -912,6 +1049,41 @@ async function updateOpenClawSkill(skillName: string): Promise<void> {
       truncateInstallFeedback(result.stdout?.trim() || `已检查并更新技能「${name}」。`),
       "success",
     );
+    await loadOpenClawCatalog(true);
+  } catch (e) {
+    setInstallMessage(e instanceof Error ? e.message : String(e), "error");
+  } finally {
+    installBusy.value = false;
+    openclawSkillActionBusyName.value = null;
+    installingSlug.value = null;
+  }
+}
+
+async function uninstallOpenClawSkill(skillName: string): Promise<void> {
+  const name = skillName.trim();
+  if (!name) {
+    return;
+  }
+  if (!window.confirm(`确定通过 OpenClaw 卸载技能「${name}」？这会把它从当前 OpenClaw 安装位置移除。`)) {
+    return;
+  }
+  if (installBusy.value) {
+    setInstallMessage("正在处理其他技能操作，请稍后再试。", "info");
+    return;
+  }
+  installBusy.value = true;
+  openclawSkillActionBusyName.value = name;
+  installingSlug.value = name;
+  installMessage.value = null;
+  try {
+    const result = await openclawSkillsUninstall(name);
+    setInstallMessage(
+      truncateInstallFeedback(result.stdout?.trim() || `已通过 OpenClaw 卸载技能「${name}」。`),
+      "success",
+    );
+    if (selectedOpenclawSkillName.value === name) {
+      selectedOpenclawSkillName.value = null;
+    }
     await loadOpenClawCatalog(true);
   } catch (e) {
     setInstallMessage(e instanceof Error ? e.message : String(e), "error");
@@ -1304,7 +1476,7 @@ const selectedOpenclawPlugin = computed(() => {
 
         <div class="skills-panel-top">
           <p class="skills-lead muted small">
-            在 <strong>ClawHub</strong> 搜索并安装技能或插件；市场技能与插件都通过 OpenClaw CLI 处理，本机 ZIP/文件夹导入仍写入下方自定义 <code>skills</code> 目录。
+            在 <strong>ClawHub</strong> 搜索并安装技能或插件；市场技能默认通过 OpenClaw CLI 安装到当前 workspace，插件也通过 OpenClaw CLI 管理；ZIP/文件夹导入只会写入下方共享 <code>skills</code> 目录。
           </p>
 
           <div v-if="isTauri()" class="skills-root-row">
@@ -1318,7 +1490,7 @@ const selectedOpenclawPlugin = computed(() => {
             >
           </div>
           <p v-if="isTauri()" class="muted small skills-root-note">
-            这里仅用于“本机安装”页的 ZIP/文件夹导入。OpenClaw 2026.03.24 起，市场技能建议通过 <code>openclaw skills install</code> 安装到活动 workspace；共享 skills 目录仍推荐使用 <code>~/.openclaw/skills</code>。插件则由 OpenClaw CLI 安装到扩展目录或你配置的 <code>plugins.load.paths</code>。
+            这里仅用于“共享目录”与“本机安装”页的 ZIP/文件夹导入。OpenClaw 2026.03.24 起，市场技能建议通过 <code>openclaw skills install</code> 安装到活动 workspace；共享 skills 目录仍推荐使用 <code>~/.openclaw/skills</code>，更适合手动导入和团队共用。
           </p>
           <p v-else class="muted small skills-web-hint">
             当前为网页模式：可搜索 ClawHub；写入本机 skills 或安装插件需使用桌面版。
@@ -1355,7 +1527,7 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'installed'"
               @click="subTab = 'installed'"
             >
-              已安装
+              共享目录
             </button>
             <button
               type="button"
@@ -1378,10 +1550,18 @@ const selectedOpenclawPlugin = computed(() => {
             >
               <span>{{ installMessage }}</span>
               <button
+                v-if="installMessageAction"
+                type="button"
+                class="lc-btn lc-btn-ghost lc-btn-xs skills-toast-action"
+                @click="openInstallMessageAction"
+              >
+                {{ installMessageAction.label }}
+              </button>
+              <button
                 type="button"
                 class="skills-toast-close"
                 aria-label="关闭提示"
-                @click="installMessage = null"
+                @click="() => { installMessage = null; installMessageAction = null; }"
               >✕</button>
             </div>
 
@@ -1393,9 +1573,9 @@ const selectedOpenclawPlugin = computed(() => {
               type="search"
               class="skills-search"
               placeholder="搜索技能或插件…"
-              @keydown.enter="onSearch"
+              @keydown.enter="onSearchSubmit"
             >
-            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" :disabled="searchLoading" @click="onSearch">
+            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" :disabled="searchLoading" @click="onSearchSubmit">
               {{ searchLoading ? "搜索中…" : "搜索" }}
             </button>
           </div>
@@ -1501,6 +1681,16 @@ const selectedOpenclawPlugin = computed(() => {
                   </div>
                 </li>
               </ul>
+              <div v-if="canLoadMoreSearchHits" class="hub-load-more">
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-sm"
+                  :disabled="searchLoading"
+                  @click="loadMoreSearchHits"
+                >
+                  {{ searchLoading ? "加载中…" : "加载更多" }}
+                </button>
+              </div>
             </template>
           </div>
 
@@ -1837,6 +2027,15 @@ const selectedOpenclawPlugin = computed(() => {
                           {{ openclawSkillActionBusyName === selectedOpenclawSkill.name ? "处理中…" : "通过 OpenClaw 更新" }}
                         </button>
                         <button
+                          v-if="!selectedOpenclawSkill.bundled"
+                          type="button"
+                          class="lc-btn lc-btn-ghost lc-btn-sm btn-danger"
+                          :disabled="installBusy"
+                          @click="uninstallOpenClawSkill(selectedOpenclawSkill.name)"
+                        >
+                          {{ openclawSkillActionBusyName === selectedOpenclawSkill.name ? "处理中…" : "通过 OpenClaw 卸载" }}
+                        </button>
+                        <button
                           type="button"
                           class="lc-btn lc-btn-ghost lc-btn-sm"
                           @click="jumpToClawHubSearch(selectedOpenclawSkill.name)"
@@ -1980,7 +2179,7 @@ const selectedOpenclawPlugin = computed(() => {
               </template>
             </div>
 
-            <!-- 已安装 -->
+            <!-- 共享目录 -->
             <div v-show="subTab === 'installed'" class="skills-body" role="tabpanel">
           <div class="row-actions">
             <button
@@ -1993,45 +2192,50 @@ const selectedOpenclawPlugin = computed(() => {
             </button>
           </div>
           <p v-if="installedError" class="err small">{{ installedError }}</p>
-          <p v-if="!isTauri()" class="muted small">桌面版才可管理本机已安装技能。</p>
-          <table v-else-if="installedRows.length" class="skills-table">
-            <thead>
-              <tr>
-                <th>技能</th>
-                <th>来源</th>
-                <th>版本</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in installedRows" :key="row.slug">
-                <td>
-                  <code>{{ row.slug }}</code>
-                </td>
-                <td>{{ row.source }}</td>
-                <td>{{ row.installedVersion ?? "—" }}</td>
-                <td class="td-actions">
-                  <button
-                    type="button"
-                    class="lc-btn lc-btn-ghost lc-btn-xs"
-                    :disabled="installBusy"
-                    @click="onUpdateInstalled(row)"
-                  >
-                    更新
-                  </button>
-                  <button
-                    type="button"
-                    class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
-                    :disabled="installBusy"
-                    @click="onDeleteInstalled(row)"
-                  >
-                    删除
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-else-if="!installedLoading" class="muted small">暂无已安装技能。</p>
+          <p v-if="!isTauri()" class="muted small">桌面版才可管理共享 skills 目录。</p>
+          <template v-else>
+            <p class="muted small">
+              这里展示的是共享 <code>skills</code> 目录中的手动导入项，不等同于上方 OpenClaw workspace 中通过 CLI 安装的技能。
+            </p>
+            <table v-if="installedRows.length" class="skills-table">
+              <thead>
+                <tr>
+                  <th>技能</th>
+                  <th>来源</th>
+                  <th>版本</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in installedRows" :key="row.slug">
+                  <td>
+                    <code>{{ row.slug }}</code>
+                  </td>
+                  <td>{{ row.source }}</td>
+                  <td>{{ row.installedVersion ?? "—" }}</td>
+                  <td class="td-actions">
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-xs"
+                      :disabled="installBusy"
+                      @click="onUpdateInstalled(row)"
+                    >
+                      更新
+                    </button>
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
+                      :disabled="installBusy"
+                      @click="onDeleteInstalled(row)"
+                    >
+                      删除
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else-if="!installedLoading" class="muted small">共享 skills 目录里还没有内容。</p>
+          </template>
             </div>
 
             <!-- 本机安装 -->
@@ -2318,6 +2522,10 @@ const selectedOpenclawPlugin = computed(() => {
   color: var(--lc-accent);
   background: var(--lc-accent-soft);
 }
+.skills-toast-action {
+  flex-shrink: 0;
+  margin-left: auto;
+}
 .skills-toast-close {
   flex-shrink: 0;
   border: none;
@@ -2499,6 +2707,11 @@ const selectedOpenclawPlugin = computed(() => {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+.hub-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
 }
 .hub-list-row {
   display: flex;

@@ -124,12 +124,14 @@ gateway:
 - **本地文件预览**（桌面端）：图片、PDF、Markdown/文本；Office 文档可通过 **LibreOffice** 转 PDF 后预览（未安装时可提示下载页）。实现见 `src-tauri/src/preview_local.rs`；回归项见迁移计划。  
 - **链接/文件菜单**：另存为、系统默认程序打开、邮件附件准备、分享复制等（见 preload / 主进程实现）。
 
-### 5.1 技能管理（ClawHub / 本机）
+### 5.1 技能管理（ClawHub / OpenClaw / 共享目录）
 
-- 顶栏 **「技能」** 打开弹窗：**ClawHub** 搜索、列表（可排序刷新）、详情与 **安装**（下载 zip 解压至本机 skills 目录）；**已安装** 列表、**更新**（ClawHub 来源）、**删除**；**本机安装** 通过 ZIP 或文件夹复制安装。  
-- 默认安装根目录：`%USERPROFILE%\.openclaw\skills`（可编辑并记忆到 `localStorage`）。  
-- **网页模式**（`dev:web`）可浏览/搜索 ClawHub；写入本机目录需 **Tauri 桌面版**。  
-- 实现索引：`didclaw/src/features/skills/SkillsManagerDialog.vue`、`didclaw/src/lib/clawhub-api.ts`、`didclaw/src/lib/skills-invoke.ts`、`didclaw/src-tauri/src/skills.rs`；方案见 **`docs/didclaw-skills-功能实施方案.md`**。
+- 左侧工具栏 **「技能」** 打开弹窗：**ClawHub** 搜索、详情与一键安装；市场技能默认通过 **`openclaw skills install`** 安装到当前 OpenClaw workspace，插件通过 **OpenClaw CLI** 管理。  
+- **OpenClaw** 页展示当前 workspace / 内置 / 共享来源下的技能与插件；技能支持 **更新 / 卸载**，插件支持 **启用 / 禁用 / inspect / 更新 / 卸载**。  
+- **共享目录** 页单独扫描 `%USERPROFILE%\.openclaw\skills`（可编辑并记忆），用于展示和管理 ZIP / 文件夹手动导入的共享 skills；它不等同于 OpenClaw workspace 技能。  
+- **本机安装** 页支持从 ZIP 或文件夹导入到共享 `skills` 目录。  
+- **网页模式**（`dev:web`）可浏览/搜索 ClawHub；OpenClaw CLI、共享目录写入与插件安装需 **Tauri 桌面版**。  
+- 实现索引：`lclaw-ui/src/features/skills/SkillsManagerDialog.vue`、`lclaw-ui/src/lib/clawhub-api.ts`、`lclaw-ui/src/lib/skills-invoke.ts`、`lclaw-ui/src-tauri/src/skills.rs`、`lclaw-ui/src-tauri/src/openclaw_gateway.rs`；方案见 **`docs/didclaw-skills-功能实施方案.md`**。
 
 ---
 

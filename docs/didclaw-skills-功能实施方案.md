@@ -2,17 +2,18 @@
 
 ## 1. 目标与范围
 
-在 **顶栏品牌行右侧** 提供 **「技能」** 入口，点击后弹出 **技能管理窗口**，支持：
+在 **左侧工具栏** 提供 **「技能」** 入口，点击后弹出 **技能管理窗口**，支持：
 
 | 能力 | 说明 |
 |------|------|
-| ClawHub 搜索 | 调用已实现的 `clawhubSearch`（`GET /api/v1/search`） |
+| ClawHub 搜索 | 技能优先通过本机 `openclaw skills search --json` 搜索；插件目录补充走 ClawHub API |
 | ClawHub 列表 | 调用 `clawhubListSkills`（与官方 CLI `explore` 一致；若线上返回空列表，UI 以搜索为主） |
-| ClawHub 详情 | 调用 `clawhubSkillDetail`，展示摘要、版本、moderation 提示 |
-| ClawHub 下载安装 | 调用 `clawhubDownloadSkillZip`，在 **Tauri 主进程** 解压并写入目标 `skills` 目录 |
-| 本地上传 | 用户选择 zip 或文件夹，校验含 `SKILL.md` 后写入同一 `skills` 根目录 |
-| 删除 | 删除本地技能目录（及可选清理 `openclaw.json` 中 `skills.entries` 对应项，见阶段划分） |
-| 更新 | ClawHub 来源：重新下载同 slug 最新版覆盖；本地来源：提示重新上传或仅覆盖安装 |
+| ClawHub 详情 | 调用 `clawhubSkillDetail` / `clawhubPackageDetail`，展示摘要、版本、moderation 提示 |
+| 市场技能安装 | 通过 `openclaw skills install` 安装到当前 OpenClaw workspace |
+| OpenClaw 技能更新/卸载 | 通过 `openclaw skills update` / `openclaw skills uninstall` 管理当前 workspace 技能 |
+| 本地上传 | 用户选择 zip 或文件夹，校验含 `SKILL.md` 后写入共享 `~/.openclaw/skills` 目录 |
+| 共享目录删除 | 删除共享 `skills` 目录中的技能文件夹（不影响通过 OpenClaw CLI 装到 workspace 的技能） |
+| 共享目录更新 | ClawHub 来源：重新下载同 slug 最新版覆盖；本地来源：提示重新上传或仅覆盖安装 |
 
 **本期不做**：ClawHub 登录、`whoami`、发布、星标、同步（`sync`）等需 Token 的写操作——与此前「只要搜索 / 详情 / 列表 / 下载」一致。
 
@@ -22,28 +23,17 @@
 
 ## 2. 界面与交互
 
-### 2.1 顶栏改动（`AppHeader.vue`）
+### 2.1 工具栏入口（`ToolSidebar.vue`）
 
-- **移除** `.brand-tagline` 文案：`Gateway 会话 · 预览 · 诊断`（整块不再展示）。
-- **保留** 右侧 **「关于」** `RouterLink`，样式与现有一致。
-- 在「关于」**左侧**（原标语位置）新增 **横向工具栏容器**，例如：
-
-  ```html
-  <div class="header-toolbar" role="toolbar" aria-label="快捷功能">
-    <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm">技能</button>
-    <!-- 后续功能按键追加于此 -->
-    <RouterLink ...>关于</RouterLink>
-  </div>
-  ```
-
-- **样式**：`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`，与 `.brand-actions` 对齐方式保持协调，保证窄屏时可换行。
-- **可访问性**：技能按钮 `aria-haspopup="dialog"`，打开弹窗后焦点落入弹窗并支持 Esc 关闭（与现有 `GatewayLocalDialog` 模式一致即可）。
+- 实际实现已迁到 `lclaw-ui/src/app/ToolSidebar.vue`，作为侧边栏工具入口之一。
+- 技能对话框与其他设置/诊断弹窗一并在侧边栏组件内挂载，不再占用旧 `AppHeader` 品牌行。
+- 交互保持一致：按钮打开对话框，Esc / 遮罩可关闭。
 
 ### 2.2 技能弹窗（新建组件）
 
-建议路径：`didclaw/src/features/skills/SkillsManagerDialog.vue`（或 `SkillHubDialog.vue`）。
+实际路径：`lclaw-ui/src/features/skills/SkillsManagerDialog.vue`。
 
-- **打开方式**：`v-model` 布尔值，由 `AppHeader` 内 `ref` 控制；仅在需要时挂载或使用 `Teleport` 至 `body`（按项目惯例）。
+- **打开方式**：`v-model` 布尔值，由 `ToolSidebar` 内 `ref` 控制；仅在需要时挂载并 `Teleport` 至 `body`。
 - **布局（建议分栏或 Tab）**：
   1. **ClawHub**：搜索框 + 结果列表；可选「浏览列表」子区（排序：最新 / 下载量等，映射 `clawhubListSkills` 的 `sort`）。
   2. **本机已安装**：扫描 `skills` 根下子目录（含 `SKILL.md` 的文件夹），展示名称、来源（clawhub / 本地）、版本（若有 `.clawhub/origin.json` 或仅目录名）。
@@ -51,14 +41,14 @@
 - **详情**：点击某条 ClawHub 结果或已安装项，侧栏或下方展示 `clawhubSkillDetail` 或本地 `SKILL.md` 摘要；**安装 / 更新 / 删除** 操作放在详情区或行内按钮。
 - **错误与限流**：捕获 `ClawhubHttpError`，对 **429** 提示稍后重试；列表加载中加 skeleton 或 loading 文案。
 
-### 2.3 安装目标目录（产品需二选一或做下拉）
+### 2.3 安装目标目录与心智
 
-与 OpenClaw 约定一致，建议在弹窗内 **固定选项**（可记忆上次选择，存 `localStorage`）：
+当前实现保留两条路径，需在 UI 中明确区分：
 
-- **全局**：`~/.openclaw/skills`（Windows：`%USERPROFILE%\.openclaw\skills`）
-- **工作区**（若后续能解析当前会话 workspace）：`{workspace}/skills`
+- **OpenClaw workspace 技能**：通过 `openclaw skills install/update/uninstall` 管理，由 OpenClaw CLI 决定具体 workspace 路径。
+- **共享 skills 目录**：`~/.openclaw/skills`（Windows：`%USERPROFILE%\.openclaw\skills`），用于 ZIP / 文件夹导入与共享目录扫描。
 
-首版可 **仅实现全局目录**，降低与 Gateway 会话路径耦合的复杂度；文档中保留「工作区 skills」为第二阶段。
+两者不是同一个列表，弹窗内应始终明确提示“共享目录”不等同于 workspace 技能。
 
 ---
 
@@ -66,7 +56,7 @@
 
 | 项 | 说明 |
 |----|------|
-| Registry 客户端 | 已存在 `src/lib/clawhub-api.ts`，弹窗内直接调用，不写重复 fetch |
+| Registry 客户端 | 已存在 `lclaw-ui/src/lib/clawhub-api.ts`，桌面端优先经 Tauri/Rust 代理 |
 | 配置 | 可选 `VITE_CLAWHUB_REGISTRY` 覆盖默认 `https://clawhub.ai` |
 | 状态 | 可用小型 `useSkillsDialogOpen()` 或仅在 `AppHeader` 用 `ref`，无需全局 Pinia（除非多入口打开） |
 
@@ -78,7 +68,7 @@
 
 | 命令（建议命名） | 作用 |
 |------------------|------|
-| `skills_list_installed` | 列出指定根目录下含 `SKILL.md` 的一级子目录，返回 slug、路径、可选读 `origin.json` |
+| `skills_list_installed` | 列出共享 skills 根目录下含 `SKILL.md` 的一级子目录，返回 slug、路径、可选读 `origin.json` |
 | `skills_install_from_zip` | 接收 zip 字节（base64 或临时文件路径）+ 目标根目录 + 目标文件夹名（slug），解压并校验存在 `SKILL.md` |
 | `skills_install_from_dir` | 复制用户选中的目录到 `skills/<name>/` |
 | `skills_delete` | 递归删除 `skills/<slug>/` |
@@ -112,7 +102,7 @@
 ### 阶段 C — Tauri 安装 / 本地上传 / 删除（约 2～3 天）
 
 - 实现 Rust 命令与前端调用链路。
-- 本机 zip / 文件夹安装与已安装列表、删除；ClawHub 安装走「下载 + 解压到 `skills/<slug>`」，并可选写入 `.clawhub/origin.json`（与官方 CLI 行为对齐，便于后续「更新」）。
+- 本机 zip / 文件夹安装与共享目录列表、删除；市场技能主路径改为 `openclaw skills install`，共享目录继续保留 `.clawhub/origin.json` 以支持本地覆盖更新。
 
 ### 阶段 D — 更新与配置联动（约 1～2 天）
 
@@ -123,9 +113,9 @@
 
 ## 7. 验收标准
 
-- 顶栏 **无** 「Gateway 会话 · 预览 · 诊断」文案；**关于** 仍可进入 About 页。
-- **技能** 与 **关于** 同一行、同一工具栏内，后续可在中间插入新按钮而不改结构。
-- 桌面版：可从 ClawHub 搜索并安装到 `~/.openclaw/skills`（或选定根目录），本机 zip 安装成功，删除后目录消失。
+- 侧边栏可打开 **技能** 对话框，不依赖旧 `AppHeader` 结构。
+- 桌面版：可从 ClawHub 搜索并通过 OpenClaw CLI 安装到当前 workspace；共享目录中的 ZIP / 文件夹安装仍然可用。
+- 桌面版：OpenClaw 技能支持更新与卸载；共享目录项支持删除与 ClawHub 来源覆盖更新。
 - 无效 zip（无 `SKILL.md`）应拒绝并提示原因。
 - 文档中已知风险：列表 API 可能返回空、下载可能 429，UI 有明确提示而非白屏。
 

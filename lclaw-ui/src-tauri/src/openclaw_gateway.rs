@@ -1381,6 +1381,65 @@ pub fn update_open_claw_skill_service(
     })
 }
 
+pub fn uninstall_open_claw_skill_service(app: &tauri::AppHandle, skill_name: &str) -> Value {
+    let name = skill_name.trim();
+    if name.is_empty() {
+        return json!({ "ok": false, "error": "skill name 不能为空" });
+    }
+    let merged = match crate::gateway_local::read_merged_map(app) {
+        Ok(m) => m,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    let exe_opt = merged
+        .get("openclawExecutable")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(exe) = resolve_open_claw_executable(exe_opt) else {
+        return json!({
+            "ok": false,
+            "error": "未找到 openclaw。请先安装或在「本机设置 → 连助手」填写 openclaw.cmd 完整路径。"
+        });
+    };
+    let out = match run_open_claw_cli_captured(
+        &exe,
+        &["--no-color", "skills", "uninstall", name],
+        &[],
+    ) {
+        Ok(o) => o,
+        Err(e) => {
+            return json!({
+                "ok": false,
+                "error": format!("执行 openclaw skills uninstall 失败：{e}")
+            });
+        }
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if !out.status.success() {
+        let detail = [stderr.as_str(), stdout.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return json!({
+            "ok": false,
+            "error": if detail.is_empty() {
+                format!("openclaw skills uninstall 失败（退出码 {}）", out.status.code().unwrap_or(-1))
+            } else {
+                format!("openclaw skills uninstall 失败：{detail}")
+            },
+            "stdout": stdout,
+            "stderr": stderr,
+        });
+    }
+    json!({
+        "ok": true,
+        "stdout": stdout,
+        "stderr": stderr,
+    })
+}
+
 pub fn list_open_claw_plugins_service(
     app: &tauri::AppHandle,
     enabled_only: bool,
