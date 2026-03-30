@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
+
 type SessionOption = {
   key: string;
   label: string;
@@ -40,16 +44,16 @@ const emit = defineEmits<{
 <template>
   <div class="left-session">
     <div class="panel-title session-panel-head">
-      <span class="session-head-label">会话</span>
+      <span class="session-head-label">{{ t('sessionBar.label') }}</span>
       <select
         class="session-switch-select"
         :value="activeSessionKey ?? ''"
         :disabled="sessionsLoading || sessionSelectOptions.length === 0"
-        :title="activeSessionKey ?? '当前会话'"
+        :title="activeSessionKey ?? t('sessionBar.currentSession')"
         @change="emit('selectSession', ($event.target as HTMLSelectElement).value)"
       >
         <option value="" disabled>
-          {{ activeSessionLabel || "请选择会话" }}
+          {{ activeSessionLabel || t('sessionBar.selectSession') }}
         </option>
         <option
           v-for="row in sessionSelectOptions"
@@ -63,27 +67,27 @@ const emit = defineEmits<{
         v-if="canCloseActiveSession"
         type="button"
         class="lc-btn lc-btn-ghost lc-btn-xs session-close-btn"
-        title="关闭当前会话（仅从列表隐藏；后续有新消息会再次出现）"
+        :title="t('sessionBar.closeTitle')"
         @click="emit('closeActiveSession')"
       >
-        关闭
+        {{ t('sessionBar.closeBtn') }}
       </button>
       <button
         type="button"
         class="lc-btn lc-btn-ghost lc-btn-xs session-history-btn"
         :disabled="!canOpenHistorySessions"
-        title="查看历史会话并快速切换"
+        :title="t('sessionBar.historyTitle')"
         @click="emit('openHistory')"
       >
-        历史
+        {{ t('sessionBar.historyBtn') }}
       </button>
       <button
         type="button"
         class="lc-btn lc-btn-ghost lc-btn-xs session-new-btn"
-        title="开始一个新的对话（当前对话将保留在历史列表中）"
+        :title="t('sessionBar.newTitle')"
         @click="emit('newChat')"
       >
-        ＋新建
+        {{ t('sessionBar.newBtn') }}
       </button>
       <div v-if="isDesktop" class="session-model-tools">
         <select
@@ -91,13 +95,10 @@ const emit = defineEmits<{
           class="session-model-select"
           :value="openClawPrimaryModel ?? ''"
           :disabled="openClawPrimaryBusy"
-          :title="
-            openClawPrimaryPickerError ??
-              '在这里切换「默认用哪个 AI 模型」。选好后会保存到本机；新对话一般会按这个来。'
-          "
+          :title="openClawPrimaryPickerError ?? t('sessionBar.modelSwitchTitle')"
           @change="emit('setPrimaryModel', ($event.target as HTMLSelectElement).value)"
         >
-          <option v-if="!openClawPrimaryModel" value="" disabled>请选择默认模型…</option>
+          <option v-if="!openClawPrimaryModel" value="" disabled>{{ t('sessionBar.selectModel') }}</option>
           <option
             v-for="row in openClawModelPickerRows"
             :key="row.value"
@@ -109,10 +110,10 @@ const emit = defineEmits<{
         <button
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs session-model-manage"
-          title="打开本机设置，可改密钥、接口地址或恢复备份"
+          :title="t('sessionBar.moreSettingsTitle')"
           @click="emit('openAiSettings')"
         >
-          更多设置
+          {{ t('sessionBar.moreSettings') }}
         </button>
       </div>
     </div>

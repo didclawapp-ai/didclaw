@@ -236,7 +236,7 @@ function onRedoFirstRunWizard(): void {
 
     <ul class="ts-list">
       <!-- Features group -->
-      <li class="ts-group-label">功能</li>
+      <li class="ts-group-label">{{ t('header.groupFeatures') }}</li>
       <li>
         <button type="button" class="ts-item" :title="t('header.cronTitle')" @click="cronDialogOpen = true">
           <span class="ts-icon" aria-hidden="true">
@@ -285,7 +285,7 @@ function onRedoFirstRunWizard(): void {
 
       <!-- System group (desktop only) -->
       <template v-if="isDidClawElectron()">
-        <li class="ts-group-label">系统</li>
+        <li class="ts-group-label">{{ t('header.groupSystem') }}</li>
         <li>
           <button type="button" class="ts-item ts-item--danger" :disabled="restartGatewayBusy" @click="onRestartGateway">
             <span class="ts-icon" aria-hidden="true">
@@ -333,7 +333,7 @@ function onRedoFirstRunWizard(): void {
       </template>
 
       <!-- Diagnostics copy (always visible) -->
-      <li v-if="!isDidClawElectron()" class="ts-group-label">系统</li>
+      <li v-if="!isDidClawElectron()" class="ts-group-label">{{ t('header.groupSystem') }}</li>
       <li>
         <button type="button" class="ts-item" :class="{ 'ts-item--success': copiedDiag }" @click="copyDiagnostics">
           <span class="ts-icon" aria-hidden="true">
@@ -371,7 +371,7 @@ function onRedoFirstRunWizard(): void {
               <path d="M14 8H6" />
             </svg>
           </span>
-          <span class="ts-label">退出 DidClaw</span>
+          <span class="ts-label">{{ t('header.quitApp') }}</span>
         </button>
       </li>
 
@@ -393,7 +393,7 @@ function onRedoFirstRunWizard(): void {
             </svg>
           </span>
           <span class="ts-label">
-            {{ checkUpdateBusy ? "检查中…" : checkUpdateDone ? "已是最新版" : "检查更新" }}
+            {{ checkUpdateBusy ? t('header.checkingUpdate') : checkUpdateDone ? t('header.upToDate') : t('header.checkUpdate') }}
           </span>
         </button>
       </li>

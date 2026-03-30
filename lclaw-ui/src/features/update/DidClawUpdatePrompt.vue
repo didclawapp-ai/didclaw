@@ -2,6 +2,9 @@
 import { didclawKvReadSync, didclawKvWriteSync } from "@/lib/didclaw-kv";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const DISMISS_KEY = "didclaw.appUpdate.dismissedVersion";
 /** Delay before first auto-check (ms) */
@@ -39,13 +42,13 @@ async function runCheck(silent = true): Promise<void> {
   try {
     const res = await api.checkDidClawUpdate({ endpoint: getEndpoint() || undefined });
     if (!res || res.ok === false) {
-      if (!silent) checkError.value = ("error" in res ? res.error : null) ?? "检查失败";
+      if (!silent) checkError.value = ("error" in res ? res.error : null) ?? t('appUpdate.checkFailed');
       emitResult(false);
       return;
     }
     if (res.noEndpoint) {
       noEndpoint.value = true;
-      if (!silent) checkError.value = "未配置更新地址（VITE_DIDCLAW_UPDATE_ENDPOINT）";
+      if (!silent) checkError.value = t('appUpdate.noEndpointError');
       emitResult(false);
       return;
     }
@@ -61,7 +64,7 @@ async function runCheck(silent = true): Promise<void> {
       } catch { /* ignore */ }
     }
 
-    currentVersion.value = res.currentVersion?.trim() || "（未知）";
+    currentVersion.value = res.currentVersion?.trim() || t('appUpdate.versionUnknown');
     latestVersion.value = lv;
     notes.value = typeof res.notes === "string" && res.notes.trim() ? res.notes.trim() : null;
     downloadUrl.value = typeof res.downloadUrl === "string" ? res.downloadUrl : null;
@@ -72,7 +75,7 @@ async function runCheck(silent = true): Promise<void> {
     open.value = true;
     emitResult(true);
   } catch (e) {
-    if (!silent) checkError.value = e instanceof Error ? e.message : "检查更新时出错";
+    if (!silent) checkError.value = e instanceof Error ? e.message : t('appUpdate.checkError');
     emitResult(false);
   } finally {
     checking.value = false;
@@ -102,12 +105,12 @@ async function onInstall(): Promise<void> {
   try {
     const res = await api.installDidClawUpdate({ downloadUrl: downloadUrl.value });
     if (!res || res.ok === false) {
-      installError.value = ("error" in res ? res.error : null) ?? "启动安装程序失败";
+      installError.value = ("error" in res ? res.error : null) ?? t('appUpdate.launchFailed');
       return;
     }
     installerLaunched.value = true;
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : "安装过程中出错";
+    installError.value = e instanceof Error ? e.message : t('appUpdate.installError');
   } finally {
     installBusy.value = false;
   }
@@ -146,30 +149,28 @@ onUnmounted(() => {
         <!-- Installer launched -->
         <template v-if="installerLaunched">
           <div class="dcu-done-icon" aria-hidden="true">↗</div>
-          <h2 id="dcu-title" class="dcu-title">安装程序已启动</h2>
-          <p class="dcu-note small muted">
-            安装程序正在运行，请按照向导完成安装。安装完成后重新打开 DidClaw 即可使用新版本。
-          </p>
+          <h2 id="dcu-title" class="dcu-title">{{ t('appUpdate.installerTitle') }}</h2>
+          <p class="dcu-note small muted">{{ t('appUpdate.installerNote') }}</p>
           <div class="dcu-actions">
-            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismiss">关闭</button>
+            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismiss">{{ t('common.close') }}</button>
           </div>
         </template>
 
         <!-- Update available -->
         <template v-else>
-          <h2 id="dcu-title" class="dcu-title">发现 DidClaw 新版本</h2>
+          <h2 id="dcu-title" class="dcu-title">{{ t('appUpdate.newVersionTitle') }}</h2>
           <p class="dcu-versions">
-            当前：<strong>{{ currentVersion }}</strong>
+            {{ t('appUpdate.currentLabel') }}<strong>{{ currentVersion }}</strong>
             &nbsp;·&nbsp;
-            最新：<strong>{{ latestVersion }}</strong>
+            {{ t('appUpdate.latestLabel') }}<strong>{{ latestVersion }}</strong>
           </p>
           <div v-if="notes" class="dcu-notes">
-            <p class="dcu-notes-label small muted">更新内容</p>
+            <p class="dcu-notes-label small muted">{{ t('appUpdate.notesLabel') }}</p>
             <pre class="dcu-notes-body">{{ notes }}</pre>
           </div>
           <p v-if="installError" class="dcu-error small">{{ installError }}</p>
           <p v-if="!downloadUrl && !installError" class="dcu-note small muted">
-            该平台暂无自动安装包，请手动前往官网下载最新版本。
+            {{ t('appUpdate.noPackageNote') }}
           </p>
           <div class="dcu-actions">
             <button
@@ -180,7 +181,7 @@ onUnmounted(() => {
               @click="onInstall"
             >
               <span v-if="installBusy" class="dcu-spinner" aria-hidden="true" />
-              {{ installBusy ? "下载中，请稍候…" : "下载并安装" }}
+              {{ installBusy ? t('appUpdate.downloading') : t('appUpdate.installBtn') }}
             </button>
             <button
               v-else
@@ -188,10 +189,10 @@ onUnmounted(() => {
               class="lc-btn lc-btn-primary lc-btn-sm"
               @click="onInstall"
             >
-              前往官网下载
+              {{ t('appUpdate.goToWebsite') }}
             </button>
             <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismiss">
-              稍后提醒
+              {{ t('appUpdate.remindLater') }}
             </button>
           </div>
         </template>
