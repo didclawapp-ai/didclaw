@@ -26,7 +26,7 @@ export class GatewayRequestError extends Error {
 }
 
 export const PROTOCOL_VERSION = 3;
-export const GATEWAY_CLIENT_ID = "openclaw-control-ui";
+export const GATEWAY_CLIENT_ID = "didclaw";
 /** 纯浏览器 / 非桌面壳 */
 export const GATEWAY_CLIENT_MODE_WEBCHAT = "webchat";
 /** Electron、Tauri 等桌面壳：与官方 Control UI 一致，便于本机静默配对等逻辑 */

@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 修复
+
+- **Gateway 消息元数据客户端名称**：将 `GATEWAY_CLIENT_ID` 从 `"openclaw-control-ui"` 改为 `"didclaw"`，修复消息元数据显示为「OpenClaw 的 Web 控制界面」的问题。
+
 ### 新增
 
 - **开机自启**：通用设置新增「开机自动启动」开关，启用后 DidClaw 随系统登录自动在后台就绪（Windows 注册表 / macOS LaunchAgent，基于 `tauri-plugin-autostart`）。
