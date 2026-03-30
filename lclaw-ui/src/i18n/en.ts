@@ -1042,9 +1042,9 @@ export default {
     // ── Install new channel panel (+ tab) ─────────────────────────────────────
     installNew: {
       tab:            "Add",
-      desc:           "Install a plugin to connect a new messaging platform.",
-      pkgLabel:       "Package Name",
-      pkgPlaceholder: "e.g. @scope/openclaw-my-plugin",
+      desc:           "Install a plugin from ClawHub to connect a new messaging platform. Browse available plugins at clawhub.ai/plugins.",
+      pkgLabel:       "Plugin ID (clawhub: format)",
+      pkgPlaceholder: "e.g. clawhub:clawxrouter",
       installBtn:     "Install",
       installing:     "Installing…",
       installOk:      "Installed successfully. Refresh to see the new channel.",

@@ -1041,9 +1041,9 @@ export default {
     // ── 安装新渠道面板（+ Tab）────────────────────────────────────────────────
     installNew: {
       tab:            "添加",
-      desc:           "安装插件以接入新的消息平台。",
-      pkgLabel:       "包名",
-      pkgPlaceholder: "例如 @scope/openclaw-my-plugin",
+      desc:           "从 ClawHub 安装插件以接入新的消息平台。在 clawhub.ai/plugins 搜索可用插件。",
+      pkgLabel:       "插件 ID（clawhub: 格式）",
+      pkgPlaceholder: "例如 clawhub:clawxrouter",
       installBtn:     "安装",
       installing:     "安装中…",
       installOk:      "安装成功，刷新后即可看到新渠道。",
