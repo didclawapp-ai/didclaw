@@ -12,6 +12,8 @@
 
 ### 优化
 
+- **i18n 补全（FirstRunWizard）**：首次引导向导全面接入 vue-i18n，新增约 50 个 `wizard.*` key（中英文），涵盖标题、说明文案、安装进度步骤标签、所有阶段 detail 字符串、安装日志输出文本、Node.js 手动安装面板、模型选择卡片及 confirm 对话框；`wizard.*` 命名空间已有旧值与模板不一致的 key 同步更新（`title`、`installBtn`、`nodeManualTitle/Desc/DownloadBtn`）。
+
 - **i18n 补全（WeChatIndicator / WhatsAppIndicator）**：渠道指示器弹窗的状态标题、扫码流程进度、插件安装/启用、Gateway 重启及错误全部接入 vue-i18n；新增 `channel.gwDisconnected` / `gwRestarting` / `retry` / `channelSetup` 等共享 key，以及 `channel.wechat.*` / `channel.whatsapp.*` 品牌专属 key（含参数插值）。
 - **i18n 补全（ChatLineBody / ChatRunStatusBar / ComposerAttachments）**：链接右键菜单（另存为、系统打开、邮件、分享、复制链接）、图片说明、剪贴板错误提示、后台子代理状态栏、附件面板（待发附件标题、类型徽标、随信发送、仅预览、移除按钮）均已接入 vue-i18n；中文注释改为英文。
 - **i18n 补全（SessionHistoryDialog）**：历史会话弹窗的标题、副标题、关闭按钮、搜索框占位符、条数统计、「当前」/「已结束」徽标及空状态文案均已接入 vue-i18n。

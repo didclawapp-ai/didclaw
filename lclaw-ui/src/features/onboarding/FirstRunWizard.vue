@@ -15,15 +15,12 @@ import { useLocalSettingsStore } from "@/stores/localSettings";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
 const WIZARD_DOC = "https://docs.openclaw.ai/start/wizard";
 const OLLAMA_DEFAULT_PRIMARY = "ollama/qwen2.5:7b";
 
-/** 环境步固定说明（不展示逐项检测结果） */
-const ENV_INSTALL_LEAD = "检测到未安装openclaw，请点击下面按键进行安装初始化。";
-
-const MODEL_STEP_LEAD =
-  "不配置模型将无法连接AI进行对话，请选择本地或者云端AI进行配置";
+const { t } = useI18n();
 
 const localSettings = useLocalSettingsStore();
 const chat = useChatStore();
@@ -64,11 +61,11 @@ type InstallStepRow = {
 
 function defaultInstallStepRows(): InstallStepRow[] {
   return [
-    { id: "env", label: "检测安装环境", status: "pending" },
-    { id: "node", label: "Node.js", status: "pending" },
-    { id: "cli", label: "安装 OpenClaw CLI", status: "pending" },
-    { id: "onboard", label: "初始化配置（onboard）", status: "pending" },
-    { id: "finish", label: "完成", status: "pending" },
+    { id: "env", label: t("wizard.stepEnv"), status: "pending" },
+    { id: "node", label: t("wizard.stepNode"), status: "pending" },
+    { id: "cli", label: t("wizard.stepCli"), status: "pending" },
+    { id: "onboard", label: t("wizard.stepOnboard"), status: "pending" },
+    { id: "finish", label: t("wizard.stepFinish"), status: "pending" },
   ];
 }
 
@@ -111,70 +108,70 @@ function markInstallStepErrorOnActive(): void {
   const env = installStepRow("env");
   if (env?.status === "pending") {
     env.status = "error";
-    env.detail = "未能进入安装脚本";
+    env.detail = t("wizard.phaseEnvFailedToStart");
   }
 }
 
-/** 解析脚本 `ui=…` 与 Rust 下发的 `precheck_ok` */
+/** Parse script `ui=…` and Rust-emitted `precheck_ok` phase keys. */
 function ingestEnsureInstallUiKey(key: string): void {
   switch (key) {
     case "precheck_ok":
-      setInstallStep("env", "active", "PowerShell 与脚本已就绪…");
+      setInstallStep("env", "active", t("wizard.phasePrecheck"));
       break;
     case "env_begin":
       setInstallStep("env", "active");
       break;
     case "env_path_ok":
       setInstallStep("env", "done");
-      setInstallStep("node", "active", "正在检测…");
+      setInstallStep("node", "active", t("wizard.phaseEnvChecking"));
       break;
     case "node_ok":
-      setInstallStep("node", "done", "已在 PATH 中检测到 node");
+      setInstallStep("node", "done", t("wizard.phaseNodeOk"));
       break;
     case "node_not_found":
-      setInstallStep("node", "active", "未检测到 Node.js，准备自动安装…");
+      setInstallStep("node", "active", t("wizard.phaseNodeNotFound"));
       break;
     case "node_install_begin":
-      setInstallStep("node", "active", "正在尝试自动安装 Node.js…");
+      setInstallStep("node", "active", t("wizard.phaseNodeInstallBegin"));
       break;
     case "node_install_winget":
-      setInstallStep("node", "active", "通过 winget 安装 Node.js LTS…");
+      setInstallStep("node", "active", t("wizard.phaseNodeInstallWinget"));
       break;
     case "node_install_msi":
-      setInstallStep("node", "active", "从 nodejs.org 下载安装包（约 30MB）…");
+      setInstallStep("node", "active", t("wizard.phaseNodeInstallMsi"));
       break;
     case "node_required_manual":
-      setInstallStep("node", "error", "自动安装失败，请手动安装 Node.js");
+      setInstallStep("node", "error", t("wizard.phaseNodeRequiredManual"));
       break;
     case "stage_cli_install_begin":
-      setInstallStep("cli", "active", "准备下载官方 install.ps1");
+      setInstallStep("cli", "active", t("wizard.phaseCliBegin"));
       break;
     case "downloading_official_install_ps1":
-      setInstallStep("cli", "active", "正在下载 install.ps1…");
+      setInstallStep("cli", "active", t("wizard.phaseCliDownloading"));
       break;
     case "running_official_install_ps1_wait":
-      setInstallStep("cli", "active", "执行官方安装中（可能含 Node / npm / openclaw，需数分钟）…");
+      setInstallStep("cli", "active", t("wizard.phaseCliRunning"));
       break;
     case "official_install_ps1_finished":
       setInstallStep("cli", "done");
-      setInstallStep("node", "done", "已就绪");
+      setInstallStep("node", "done", t("wizard.phaseReady"));
       break;
     case "openclaw_already_installed":
-      setInstallStep("cli", "done", "已安装，跳过 CLI 下载");
-      setInstallStep("onboard", "active", "等待执行 onboard…");
+      setInstallStep("cli", "done", t("wizard.phaseCliAlreadyInstalled"));
+      setInstallStep("onboard", "active", t("wizard.phaseOnboardWaiting"));
       break;
     case "onboard_prepare":
-      setInstallStep("onboard", "active", "准备非交互 onboard…");
+      setInstallStep("onboard", "active", t("wizard.phaseOnboardPrepare"));
       break;
     case "onboard_exec":
-      setInstallStep("onboard", "active", "正在写入本机配置…");
+      setInstallStep("onboard", "active", t("wizard.phaseOnboardExec"));
       break;
     case "script_finished_ok":
       setInstallStep("onboard", "done");
       setInstallStep("finish", "done");
       break;
     case "skip_onboard_exit":
-      setInstallStep("onboard", "done", "已跳过 onboard");
+      setInstallStep("onboard", "done", t("wizard.phaseOnboardSkipped"));
       setInstallStep("finish", "done");
       break;
     default:
@@ -200,7 +197,7 @@ const canRunEnsureInstall = computed(() => {
 });
 
 const dialogAriaLabel = computed(() =>
-  phase.value === "model" ? "配置模型" : "安装 OpenClaw",
+  phase.value === "model" ? t("wizard.ariaConfigModel") : t("wizard.ariaInstall"),
 );
 
 async function refreshStatus(): Promise<void> {
@@ -291,7 +288,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
   installElapsedSec.value = 0;
   nodeManualInstallNeeded.value = false;
   resetInstallStepRows();
-  installLog.value = "正在执行：安装并初始化…\n";
+  installLog.value = t("wizard.installStartMsg") + "\n";
 
   let streamReceived = false;
   let unlisten: UnlistenFn | undefined;
@@ -344,7 +341,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
   try {
     const r = await api.runEnsureOpenclawWindowsInstall({ skipOnboard: false });
     if (!isTauri() || !streamReceived) {
-      installLog.value = "正在执行：安装并初始化…\n" + (r.log ?? "");
+      installLog.value = t("wizard.installStartMsg") + "\n" + (r.log ?? "");
       for (const line of (r.log ?? "").split("\n")) {
         const m = line.match(ENSURE_UI_LINE_RE);
         if (m?.[1]) {
@@ -356,7 +353,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
         typeof r.error === "string" && r.error.length > 0
           ? ` — ${r.error}`
           : "";
-      installLog.value += `\n--- 完成（退出码 ${r.exitCode}）${r.ok ? "" : tail} ---\n`;
+      installLog.value += "\n" + t("wizard.installExitLine", { code: r.exitCode, tail: r.ok ? "" : tail }) + "\n";
     }
     if (r.ok) {
       nodeManualInstallNeeded.value = false;
@@ -368,18 +365,18 @@ async function runEnsureInstallAndInit(): Promise<void> {
       if (r.exitCode === 6) {
         // Node.js 自动安装失败，需要用户手动安装
         nodeManualInstallNeeded.value = true;
-        setInstallStep("node", "error", "自动安装失败，请手动安装 Node.js");
+        setInstallStep("node", "error", t("wizard.phaseNodeRequiredManual"));
       } else {
         nodeManualInstallNeeded.value = false;
         const logIsEmpty = !streamReceived && (r.log ?? "").replace("--- streamed ---", "").trim().length === 0;
         if (logIsEmpty) {
-          installLog.value += `\n[结果] 进程退出码 ${r.exitCode}，脚本未产生任何输出。`;
-          installLog.value += `\n[提示] 可能原因：① openclaw.ai 服务器暂时不可用`;
-          installLog.value += `\n        ② PowerShell 脚本解析失败（编码问题）`;
-          installLog.value += `\n        ③ 脚本文件未找到`;
-          installLog.value += `\n[建议] 请等待片刻后点击「重新检测」，或手动运行：npm install -g openclaw@latest`;
+          installLog.value += "\n" + t("wizard.installNoOutputResult", { code: r.exitCode });
+          installLog.value += "\n" + t("wizard.installNoOutputHint1");
+          installLog.value += "\n" + t("wizard.installNoOutputHint2");
+          installLog.value += "\n" + t("wizard.installNoOutputHint3");
+          installLog.value += "\n" + t("wizard.installNoOutputSuggest");
         } else if (r.error && !streamReceived) {
-          installLog.value += `\n[结果] ${r.error}（退出码 ${r.exitCode}）`;
+          installLog.value += "\n" + t("wizard.installErrorResult", { error: r.error, code: r.exitCode });
         }
       }
     }
@@ -402,7 +399,7 @@ async function applyOllamaQuickSetup(): Promise<void> {
   const api = getDidClawDesktopApi();
   modelError.value = null;
   if (!api?.writeOpenClawProvidersPatch || !api?.writeOpenClawModelConfig) {
-    modelError.value = "请使用桌面版完成此操作。";
+    modelError.value = t("settings.desktopOnly");
     return;
   }
   modelBusy.value = true;
@@ -448,9 +445,7 @@ function onModelCloudPath(): void {
 }
 
 function onModelSkipLater(): void {
-  if (
-    !window.confirm("稍后在设置里配置？完成前对话可能不可用。")
-  ) {
+  if (!window.confirm(t("wizard.skipModelConfirm"))) {
     return;
   }
   setModelConfigDeferred(true);
@@ -485,14 +480,14 @@ onUnmounted(() => {
       <div class="first-run-backdrop" />
       <div class="first-run-card">
         <template v-if="phase === 'env'">
-          <h2 id="first-run-title" class="first-run-title">欢迎使用</h2>
-          <div v-if="loading" class="first-run-muted">正在检测环境…</div>
+          <h2 id="first-run-title" class="first-run-title">{{ t('wizard.title') }}</h2>
+          <div v-if="loading" class="first-run-muted">{{ t('wizard.loadingEnv') }}</div>
           <p v-else-if="loadError" class="first-run-err">{{ loadError }}</p>
           <template v-else>
-            <p class="first-run-lead">{{ ENV_INSTALL_LEAD }}</p>
+            <p class="first-run-lead">{{ t('wizard.envLead') }}</p>
             <p v-if="!canRunEnsureInstall" class="first-run-platform-note">
-              当前环境无法一键安装，请参阅
-              <a :href="WIZARD_DOC" target="_blank" rel="noopener noreferrer">安装说明</a>
+              {{ t('wizard.platformNotePrefix') }}
+              <a :href="WIZARD_DOC" target="_blank" rel="noopener noreferrer">{{ t('wizard.platformNoteLink') }}</a>
               。
             </p>
             <div
@@ -501,7 +496,7 @@ onUnmounted(() => {
               role="status"
               aria-live="polite"
             >
-              <ol class="first-run-install-steps" aria-label="安装进度">
+              <ol class="first-run-install-steps" :aria-label="t('wizard.installProgressLabel')">
                 <li
                   v-for="s in installStepRows"
                   :key="s.id"
@@ -515,27 +510,24 @@ onUnmounted(() => {
                 </li>
               </ol>
               <p class="first-run-install-elapsed-note">
-                已用时 {{ formatInstallElapsed(installElapsedSec) }} · 下载与 npm 安装可能较慢，属正常现象
+                {{ t('wizard.installElapsed', { time: formatInstallElapsed(installElapsedSec) }) }}
               </p>
             </div>
-            <!-- Node.js 手动安装引导（退出码 6）-->
+            <!-- Node.js manual install guide (exit code 6) -->
             <div v-if="nodeManualInstallNeeded && !installBusy" class="node-manual-panel">
               <div class="node-manual-icon" aria-hidden="true">📦</div>
               <div class="node-manual-body">
-                <p class="node-manual-title">需要先安装 Node.js</p>
-                <p class="node-manual-desc">
-                  自动安装未成功（winget 不可用或权限不足）。请手动下载并安装
-                  <strong>Node.js LTS</strong>（22.x 或更新版本），安装完成后点击「重新检测」。
-                </p>
+                <p class="node-manual-title">{{ t('wizard.nodeManualTitle') }}</p>
+                <p class="node-manual-desc">{{ t('wizard.nodeManualDesc') }}</p>
                 <div class="node-manual-actions">
                   <button
                     type="button"
                     class="lc-btn lc-btn-sm"
                     @click="openNodeJsDownload"
                   >
-                    打开 nodejs.org 下载页
+                    {{ t('wizard.nodeDownloadBtn') }}
                   </button>
-                  <span class="node-manual-hint">安装后重启此界面或点击「重新检测」</span>
+                  <span class="node-manual-hint">{{ t('wizard.nodeManualHint') }}</span>
                 </div>
               </div>
             </div>
@@ -553,7 +545,7 @@ onUnmounted(() => {
                 :disabled="installBusy"
                 @click="() => void runEnsureInstallAndInit()"
               >
-                安装并初始化
+                {{ t('wizard.installBtn') }}
               </button>
               <button
                 type="button"
@@ -561,18 +553,18 @@ onUnmounted(() => {
                 :disabled="loading || installBusy"
                 @click="() => void refreshStatus()"
               >
-                重新检测
+                {{ t('wizard.recheckBtn') }}
               </button>
             </div>
           </template>
         </template>
 
         <template v-else-if="phase === 'model'">
-          <h2 id="first-run-model-title" class="first-run-title">配置模型</h2>
-          <div v-if="loading" class="first-run-muted">正在检测…</div>
+          <h2 id="first-run-model-title" class="first-run-title">{{ t('wizard.modelTitle') }}</h2>
+          <div v-if="loading" class="first-run-muted">{{ t('wizard.loadingModel') }}</div>
           <p v-else-if="loadError" class="first-run-err">{{ loadError }}</p>
           <template v-else>
-            <p class="first-run-lead first-run-lead-model">{{ MODEL_STEP_LEAD }}</p>
+            <p class="first-run-lead first-run-lead-model">{{ t('wizard.modelLead') }}</p>
             <div class="model-cards">
               <button
                 type="button"
@@ -582,7 +574,7 @@ onUnmounted(() => {
               >
                 <span class="model-card-num" aria-hidden="true">1</span>
                 <div class="model-card-main">
-                  <span class="model-card-tag">本地 AI</span>
+                  <span class="model-card-tag">{{ t('wizard.tagLocalAi') }}</span>
                   <strong class="model-card-head">Ollama</strong>
                   <p class="model-card-desc">
                     <code>127.0.0.1:11434</code>
@@ -599,9 +591,9 @@ onUnmounted(() => {
               >
                 <span class="model-card-num" aria-hidden="true">2</span>
                 <div class="model-card-main">
-                  <span class="model-card-tag">云端 AI</span>
-                  <strong class="model-card-head">API 密钥</strong>
-                  <p class="model-card-desc">在本机设置中填写厂商密钥并选择模型</p>
+                  <span class="model-card-tag">{{ t('wizard.tagCloudAi') }}</span>
+                  <strong class="model-card-head">{{ t('wizard.cloudApiKey') }}</strong>
+                  <p class="model-card-desc">{{ t('wizard.cloudDesc') }}</p>
                 </div>
               </button>
               <button
@@ -612,9 +604,9 @@ onUnmounted(() => {
               >
                 <span class="model-card-num model-card-num-muted" aria-hidden="true">3</span>
                 <div class="model-card-main">
-                  <span class="model-card-tag model-card-tag-muted">稍后</span>
-                  <strong class="model-card-head">稍后配置</strong>
-                  <p class="model-card-desc">主界面将提示你继续配置</p>
+                  <span class="model-card-tag model-card-tag-muted">{{ t('wizard.tagLater') }}</span>
+                  <strong class="model-card-head">{{ t('wizard.skipModel') }}</strong>
+                  <p class="model-card-desc">{{ t('wizard.laterDesc') }}</p>
                 </div>
               </button>
             </div>
@@ -626,7 +618,7 @@ onUnmounted(() => {
                 :disabled="loading || modelBusy"
                 @click="() => void refreshStatus()"
               >
-                重新检测
+                {{ t('wizard.recheckBtn') }}
               </button>
             </div>
           </template>

@@ -524,22 +524,77 @@ export default {
 
   // ─── 首次引导 FirstRunWizard ─────────────────────────
   wizard: {
-    title: "安装向导",
+    title: "欢迎使用",
+    modelTitle: "配置模型",
+    ariaInstall: "安装 OpenClaw",
+    ariaConfigModel: "配置模型",
+
     envLead: "检测到未安装openclaw，请点击下面按键进行安装初始化。",
     modelLead: "不配置模型将无法连接AI进行对话，请选择本地或者云端AI进行配置",
+    loadingEnv: "正在检测环境…",
+    loadingModel: "正在检测…",
+
     stepEnv: "检测安装环境",
     stepNode: "Node.js",
     stepCli: "安装 OpenClaw CLI",
     stepOnboard: "初始化配置（onboard）",
     stepFinish: "完成",
-    installBtn: "开始安装",
+
+    installBtn: "安装并初始化",
     installing: "安装中…",
-    nodeManualTitle: "需要手动安装 Node.js",
-    nodeManualDesc: "自动安装 Node.js 失败，请前往官网手动安装后重试。",
-    nodeDownloadBtn: "前往 Node.js 官网",
+    recheckBtn: "重新检测",
     done: "安装完成",
     skipModel: "稍后配置",
     configureModel: "立即配置",
+    skipModelConfirm: "稍后在设置里配置？完成前对话可能不可用。",
+
+    installProgressLabel: "安装进度",
+    installElapsed: "已用时 {time} · 下载与 npm 安装可能较慢，属正常现象",
+
+    nodeManualTitle: "需要先安装 Node.js",
+    nodeManualDesc: "自动安装未成功（winget 不可用或权限不足）。请手动下载并安装 Node.js LTS（22.x 或更新版本），安装完成后点击「重新检测」。",
+    nodeDownloadBtn: "打开 nodejs.org 下载页",
+    nodeManualHint: "安装后重启此界面或点击「重新检测」",
+
+    platformNotePrefix: "当前环境无法一键安装，请参阅",
+    platformNoteLink: "安装说明",
+
+    tagLocalAi: "本地 AI",
+    tagCloudAi: "云端 AI",
+    cloudApiKey: "API 密钥",
+    cloudDesc: "在本机设置中填写厂商密钥并选择模型",
+    tagLater: "稍后",
+    laterDesc: "主界面将提示你继续配置",
+
+    // install phase detail strings
+    phasePrecheck: "PowerShell 与脚本已就绪…",
+    phaseEnvChecking: "正在检测…",
+    phaseNodeOk: "已在 PATH 中检测到 node",
+    phaseNodeNotFound: "未检测到 Node.js，准备自动安装…",
+    phaseNodeInstallBegin: "正在尝试自动安装 Node.js…",
+    phaseNodeInstallWinget: "通过 winget 安装 Node.js LTS…",
+    phaseNodeInstallMsi: "从 nodejs.org 下载安装包（约 30MB）…",
+    phaseNodeRequiredManual: "自动安装失败，请手动安装 Node.js",
+    phaseCliBegin: "准备下载官方 install.ps1",
+    phaseCliDownloading: "正在下载 install.ps1…",
+    phaseCliRunning: "执行官方安装中（可能含 Node / npm / openclaw，需数分钟）…",
+    phaseReady: "已就绪",
+    phaseCliAlreadyInstalled: "已安装，跳过 CLI 下载",
+    phaseOnboardWaiting: "等待执行 onboard…",
+    phaseOnboardPrepare: "准备非交互 onboard…",
+    phaseOnboardExec: "正在写入本机配置…",
+    phaseOnboardSkipped: "已跳过 onboard",
+    phaseEnvFailedToStart: "未能进入安装脚本",
+
+    // install log output strings
+    installStartMsg: "正在执行：安装并初始化…",
+    installExitLine: "--- 完成（退出码 {code}）{tail} ---",
+    installNoOutputResult: "[结果] 进程退出码 {code}，脚本未产生任何输出。",
+    installNoOutputHint1: "[提示] 可能原因：① openclaw.ai 服务器暂时不可用",
+    installNoOutputHint2: "        ② PowerShell 脚本解析失败（编码问题）",
+    installNoOutputHint3: "        ③ 脚本文件未找到",
+    installNoOutputSuggest: "[建议] 请等待片刻后点击「重新检测」，或手动运行：npm install -g openclaw@latest",
+    installErrorResult: "[结果] {error}（退出码 {code}）",
   },
 
   // ─── 更新提示 OpenClawUpdatePrompt ───────────────────

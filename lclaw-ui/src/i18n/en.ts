@@ -524,22 +524,77 @@ export default {
 
   // ─── First run wizard ─────────────────────────────────
   wizard: {
-    title: "Setup Wizard",
+    title: "Welcome",
+    modelTitle: "Configure Model",
+    ariaInstall: "Install OpenClaw",
+    ariaConfigModel: "Configure Model",
+
     envLead: "OpenClaw is not installed. Click the button below to install and initialize.",
     modelLead: "Without a model configured you won't be able to chat with AI. Choose a local or cloud AI to configure.",
+    loadingEnv: "Checking environment…",
+    loadingModel: "Checking…",
+
     stepEnv: "Check environment",
     stepNode: "Node.js",
     stepCli: "Install OpenClaw CLI",
     stepOnboard: "Initialize config (onboard)",
     stepFinish: "Done",
-    installBtn: "Start installation",
+
+    installBtn: "Install & Initialize",
     installing: "Installing…",
-    nodeManualTitle: "Node.js manual install required",
-    nodeManualDesc: "Auto-install of Node.js failed. Please install it manually from the official website and try again.",
-    nodeDownloadBtn: "Go to nodejs.org",
+    recheckBtn: "Re-check",
     done: "Installation complete",
     skipModel: "Configure later",
     configureModel: "Configure now",
+    skipModelConfirm: "Configure later in settings? Chat may not work until configured.",
+
+    installProgressLabel: "Install progress",
+    installElapsed: "Elapsed {time} · Downloads and npm install may take a while",
+
+    nodeManualTitle: "Node.js installation required",
+    nodeManualDesc: "Auto-install failed (winget unavailable or insufficient permissions). Please download and install Node.js LTS (22.x or later) manually, then click Re-check.",
+    nodeDownloadBtn: "Open nodejs.org download page",
+    nodeManualHint: "After installing, restart this screen or click Re-check",
+
+    platformNotePrefix: "One-click install is not available on this platform. See the",
+    platformNoteLink: "install guide",
+
+    tagLocalAi: "Local AI",
+    tagCloudAi: "Cloud AI",
+    cloudApiKey: "API Key",
+    cloudDesc: "Enter your provider API key and select a model in local settings",
+    tagLater: "Later",
+    laterDesc: "The main screen will remind you to finish setup",
+
+    // install phase detail strings
+    phasePrecheck: "PowerShell and script ready…",
+    phaseEnvChecking: "Checking…",
+    phaseNodeOk: "node found in PATH",
+    phaseNodeNotFound: "Node.js not found, preparing auto-install…",
+    phaseNodeInstallBegin: "Attempting auto-install of Node.js…",
+    phaseNodeInstallWinget: "Installing Node.js LTS via winget…",
+    phaseNodeInstallMsi: "Downloading installer from nodejs.org (~30 MB)…",
+    phaseNodeRequiredManual: "Auto-install failed, please install Node.js manually",
+    phaseCliBegin: "Preparing to download official install.ps1",
+    phaseCliDownloading: "Downloading install.ps1…",
+    phaseCliRunning: "Running official installer (may include Node / npm / openclaw, takes a few minutes)…",
+    phaseReady: "Ready",
+    phaseCliAlreadyInstalled: "Already installed, skipping CLI download",
+    phaseOnboardWaiting: "Waiting to run onboard…",
+    phaseOnboardPrepare: "Preparing non-interactive onboard…",
+    phaseOnboardExec: "Writing local config…",
+    phaseOnboardSkipped: "Onboard skipped",
+    phaseEnvFailedToStart: "Failed to enter install script",
+
+    // install log output strings
+    installStartMsg: "Running: Install & Initialize…",
+    installExitLine: "--- Done (exit code {code}){tail} ---",
+    installNoOutputResult: "[Result] Process exited with code {code}, script produced no output.",
+    installNoOutputHint1: "[Hint] Possible causes: ① openclaw.ai server temporarily unavailable",
+    installNoOutputHint2: "        ② PowerShell script parse failed (encoding issue)",
+    installNoOutputHint3: "        ③ Script file not found",
+    installNoOutputSuggest: "[Suggest] Wait a moment and click Re-check, or run manually: npm install -g openclaw@latest",
+    installErrorResult: "[Result] {error} (exit code {code})",
   },
 
   // ─── Update prompt ────────────────────────────────────
