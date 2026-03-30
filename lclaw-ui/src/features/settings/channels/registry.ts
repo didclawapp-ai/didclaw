@@ -2,7 +2,9 @@ import { defineAsyncComponent } from "vue";
 import type { Component } from "vue";
 import type { ChannelDef } from "./types";
 import { discordDef } from "./discord/def";
+import { feishuDef } from "./feishu/def";
 import { wecomDef } from "./wecom/def";
+import { wechatDef } from "./wechat/def";
 
 export type ChannelEntry = ChannelDef & { panel: Component };
 
@@ -20,8 +22,16 @@ export const BUILTIN_CHANNELS: ChannelEntry[] = [
     panel: defineAsyncComponent(() => import("./discord/DiscordPanel.vue")),
   },
   {
+    ...feishuDef,
+    panel: defineAsyncComponent(() => import("./feishu/FeishuPanel.vue")),
+  },
+  {
+    ...wechatDef,
+    panel: defineAsyncComponent(() => import("./wechat/WechatPanel.vue")),
+  },
+  {
     ...wecomDef,
     panel: defineAsyncComponent(() => import("./wecom/WeComPanel.vue")),
   },
-  // Populated in phases 4-6 as each remaining channel panel is migrated.
+  // WhatsApp added in phase 6.
 ];
