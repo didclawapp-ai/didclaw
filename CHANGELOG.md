@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **新增 Slack、LINE、Microsoft Teams、Google Chat 渠道卡片**：这四个渠道均为 openclaw 内置 extension（无需安装插件），现在在渠道面板以卡片形式展示。点击卡片可填写凭据：Slack 需要 Bot Token (xoxb-) + App Token (xapp-)，LINE 需要 Channel Access Token + Channel Secret，Teams 需要 App ID + App Password，Google Chat 需要 Service Account JSON 文件路径。保存后自动重启 Gateway 并刷新连接状态，流程与企业微信一致。
+
 - **修复企业微信保存后无反应的问题**：`WeComPanel` 写入配置后既未重启 Gateway（导致 WeCom WebSocket 不启动），也未调用 `onSuccess()`（导致卡片状态不刷新、对话框不关闭）。现在保存成功后先调 `restartGatewayAndReconnect` 再调 `onSuccess()`，整个流程与 WhatsApp/微信 一致。
 
 - **移除向导预安装列表中的 Gmail**：`@openclaw/gmail` 不存在，Gmail 与 OpenClaw 的集成需要 Google Cloud Pub/Sub + OAuth + 公网 webhook，无法做成一键安装插件，移出向导避免安装失败。默认勾选改为 WhatsApp + 微信。

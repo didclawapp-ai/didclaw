@@ -3,6 +3,10 @@ import type { Component } from "vue";
 import type { ChannelDef } from "./types";
 import { discordDef } from "./discord/def";
 import { feishuDef } from "./feishu/def";
+import { googleChatDef } from "./googlechat/def";
+import { lineDef } from "./line/def";
+import { msTeamsDef } from "./msteams/def";
+import { slackDef } from "./slack/def";
 import { wecomDef } from "./wecom/def";
 import { wechatDef } from "./wechat/def";
 import { whatsappDef } from "./whatsapp/def";
@@ -37,5 +41,21 @@ export const BUILTIN_CHANNELS: ChannelEntry[] = [
   {
     ...discordDef,
     panel: defineAsyncComponent(() => import("./discord/DiscordPanel.vue")),
+  },
+  {
+    ...slackDef,
+    panel: defineAsyncComponent(() => import("./slack/SlackPanel.vue")),
+  },
+  {
+    ...msTeamsDef,
+    panel: defineAsyncComponent(() => import("./msteams/MsTeamsPanel.vue")),
+  },
+  {
+    ...lineDef,
+    panel: defineAsyncComponent(() => import("./line/LinePanel.vue")),
+  },
+  {
+    ...googleChatDef,
+    panel: defineAsyncComponent(() => import("./googlechat/GoogleChatPanel.vue")),
   },
 ];
