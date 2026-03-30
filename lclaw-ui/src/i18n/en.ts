@@ -699,6 +699,29 @@ export default {
     unsupportedLink: "This URL is not a built-in preview type (PDF / image / Office / Markdown / text / source code).",
     timelineTitle: "Tools / Events (non-chat)",
     timelineEmpty: "None yet. Events other than <code>chat</code> / <code>connect.challenge</code> are shown here after deduplication.",
+    embeddedImageLabel: "Embedded image (message)",
+    noEmbeddedImageToSave: "No embedded image to save",
+    saveAsFailed: "Save failed",
+    chatFullAssistant: "Assistant message (full text)",
+    chatFullUser: "User message (full text)",
+    desktopApiUnavailable: "Desktop API unavailable",
+    localPreviewFailed: "Preview failed",
+    textLoadHttpFailed: "Failed to load text (HTTP {status})",
+    textLoadCrossOrigin:
+      "{msg} If the resource is cross-origin, use a local file or open the link in a new window.",
+    openSystemFailed: "Failed to open with system app",
+    libreOfficeStillMissing:
+      "LibreOffice still not detected. If it is installed, restart the app or set LIBREOFFICE_PATH to soffice.exe.",
+  },
+
+  // ─── Gateway connection (gateway store) ───────────────
+  gatewayConn: {
+    helloVersion: "Gateway {version}",
+    helloConnected: "Connected",
+    disconnectedWithDetail: "Disconnected ({code}): {detail}",
+    disconnectedCodeOnly: "Disconnected ({code})",
+    pairingHint:
+      " — On the gateway host run: openclaw devices list / openclaw devices approve <id>",
   },
 
   // ─── AI Provider setup AiProviderSetup ────────────────

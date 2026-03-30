@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import {
   defaultFileNameForImageMime,
@@ -22,7 +23,7 @@ export type ChatMessagePreviewState = {
   role: "user" | "assistant";
 };
 
-/** 消息内 data:image 预览：桌面端另存为需原始 base64 */
+/** data:image preview; desktop save-as needs raw base64 */
 export type SavableEmbeddedImage = {
   base64Payload: string;
   mimeType: string;
@@ -64,11 +65,11 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   const target = ref<FilePreviewTarget | null>(null);
   const localLoading = ref(false);
   const localError = ref<string | null>(null);
-  /** Electron 下最近一次尝试预览的 file://，用于无 LibreOffice 时用系统应用打开 / 重试 */
+  /** Last attempted file:// preview in Electron (system open / retry when no LibreOffice) */
   const pendingLocalFileUrl = ref<string | null>(null);
   const pendingLocalLabel = ref<string | null>(null);
   const internalBlobUrl = ref<string | null>(null);
-  /** Markdown / 纯文本正文（本地解码或 http(s) fetch） */
+  /** Markdown / plain text body (local decode or http(s) fetch) */
   const previewTextBody = ref<string | null>(null);
   const previewTextError = ref<string | null>(null);
   const previewTextLoading = ref(false);
@@ -96,7 +97,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     savableEmbeddedImage.value = null;
   }
 
-  /** 切换非内嵌图消息行时清掉上一张消息内嵌图（避免右侧残留） */
+  /** Clear prior message-embedded image when switching to another line */
   function forgetEmbeddedChatImageIfAny(): void {
     if (!savableEmbeddedImage.value) {
       return;
@@ -112,8 +113,8 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   }
 
   /**
-   * 若正文含 `data:image/...;base64,...`，在右侧打开图片预览并允许另存。
-   * @returns 是否已打开（false 表示正文无可解析的内嵌图）
+   * If text contains `data:image/...;base64,...`, open image preview and allow save-as.
+   * @returns whether preview opened (false if no parseable embedded image)
    */
   function tryOpenEmbeddedDataImageFromText(text: string): boolean {
     const found = findFirstEmbeddedDataImage(text);
@@ -135,7 +136,11 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     localLoading.value = false;
     const blobUrl = URL.createObjectURL(blob);
     internalBlobUrl.value = blobUrl;
-    target.value = { url: blobUrl, label: "内嵌图片（消息）", kind: "image" };
+    target.value = {
+      url: blobUrl,
+      label: i18n.global.t("preview.embeddedImageLabel"),
+      kind: "image",
+    };
     savableEmbeddedImage.value = {
       base64Payload: found.base64Payload,
       mimeType: found.mimeType,
@@ -149,7 +154,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   > {
     const s = savableEmbeddedImage.value;
     if (!s) {
-      return { ok: false, error: "当前无可保存的内嵌图片" };
+      return { ok: false, error: i18n.global.t("preview.noEmbeddedImageToSave") };
     }
     const api = getDidClawDesktopApi();
     if (api?.saveBase64FileAs) {
@@ -159,7 +164,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
           s.defaultFileName,
         )) as { ok: boolean; saved?: boolean; error?: string };
         if (!r.ok) {
-          return { ok: false, error: r.error ?? "另存失败" };
+          return { ok: false, error: r.error ?? i18n.global.t("preview.saveAsFailed") };
         }
         return { ok: true, saved: Boolean(r.saved) };
       } catch (e) {
@@ -182,8 +187,8 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
   }
 
   /**
-   * 当 `listText`（左侧列表）与 `text`（完整正文）不一致时展开右栏显示全文，
-   * 与 `buildListPreview` 中「点选本行可在右侧预览查看全文」一致。
+   * When `listText` differs from full `text`, show full body in the right pane
+   * (matches `buildListPreview` “click row for full text” behavior).
    */
   function showChatMessageFullText(line: {
     role: string;
@@ -213,7 +218,10 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     localError.value = null;
     localLoading.value = false;
     chatMessagePreview.value = {
-      title: line.role === "assistant" ? "助手消息（全文）" : "用户消息（全文）",
+      title:
+        line.role === "assistant"
+          ? i18n.global.t("preview.chatFullAssistant")
+          : i18n.global.t("preview.chatFullUser"),
       body: full,
       role: line.role as "user" | "assistant",
     };
@@ -238,11 +246,11 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
       try {
         const api = getDidClawDesktopApi();
         if (!api) {
-          throw new Error("桌面 API 不可用");
+          throw new Error(i18n.global.t("preview.desktopApiUnavailable"));
         }
         const r = await api.openLocalPreview(u);
         if (!r.ok) {
-          throw new Error(r.error || "预览失败");
+          throw new Error(r.error || i18n.global.t("preview.localPreviewFailed"));
         }
         if (r.displayKind === "markdown" || r.displayKind === "text") {
           previewTextBody.value = base64Utf8ToString(r.base64);
@@ -298,13 +306,13 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
       try {
         const res = await fetch(u, { credentials: "omit" });
         if (!res.ok) {
-          throw new Error(`无法加载文本（HTTP ${res.status}）`);
+          throw new Error(i18n.global.t("preview.textLoadHttpFailed", { status: res.status }));
         }
         previewTextBody.value = await res.text();
       } catch (e) {
         previewTextError.value =
           e instanceof Error
-            ? `${e.message}。若为跨域资源，请改用本地文件或在新窗口打开链接。`
+            ? i18n.global.t("preview.textLoadCrossOrigin", { msg: e.message })
             : String(e);
       } finally {
         previewTextLoading.value = false;
@@ -323,7 +331,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     }
     const r = await api.openFileUrlInSystem(u);
     if (!r.ok) {
-      localError.value = r.error || "系统打开失败";
+      localError.value = r.error || i18n.global.t("preview.openSystemFailed");
     }
   }
 
@@ -335,7 +343,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     await getDidClawDesktopApi()?.showLibreOfficeInstallDialog?.();
   }
 
-  /** 安装 LibreOffice 后：先检测再重新走本地预览 */
+  /** After installing LibreOffice: re-check then retry local preview */
   async function retryPendingLocalPreview(): Promise<void> {
     const u = pendingLocalFileUrl.value;
     const label = pendingLocalLabel.value ?? undefined;
@@ -345,8 +353,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     }
     const st = await api.getLibreOfficeStatus();
     if (!st.available) {
-      localError.value =
-        "仍未检测到 LibreOffice。若已安装，请重启本应用，或设置环境变量 LIBREOFFICE_PATH 指向 soffice.exe。";
+      localError.value = i18n.global.t("preview.libreOfficeStillMissing");
       return;
     }
     await openUrl(u, label);

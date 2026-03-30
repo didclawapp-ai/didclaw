@@ -699,6 +699,28 @@ export default {
     unsupportedLink: "此链接不是内置预览类型（PDF / 图片 / Office / Markdown / 文本 / 源码）。",
     timelineTitle: "工具 / 事件（非 chat）",
     timelineEmpty: "暂无。除 <code>chat</code> / <code>connect.challenge</code> 外的事件合并后显示。",
+    embeddedImageLabel: "内嵌图片（消息）",
+    noEmbeddedImageToSave: "当前无可保存的内嵌图片",
+    saveAsFailed: "另存失败",
+    chatFullAssistant: "助手消息（全文）",
+    chatFullUser: "用户消息（全文）",
+    desktopApiUnavailable: "桌面 API 不可用",
+    localPreviewFailed: "预览失败",
+    textLoadHttpFailed: "无法加载文本（HTTP {status}）",
+    textLoadCrossOrigin: "{msg}。若为跨域资源，请改用本地文件或在新窗口打开链接。",
+    openSystemFailed: "系统打开失败",
+    libreOfficeStillMissing:
+      "仍未检测到 LibreOffice。若已安装，请重启本应用，或设置环境变量 LIBREOFFICE_PATH 指向 soffice.exe。",
+  },
+
+  // ─── 网关连接状态 gateway store ───────────────────────
+  gatewayConn: {
+    helloVersion: "Gateway {version}",
+    helloConnected: "已连接",
+    disconnectedWithDetail: "已断开（{code}）：{detail}",
+    disconnectedCodeOnly: "已断开（{code}）",
+    pairingHint:
+      " — 请在网关主机执行: openclaw devices list / openclaw devices approve <id>",
   },
 
   // ─── AI Provider 配置 AiProviderSetup ──────────────────

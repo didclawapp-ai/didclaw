@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { GatewayClient } from "@/features/gateway/gateway-client";
 import {
   GATEWAY_CLIENT_MODE,
@@ -38,10 +39,10 @@ type ConnectOpts = { url: string; token?: string; password?: string; deviceToken
 
 let connectRequestId = 0;
 
-/** 缓存的 deviceToken，用于自动重连 */
+/** Cached deviceToken for auto-reconnect */
 let cachedDeviceToken: string | undefined = undefined;
 
-/** 加载 deviceToken（从设备身份存储） */
+/** Load deviceToken from device identity storage */
 async function loadDeviceToken(): Promise<string | undefined> {
   if (cachedDeviceToken) {
     return cachedDeviceToken;
@@ -80,11 +81,11 @@ async function loadGatewayConnectOptions(): Promise<ConnectOpts> {
         password = local.password.trim();
       }
     } catch {
-      /* 忽略损坏的本地文件 */
+      /* ignore corrupt local file */
     }
   }
 
-  // 如果没有用户配置的 token/password，尝试使用 deviceToken
+  // If no user token/password, try deviceToken
   const deviceToken = !token && !password ? await loadDeviceToken() : undefined;
 
   return { url: finalUrl, token, password, deviceToken };
@@ -95,7 +96,7 @@ export const useGatewayStore = defineStore("gateway", () => {
   const status = ref<GatewayConnectionStatus>("disconnected");
   const lastError = ref<string | null>(null);
   const helloInfo = ref<string | null>(null);
-  /** 当前用于展示与诊断的 WS 地址（含桌面端本地配置覆盖，存于 didclaw.db） */
+  /** Resolved WS URL for display/diagnostics (desktop local config override in didclaw.db) */
   const url = ref(gatewayUrlFromEnv());
 
   function disconnect(): void {
@@ -106,13 +107,13 @@ export const useGatewayStore = defineStore("gateway", () => {
     status.value = "disconnected";
   }
 
-  /** 按当前环境变量 / 桌面本地库刷新顶栏展示的 WS 地址（不自动重连） */
+  /** Refresh displayed WS URL from env / desktop local store (does not reconnect) */
   async function refreshResolvedUrl(): Promise<void> {
     const o = await loadGatewayConnectOptions();
     url.value = o.url;
   }
 
-  /** 断开并按最新配置立即重连（连接设置页保存后调用） */
+  /** Disconnect and reconnect with latest config (after saving connection settings) */
   async function reloadConnection(): Promise<void> {
     await refreshResolvedUrl();
     disconnect();
@@ -136,7 +137,7 @@ export const useGatewayStore = defineStore("gateway", () => {
       url.value = opts.url;
 
       const desktop = getDidClawDesktopApi();
-      // 记录本次是否刚启动了新网关进程（插件加载需要额外时间，onHello 时数据可能不完整）
+      // Track if we just started a new gateway process (plugins need time; onHello data may be incomplete)
       let gatewayWasFreshlyStarted = false;
       if (desktop?.ensureOpenClawGateway) {
         const ensured = await desktop.ensureOpenClawGateway({ wsUrl: opts.url });
@@ -148,7 +149,7 @@ export const useGatewayStore = defineStore("gateway", () => {
           status.value = "error";
           return;
         }
-        // 本次由桌面端新拉了网关进程时，再给事件循环与隧道一层缓冲，减少首连与 challenge 的竞态。
+        // Brief delay after desktop started gateway to reduce first-connect vs challenge races
         if (ensured.started) {
           gatewayWasFreshlyStarted = true;
           await delayMs(400);
@@ -169,9 +170,11 @@ export const useGatewayStore = defineStore("gateway", () => {
         onHello: (hello) => {
           const parsed = gatewayHelloOkSchema.safeParse(hello);
           if (parsed.success && parsed.data.server?.version) {
-            helloInfo.value = `Gateway ${parsed.data.server.version}`;
+            helloInfo.value = i18n.global.t("gatewayConn.helloVersion", {
+              version: parsed.data.server.version,
+            });
           } else {
-            helloInfo.value = "Connected";
+            helloInfo.value = i18n.global.t("gatewayConn.helloConnected");
           }
           status.value = "connected";
           void import("./session").then(async ({ useSessionStore }) => {
@@ -185,11 +188,11 @@ export const useGatewayStore = defineStore("gateway", () => {
             void useChatStore().refreshOpenClawModelPicker();
           }).catch((e) => { console.error("[didclaw] onHello model picker error", e); });
 
-          // 首次启动的网关：onHello 时插件（WhatsApp / 微信等）可能还在初始化，
-          // sessions/channel 状态不完整。等插件就绪后（约 4s）补做一次静默刷新。
+          // Fresh gateway: plugins (WhatsApp / WeChat, etc.) may still init at onHello.
+          // After ~4s, one more silent refresh when sessions/channel data is ready.
           if (gatewayWasFreshlyStarted) {
             window.setTimeout(() => {
-              if (client.value !== gc) return; // 连接已切换，放弃
+              if (client.value !== gc) return; // connection replaced, skip
               void import("./session").then(async ({ useSessionStore }) => {
                 const reloaded = await useSessionStore().refresh();
                 if (!reloaded) {
@@ -200,10 +203,9 @@ export const useGatewayStore = defineStore("gateway", () => {
             }, 4000);
           }
 
-          // 连接稳定后约 20s 做一次后台静默刷新，确保 OpenClaw 与桌面端数据完全对齐
-          // （覆盖连接建立时未就绪的渠道、会话、历史等边缘情况）。
+          // ~20s after stable connect: background silent refresh to align OpenClaw + desktop data
           window.setTimeout(() => {
-            if (client.value !== gc) return; // 连接已切换，放弃
+            if (client.value !== gc) return; // connection replaced, skip
             void import("./session").then(async ({ useSessionStore }) => {
               const reloaded = await useSessionStore().refresh();
               if (!reloaded) {
@@ -350,15 +352,16 @@ export const useGatewayStore = defineStore("gateway", () => {
             status.value = "error";
             helloInfo.value = null;
             const detailText = error ? describeGatewayError(error) : String(reason ?? "").trim();
-            lastError.value = detailText ? `已断开（${code}）：${detailText}` : `已断开（${code}）`;
-            
-            // 处理配对和设备认证错误
+            lastError.value = detailText
+              ? i18n.global.t("gatewayConn.disconnectedWithDetail", { code, detail: detailText })
+              : i18n.global.t("gatewayConn.disconnectedCodeOnly", { code });
+
             const lowerDetail = detailText.toLowerCase();
             if (lowerDetail.includes("pairing")) {
-              lastError.value += " — 请在网关主机执行: openclaw devices list / openclaw devices approve <id>";
+              lastError.value += i18n.global.t("gatewayConn.pairingHint");
             }
-            
-            // 如果 deviceToken 失效（AUTH_TOKEN_MISMATCH 或相关错误），清除缓存
+
+            // Clear cached deviceToken on AUTH_TOKEN_MISMATCH / device auth errors
             const isAuthError = lowerDetail.includes("unauthorized") || 
                                lowerDetail.includes("auth") ||
                                lowerDetail.includes("token") ||
