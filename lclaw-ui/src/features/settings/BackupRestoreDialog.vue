@@ -39,7 +39,7 @@ async function loadEstimate(): Promise<void> {
       estimateInfo.value = { bytes: r.bytes, fileCount: r.fileCount };
     }
   } catch {
-    /* 估算失败静默忽略 */
+    /* silently ignore estimation errors */
   } finally {
     estimateBusy.value = false;
   }
@@ -110,7 +110,7 @@ async function doRestore(): Promise<void> {
     <Transition name="bkup-fade">
       <div v-if="open" class="bkup-backdrop" @click.self="open = false">
         <div class="bkup-dialog" role="dialog" :aria-label="t('backup.title')">
-          <!-- 标题栏 -->
+          <!-- header -->
           <div class="bkup-header">
             <span class="bkup-title">💾 {{ t('backup.title') }}</span>
             <button
@@ -121,19 +121,19 @@ async function doRestore(): Promise<void> {
             >✕</button>
           </div>
 
-          <!-- 内容区 -->
+          <!-- body -->
           <div class="bkup-body">
-            <!-- 说明 -->
+            <!-- description -->
             <p class="bkup-desc">{{ t('backup.desc') }}</p>
 
-            <!-- 排除项提示 -->
+            <!-- exclusion hints -->
             <ul class="bkup-excl">
               <li>{{ t('backup.excl1') }}</li>
               <li>{{ t('backup.excl2') }}</li>
               <li>{{ t('backup.excl3') }}</li>
             </ul>
 
-            <!-- 估算体积 -->
+            <!-- size estimate -->
             <div class="bkup-size">
               <template v-if="estimateBusy">
                 <span class="bkup-size-loading">{{ t('backup.estimating') }}</span>
@@ -147,7 +147,7 @@ async function doRestore(): Promise<void> {
               </template>
             </div>
 
-            <!-- 操作按钮 -->
+            <!-- action buttons -->
             <div class="bkup-actions">
               <button
                 type="button"
@@ -173,7 +173,7 @@ async function doRestore(): Promise<void> {
               </button>
             </div>
 
-            <!-- 状态反馈 -->
+            <!-- status feedback -->
             <Transition name="bkup-msg-fade">
               <div
                 v-if="status.kind === 'ok' || status.kind === 'error'"
@@ -194,7 +194,7 @@ async function doRestore(): Promise<void> {
               </div>
             </Transition>
 
-            <!-- 恢复警告 -->
+            <!-- restore warning -->
             <p class="bkup-warn">⚠ {{ t('backup.restoreWarn') }}</p>
           </div>
         </div>
@@ -386,7 +386,7 @@ async function doRestore(): Promise<void> {
   line-height: 1.4;
 }
 
-/* 过渡 */
+/* transitions */
 .bkup-fade-enter-active,
 .bkup-fade-leave-active {
   transition: opacity 0.15s ease;
