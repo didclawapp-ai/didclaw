@@ -221,9 +221,15 @@ pub fn check_channel_plugin_installed(channel: &str) -> Value {
         Ok(d) => d,
         Err(e) => return json!({"ok": false, "error": e}),
     };
-    // 检查 package.json 是否存在，避免空目录被误判为已安装
-    let pkg_json = dir.join("extensions").join(plugin_id).join("package.json");
-    let installed = pkg_json.is_file();
+    // Consider the plugin installed when the extension directory exists and is non-empty.
+    // Checking directory existence (not just package.json) handles cases where the
+    // npm package layout differs between install methods.
+    let ext_dir = dir.join("extensions").join(plugin_id);
+    let installed = ext_dir.is_dir()
+        && ext_dir
+            .read_dir()
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false);
     json!({
         "ok": true,
         "channel": channel,

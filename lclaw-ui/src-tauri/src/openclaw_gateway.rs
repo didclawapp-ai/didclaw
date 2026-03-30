@@ -1138,6 +1138,17 @@ pub fn run_open_claw_plugins_install_service(
             continue;
         }
 
+        // "plugin already exists" means the plugin is already installed —
+        // treat this as a success so the UI can proceed to configuration.
+        if combined.contains("plugin already exists") {
+            return json!({
+                "ok": true,
+                "alreadyInstalled": true,
+                "stdout": stdout,
+                "stderr": stderr
+            });
+        }
+
         let mut detail = [stderr.as_str(), stdout.as_str()]
             .into_iter()
             .filter(|s| !s.is_empty())
