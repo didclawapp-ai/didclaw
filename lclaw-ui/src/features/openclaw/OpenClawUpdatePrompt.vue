@@ -4,7 +4,7 @@ import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { useGatewayStore } from "@/stores/gateway";
 import { onMounted, ref } from "vue";
 
-/** 用户点「稍后」后，对该 npm 版本不再提示，直至出现更新的 latest */
+/** After the user clicks "Later", suppress the prompt for this npm version until a newer latest appears. */
 const DISMISS_KEY = "didclaw.openclawUpdate.dismissedLatest";
 
 const open = ref(false);
@@ -52,9 +52,9 @@ async function checkOnce(): Promise<void> {
         return;
       }
     } catch {
-      /* 隐私模式等 */
+      /* private mode, etc. */
     }
-    currentVersion.value = raw.currentVersion?.trim() || "（未知）";
+    currentVersion.value = raw.currentVersion?.trim() || "(unknown)";
     latestVersion.value = lv;
     registryError.value =
       typeof raw.registryError === "string" && raw.registryError.trim()
@@ -63,7 +63,7 @@ async function checkOnce(): Promise<void> {
     platform.value = (raw.platform || "").trim() || "unknown";
     open.value = true;
   } catch {
-    /* 忽略网络/IPC 错误 */
+    /* ignore network / IPC errors */
   }
 }
 
@@ -109,16 +109,16 @@ function formatUpgradeFailure(res: {
   log?: string | null;
 }): string {
   const err =
-    typeof res.error === "string" && res.error.trim() ? res.error.trim() : `退出码 ${res.exitCode}`;
+    typeof res.error === "string" && res.error.trim() ? res.error.trim() : `exit code ${res.exitCode}`;
   const tail = extractUpgradeLogTail(res.log);
   upgradeLogTail.value = tail;
-  return tail ? `${err}。日志末尾已附上。` : err;
+  return tail ? `${err}. See log tail below.` : err;
 }
 
 async function onWindowsScriptUpgrade(): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.runEnsureOpenclawWindowsInstall) {
-    window.alert("当前环境无法调用内置升级脚本。");
+    window.alert("Built-in upgrade script is not available in this environment.");
     return;
   }
   upgradeBusy.value = true;
@@ -128,10 +128,10 @@ async function onWindowsScriptUpgrade(): Promise<void> {
   try {
     if (api.stopOpenClawGateway) {
       gw.disconnect();
-      restartMessage.value = "正在停止当前 Gateway…";
+      restartMessage.value = "Stopping Gateway…";
       const stopRes = await api.stopOpenClawGateway();
       if (!stopRes?.ok) {
-        upgradeError.value = stopRes?.error ?? "停止 Gateway 失败";
+        upgradeError.value = stopRes?.error ?? "Failed to stop Gateway";
         window.setTimeout(() => {
           gw.connect();
         }, 800);
@@ -139,7 +139,7 @@ async function onWindowsScriptUpgrade(): Promise<void> {
       }
       gatewayStopped = true;
     }
-    restartMessage.value = "正在升级 OpenClaw…";
+    restartMessage.value = "Upgrading OpenClaw…";
     // upgrade: true → -Upgrade -SkipOnboard → always runs npm install + openclaw doctor
     const res = await api.runEnsureOpenclawWindowsInstall({ skipOnboard: true, upgrade: true });
     if (res.ok) {
@@ -147,7 +147,7 @@ async function onWindowsScriptUpgrade(): Promise<void> {
       upgradeSuccess.value = true;
       open.value = true;
       currentVersion.value = latestVersion.value || currentVersion.value;
-      restartMessage.value = "升级完成，正在重启 Gateway 并恢复连接…";
+      restartMessage.value = "Upgrade complete. Restarting Gateway and restoring connection…";
       await onRestartGateway(true);
     } else {
       upgradeError.value = formatUpgradeFailure(res);
@@ -159,7 +159,7 @@ async function onWindowsScriptUpgrade(): Promise<void> {
       }
     }
   } catch (error) {
-    upgradeError.value = error instanceof Error ? error.message : "升级过程中出现未知错误";
+    upgradeError.value = error instanceof Error ? error.message : "Unknown error during upgrade";
     restartMessage.value = null;
     if (gatewayStopped) {
       window.setTimeout(() => {
@@ -187,32 +187,32 @@ async function waitForGatewayConnected(timeoutMs = 20_000): Promise<boolean> {
 async function onRestartGateway(auto = false): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.restartOpenClawGateway) {
-    restartError.value = "当前环境不支持自动重启 Gateway，请稍后手动重启。";
+    restartError.value = "Auto-restart is not supported in this environment. Please restart Gateway manually.";
     return;
   }
   restartBusy.value = true;
   restartError.value = null;
   restartDone.value = false;
-  restartMessage.value = auto ? "正在重启 Gateway…" : "正在重启 Gateway…";
+  restartMessage.value = "Restarting Gateway…";
   try {
     const result = await api.restartOpenClawGateway();
     if (!result?.ok) {
-      restartError.value = (result as { error?: string }).error ?? "重启 Gateway 失败";
+      restartError.value = (result as { error?: string }).error ?? "Failed to restart Gateway";
       restartMessage.value = null;
       return;
     }
-    restartMessage.value = "Gateway 已重启，正在恢复桌面端连接…";
+    restartMessage.value = "Gateway restarted, restoring connection…";
     restartDone.value = true;
     await gw.reloadConnection();
     const reconnected = await waitForGatewayConnected();
     if (!reconnected) {
       restartDone.value = false;
-      restartError.value = "Gateway 已重启，但桌面端暂未恢复连接，请稍后重试。";
+      restartError.value = "Gateway restarted, but connection has not been restored. Please try again later.";
       restartMessage.value = null;
       return;
     }
     restartDone.value = true;
-    restartMessage.value = "网关已重启，桌面端连接已恢复。";
+    restartMessage.value = "Gateway restarted and connection restored.";
   } finally {
     restartBusy.value = false;
   }
@@ -233,17 +233,18 @@ function onRestartGatewayClick(): void {
         :aria-labelledby="upgradeSuccess ? 'ocu-title-done' : 'ocu-title'"
         @click.stop
       >
-        <!-- ── 升级成功：重启网关面板 ── -->
+        <!-- upgrade success: restart gateway panel -->
         <template v-if="upgradeSuccess">
           <div class="ocu-done-icon">✓</div>
-          <h2 id="ocu-title-done" class="ocu-title">升级完成</h2>
+          <h2 id="ocu-title-done" class="ocu-title">Upgrade Complete</h2>
           <p class="ocu-note small muted">
-            OpenClaw 已更新至最新版本，配置迁移（<code>openclaw doctor</code>）已自动执行。
-            DidClaw 会自动重启网关并恢复连接。
+            OpenClaw has been updated to the latest version. Configuration migration
+            (<code>openclaw doctor</code>) ran automatically. DidClaw will restart the
+            gateway and restore the connection.
           </p>
           <p v-if="restartMessage" class="ocu-note small">{{ restartMessage }}</p>
           <p v-if="restartDone" class="ocu-restart-ok small">
-            网关已重启，桌面端已重新连接到最新版本的 OpenClaw。
+            Gateway restarted and desktop client reconnected to the latest OpenClaw.
           </p>
           <p v-if="restartError" class="ocu-error small">{{ restartError }}</p>
           <div class="ocu-actions">
@@ -254,43 +255,45 @@ function onRestartGatewayClick(): void {
               :disabled="restartBusy"
               @click="onRestartGatewayClick"
             >
-              {{ restartBusy ? "正在恢复连接…" : "重新尝试重启网关" }}
+              {{ restartBusy ? "Restoring connection…" : "Retry Gateway Restart" }}
             </button>
             <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismissForThisRelease">
-              {{ restartDone ? "关闭" : "稍后手动处理" }}
+              {{ restartDone ? "Close" : "Handle manually later" }}
             </button>
           </div>
         </template>
 
-        <!-- ── 发现新版本：升级提示面板 ── -->
+        <!-- new version available: upgrade prompt panel -->
         <template v-else>
-          <h2 id="ocu-title" class="ocu-title">发现 OpenClaw 新版本</h2>
+          <h2 id="ocu-title" class="ocu-title">New OpenClaw Version Available</h2>
           <p class="ocu-versions">
-            当前：<strong>{{ currentVersion }}</strong>
-            · 最新：<strong>{{ latestVersion }}</strong>
+            Current: <strong>{{ currentVersion }}</strong>
+            · Latest: <strong>{{ latestVersion }}</strong>
           </p>
           <p v-if="registryError" class="ocu-warn small">
-            版本查询附注：{{ registryError }}
+            Registry note: {{ registryError }}
           </p>
           <p class="ocu-note small muted">
-            升级只替换程序文件；你的配置、技能与 API Key（<code>~/.openclaw/</code>）不会被覆盖。
-            升级后会自动运行 <code>openclaw doctor</code> 完成配置迁移，再重启网关即可。
+            The upgrade only replaces the program files. Your config, skills and API keys
+            (<code>~/.openclaw/</code>) are preserved. After upgrading,
+            <code>openclaw doctor</code> runs automatically to migrate your config;
+            then the gateway restarts.
           </p>
           <p v-if="upgradeError" class="ocu-error small">
-            升级失败：{{ upgradeError }}。可在终端手动执行
+            Upgrade failed: {{ upgradeError }}. You can run manually:
             <code class="ocu-code">npm install -g openclaw@latest</code>
           </p>
           <pre v-if="upgradeLogTail" class="ocu-log-tail"><code>{{ upgradeLogTail }}</code></pre>
           <p v-if="!upgradeError" class="ocu-cli small">
-            手动方式：<code class="ocu-code">npm install -g openclaw@latest</code>
+            Manual: <code class="ocu-code">npm install -g openclaw@latest</code>
           </p>
           <p class="ocu-doc small">
             <a
-              href="https://docs.openclaw.ai/zh-CN/install/updating"
+              href="https://docs.openclaw.ai/en/install/updating"
               target="_blank"
               rel="noopener noreferrer"
               class="ocu-link"
-            >查看官方更新文档</a>
+            >View official update docs</a>
           </p>
           <div class="ocu-actions">
             <button
@@ -300,10 +303,10 @@ function onRestartGatewayClick(): void {
               :disabled="upgradeBusy"
               @click="onWindowsScriptUpgrade"
             >
-              {{ upgradeBusy ? "升级中，请稍候…" : "一键升级（Windows）" }}
+              {{ upgradeBusy ? "Upgrading, please wait…" : "One-click Upgrade (Windows)" }}
             </button>
             <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="dismissForThisRelease">
-              稍后提醒
+              Remind me later
             </button>
           </div>
         </template>

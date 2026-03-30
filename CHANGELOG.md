@@ -12,6 +12,8 @@
 
 ### 优化
 
+- **英文化（OpenClawUpdatePrompt）**：将 `OpenClawUpdatePrompt.vue` 中所有中文硬编码字符串（脚本与模板）改为英文；文档链接同步切换为英文页面。
+
 - **i18n 补全（FirstRunWizard）**：首次引导向导全面接入 vue-i18n，新增约 50 个 `wizard.*` key（中英文），涵盖标题、说明文案、安装进度步骤标签、所有阶段 detail 字符串、安装日志输出文本、Node.js 手动安装面板、模型选择卡片及 confirm 对话框；`wizard.*` 命名空间已有旧值与模板不一致的 key 同步更新（`title`、`installBtn`、`nodeManualTitle/Desc/DownloadBtn`）。
 
 - **i18n 补全（WeChatIndicator / WhatsAppIndicator）**：渠道指示器弹窗的状态标题、扫码流程进度、插件安装/启用、Gateway 重启及错误全部接入 vue-i18n；新增 `channel.gwDisconnected` / `gwRestarting` / `retry` / `channelSetup` 等共享 key，以及 `channel.wechat.*` / `channel.whatsapp.*` 品牌专属 key（含参数插值）。
