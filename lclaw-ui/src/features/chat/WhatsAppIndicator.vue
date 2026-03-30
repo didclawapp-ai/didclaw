@@ -4,6 +4,9 @@ import { useGatewayStore } from "@/stores/gateway";
 import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 import { storeToRefs } from "pinia";
 import { computed, ref, onUnmounted, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const WHATSAPP_PLUGIN_SPEC = "@openclaw/whatsapp";
 
@@ -33,13 +36,13 @@ const indicatorColor = computed<IndicatorColor>(() => {
 });
 
 const indicatorTitle = computed(() => {
-  if (gwStatus.value !== "connected") return "Gateway 未连接";
-  if (!whatsAppHealth.value) return "WhatsApp 状态未知";
+  if (gwStatus.value !== "connected") return t('channel.gwDisconnected');
+  if (!whatsAppHealth.value) return t('channel.whatsapp.statusUnknown');
   const h = whatsAppHealth.value;
-  if (h.linked && h.running && h.connected) return "WhatsApp 已连接";
-  if (h.linked && !h.running) return "WhatsApp 会话已绑定但未运行";
-  if (h.linked && !h.connected) return "WhatsApp 会话已绑定但未连接";
-  return "WhatsApp 未关联";
+  if (h.linked && h.running && h.connected) return t('channel.whatsapp.connected');
+  if (h.linked && !h.running) return t('channel.whatsapp.linkedNotRunning');
+  if (h.linked && !h.connected) return t('channel.whatsapp.linkedNotConnected');
+  return t('channel.whatsapp.notLinked');
 });
 
 function togglePopup(): void {
@@ -101,13 +104,13 @@ async function tryWebLoginStart(): Promise<"qr" | "linked" | "provider-missing" 
     if (!res?.qrDataUrl) {
       await queryChannelHealthNow();
       qrState.value = "success";
-      qrMessage.value = res?.message ?? "WhatsApp 已关联";
+      qrMessage.value = res?.message ?? t('channel.whatsapp.alreadyLinked');
       scheduleAutoClose();
       return "linked";
     }
     qrUrl.value = res.qrDataUrl;
     qrState.value = "waiting";
-    qrMessage.value = "请用手机扫描二维码";
+    qrMessage.value = t('channel.whatsapp.scanPrompt');
     return "qr";
   } catch (e) {
     const msg = String((e as Error)?.message ?? e);
@@ -122,7 +125,7 @@ async function autoInstallAndRetry(): Promise<boolean> {
   const api = getDidClawDesktopApi();
   if (!api?.openclawPluginsInstall || !api.writeChannelConfig || !api.restartOpenClawGateway) {
     qrState.value = "failed";
-    qrMessage.value = "桌面端不支持自动安装插件";
+    qrMessage.value = t('channel.whatsapp.noAutoInstall');
     return false;
   }
 
@@ -131,7 +134,7 @@ async function autoInstallAndRetry(): Promise<boolean> {
       const s = await api.getOpenClawSetupStatus();
       if (!s.openclawDirExists || !s.openclawCli?.ok) {
         qrState.value = "failed";
-        qrMessage.value = "请先完成 OpenClaw 初始化安装（重启应用将弹出向导）";
+        qrMessage.value = t('channel.needsOpenClawSetup');
         return false;
       }
     } catch {
@@ -141,45 +144,45 @@ async function autoInstallAndRetry(): Promise<boolean> {
 
   qrState.value = "installing";
   installProgress.value = 0;
-  qrMessage.value = "正在安装 WhatsApp 插件…";
+  qrMessage.value = t('channel.whatsapp.installingPlugin');
 
   const installResult = await api.openclawPluginsInstall({ packageSpec: WHATSAPP_PLUGIN_SPEC });
   if (!installResult.ok) {
     qrState.value = "failed";
-    qrMessage.value = `插件安装失败：${(installResult as { error?: string }).error ?? "未知错误"}`;
+    qrMessage.value = t('channel.whatsapp.installPluginFailed', { err: (installResult as { error?: string }).error ?? "unknown" });
     return false;
   }
   installProgress.value = 33;
 
-  qrMessage.value = "正在启用 WhatsApp 渠道…";
+  qrMessage.value = t('channel.whatsapp.enablingChannel');
   const configResult = await api.writeChannelConfig("whatsapp", { enabled: true });
   if (!configResult.ok) {
     qrState.value = "failed";
-    qrMessage.value = `启用渠道失败：${(configResult as { error?: string }).error ?? "未知错误"}`;
+    qrMessage.value = t('channel.whatsapp.enableFailed', { err: (configResult as { error?: string }).error ?? "unknown" });
     return false;
   }
   installProgress.value = 55;
 
-  qrMessage.value = "正在重启 Gateway…";
+  qrMessage.value = t('channel.gwRestarting');
   const restartResult = await api.restartOpenClawGateway();
   if (!restartResult?.ok) {
     qrState.value = "failed";
-    qrMessage.value = "Gateway 重启失败";
+    qrMessage.value = t('channel.gwRestartFailed');
     return false;
   }
   installProgress.value = 70;
 
-  qrMessage.value = "等待 Gateway 重新连接…";
+  qrMessage.value = t('channel.gwWaitingReconnect');
   await gw.reloadConnection();
   const reconnected = await waitForGatewayConnected();
   if (!reconnected) {
     qrState.value = "failed";
-    qrMessage.value = "Gateway 重启后连接超时，请稍后重试";
+    qrMessage.value = t('channel.whatsapp.gwRestartTimeoutRetry');
     return false;
   }
   installProgress.value = 90;
 
-  qrMessage.value = "正在获取二维码…";
+  qrMessage.value = t('channel.whatsapp.fetchingQr');
   installProgress.value = 100;
   return true;
 }
@@ -187,7 +190,7 @@ async function autoInstallAndRetry(): Promise<boolean> {
 async function startQrFlow(): Promise<void> {
   qrState.value = "loading";
   qrUrl.value = null;
-  qrMessage.value = "正在请求…";
+  qrMessage.value = t('channel.whatsapp.requesting');
   installProgress.value = 0;
 
   const firstAttempt = await tryWebLoginStart();
@@ -212,7 +215,7 @@ async function startQrFlow(): Promise<void> {
 
   // Still provider-missing after install
   qrState.value = "failed";
-  qrMessage.value = "插件安装完成但仍未就绪，请打开渠道设置手动操作";
+  qrMessage.value = t('channel.whatsapp.installedNotReady');
 }
 
 async function waitForQrScan(): Promise<void> {
@@ -225,46 +228,46 @@ async function waitForQrScan(): Promise<void> {
     );
     if (!waitRes?.connected) {
       qrState.value = "failed";
-      qrMessage.value = waitRes?.message ?? "扫码超时或失败";
+      qrMessage.value = waitRes?.message ?? t('channel.whatsapp.scanTimeoutOrFailed');
       return;
     }
 
-    qrMessage.value = "扫码成功，等待渠道启动…";
+    qrMessage.value = t('channel.whatsapp.scanSuccessWaiting');
     await delay(3000);
     const h = await queryChannelHealthNow();
     if (h?.running) {
       qrState.value = "success";
-      qrMessage.value = "WhatsApp 关联成功";
+      qrMessage.value = t('channel.whatsapp.linkedSuccess');
       scheduleAutoClose();
       return;
     }
 
-    qrMessage.value = "渠道未自动启动，正在重启 Gateway…";
+    qrMessage.value = t('channel.whatsapp.channelNotStartedRestarting');
     const api = getDidClawDesktopApi();
     if (!api?.restartOpenClawGateway) {
       qrState.value = "success";
-      qrMessage.value = "绑定成功，请手动重启 Gateway 以启动渠道";
+      qrMessage.value = t('channel.whatsapp.linkedNeedManualRestart');
       return;
     }
     const restartResult = await api.restartOpenClawGateway();
     if (!restartResult?.ok) {
       qrState.value = "success";
-      qrMessage.value = "绑定成功，Gateway 重启失败，请手动重启";
+      qrMessage.value = t('channel.whatsapp.linkedGwRestartFailed');
       return;
     }
     await gw.reloadConnection();
     const reconnected = await waitForGatewayConnected(20000);
     if (!reconnected) {
       qrState.value = "success";
-      qrMessage.value = "绑定成功，Gateway 连接超时，请稍后检查";
+      qrMessage.value = t('channel.whatsapp.linkedGwTimeout');
       return;
     }
     await delay(5000);
     const h2 = await queryChannelHealthNow();
     qrState.value = "success";
     qrMessage.value = h2?.running
-      ? "WhatsApp 关联成功"
-      : "绑定成功，渠道正在启动中";
+      ? t('channel.whatsapp.linkedSuccess')
+      : t('channel.whatsapp.linkedChannelStarting');
     scheduleAutoClose();
   } catch (e) {
     qrState.value = "failed";
@@ -278,7 +281,7 @@ async function doReconnect(): Promise<void> {
   const gc = gw.client;
   if (!gc || gwStatus.value !== "connected") return;
   busy.value = true;
-  reconnectMessage.value = "正在重新连接…";
+  reconnectMessage.value = t('channel.whatsapp.reconnecting');
   try {
     await gc.request("web.login.start", { force: false });
     await delay(3000);
@@ -288,28 +291,28 @@ async function doReconnect(): Promise<void> {
       return;
     }
 
-    reconnectMessage.value = "渠道仍未启动，正在重启 Gateway…";
+    reconnectMessage.value = t('channel.whatsapp.channelStillNotStarted');
     const api = getDidClawDesktopApi();
     if (!api?.restartOpenClawGateway) {
-      reconnectMessage.value = "重连未能启动渠道，请手动重启 Gateway";
+      reconnectMessage.value = t('channel.whatsapp.reconnectFailedManualRestart');
       return;
     }
     const restartResult = await api.restartOpenClawGateway();
     if (!restartResult?.ok) {
-      reconnectMessage.value = "Gateway 重启失败";
+      reconnectMessage.value = t('channel.gwRestartFailed');
       return;
     }
     await gw.reloadConnection();
     const reconnected = await waitForGatewayConnected(20000);
     if (!reconnected) {
-      reconnectMessage.value = "Gateway 重启后连接超时";
+      reconnectMessage.value = t('channel.gwRestartTimeout');
       return;
     }
     await delay(4000);
     const h2 = await queryChannelHealthNow();
-    reconnectMessage.value = h2?.running ? null : "重启完成，渠道可能需要几秒钟启动";
+    reconnectMessage.value = h2?.running ? null : t('channel.restartDoneChannelStarting');
   } catch {
-    reconnectMessage.value = "重新连接失败";
+    reconnectMessage.value = t('channel.whatsapp.reconnectFailed');
   } finally {
     busy.value = false;
   }
@@ -319,24 +322,24 @@ async function doRestartGateway(): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.restartOpenClawGateway) return;
   busy.value = true;
-  reconnectMessage.value = "正在重启 Gateway…";
+  reconnectMessage.value = t('channel.gwRestarting');
   try {
     const restartResult = await api.restartOpenClawGateway();
     if (!restartResult?.ok) {
-      reconnectMessage.value = "Gateway 重启失败";
+      reconnectMessage.value = t('channel.gwRestartFailed');
       return;
     }
     await gw.reloadConnection();
     const reconnected = await waitForGatewayConnected(20000);
     if (!reconnected) {
-      reconnectMessage.value = "Gateway 重启后连接超时";
+      reconnectMessage.value = t('channel.gwRestartTimeout');
       return;
     }
     await delay(4000);
     const h = await queryChannelHealthNow();
-    reconnectMessage.value = h?.running ? null : "重启完成，渠道可能需要几秒钟启动";
+    reconnectMessage.value = h?.running ? null : t('channel.restartDoneChannelStarting');
   } catch {
-    reconnectMessage.value = "重启失败";
+    reconnectMessage.value = t('channel.restartFailed');
   } finally {
     busy.value = false;
   }
@@ -380,7 +383,7 @@ onUnmounted(() => {
       <div v-if="popupOpen" class="wa-popup" @click.stop>
         <!-- Fully connected -->
         <template v-if="indicatorColor === 'green'">
-          <div class="wa-popup-status wa-popup-status--ok">WhatsApp 已连接</div>
+          <div class="wa-popup-status wa-popup-status--ok">{{ t('channel.whatsapp.connected') }}</div>
           <div v-if="whatsAppHealth?.lastError" class="wa-popup-detail">{{ whatsAppHealth.lastError }}</div>
         </template>
 
@@ -388,8 +391,8 @@ onUnmounted(() => {
         <template v-else-if="indicatorColor === 'amber'">
           <div class="wa-popup-status wa-popup-status--warn">
             {{ whatsAppHealth?.lastError
-              ? `已绑定，未运行（${whatsAppHealth.lastError}）`
-              : '已绑定，渠道未运行' }}
+              ? t('channel.whatsapp.linkedNotRunningErr', { err: whatsAppHealth.lastError })
+              : t('channel.whatsapp.linkedChannelNotRunning') }}
           </div>
           <div
             v-if="reconnectMessage"
@@ -399,10 +402,10 @@ onUnmounted(() => {
           </div>
           <div class="wa-popup-actions">
             <button class="wa-popup-btn wa-popup-btn--primary" :disabled="busy" @click="doReconnect">
-              {{ busy ? '重连中…' : '重新连接' }}
+              {{ busy ? t('channel.whatsapp.reconnecting') : t('channel.reconnect') }}
             </button>
             <button class="wa-popup-btn" :disabled="busy" @click="doRestartGateway">
-              重启 Gateway
+              {{ t('channel.restartGateway') }}
             </button>
           </div>
         </template>
@@ -410,9 +413,9 @@ onUnmounted(() => {
         <!-- Not linked / unknown -->
         <template v-else-if="indicatorColor === 'red' || indicatorColor === 'gray'">
           <template v-if="qrState === 'idle'">
-            <div class="wa-popup-status wa-popup-status--err">WhatsApp 未关联</div>
+            <div class="wa-popup-status wa-popup-status--err">{{ t('channel.whatsapp.notLinked') }}</div>
             <button class="wa-popup-btn wa-popup-btn--primary wa-popup-btn--full" @click="startQrFlow">
-              扫码关联
+              {{ t('channel.qrLinkBtn') }}
             </button>
           </template>
 
@@ -442,10 +445,10 @@ onUnmounted(() => {
             <div class="wa-popup-status wa-popup-status--err">{{ qrMessage }}</div>
             <div class="wa-popup-actions">
               <button class="wa-popup-btn wa-popup-btn--primary" @click="startQrFlow">
-                重试
+                {{ t('channel.retry') }}
               </button>
               <button class="wa-popup-btn" @click="openChannelSetup">
-                渠道设置
+                {{ t('channel.channelSetup') }}
               </button>
             </div>
           </template>

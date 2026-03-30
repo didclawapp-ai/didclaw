@@ -5,7 +5,10 @@ import { useSessionStore } from "@/stores/session";
 import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 import { storeToRefs } from "pinia";
 import { computed, ref, onUnmounted, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
+
+const { t } = useI18n();
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import QRCode from "qrcode";
 
@@ -53,15 +56,15 @@ const indicatorColor = computed<IndicatorColor>(() => {
 });
 
 const indicatorTitle = computed(() => {
-  if (gwStatus.value !== "connected") return "Gateway 未连接";
-  if (!wechatHealth.value) return hasWechatSession.value ? "微信已连接" : "微信状态未知";
+  if (gwStatus.value !== "connected") return t('channel.gwDisconnected');
+  if (!wechatHealth.value) return hasWechatSession.value ? t('channel.wechat.connected') : t('channel.wechat.statusUnknown');
   const h = wechatHealth.value;
-  if ((h.running && h.connected) || hasWechatSession.value) return "微信已连接";
-  if (h.linked && !h.running) return "微信会话已绑定但未运行";
-  if (h.linked && !h.connected) return "微信会话已绑定但未连接";
-  if (h.running && !h.connected) return "微信渠道已启动但未连接";
-  if (!h.running && h.connected) return "微信渠道连接中";
-  return "微信未关联";
+  if ((h.running && h.connected) || hasWechatSession.value) return t('channel.wechat.connected');
+  if (h.linked && !h.running) return t('channel.wechat.linkedNotRunning');
+  if (h.linked && !h.connected) return t('channel.wechat.linkedNotConnected');
+  if (h.running && !h.connected) return t('channel.wechat.runningNotConnected');
+  if (!h.running && h.connected) return t('channel.wechat.connecting');
+  return t('channel.wechat.notLinked');
 });
 
 function togglePopup(): void {
@@ -167,14 +170,14 @@ async function ensureWechatPluginInstalled(): Promise<boolean> {
       const state = await api.checkChannelPluginInstalled("wechat");
       if (!state.ok) {
         qrState.value = "failed";
-        qrMessage.value = `检测微信插件失败：${state.error ?? "未知错误"}`;
+        qrMessage.value = t('channel.wechat.pluginCheckFailed', { err: state.error ?? "unknown" });
         return false;
       }
       if (state.installed) return true;
     } catch (err) {
       if (!isMissingTauriCommandError(err)) {
         qrState.value = "failed";
-        qrMessage.value = `检测微信插件失败：${String((err as Error)?.message ?? err)}`;
+        qrMessage.value = t('channel.wechat.pluginCheckFailed', { err: String((err as Error)?.message ?? err) });
         return false;
       }
       // Tauri command not registered yet — fall through to install
@@ -183,20 +186,20 @@ async function ensureWechatPluginInstalled(): Promise<boolean> {
 
   if (!api?.openclawPluginsInstall) {
     qrState.value = "failed";
-    qrMessage.value = "桌面端不支持自动安装微信插件，请打开渠道设置手动操作";
+    qrMessage.value = t('channel.wechat.noAutoInstall');
     return false;
   }
 
-  qrMessage.value = "正在安装微信插件…";
+  qrMessage.value = t('channel.wechat.installingPlugin');
   const result = await api.openclawPluginsInstall({ packageSpec: WECHAT_PLUGIN_SPEC });
   if (!result.ok) {
     if (looksLikePluginAlreadyInstalled(result)) return true;
     qrState.value = "failed";
-    qrMessage.value = `微信插件安装失败：${(result as { error?: string }).error ?? "未知错误"}`;
+    qrMessage.value = t('channel.wechat.pluginInstallFailed', { err: (result as { error?: string }).error ?? "unknown" });
     return false;
   }
 
-  qrMessage.value = "微信插件安装完成，正在启动扫码…";
+  qrMessage.value = t('channel.wechat.installDoneStartingQr');
   return true;
 }
 
@@ -216,7 +219,7 @@ async function startQrFlow(): Promise<void> {
       const s = await api.getOpenClawSetupStatus();
       if (!s.openclawDirExists || !s.openclawCli?.ok) {
         qrState.value = "failed";
-        qrMessage.value = "请先完成 OpenClaw 初始化安装（重启应用将弹出向导）";
+        qrMessage.value = t('channel.needsOpenClawSetup');
         return;
       }
     } catch {
@@ -226,20 +229,20 @@ async function startQrFlow(): Promise<void> {
 
   qrState.value = "loading";
   qrDataUrl.value = null;
-  qrMessage.value = "正在检查微信插件…";
+  qrMessage.value = t('channel.wechat.checkingPlugin');
 
   const pluginReady = await ensureWechatPluginInstalled();
   if (!pluginReady) return;
 
   if (gwStatus.value !== "connected") {
-    qrMessage.value = "网关正在重启，等待恢复连接…";
+    qrMessage.value = t('channel.wechat.gwWaitingRestore');
     const reconnected = await ensureGatewayConnected();
     qrMessage.value = reconnected
-      ? "网关已恢复连接，正在启动微信登录…"
-      : "网关重连超时，仍将尝试启动微信登录…";
+      ? t('channel.wechat.gwRestoredStartingLogin')
+      : t('channel.wechat.gwTimeoutRetryLogin');
   }
 
-  qrMessage.value = "正在启动微信登录…";
+  qrMessage.value = t('channel.wechat.startingLogin');
   cleanupListeners();
   const flowId = crypto.randomUUID();
 
@@ -275,7 +278,7 @@ async function startQrFlow(): Promise<void> {
           cleanupListeners();
           if (!e.payload.ok) {
             qrState.value = "failed";
-            qrMessage.value = `登录失败（退出码 ${e.payload.exitCode ?? "?"}）`;
+            qrMessage.value = t('channel.wechat.loginFailed', { code: e.payload.exitCode ?? "?" });
             return;
           }
           void onWechatScanSuccess();
@@ -285,7 +288,7 @@ async function startQrFlow(): Promise<void> {
   }
 
   qrState.value = "waiting";
-  qrMessage.value = "等待微信扫码…";
+  qrMessage.value = t('channel.wechat.waitingQr');
 
   try {
     const gatewayUrl = gw.url.replace("ws://", "http://").replace("wss://", "https://");
@@ -298,7 +301,7 @@ async function startQrFlow(): Promise<void> {
 }
 
 async function onWechatScanSuccess(): Promise<void> {
-  qrMessage.value = "扫码成功，等待渠道启动…";
+  qrMessage.value = t('channel.wechat.scanSuccessWaiting');
   qrDataUrl.value = null;
 
   const writeApi = getDidClawDesktopApi();
@@ -313,21 +316,21 @@ async function onWechatScanSuccess(): Promise<void> {
     const h = await queryWechatHealthNow();
     if (h?.running) {
       qrState.value = "success";
-      qrMessage.value = "微信关联成功";
+      qrMessage.value = t('channel.wechat.linkedSuccess');
       scheduleAutoClose();
       return;
     }
   }
 
-  qrMessage.value = "等待 Gateway 恢复连接…";
+  qrMessage.value = t('channel.gwRestoredWaiting');
   const reconnected = await ensureGatewayConnected(35000);
   if (!reconnected) {
     qrState.value = "success";
-    qrMessage.value = "绑定成功，但 Gateway 仍在初始化，请稍后重试或手动重启 Gateway";
+    qrMessage.value = t('channel.wechat.linkedButGwNotReady');
     return;
   }
 
-  qrMessage.value = "Gateway 已恢复，正在校验微信渠道状态…";
+  qrMessage.value = t('channel.wechat.gwRestoredCheckingChannel');
   const deadline = Date.now() + 35000;
   while (Date.now() < deadline) {
     await delay(1000);
@@ -335,7 +338,7 @@ async function onWechatScanSuccess(): Promise<void> {
       const h2 = await queryWechatHealthNow();
       if (h2?.running) {
         qrState.value = "success";
-        qrMessage.value = "微信关联成功";
+        qrMessage.value = t('channel.wechat.linkedSuccess');
         scheduleAutoClose();
         return;
       }
@@ -343,7 +346,7 @@ async function onWechatScanSuccess(): Promise<void> {
   }
 
   qrState.value = "success";
-  qrMessage.value = "绑定成功，渠道可能需要几秒钟启动";
+  qrMessage.value = t('channel.wechat.linkedChannelStarting');
   scheduleAutoClose();
 }
 
@@ -351,24 +354,24 @@ async function doRestartGateway(): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.restartOpenClawGateway) return;
   busy.value = true;
-  reconnectMessage.value = "正在重启 Gateway…";
+  reconnectMessage.value = t('channel.gwRestarting');
   try {
     const result = await api.restartOpenClawGateway();
     if (!result?.ok) {
-      reconnectMessage.value = "Gateway 重启失败";
+      reconnectMessage.value = t('channel.gwRestartFailed');
       return;
     }
     await gw.reloadConnection();
     const reconnected = await waitForGatewayConnected(20000);
     if (!reconnected) {
-      reconnectMessage.value = "Gateway 重启后连接超时";
+      reconnectMessage.value = t('channel.gwRestartTimeout');
       return;
     }
     await delay(4000);
     const h = await queryWechatHealthNow();
-    reconnectMessage.value = h?.running ? null : "重启完成，渠道可能需要几秒钟启动";
+    reconnectMessage.value = h?.running ? null : t('channel.restartDoneChannelStarting');
   } catch {
-    reconnectMessage.value = "重启失败";
+    reconnectMessage.value = t('channel.restartFailed');
   } finally {
     busy.value = false;
   }
@@ -413,7 +416,7 @@ function scheduleAutoClose(): void {
       >
         <!-- Fully connected -->
         <template v-if="indicatorColor === 'green'">
-          <div class="wc-popup-status wc-popup-status--ok">微信已连接</div>
+          <div class="wc-popup-status wc-popup-status--ok">{{ t('channel.wechat.connected') }}</div>
           <div
             v-if="wechatHealth?.lastError"
             class="wc-popup-detail"
@@ -426,8 +429,8 @@ function scheduleAutoClose(): void {
         <template v-else-if="indicatorColor === 'amber'">
           <div class="wc-popup-status wc-popup-status--warn">
             {{ wechatHealth?.lastError
-              ? `微信渠道未就绪（${wechatHealth.lastError}）`
-              : '微信渠道未完全就绪' }}
+              ? t('channel.wechat.channelNotReadyErr', { err: wechatHealth.lastError })
+              : t('channel.wechat.channelNotFullyReady') }}
           </div>
           <div
             v-if="reconnectMessage"
@@ -441,14 +444,14 @@ function scheduleAutoClose(): void {
               :disabled="busy"
               @click="doRestartGateway"
             >
-              {{ busy ? '重启中…' : '重启 Gateway' }}
+              {{ busy ? t('channel.restarting') : t('channel.restartGateway') }}
             </button>
             <button
               class="wc-popup-btn"
               :disabled="busy"
               @click="startQrFlow"
             >
-              重新关联
+              {{ t('channel.wechat.relink') }}
             </button>
           </div>
         </template>
@@ -456,12 +459,12 @@ function scheduleAutoClose(): void {
         <!-- Not linked / unknown -->
         <template v-else-if="indicatorColor === 'red' || indicatorColor === 'gray'">
           <template v-if="qrState === 'idle'">
-            <div class="wc-popup-status wc-popup-status--err">微信未关联</div>
+            <div class="wc-popup-status wc-popup-status--err">{{ t('channel.wechat.notLinked') }}</div>
             <button
               class="wc-popup-btn wc-popup-btn--primary wc-popup-btn--full"
               @click="startQrFlow"
             >
-              扫码关联
+              {{ t('channel.qrLinkBtn') }}
             </button>
           </template>
 
@@ -476,7 +479,7 @@ function scheduleAutoClose(): void {
             >
               <img
                 :src="qrDataUrl"
-                alt="微信 QR"
+                :alt="t('channel.wechat.qrAlt')"
                 class="wc-popup-qr-img"
               >
             </div>
@@ -484,7 +487,7 @@ function scheduleAutoClose(): void {
               v-else
               class="wc-popup-qr-placeholder"
             >
-              等待二维码生成…
+              {{ t('channel.wechat.waitingQrGen') }}
             </div>
             <div class="wc-popup-status wc-popup-status--loading">{{ qrMessage }}</div>
           </template>
@@ -500,13 +503,13 @@ function scheduleAutoClose(): void {
                 class="wc-popup-btn wc-popup-btn--primary"
                 @click="startQrFlow"
               >
-                重试
+                {{ t('channel.retry') }}
               </button>
               <button
                 class="wc-popup-btn"
                 @click="openChannelSetup"
               >
-                渠道设置
+                {{ t('channel.channelSetup') }}
               </button>
             </div>
           </template>
