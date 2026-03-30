@@ -61,7 +61,13 @@ pub fn set_shortcut_key(app: &AppHandle, key: String) -> Result<(), String> {
     }
     app.global_shortcut()
         .register(trimmed)
-        .map_err(|e| format!("无法注册快捷键 \"{trimmed}\": {e}"))?;
+        .map_err(|e| {
+            if crate::app_locale::is_en() {
+                format!("Failed to register shortcut \"{trimmed}\": {e}")
+            } else {
+                format!("无法注册快捷键 \"{trimmed}\": {e}")
+            }
+        })?;
     db_set(app, trimmed)?;
     Ok(())
 }

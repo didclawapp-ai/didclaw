@@ -1,5 +1,5 @@
 import { hydrateDidClawKvCache } from "@/lib/didclaw-kv";
-import { i18n } from "@/i18n";
+import { i18n, syncTauriLocaleAfterI18nReady } from "@/i18n";
 import { createPinia } from "pinia";
 import { createApp } from "vue";
 import App from "./App.vue";
@@ -51,5 +51,6 @@ void (async () => {
   app.use(createPinia());
   app.use(router);
   app.use(i18n);
+  await syncTauriLocaleAfterI18nReady();
   app.mount("#app");
 })();

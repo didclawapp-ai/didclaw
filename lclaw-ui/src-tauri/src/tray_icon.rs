@@ -1,4 +1,4 @@
-//! System tray icon: persistent tray presence, hide-to-tray on window close.
+//! System tray: hide-to-tray on close, context menu.
 
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -6,7 +6,9 @@ use tauri::{
     App, AppHandle, Manager,
 };
 
-/// Shows and focuses the main window.
+pub const TRAY_ID: &str = "didclaw-tray";
+
+/// Show and focus the main window.
 pub fn show_main_window(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -15,20 +17,48 @@ pub fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-/// Creates the system tray icon with a context menu.
-/// Should be called inside `app.setup()`.
-pub fn setup_tray(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-    let show_item = MenuItem::with_id(app, "show", "显示 DidClaw", true, None::<&str>)?;
-    let sep = PredefinedMenuItem::separator(app)?;
-    let quit_item = MenuItem::with_id(app, "quit", "退出 DidClaw", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show_item, &sep, &quit_item])?;
+fn tray_strings() -> (&'static str, &'static str) {
+    if crate::app_locale::is_en() {
+        ("Show DidClaw", "Quit DidClaw")
+    } else {
+        ("显示 DidClaw", "退出 DidClaw")
+    }
+}
 
+fn build_tray_menu<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, Box<dyn std::error::Error>> {
+    let (show_t, quit_t) = tray_strings();
+    let show_item = MenuItem::with_id(app, "show", show_t, true, None::<&str>)?;
+    let sep = PredefinedMenuItem::separator(app)?;
+    let quit_item = MenuItem::with_id(app, "quit", quit_t, true, None::<&str>)?;
+    Ok(Menu::with_items(app, &[&show_item, &sep, &quit_item])?)
+}
+
+/// Recreate tray menu labels after locale change (best-effort).
+pub fn refresh_tray_menu<R: tauri::Runtime>(app: &AppHandle<R>) {
+    let Ok(menu) = build_tray_menu(app) else {
+        return;
+    };
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
+/// Create tray icon (call from `app.setup()`).
+pub fn setup_tray(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    crate::app_locale::init_default_from_env();
+    let menu = build_tray_menu(app.handle())?;
     let icon = app
         .default_window_icon()
         .cloned()
-        .ok_or("未找到默认窗口图标")?;
+        .ok_or_else(|| {
+            if crate::app_locale::is_en() {
+                "Default window icon not found"
+            } else {
+                "未找到默认窗口图标"
+            }
+        })?;
 
-    TrayIconBuilder::new()
+    TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .tooltip("DidClaw")
         .menu(&menu)
@@ -36,7 +66,7 @@ pub fn setup_tray(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
             "quit" => {
-                crate::launch_log::line("tray: 用户选择退出");
+                crate::launch_log::line("tray: user chose quit");
                 app.exit(0);
             }
             _ => {}
@@ -61,6 +91,6 @@ pub fn setup_tray(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
-    crate::launch_log::line("tray: 系统托盘图标已创建");
+    crate::launch_log::line("tray: tray icon created");
     Ok(())
 }

@@ -724,6 +724,18 @@ export default {
       " — On the gateway host run: openclaw devices list / openclaw devices approve <id>",
   },
 
+  // ─── Tauri IPC / native layer (errorKey / invoke codes) ─
+  tauriErr: {
+    shellExternalEmpty: "Link cannot be empty",
+    shellExternalScheme: "Only http, https, and mailto links are allowed",
+    saveBase64TooLarge: "File too large (over ~50 MB limit)",
+    saveBase64DecodeFailed: "Base64 decode failed: {detail}",
+    emailPrepareUnsupported: "Email prepare is not supported on this platform",
+    kvKeyTooLong: "Key is too long",
+    kvKeyNotAllowed: "Key is not allowed",
+    kvValueTooLarge: "Value is too large",
+  },
+
   // ─── AI Provider setup AiProviderSetup ────────────────
   aiProvider: {
     primaryLabel: "Primary model",

@@ -1,7 +1,14 @@
-//! 桌面端 IPC 的 Tauri 实现；未迁移完成的命令返回明确错误，便于联调。
+//! Desktop Tauri IPC; errors use stable codes or JSON `errorKey` for vue-i18n `tauriErr.*`.
 
 use serde_json::{json, Value};
 use std::fs;
+
+#[tauri::command]
+pub fn didclaw_set_app_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> {
+    crate::app_locale::set_locale(locale.trim());
+    crate::tray_icon::refresh_tray_menu(&app);
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn preview_open_local(file_url: String) -> Result<Value, String> {
@@ -40,13 +47,21 @@ pub fn shell_open_file_url(file_url: String) -> Result<Value, String> {
 pub fn shell_open_external_url(url: String) -> Result<Value, String> {
     let trimmed = url.trim();
     if trimmed.is_empty() {
-        return Ok(json!({"ok": false, "error": "链接不能为空"}));
+        return Ok(json!({
+            "ok": false,
+            "errorKey": "shellExternalEmpty",
+            "error": "链接不能为空",
+        }));
     }
     let lower = trimmed.to_ascii_lowercase();
     let allowed =
         lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("mailto:");
     if !allowed {
-        return Ok(json!({"ok": false, "error": "仅支持打开 http/https/mailto 外链"}));
+        return Ok(json!({
+            "ok": false,
+            "errorKey": "shellExternalScheme",
+            "error": "仅支持打开 http/https/mailto 外链",
+        }));
     }
     open::that(trimmed).map_err(|e| e.to_string())?;
     Ok(json!({"ok": true}))
@@ -62,12 +77,24 @@ pub fn dialog_save_base64_file(
     // base64 膨胀比约 1.37x；限制 50MB 二进制对应约 68MB base64 输入
     const MAX_BASE64_INPUT: usize = 68 * 1024 * 1024;
     if base64_data.len() > MAX_BASE64_INPUT {
-        return Err("文件过大（超过 50MB 限制）".into());
+        return Ok(json!({
+            "ok": false,
+            "errorKey": "saveBase64TooLarge",
+            "error": "文件过大（超过 50MB 限制）",
+        }));
     }
     let cleaned: String = base64_data.chars().filter(|c| !c.is_whitespace()).collect();
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(cleaned.as_bytes())
-        .map_err(|e| format!("base64 解码失败: {e}"))?;
+    let bytes = match base64::engine::general_purpose::STANDARD.decode(cleaned.as_bytes()) {
+        Ok(b) => b,
+        Err(e) => {
+            return Ok(json!({
+                "ok": false,
+                "errorKey": "saveBase64DecodeFailed",
+                "detail": e.to_string(),
+                "error": format!("base64 decode failed: {e}"),
+            }));
+        }
+    };
     let name = default_file_name.trim();
     let name = if name.is_empty() {
         "image.png".to_string()
@@ -119,7 +146,11 @@ pub fn shell_prepare_email_with_local_file(file_url: String) -> Result<Value, St
     }
     #[cfg(not(windows))]
     {
-        return Ok(json!({"ok": false, "error": "Tauri: 当前平台「邮件准备」尚未实现"}));
+        return Ok(json!({
+            "ok": false,
+            "errorKey": "emailPrepareUnsupported",
+            "error": "Tauri: 当前平台「邮件准备」尚未实现",
+        }));
     }
     let mut clip = arboard::Clipboard::new().map_err(|e| e.to_string())?;
     clip
@@ -148,7 +179,12 @@ pub fn shell_copy_local_file_for_share(file_url: String, label: Option<String>) 
     let href = url::Url::from_file_path(&p)
         .map(|u| u.to_string())
         .unwrap_or_default();
-    let text = format!("{name}\n路径：{}\n{href}", p.to_string_lossy());
+    let path_label = if crate::app_locale::is_en() {
+        "Path:"
+    } else {
+        "路径："
+    };
+    let text = format!("{name}\n{path_label} {}\n{href}", p.to_string_lossy());
     let mut clip = arboard::Clipboard::new().map_err(|e| e.to_string())?;
     clip.set_text(text).map_err(|e| e.to_string())?;
     Ok(json!({"ok": true}))
@@ -156,11 +192,16 @@ pub fn shell_copy_local_file_for_share(file_url: String, label: Option<String>) 
 
 #[tauri::command]
 pub fn dialog_open_file() -> Result<Option<String>, String> {
+    let (md_label, img_label) = if crate::app_locale::is_en() {
+        ("Markdown / Text", "Images")
+    } else {
+        ("Markdown / 文本", "图片")
+    };
     let file = rfd::FileDialog::new()
         .add_filter("Office", &["ppt", "pptx", "xls", "xlsx", "doc", "docx"])
-        .add_filter("Markdown / 文本", &["md", "markdown", "txt", "log", "csv"])
+        .add_filter(md_label, &["md", "markdown", "txt", "log", "csv"])
         .add_filter("PDF", &["pdf"])
-        .add_filter("图片", &["png", "jpg", "jpeg", "gif", "webp", "svg"])
+        .add_filter(img_label, &["png", "jpg", "jpeg", "gif", "webp", "svg"])
         .pick_file();
     Ok(file.and_then(|p| url::Url::from_file_path(&p).ok().map(|u| u.to_string())))
 }

@@ -6,8 +6,11 @@
 
 ## [未发布]
 
+## [0.8.1] - 2026-03-30
+
 ### 优化
 
+- **Tauri 与界面语言同步及 IPC 错误 i18n**：Rust 侧 `app_locale` 与 `didclaw_set_app_locale`，托盘菜单、部分文件对话框与 Shell 提示随应用语言切换；外链打开、Base64 另存、邮件准备、KV 校验等返回稳定 `errorKey`；前端新增 `lib/tauri-i18n.ts` 与 `tauriErr.*` 文案，在 `i18n` 就绪后同步调用 Tauri 设置语言；`vite-env.d.ts` 补充 `openExternalUrl` / `saveBase64FileAs` 可选 `errorKey`。
 - **i18n 补全（filePreview / gateway store）**：文件预览 store 中内嵌图标签、另存/全文标题、桌面预览与文本加载错误、LibreOffice 提示等接入 `preview.*`；网关 store 的 hello 文案、断开连接说明与配对提示接入 `gatewayConn.*`；相关注释改为英文（gateway 仅覆盖已改动段落）。
 - **i18n 补全（openclaw-model-guards / session-display）**：主模型 glm-image 不兼容说明改为 `openClawModel.glmImagePrimaryIncompatible`；会话展示「新对话」「已结束」后缀与「无活跃时间」、历史时间 `toLocaleString` 随应用语言切换；导出 `sessionEndedSuffix` / `stripSessionEndedSuffix` / `labelHasEndedSuffix`，`session` store 关闭会话时的 ghost 行标签与上述后缀一致并兼容旧版中文后缀。
 - **i18n 补全（open-external / openclaw-config-hint / openclaw-ai-config）**：桌面端打开外链失败默认文案、保存模型配置后的提示（`getOpenClawAfterWriteHint` 替代常量）、读取 AI 快照失败及模型选择器/Provider 视图兜底文案（别名、当前默认、检测说明、Base URL 标签）均接入 vue-i18n，新增 `openExternal.*`、`openClawConfig.*`、`openClawAi.*`；`chat` store 的 `flashOpenClawConfigHint` 无参时使用当前语言提示。

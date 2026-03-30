@@ -117,12 +117,12 @@ pub fn write_gateway_merged_map(app: &tauri::AppHandle, merged: &Map<String, Val
 
 fn validate_user_kv_key(key: &str) -> Result<(), String> {
     if key.len() > MAX_USER_KV_KEY_LEN {
-        return Err("key 过长".into());
+        return Err(crate::tauri_user_error::KV_KEY_TOO_LONG.into());
     }
     if ALLOWED_USER_KV_KEYS.contains(&key) {
         return Ok(());
     }
-    Err("不允许的 key".into())
+    Err(crate::tauri_user_error::KV_KEY_NOT_ALLOWED.into())
 }
 
 pub fn user_kv_get(app: &tauri::AppHandle, key: &str) -> Result<Option<String>, String> {
@@ -142,7 +142,7 @@ pub fn user_kv_get(app: &tauri::AppHandle, key: &str) -> Result<Option<String>, 
 pub fn user_kv_set(app: &tauri::AppHandle, key: &str, value: &str) -> Result<(), String> {
     validate_user_kv_key(key)?;
     if value.as_bytes().len() > MAX_USER_KV_VALUE_BYTES {
-        return Err("value 过大".into());
+        return Err(crate::tauri_user_error::KV_VALUE_TOO_LARGE.into());
     }
     let conn = open_connection(app)?;
     conn.execute(

@@ -1,5 +1,6 @@
 import { i18n } from "@/i18n";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
+import { translateTauriInvokeError, translateTauriShellResult } from "@/lib/tauri-i18n";
 import {
   defaultFileNameForImageMime,
   findFirstEmbeddedDataImage,
@@ -162,13 +163,22 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
         const r = (await api.saveBase64FileAs(
           s.base64Payload,
           s.defaultFileName,
-        )) as { ok: boolean; saved?: boolean; error?: string };
+        )) as {
+          ok: boolean;
+          saved?: boolean;
+          error?: string;
+          errorKey?: string;
+          detail?: string;
+        };
         if (!r.ok) {
-          return { ok: false, error: r.error ?? i18n.global.t("preview.saveAsFailed") };
+          return {
+            ok: false,
+            error: translateTauriShellResult(r) || i18n.global.t("preview.saveAsFailed"),
+          };
         }
         return { ok: true, saved: Boolean(r.saved) };
       } catch (e) {
-        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+        return { ok: false, error: translateTauriInvokeError(e) };
       }
     }
     try {

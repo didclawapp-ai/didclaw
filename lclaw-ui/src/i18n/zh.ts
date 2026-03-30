@@ -723,6 +723,18 @@ export default {
       " — 请在网关主机执行: openclaw devices list / openclaw devices approve <id>",
   },
 
+  // ─── Tauri IPC / 原生层（errorKey / invoke 错误码）──────
+  tauriErr: {
+    shellExternalEmpty: "链接不能为空",
+    shellExternalScheme: "仅支持打开 http/https/mailto 外链",
+    saveBase64TooLarge: "文件过大（超过约 50MB 限制）",
+    saveBase64DecodeFailed: "Base64 解码失败：{detail}",
+    emailPrepareUnsupported: "当前平台暂不支持此邮件准备操作",
+    kvKeyTooLong: "键名过长",
+    kvKeyNotAllowed: "不允许的键名",
+    kvValueTooLarge: "保存内容过大",
+  },
+
   // ─── AI Provider 配置 AiProviderSetup ──────────────────
   aiProvider: {
     primaryLabel: "当前主力模型",

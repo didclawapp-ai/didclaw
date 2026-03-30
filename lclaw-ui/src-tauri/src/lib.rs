@@ -1,7 +1,9 @@
+mod app_locale;
 mod commands;
 mod general_settings;
 mod global_shortcut;
 mod didclaw_db;
+mod tauri_user_error;
 mod didclaw_update;
 mod tray_icon;
 mod openclaw_backup;
@@ -243,6 +245,7 @@ pub fn run() {
             commands::set_prevent_sleep_enabled,
             commands::get_global_shortcut_key,
             commands::set_global_shortcut_key,
+            commands::didclaw_set_app_locale,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { getDidClawDesktopApi } from "@/lib/electron-bridge";
+import { translateTauriInvokeError } from "@/lib/tauri-i18n";
 import { onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -57,7 +58,7 @@ async function applyShortcut(): Promise<void> {
       shortcutSuccessTimer = null;
     }, 2000);
   } catch (e) {
-    shortcutError.value = String(e);
+    shortcutError.value = translateTauriInvokeError(e);
   } finally {
     shortcutBusy.value = false;
   }
