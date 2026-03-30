@@ -26,8 +26,83 @@ const localSettings = useLocalSettingsStore();
 const chat = useChatStore();
 const gw = useGatewayStore();
 
-type WizardPhase = "env" | "model";
+type WizardPhase = "env" | "model" | "channels";
 const phase = ref<WizardPhase>("env");
+
+// ── Channel pre-install step ──────────────────────────────────────────────────
+
+interface OnboardingChannel {
+  id: string;
+  icon: string;
+  packageSpec: string;
+  nameKey: string;
+  descKey: string;
+}
+
+const ONBOARDING_CHANNELS: OnboardingChannel[] = [
+  { id: "whatsapp", icon: "💬", packageSpec: "@openclaw/whatsapp",              nameKey: "channel.whatsapp.name", descKey: "channel.whatsapp.desc" },
+  { id: "wechat",   icon: "🟢", packageSpec: "@tencent-weixin/openclaw-weixin", nameKey: "channel.wechat.name",   descKey: "channel.wechat.desc" },
+  { id: "wecom",    icon: "💼", packageSpec: "@wecom/wecom-openclaw-plugin",    nameKey: "channel.wecom.name",    descKey: "channel.wecom.desc" },
+];
+
+type ChannelPluginStatus = "idle" | "queued" | "installing" | "done" | "failed";
+
+const channelSelections = ref<Set<string>>(new Set(["whatsapp", "wechat"]));
+const channelPluginStatus = ref<Record<string, ChannelPluginStatus>>({});
+const channelInstallBusy = ref(false);
+
+const channelInstallFinished = computed(() => {
+  const selected = ONBOARDING_CHANNELS.filter((c) => channelSelections.value.has(c.id));
+  if (selected.length === 0) return false;
+  return selected.every(
+    (c) => channelPluginStatus.value[c.id] === "done" || channelPluginStatus.value[c.id] === "failed",
+  );
+});
+
+function toggleChannel(id: string): void {
+  const next = new Set(channelSelections.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  channelSelections.value = next;
+}
+
+function finishWizard(): void {
+  visible.value = false;
+}
+
+function skipChannels(): void {
+  finishWizard();
+}
+
+async function installSelectedChannels(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  const selected = ONBOARDING_CHANNELS.filter((c) => channelSelections.value.has(c.id));
+
+  if (!api?.openclawPluginsInstall || selected.length === 0) {
+    finishWizard();
+    return;
+  }
+
+  channelInstallBusy.value = true;
+  const initial: Record<string, ChannelPluginStatus> = {};
+  for (const c of selected) initial[c.id] = "queued";
+  channelPluginStatus.value = initial;
+
+  for (const ch of selected) {
+    channelPluginStatus.value = { ...channelPluginStatus.value, [ch.id]: "installing" };
+    try {
+      const result = await api.openclawPluginsInstall({ packageSpec: ch.packageSpec });
+      channelPluginStatus.value = {
+        ...channelPluginStatus.value,
+        [ch.id]: result.ok ? "done" : "failed",
+      };
+    } catch {
+      channelPluginStatus.value = { ...channelPluginStatus.value, [ch.id]: "failed" };
+    }
+  }
+
+  channelInstallBusy.value = false;
+}
 
 const visible = ref(false);
 const loading = ref(true);
@@ -196,9 +271,11 @@ const canRunEnsureInstall = computed(() => {
   return Boolean(api?.runEnsureOpenclawWindowsInstall);
 });
 
-const dialogAriaLabel = computed(() =>
-  phase.value === "model" ? t("wizard.ariaConfigModel") : t("wizard.ariaInstall"),
-);
+const dialogAriaLabel = computed(() => {
+  if (phase.value === "model") return t("wizard.ariaConfigModel");
+  if (phase.value === "channels") return t("wizard.ariaChannels");
+  return t("wizard.ariaInstall");
+});
 
 async function refreshStatus(): Promise<void> {
   const api = getDidClawDesktopApi();
@@ -429,9 +506,9 @@ async function applyOllamaQuickSetup(): Promise<void> {
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
     afterOpenClawModelConfigSaved();
-    visible.value = false;
     gw.disconnect();
     scheduleDeferredGatewayConnect(gw);
+    phase.value = "channels";
   } catch (e) {
     modelError.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -450,8 +527,8 @@ function onModelSkipLater(): void {
   }
   setModelConfigDeferred(true);
   markFirstRunModelStepComplete();
-  visible.value = false;
   scheduleDeferredGatewayConnect(gw);
+  phase.value = "channels";
 }
 
 function onRecheckFirstRunEvent(): void {
@@ -622,6 +699,80 @@ onUnmounted(() => {
               </button>
             </div>
           </template>
+        </template>
+
+        <!-- ── Channel pre-install step ── -->
+        <template v-else-if="phase === 'channels'">
+          <h2 class="first-run-title">{{ t('wizard.channelsTitle') }}</h2>
+          <p class="first-run-lead">{{ t('wizard.channelsLead') }}</p>
+
+          <div class="channel-cards">
+            <label
+              v-for="ch in ONBOARDING_CHANNELS"
+              :key="ch.id"
+              class="channel-card"
+              :class="{
+                'channel-card--selected': channelSelections.has(ch.id),
+                'channel-card--disabled': channelInstallBusy,
+              }"
+            >
+              <input
+                type="checkbox"
+                class="channel-card-checkbox"
+                :checked="channelSelections.has(ch.id)"
+                :disabled="channelInstallBusy"
+                @change="toggleChannel(ch.id)"
+              >
+              <span class="channel-card-icon" aria-hidden="true">{{ ch.icon }}</span>
+              <span class="channel-card-body">
+                <strong class="channel-card-name">{{ t(ch.nameKey) }}</strong>
+                <span class="channel-card-desc">{{ t(ch.descKey) }}</span>
+              </span>
+              <!-- Per-channel install status -->
+              <span
+                v-if="channelPluginStatus[ch.id]"
+                class="channel-card-status"
+                :class="`channel-card-status--${channelPluginStatus[ch.id]}`"
+              >
+                <template v-if="channelPluginStatus[ch.id] === 'queued'">–</template>
+                <template v-else-if="channelPluginStatus[ch.id] === 'installing'">⟳</template>
+                <template v-else-if="channelPluginStatus[ch.id] === 'done'">✓</template>
+                <template v-else-if="channelPluginStatus[ch.id] === 'failed'">✗</template>
+              </span>
+            </label>
+          </div>
+
+          <p v-if="channelInstallFinished" class="first-run-lead channel-done-hint">
+            {{ t('wizard.channelsDoneDesc') }}
+          </p>
+
+          <div class="first-run-actions first-run-channels-actions">
+            <button
+              v-if="!channelInstallFinished"
+              type="button"
+              class="lc-btn lc-btn-primary"
+              :disabled="channelInstallBusy || channelSelections.size === 0"
+              @click="() => void installSelectedChannels()"
+            >
+              {{ channelInstallBusy ? t('wizard.channelsInstalling') : t('wizard.channelsInstallBtn') }}
+            </button>
+            <button
+              v-if="channelInstallFinished"
+              type="button"
+              class="lc-btn lc-btn-primary"
+              @click="finishWizard"
+            >
+              {{ t('wizard.channelsDone') }} →
+            </button>
+            <button
+              type="button"
+              class="lc-btn lc-btn-ghost"
+              :disabled="channelInstallBusy"
+              @click="skipChannels"
+            >
+              {{ t('wizard.channelsSkip') }}
+            </button>
+          </div>
         </template>
       </div>
     </div>
@@ -947,5 +1098,84 @@ onUnmounted(() => {
 }
 .first-run-model-actions {
   margin-top: 2px;
+}
+
+/* ── Channel pre-install cards ── */
+.channel-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.channel-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px;
+  border-radius: 8px;
+  border: 2px solid var(--lc-border-strong, #3d4f63);
+  background: var(--lc-bg-raised, #232d3a);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.channel-card--selected {
+  border-color: rgba(45, 212, 191, 0.55);
+  background: linear-gradient(145deg, rgba(45, 212, 191, 0.07) 0%, var(--lc-bg-raised, #232d3a) 60%);
+}
+.channel-card--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.channel-card-checkbox {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--lc-accent, #2dd4bf);
+}
+.channel-card-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.channel-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.channel-card-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--lc-text, #e8eef4);
+}
+.channel-card-desc {
+  font-size: 0.72rem;
+  color: var(--lc-text-muted, #8b9cb0);
+  line-height: 1.4;
+}
+.channel-card-status {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  width: 18px;
+  text-align: center;
+}
+.channel-card-status--queued    { color: var(--lc-text-muted, #8b9cb0); }
+.channel-card-status--installing { color: var(--lc-accent, #2dd4bf); animation: spin 1.2s linear infinite; }
+.channel-card-status--done      { color: #3fb950; }
+.channel-card-status--failed    { color: var(--lc-error, #f87171); }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.channel-done-hint {
+  margin-top: 0;
+  font-size: 0.78rem;
+  color: #3fb950;
+}
+.first-run-channels-actions {
+  margin-top: 4px;
 }
 </style>

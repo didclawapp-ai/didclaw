@@ -596,6 +596,7 @@ export default {
     modelTitle: "配置模型",
     ariaInstall: "安装 OpenClaw",
     ariaConfigModel: "配置模型",
+    ariaChannels: "预安装渠道插件",
 
     envLead: "检测到未安装openclaw，请点击下面按键进行安装初始化。",
     modelLead: "不配置模型将无法连接AI进行对话，请选择本地或者云端AI进行配置",
@@ -663,6 +664,15 @@ export default {
     installNoOutputHint3: "        ③ 脚本文件未找到",
     installNoOutputSuggest: "[建议] 请等待片刻后点击「重新检测」，或手动运行：npm install -g openclaw@latest",
     installErrorResult: "[结果] {error}（退出码 {code}）",
+
+    // 渠道插件预安装步骤
+    channelsTitle:      "预安装渠道插件",
+    channelsLead:       "选择你想要接入的消息平台。插件将在后台静默安装，之后只需扫码或粘贴 Token 即可完成绑定。",
+    channelsInstallBtn: "安装已选插件",
+    channelsInstalling: "安装中…",
+    channelsSkip:       "跳过",
+    channelsDone:       "继续",
+    channelsDoneDesc:   "插件安装完成。随时打开「渠道设置」完成扫码绑定。",
   },
 
   // ─── 更新提示 OpenClawUpdatePrompt ───────────────────

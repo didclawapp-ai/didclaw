@@ -596,6 +596,7 @@ export default {
     modelTitle: "Configure Model",
     ariaInstall: "Install OpenClaw",
     ariaConfigModel: "Configure Model",
+    ariaChannels: "Pre-install Channel Plugins",
 
     envLead: "OpenClaw is not installed. Click the button below to install and initialize.",
     modelLead: "Without a model configured you won't be able to chat with AI. Choose a local or cloud AI to configure.",
@@ -663,6 +664,15 @@ export default {
     installNoOutputHint3: "        ③ Script file not found",
     installNoOutputSuggest: "[Suggest] Wait a moment and click Re-check, or run manually: npm install -g openclaw@latest",
     installErrorResult: "[Result] {error} (exit code {code})",
+
+    // channel pre-install step
+    channelsTitle:      "Pre-install Channel Plugins",
+    channelsLead:       "Select the messaging platforms you want to connect. Plugins will be installed in the background — just scan a QR code or paste a token later to finish linking.",
+    channelsInstallBtn: "Install selected",
+    channelsInstalling: "Installing…",
+    channelsSkip:       "Skip for now",
+    channelsDone:       "Continue",
+    channelsDoneDesc:   "Plugins installed. Open Channel Settings at any time to complete QR linking.",
   },
 
   // ─── Update prompt ────────────────────────────────────

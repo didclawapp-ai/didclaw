@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 新增
+
+- **安装向导新增渠道插件预安装步骤**：模型配置完成后出现第三步「预安装渠道插件」，默认勾选 WhatsApp 和 WeChat，可选 WeCom，逐一调用 `openclawPluginsInstall` 静默安装；安装中显示逐条进度（排队/安装中/完成/失败），安装完成后提示去渠道设置扫码绑定；可跳过。解决了首次安装后手动打开渠道设置再触发插件下载的流程断点。
+
 ### 修复
 
 - **Gateway 连接握手失败（client.id 校验错误）**：`GATEWAY_CLIENT_ID` 从 `"didclaw"` 改为 `"openclaw-control-ui"`，与 Gateway `GATEWAY_CLIENT_IDS` 枚举对齐。此前值不在 Gateway schema 白名单中，导致连接握手被拒、首次安装后 AI 引导无法出现。
