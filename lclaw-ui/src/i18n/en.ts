@@ -989,6 +989,12 @@ export default {
       token:    "Bot Token",
       tokenPlh: "Paste Discord Bot Token",
     },
+    gmail: {
+      name: "Gmail",
+      desc: "2 billion users worldwide. Auto-reply and smart routing for emails.",
+      docLink: "https://docs.openclaw.ai/channels/gmail",
+      hint: "Authorize DidClaw to access your Gmail via OAuth. A browser window will open for Google sign-in.",
+    },
     wecom: {
       name: "WeCom (企业微信)",
       desc: "Chinese enterprise teams. Official WebSocket connection.",

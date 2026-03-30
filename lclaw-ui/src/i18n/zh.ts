@@ -988,6 +988,12 @@ export default {
       token:    "Bot Token",
       tokenPlh: "粘贴 Discord Bot Token",
     },
+    gmail: {
+      name: "Gmail",
+      desc: "全球 20 亿用户，邮件自动回复与智能路由。",
+      docLink: "https://docs.openclaw.ai/channels/gmail",
+      hint: "通过 OAuth 授权 DidClaw 访问你的 Gmail 账号，浏览器将打开 Google 登录页面完成授权。",
+    },
     wecom: {
       name: "企业微信",
       desc: "中国企业团队首选，官方长连接支持。",

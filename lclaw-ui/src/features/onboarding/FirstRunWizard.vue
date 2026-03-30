@@ -41,13 +41,14 @@ interface OnboardingChannel {
 
 const ONBOARDING_CHANNELS: OnboardingChannel[] = [
   { id: "whatsapp", icon: "💬", packageSpec: "@openclaw/whatsapp",              nameKey: "channel.whatsapp.name", descKey: "channel.whatsapp.desc" },
+  { id: "gmail",    icon: "📧", packageSpec: "@openclaw/gmail",                 nameKey: "channel.gmail.name",    descKey: "channel.gmail.desc" },
   { id: "wechat",   icon: "🟢", packageSpec: "@tencent-weixin/openclaw-weixin", nameKey: "channel.wechat.name",   descKey: "channel.wechat.desc" },
   { id: "wecom",    icon: "💼", packageSpec: "@wecom/wecom-openclaw-plugin",    nameKey: "channel.wecom.name",    descKey: "channel.wecom.desc" },
 ];
 
 type ChannelPluginStatus = "idle" | "queued" | "installing" | "done" | "failed";
 
-const channelSelections = ref<Set<string>>(new Set(["whatsapp", "wechat"]));
+const channelSelections = ref<Set<string>>(new Set(["whatsapp", "gmail", "wechat"]));
 const channelPluginStatus = ref<Record<string, ChannelPluginStatus>>({});
 const channelInstallBusy = ref(false);
 /** Session-only: true once the user has passed through the channels step */

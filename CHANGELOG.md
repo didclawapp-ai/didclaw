@@ -8,6 +8,7 @@
 
 ### 新增
 
+- **安装向导渠道预安装新增 Gmail**：将 Gmail（`@openclaw/gmail`）加入 `ONBOARDING_CHANNELS`，默认勾选（与 WhatsApp、WeChat 一起），覆盖国内外高频渠道；同步补充中英文 i18n。
 - **安装向导新增渠道插件预安装步骤**：调整向导步骤顺序为「安装 OpenClaw → 选择渠道插件 → 配置 AI 模型」（原为渠道在最后）。渠道选择步骤默认勾选 WhatsApp 和 WeChat，可选 WeCom，逐一调用 `openclawPluginsInstall` 静默安装，完成后继续进入模型配置步骤；可跳过。AI 模型配置放到最后作为更复杂的收尾步骤，避免之前因 model 步骤退出路径直接关闭向导导致渠道步骤无法出现的问题。
 
 ### 修复
