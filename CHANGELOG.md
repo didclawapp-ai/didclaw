@@ -12,6 +12,7 @@
 
 ### 优化
 
+- **i18n 补全（PreviewPane）**：文件预览面板全面接入 vue-i18n，新增 22 个 `preview.*` key（中英文），涵盖工具栏按钮、提示段落、加载状态、LibreOffice 错误面板、Office 不支持嵌入提示、时间线标题与空状态；中文文案按「语句尽量简短」原则压缩。
 - **英文化（OpenClawUpdatePrompt）**：将 `OpenClawUpdatePrompt.vue` 中所有中文硬编码字符串（脚本与模板）改为英文；文档链接同步切换为英文页面。
 
 - **i18n 补全（FirstRunWizard）**：首次引导向导全面接入 vue-i18n，新增约 50 个 `wizard.*` key（中英文），涵盖标题、说明文案、安装进度步骤标签、所有阶段 detail 字符串、安装日志输出文本、Node.js 手动安装面板、模型选择卡片及 confirm 对话框；`wizard.*` 命名空间已有旧值与模板不一致的 key 同步更新（`title`、`installBtn`、`nodeManualTitle/Desc/DownloadBtn`）。

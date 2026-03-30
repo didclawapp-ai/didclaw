@@ -9,6 +9,9 @@ import { useFilePreviewStore } from "@/stores/filePreview";
 import { useToolTimelineStore } from "@/stores/toolTimeline";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const loRetrying = ref(false);
 
@@ -43,11 +46,11 @@ const markdownHtml = computed(() => {
 
 const codePreviewHtml = computed(() => {
   const body = previewTextBody.value;
-  const t = target.value;
-  if (!body || t?.kind !== "code") {
+  const tgt = target.value;
+  if (!body || tgt?.kind !== "code") {
     return "";
   }
-  const lang = hljsLanguageFromUrl(t.url);
+  const lang = hljsLanguageFromUrl(tgt.url);
   return renderCodePreviewHtml(body, lang);
 });
 
@@ -55,14 +58,14 @@ const toolTimeline = useToolTimelineStore();
 const { entries: toolEntries } = storeToRefs(toolTimeline);
 
 const officeEmbed = computed(() => {
-  const t = target.value;
-  if (!t || t.kind !== "office") {
+  const tgt = target.value;
+  if (!tgt || tgt.kind !== "office") {
     return "";
   }
-  if (!isHttpsUrl(t.url)) {
+  if (!isHttpsUrl(tgt.url)) {
     return "";
   }
-  return officeOnlineEmbedUrl(t.url);
+  return officeOnlineEmbedUrl(tgt.url);
 });
 
 const canOpenExternal = computed(() => {
@@ -113,6 +116,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
 </script>
 
 <template>
+  <!-- eslint-disable vue/no-v-html -->
   <div class="preview-root">
     <div class="toolbar">
       <template v-if="target || chatMessagePreview">
@@ -126,25 +130,21 @@ async function onSaveEmbeddedImage(): Promise<void> {
               : "chat-txt"
             : target?.kind
         }}</span>
-        <button v-if="target && canOpenExternal" type="button" @click="openExternal">新窗口打开</button>
+        <button v-if="target && canOpenExternal" type="button" @click="openExternal">{{ t('preview.openExternal') }}</button>
         <button
           v-if="savableEmbeddedImage"
           type="button"
           class="save-embedded"
           @click="onSaveEmbeddedImage"
         >
-          另存为…
+          {{ t('preview.saveAs') }}
         </button>
-        <button type="button" class="ghost" @click="filePreview.clear">关闭预览</button>
+        <button type="button" class="ghost" @click="filePreview.clear">{{ t('preview.closeLabel') }}</button>
       </template>
       <template v-else>
-        <p class="hint muted">
-          点击左侧消息里的 <strong>高亮链接</strong> 可预览文件；若某行提示「列表截断」，<strong>点该行</strong>可在右侧查看全文。
-          含 <strong>data:image/…;base64,…</strong> 的助手/用户消息<strong>点该行</strong>可在右侧预览并另存。
-          支持 PDF / 图片 / <strong>Markdown</strong> / <strong>纯文本</strong> / <strong>常见源码</strong>（语法高亮）；Office 需桌面版或在线嵌入。
-        </p>
+        <p class="hint muted" v-html="t('preview.hint')" />
         <button v-if="isDidClawElectron()" type="button" class="toolbar-pick" @click="pickLocalFile">
-          选择本地文件…
+          {{ t('preview.pickFile') }}
         </button>
       </template>
     </div>
@@ -156,7 +156,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
         'is-empty': !target && !chatMessagePreview && !localLoading && !localError,
       }"
     >
-      <div v-if="localLoading" class="card state-card">正在加载本地预览…</div>
+      <div v-if="localLoading" class="card state-card">{{ t('preview.loadingLocal') }}</div>
       <div
         v-else-if="chatMessagePreview && chatMessagePreview.role === 'assistant'"
         class="text-preview md-render chat-msg-full"
@@ -166,7 +166,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
         v-else-if="chatMessagePreview"
         class="text-preview plain-pre chat-msg-full"
       >{{ chatMessagePreview.body }}</pre>
-      <div v-else-if="target && previewTextLoading" class="card state-card">正在加载文本…</div>
+      <div v-else-if="target && previewTextLoading" class="card state-card">{{ t('preview.loadingText') }}</div>
       <div
         v-else-if="
           target &&
@@ -177,7 +177,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
       >
         <p>{{ previewTextError }}</p>
         <button v-if="canOpenExternal" type="button" class="fallback-btn" @click="openExternal">
-          新窗口打开
+          {{ t('preview.openExternal') }}
         </button>
       </div>
       <div
@@ -197,31 +197,31 @@ async function onSaveEmbeddedImage(): Promise<void> {
       <div v-else-if="localError && !target" class="card state-card err">
         <p>{{ localError }}</p>
         <template v-if="showLibreOfficeHints">
-          <p class="fallback-hint">
-            <strong>LibreOffice</strong> 为免费开源办公套件，用于在右侧将 Office 转为 PDF 预览。也可使用本机已安装的 Word / WPS 直接打开文件。
-          </p>
+          <p class="fallback-hint" v-html="t('preview.loHint')" />
           <div class="lo-actions">
             <button type="button" class="primary" @click="filePreview.showLibreOfficeInstallDialog()">
-              安装说明与下载页…
+              {{ t('preview.loInstall') }}
             </button>
             <button type="button" class="secondary" @click="filePreview.openLibreOfficeDownloadPage()">
-              直接打开官网
+              {{ t('preview.loSite') }}
             </button>
             <button type="button" class="secondary" :disabled="loRetrying" @click="onLibreOfficeRetry()">
-              {{ loRetrying ? "检测中…" : "重新检测并预览" }}
+              {{ loRetrying ? t('preview.loChecking') : t('preview.loRetry') }}
             </button>
           </div>
         </template>
-        <p v-else-if="isDidClawElectron() && pendingLocalFileUrl" class="fallback-hint">
-          若已安装 <strong>Microsoft Office</strong> 或 WPS，可用系统默认程序打开。
-        </p>
+        <p
+          v-else-if="isDidClawElectron() && pendingLocalFileUrl"
+          class="fallback-hint"
+          v-html="t('preview.officeHint')"
+        />
         <button
           v-if="isDidClawElectron() && pendingLocalFileUrl"
           type="button"
           class="fallback-btn"
           @click="filePreview.openPendingLocalInSystemApp()"
         >
-          用系统应用打开此文件
+          {{ t('preview.openSystem') }}
         </button>
       </div>
       <img
@@ -243,21 +243,21 @@ async function onSaveEmbeddedImage(): Promise<void> {
         :src="officeEmbed"
       />
       <div v-else-if="target && target.kind === 'office'" class="card">
-        <p><strong>本地或 HTTP 的 Office 文件</strong>在浏览器里无法像桌面一样直接打开。</p>
+        <p v-html="t('preview.officeNoEmbed')" />
         <ul>
-          <li>若为 <strong>https</strong> 且公网可访问，已尝试用 Microsoft 在线预览（上方嵌入）。</li>
-          <li><strong>file://</strong> 或内网地址：请用「新窗口打开」或在本机资源管理器中打开路径。</li>
+          <li v-html="t('preview.officeHttps')" />
+          <li v-html="t('preview.officeLocal')" />
         </ul>
-        <button type="button" @click="openExternal">仍要尝试打开</button>
+        <button type="button" @click="openExternal">{{ t('preview.tryOpen') }}</button>
       </div>
       <div v-else-if="target" class="card">
-        <p>此链接不是内置预览类型（PDF / 图片 / Office / Markdown / 文本 / 源码）。</p>
-        <button type="button" @click="openExternal">在新窗口打开</button>
+        <p>{{ t('preview.unsupportedLink') }}</p>
+        <button type="button" @click="openExternal">{{ t('preview.openExternal') }}</button>
       </div>
     </div>
 
     <div class="timeline">
-      <div class="timeline-title">工具 / 事件（非 chat）</div>
+      <div class="timeline-title">{{ t('preview.timelineTitle') }}</div>
       <ul v-if="toolEntries.length" class="timeline-list">
         <li v-for="e in toolEntries" :key="e.id" class="timeline-item">
           <span class="ev">{{ e.event }}</span>
@@ -265,7 +265,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
           <div class="sum">{{ e.summary || "—" }}</div>
         </li>
       </ul>
-      <p v-else class="muted tiny">暂无。除 <code>chat</code> / <code>connect.challenge</code> 外的下行事件经合并后显示。</p>
+      <p v-else class="muted tiny" v-html="t('preview.timelineEmpty')" />
     </div>
   </div>
 </template>
