@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **修复插件安装后 Gateway 重启导致持续断开的问题**：企业微信等插件安装后 Gateway 会自重启，WebSocket 以 1012 "service restart" 关闭，UI 之前将其当作永久错误显示"已断开"。现在识别 1012 代码，进入 `connecting` 状态并在 3 秒后自动重连，等待 Gateway 重启完成后恢复连接。
+
 - **修复企业微信插件重复安装报错**：向导已安装的插件再次点击卡片会触发 `openclaw plugins install`，因目录已存在导致非零退出码，UI 显示"安装失败"。在 Rust 层识别 `"plugin already exists"` 输出，改为返回 `ok: true + alreadyInstalled: true`，让 UI 继续进入配置流程。同时将 `check_channel_plugin_installed` 改为检查扩展目录是否存在（非空）而非仅检查 `package.json`，兼容不同安装方式的目录结构。
 
 - **修复微信卡片显示"未安装"的问题（第二次）**：通过阅读微信插件源码（`openclaw-weixin/src/channel.ts`）发现，`buildChannelSummary` 只暴露 `configured` 字段，不含其他渠道常用的 `connected`/`linked`/`running`。扩展 `refreshChannelStatuses()` 的判断逻辑，将 `connected | linked | configured | running` 任意为 `true` 均视为已连接，覆盖所有已知插件的状态字段命名约定。
