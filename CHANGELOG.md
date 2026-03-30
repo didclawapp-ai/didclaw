@@ -8,6 +8,7 @@
 
 ### 修复
 
+- **ESLint 警告清零（GeneralSettingsDialog / UsageStatsDialog）**：修复两个文件共 6 条 ESLint 警告：`GeneralSettingsDialog` 中的 `<input/>` 自闭合及两处多余空行；`UsageStatsDialog` 中的 `props` 未使用变量及两处多余空行。
 - **ESLint 警告清零（CronJobsDialog）**：修复模板区 85 条 ESLint 警告，含多行元素属性换行与缩进格式、`<input>` 禁止自闭合、`<textarea>` 正确使用自闭合，以及两处多余空行。
 
 ### 优化

@@ -117,7 +117,6 @@ function onKeydown(e: KeyboardEvent): void {
   <Teleport to="body">
     <div v-if="modelValue" class="gs-backdrop" @click.self="close" @keydown="onKeydown">
       <div class="gs-panel" role="dialog" aria-modal="true" aria-labelledby="gs-title" tabindex="-1">
-
         <div class="gs-head">
           <h2 id="gs-title">{{ t('generalSettings.title') }}</h2>
           <button type="button" class="gs-close" :aria-label="t('common.close')" @click="close">✕</button>
@@ -181,7 +180,7 @@ function onKeydown(e: KeyboardEvent): void {
               :placeholder="t('generalSettings.globalShortcutPlaceholder')"
               :disabled="shortcutBusy"
               @keydown.enter="applyShortcut"
-            />
+            >
             <button
               type="button"
               class="gs-shortcut-btn"
@@ -202,7 +201,6 @@ function onKeydown(e: KeyboardEvent): void {
           </div>
           <p v-if="shortcutError" class="gs-err small">{{ shortcutError }}</p>
         </div>
-
       </div>
     </div>
   </Teleport>

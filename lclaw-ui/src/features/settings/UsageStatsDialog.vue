@@ -5,7 +5,7 @@ import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
-const props = defineProps<{ modelValue: boolean }>();
+defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ "update:modelValue": [v: boolean] }>();
 
 const { t } = useI18n();
@@ -59,7 +59,6 @@ function fmt(n: number): string {
   <Teleport to="body">
     <div v-if="modelValue" class="us-backdrop" @click.self="close" @keydown="onKeydown">
       <div class="us-panel" role="dialog" aria-modal="true" :aria-labelledby="'us-title'" tabindex="-1">
-
         <!-- Header -->
         <div class="us-head">
           <h2 id="us-title">{{ t('usageStats.title') }}</h2>
@@ -140,7 +139,6 @@ function fmt(n: number): string {
 
         <!-- Footer note -->
         <p class="us-note muted">{{ t('usageStats.note') }}</p>
-
       </div>
     </div>
   </Teleport>
