@@ -50,6 +50,8 @@ type ChannelPluginStatus = "idle" | "queued" | "installing" | "done" | "failed";
 const channelSelections = ref<Set<string>>(new Set(["whatsapp", "wechat"]));
 const channelPluginStatus = ref<Record<string, ChannelPluginStatus>>({});
 const channelInstallBusy = ref(false);
+/** Session-only: true once the user has passed through the channels step */
+const channelsStepDone = ref(false);
 
 const channelInstallFinished = computed(() => {
   const selected = ONBOARDING_CHANNELS.filter((c) => channelSelections.value.has(c.id));
@@ -66,12 +68,13 @@ function toggleChannel(id: string): void {
   channelSelections.value = next;
 }
 
-function finishWizard(): void {
-  visible.value = false;
+function finishChannelStep(): void {
+  channelsStepDone.value = true;
+  phase.value = "model";
 }
 
 function skipChannels(): void {
-  finishWizard();
+  finishChannelStep();
 }
 
 async function installSelectedChannels(): Promise<void> {
@@ -79,7 +82,7 @@ async function installSelectedChannels(): Promise<void> {
   const selected = ONBOARDING_CHANNELS.filter((c) => channelSelections.value.has(c.id));
 
   if (!api?.openclawPluginsInstall || selected.length === 0) {
-    finishWizard();
+    finishChannelStep();
     return;
   }
 
@@ -335,7 +338,11 @@ async function refreshStatus(): Promise<void> {
       }
     }
 
-    phase.value = "model";
+    if (!channelsStepDone.value) {
+      phase.value = "channels";
+    } else {
+      phase.value = "model";
+    }
     visible.value = true;
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
@@ -506,9 +513,9 @@ async function applyOllamaQuickSetup(): Promise<void> {
     await chat.refreshOpenClawModelPicker();
     chat.flashOpenClawConfigHint();
     afterOpenClawModelConfigSaved();
+    visible.value = false;
     gw.disconnect();
     scheduleDeferredGatewayConnect(gw);
-    phase.value = "channels";
   } catch (e) {
     modelError.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -527,8 +534,8 @@ function onModelSkipLater(): void {
   }
   setModelConfigDeferred(true);
   markFirstRunModelStepComplete();
+  visible.value = false;
   scheduleDeferredGatewayConnect(gw);
-  phase.value = "channels";
 }
 
 function onRecheckFirstRunEvent(): void {
@@ -760,7 +767,7 @@ onUnmounted(() => {
               v-if="channelInstallFinished"
               type="button"
               class="lc-btn lc-btn-primary"
-              @click="finishWizard"
+              @click="finishChannelStep"
             >
               {{ t('wizard.channelsDone') }} →
             </button>
