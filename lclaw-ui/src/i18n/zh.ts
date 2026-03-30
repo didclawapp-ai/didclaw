@@ -523,6 +523,16 @@ export default {
     installFromZip: "从 ZIP 安装",
   },
 
+  // ─── ClawHub HTTP 客户端 clawhub-api ─────────────────
+  clawhubApi: {
+    errInvalidSlug: "无效的 skill slug：{slug}",
+    errInvalidPackageName: "无效的包名：{name}",
+    errRequestTimeout: "请求超时（{seconds}s）",
+    errHttp: "ClawHub HTTP {status}",
+    errRequestFailed: "ClawHub 请求失败",
+    errDownloadFailed: "ClawHub 下载失败",
+  },
+
   // ─── 首次引导 FirstRunWizard ─────────────────────────
   wizard: {
     title: "欢迎使用",

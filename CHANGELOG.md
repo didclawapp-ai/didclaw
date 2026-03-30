@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 优化
+
+- **i18n 补全（clawhub-api）**：ClawHub HTTP 客户端中用户可见错误（无效 slug/包名、请求超时、HTTP 状态、请求/下载失败）改为 `i18n.global.t()`，新增 `clawhubApi.*` 中英文 key；文件内 JSDoc 与块注释改为英文。
+
 ### 修复
 
 - **ESLint 警告全部清零**：修复 8 个文件共 377+ 条 ESLint 警告：`AboutDialog`、`ChatRunStatusBar`、`ExecApprovalDialog`、`DoctorDialog`、`BackupRestoreDialog` 中的 button 内联文本换行；`SlashCommandPicker` 中的多余空格；`OpenClawUpdatePrompt` 中的未使用参数 `auto → _auto`；`SkillsManagerDialog`（ClawHub 区块，约 300 条）与 `ChannelSetupDialog`（约 30 条）中的缩进与自闭合格式。

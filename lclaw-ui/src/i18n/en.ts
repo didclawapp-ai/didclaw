@@ -523,6 +523,16 @@ export default {
     installFromZip: "Install from ZIP",
   },
 
+  // ─── ClawHub HTTP client (clawhub-api) ───────────────
+  clawhubApi: {
+    errInvalidSlug: "Invalid skill slug: {slug}",
+    errInvalidPackageName: "Invalid package name: {name}",
+    errRequestTimeout: "Request timed out ({seconds}s)",
+    errHttp: "ClawHub HTTP {status}",
+    errRequestFailed: "ClawHub request failed",
+    errDownloadFailed: "ClawHub download failed",
+  },
+
   // ─── First run wizard ─────────────────────────────────
   wizard: {
     title: "Welcome",

@@ -1,9 +1,10 @@
 /**
- * ClawHub Registry 公开 HTTP 接口（搜索 / 列表 / 详情 / 下载 zip）。
- * 统一目录搜索：`GET /api/v1/packages/search`（技能 + code/bundle 插件），见仓库 `docs/http-api.md`。
- * 技能专用：`GET /api/v1/search`、`/api/v1/skills` 等仍保留。
+ * ClawHub registry public HTTP API (search / list / detail / download zip).
+ * Unified catalog: `GET /api/v1/packages/search` (skills + code/bundle plugins); see `docs/http-api.md`.
+ * Skill-only endpoints such as `GET /api/v1/search` and `/api/v1/skills` remain available.
  */
 
+import { i18n } from "@/i18n";
 import { didclawKvReadSync, didclawKvWriteSync } from "@/lib/didclaw-kv";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
@@ -11,7 +12,7 @@ const DEFAULT_REGISTRY = "https://clawhub.ai";
 const REQUEST_TIMEOUT_MS = 15_000;
 const CLAWHUB_TOKEN_KEY = "didclaw.clawhubToken";
 const CLAWHUB_REGISTRY_KEY = "didclaw.clawhubRegistry";
-/** 429 时最多额外重试次数（含首次共 maxRetries+1 次）；下载单次等待可达数十秒 */
+/** Max extra retries on 429 (first attempt + retries = maxRetries + 1); binary downloads may wait tens of seconds */
 const RATE_LIMIT_MAX_RETRIES_JSON = 3;
 const RATE_LIMIT_MAX_RETRIES_BINARY = 6;
 const RATE_LIMIT_WAIT_CAP_SEC = 120;
@@ -20,7 +21,7 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** 解析 Retry-After（秒或 HTTP 日期），与常见 CDN 行为兼容 */
+/** Parse Retry-After (seconds or HTTP-date), compatible with common CDN behavior */
 function parseRetryAfterSeconds(res: Response, nowMs = Date.now()): number | null {
   const raw = res.headers.get("retry-after")?.trim();
   if (!raw) {
@@ -45,9 +46,9 @@ function parseRetryAfterSeconds(res: Response, nowMs = Date.now()): number | nul
 }
 
 /**
- * 从 Ratelimit / X-RateLimit-Reset 推断等待秒数。
- * ClawHub 会同时给 `Ratelimit-Reset: 32`（距重置秒数）与 `X-Ratelimit-Reset: 纪元秒`。
- * 注意：跨域时部分响应头可能仍读不到，需配合 {@link compute429WaitSeconds} 的保底。
+ * Infer wait seconds from Ratelimit / X-RateLimit-Reset headers.
+ * ClawHub may send `Ratelimit-Reset: 32` (seconds until reset) and `X-Ratelimit-Reset` as epoch seconds.
+ * Under CORS some headers may be unreadable; {@link compute429WaitSeconds} applies a fallback.
  */
 function parseRateLimitResetSeconds(res: Response, nowMs = Date.now()): number | null {
   const tryParse = (raw: string | null): number | null => {
@@ -73,9 +74,7 @@ function parseRateLimitResetSeconds(res: Response, nowMs = Date.now()): number |
   );
 }
 
-/**
- * 综合 Retry-After 与 Ratelimit-Reset；在浏览器 CORS 下常读不到 Retry-After，故对 download 设较高保底。
- */
+/** Combine Retry-After and Ratelimit-Reset; binary path uses a higher fallback when headers are missing (CORS). */
 function compute429WaitSeconds(res: Response, kind: "json" | "binary"): number {
   const fromRa = parseRetryAfterSeconds(res);
   const fromRl = parseRateLimitResetSeconds(res);
@@ -84,7 +83,7 @@ function compute429WaitSeconds(res: Response, kind: "json" | "binary"): number {
     sec = kind === "binary" ? 32 : 8;
   }
   if (kind === "binary" && sec < 20) {
-    /* 头信息缺失时默认 3～8s 会导致连续 429；curl 实测 Reset 多为 30s 量级 */
+    /* Missing headers defaulting to 3–8s causes repeated 429s; observed resets are often ~30s */
     sec = 32;
   }
   return Math.min(RATE_LIMIT_WAIT_CAP_SEC, sec);
@@ -101,7 +100,7 @@ export class ClawhubHttpError extends Error {
   }
 }
 
-/** 与 CLI `explore --sort` 一致；`newest` 对应服务端默认排序，请求里不传 `sort` */
+/** Matches CLI `explore --sort`; `newest` is server default (omit `sort` in request) */
 export type ClawhubListSort =
   | "newest"
   | "downloads"
@@ -119,7 +118,7 @@ export type ClawhubSearchHit = {
   updatedAt?: number | null;
 };
 
-/** {@link clawhubPackagesSearch} 结果行：含 ClawHub 统一目录中的 family */
+/** Row shape from {@link clawhubPackagesSearch}; includes `family` from the unified catalog */
 export type ClawhubPackageFamily = "skill" | "code-plugin" | "bundle-plugin";
 
 export type ClawhubCatalogHit = ClawhubSearchHit & {
@@ -130,7 +129,7 @@ export type ClawhubSearchResponse = {
   results: ClawhubSearchHit[];
 };
 
-/** `GET /api/v1/packages/search` 单行（与线上一致） */
+/** One row from `GET /api/v1/packages/search` (matches production API) */
 export type ClawhubPackageSearchRow = {
   score: number;
   package: {
@@ -151,7 +150,7 @@ export type ClawhubPackagesSearchResponse = {
   results: ClawhubPackageSearchRow[];
 };
 
-/** `GET /api/v1/packages/{name}` 详情（字段随上游扩展，按需取用） */
+/** `GET /api/v1/packages/{name}` detail (fields may grow upstream; use as needed) */
 export type ClawhubPackageDetail = {
   package?: {
     name: string;
@@ -245,16 +244,16 @@ function clampLimit(limit: number, fallback = 25): number {
 function assertSafeSlug(slug: string): string {
   const s = slug.trim();
   if (!s || s.includes("/") || s.includes("\\") || s.includes("..")) {
-    throw new Error(`无效的 skill slug: ${slug}`);
+    throw new Error(i18n.global.t("clawhubApi.errInvalidSlug", { slug }));
   }
   return s;
 }
 
-/** 统一目录包名（含 `@scope/pkg`），仅禁止路径穿越 */
+/** Unified catalog package name (e.g. `@scope/pkg`); rejects path traversal only */
 function assertSafePackageName(name: string): string {
   const s = name.trim();
   if (!s || s.includes("..")) {
-    throw new Error(`无效的包名: ${name}`);
+    throw new Error(i18n.global.t("clawhubApi.errInvalidPackageName", { name }));
   }
   return s;
 }
@@ -314,7 +313,14 @@ async function fetchJson<T>(
   for (let attempt = 0; attempt <= RATE_LIMIT_MAX_RETRIES_JSON; attempt++) {
     const controller = new AbortController();
     const t = setTimeout(
-      () => controller.abort(new Error(`请求超时（${REQUEST_TIMEOUT_MS / 1000}s）`)),
+      () =>
+        controller.abort(
+          new Error(
+            i18n.global.t("clawhubApi.errRequestTimeout", {
+              seconds: REQUEST_TIMEOUT_MS / 1000,
+            }),
+          ),
+        ),
       REQUEST_TIMEOUT_MS,
     );
     try {
@@ -332,14 +338,18 @@ async function fetchJson<T>(
       const text = await res.text();
       if (!res.ok) {
         const snippet = text.length > 280 ? `${text.slice(0, 280)}…` : text;
-        throw new ClawhubHttpError(`ClawHub HTTP ${res.status}`, res.status, snippet || undefined);
+        throw new ClawhubHttpError(
+          i18n.global.t("clawhubApi.errHttp", { status: res.status }),
+          res.status,
+          snippet || undefined,
+        );
       }
       return JSON.parse(text || "null") as T;
     } finally {
       clearTimeout(t);
     }
   }
-  throw new ClawhubHttpError("ClawHub 请求失败", 0);
+  throw new ClawhubHttpError(i18n.global.t("clawhubApi.errRequestFailed"), 0);
 }
 
 async function fetchBinary(url: string, token?: string): Promise<ArrayBuffer> {
@@ -350,7 +360,14 @@ async function fetchBinary(url: string, token?: string): Promise<ArrayBuffer> {
   for (let attempt = 0; attempt <= RATE_LIMIT_MAX_RETRIES_BINARY; attempt++) {
     const controller = new AbortController();
     const t = setTimeout(
-      () => controller.abort(new Error(`请求超时（${REQUEST_TIMEOUT_MS / 1000}s）`)),
+      () =>
+        controller.abort(
+          new Error(
+            i18n.global.t("clawhubApi.errRequestTimeout", {
+              seconds: REQUEST_TIMEOUT_MS / 1000,
+            }),
+          ),
+        ),
       REQUEST_TIMEOUT_MS,
     );
     try {
@@ -364,20 +381,24 @@ async function fetchBinary(url: string, token?: string): Promise<ArrayBuffer> {
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         const snippet = text.length > 280 ? `${text.slice(0, 280)}…` : text;
-        throw new ClawhubHttpError(`ClawHub HTTP ${res.status}`, res.status, snippet || undefined);
+        throw new ClawhubHttpError(
+          i18n.global.t("clawhubApi.errHttp", { status: res.status }),
+          res.status,
+          snippet || undefined,
+        );
       }
       return await res.arrayBuffer();
     } finally {
       clearTimeout(t);
     }
   }
-  throw new ClawhubHttpError("ClawHub 下载失败", 0);
+  throw new ClawhubHttpError(i18n.global.t("clawhubApi.errDownloadFailed"), 0);
 }
 
 export type ClawhubClientOptions = {
-  /** Registry 根 URL，默认 `VITE_CLAWHUB_REGISTRY` 或 https://clawhub.ai */
+  /** Registry base URL; default `VITE_CLAWHUB_REGISTRY` or https://clawhub.ai */
   registry?: string;
-  /** 可选；为未来的用户级登录态预留，桌面正式版默认不内置 token */
+  /** Optional bearer token (reserved for future user auth; desktop build may omit) */
   token?: string;
 };
 
@@ -404,8 +425,8 @@ export function setStoredClawhubClientOptions(opts: ClawhubClientOptions): void 
 }
 
 /**
- * 统一目录搜索：技能 + code-plugin + bundle-plugin。
- * `GET /api/v1/packages/search?q=...&limit=...`（limit 1–100）
+ * Unified catalog search: skills + code-plugin + bundle-plugin.
+ * `GET /api/v1/packages/search?q=...&limit=...` (limit 1–100)
  */
 export async function clawhubPackagesSearch(
   query: string,
@@ -450,8 +471,8 @@ export async function clawhubPackagesSearch(
 }
 
 /**
- * 包详情（插件或统一目录下的技能条目）。
- * `GET /api/v1/packages/{name}`（name 需 URL 编码，含 `@scope/name`）
+ * Package detail (plugin or skill row in unified catalog).
+ * `GET /api/v1/packages/{name}` (`name` URL-encoded, including `@scope/name`)
  */
 export async function clawhubPackageDetail(
   name: string,
@@ -473,7 +494,7 @@ export async function clawhubPackageDetail(
 }
 
 /**
- * 向量/关键词搜索技能（仅 skills，不含插件）。
+ * Vector / keyword skill search (skills only, no plugins).
  * `GET /api/v1/search?q=...&limit=...`
  */
 export async function clawhubSearch(
@@ -497,9 +518,9 @@ export async function clawhubSearch(
 }
 
 /**
- * 浏览列表（对应 CLI `clawhub explore`）。
- * `GET /api/v1/skills?limit=...`；非 `newest` 时追加 `sort=...`。
- * 注意：公网 registry 上该接口可能长期返回 `items: []`，搜索 `/api/v1/search` 仍有数据。
+ * Browse list (CLI `clawhub explore`).
+ * `GET /api/v1/skills?limit=...`; append `sort=...` when not `newest`.
+ * Note: public registry may return `items: []` for long periods; `/api/v1/search` may still return hits.
  */
 export async function clawhubListSkills(
   opts: ClawhubClientOptions & { limit?: number; sort?: ClawhubListSort } = {},
@@ -518,7 +539,7 @@ export async function clawhubListSkills(
 }
 
 /**
- * 技能详情（含最新版本号，供下载前解析）。
+ * Skill detail including latest version (for download resolution).
  * `GET /api/v1/skills/{slug}`
  */
 export async function clawhubSkillDetail(
@@ -541,7 +562,7 @@ export async function clawhubSkillDetail(
 }
 
 /**
- * 下载技能包 zip（与 CLI `downloadZip` 一致：GET + query）。
+ * Download skill zip (same as CLI `downloadZip`: GET with query params).
  * `GET /api/v1/download?slug=...&version=...`
  */
 export async function clawhubDownloadSkillZip(
