@@ -31,6 +31,8 @@ const { messages, lastError: chatError } = storeToRefs(chat);
 
 const expanded = ref(false);
 let collapseTimer: number | null = null;
+let expandTimer: number | null = null;
+let idleTimer: number | null = null;
 
 const cronDialogOpen = ref(false);
 const channelDialogOpen = ref(false);
@@ -52,19 +54,56 @@ const showGatewayLocal = computed({
   set: (v: boolean) => { if (!v) localSettings.close(); },
 });
 
+function clearIdleTimer(): void {
+  if (idleTimer !== null) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+}
+
+function startIdleTimer(): void {
+  clearIdleTimer();
+  idleTimer = window.setTimeout(() => {
+    expanded.value = false;
+    idleTimer = null;
+  }, 10_000);
+}
+
 function onMouseEnter(): void {
   if (collapseTimer !== null) {
     clearTimeout(collapseTimer);
     collapseTimer = null;
   }
-  expanded.value = true;
+  if (expanded.value) {
+    // Already open — just reset idle timer
+    startIdleTimer();
+    return;
+  }
+  if (expandTimer === null) {
+    expandTimer = window.setTimeout(() => {
+      expandTimer = null;
+      expanded.value = true;
+      startIdleTimer();
+    }, 1_000);
+  }
 }
 
 function onMouseLeave(): void {
+  if (expandTimer !== null) {
+    clearTimeout(expandTimer);
+    expandTimer = null;
+  }
   collapseTimer = window.setTimeout(() => {
     expanded.value = false;
     collapseTimer = null;
+    clearIdleTimer();
   }, 300);
+}
+
+function onSidebarMouseMove(): void {
+  if (expanded.value) {
+    startIdleTimer();
+  }
 }
 
 async function onRestartGateway(): Promise<void> {
@@ -187,6 +226,7 @@ function onRedoFirstRunWizard(): void {
     :class="{ 'ts-panel--open': expanded }"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
+    @mousemove="onSidebarMouseMove"
   >
     <!-- Sidebar header -->
     <div class="ts-head">
