@@ -533,6 +533,20 @@ export default {
     errDownloadFailed: "ClawHub 下载失败",
   },
 
+  // ─── 网关 JSON-RPC 错误说明 gateway-errors ─────────
+  gatewayErr: {
+    withDetail: "{hint}（{detail}）",
+    unauthorized: "鉴权失败：请检查环境变量中的 TOKEN 或 PASSWORD 是否与网关一致。",
+    forbidden: "当前身份无权执行该操作。",
+    notFound: "资源不存在（会话或任务可能已过期）。",
+    unavailable: "网关暂不可用或请求超时，请稍后重试。",
+    invalidArgument: "请求参数无效。",
+    failedPrecondition: "前置条件不满足（例如会话状态不允许该操作）。",
+    alreadyExists: "资源已存在。",
+    aborted: "操作已中止。",
+    deadlineExceeded: "请求超时。",
+  },
+
   // ─── 首次引导 FirstRunWizard ─────────────────────────
   wizard: {
     title: "欢迎使用",

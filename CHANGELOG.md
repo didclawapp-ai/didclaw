@@ -8,6 +8,7 @@
 
 ### 优化
 
+- **i18n 补全（gateway-errors）**：常见 JSON-RPC 错误码说明与「提示 + 原始 detail」拼接改为 vue-i18n，新增 `gatewayErr.*`（含 `withDetail` 与各码文案）；`describeGatewayError` 随当前语言切换。
 - **i18n 补全（clawhub-api）**：ClawHub HTTP 客户端中用户可见错误（无效 slug/包名、请求超时、HTTP 状态、请求/下载失败）改为 `i18n.global.t()`，新增 `clawhubApi.*` 中英文 key；文件内 JSDoc 与块注释改为英文。
 
 ### 修复

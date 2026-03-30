@@ -533,6 +533,20 @@ export default {
     errDownloadFailed: "ClawHub download failed",
   },
 
+  // ─── Gateway JSON-RPC hints (gateway-errors) ─────────
+  gatewayErr: {
+    withDetail: "{hint} ({detail})",
+    unauthorized: "Authentication failed: ensure TOKEN or PASSWORD in your environment matches the gateway.",
+    forbidden: "You are not allowed to perform this action.",
+    notFound: "Resource not found (session or task may have expired).",
+    unavailable: "Gateway unavailable or request timed out. Try again later.",
+    invalidArgument: "Invalid request parameters.",
+    failedPrecondition: "Precondition not met (e.g. session state does not allow this).",
+    alreadyExists: "Resource already exists.",
+    aborted: "Operation was aborted.",
+    deadlineExceeded: "Request timed out.",
+  },
+
   // ─── First run wizard ─────────────────────────────────
   wizard: {
     title: "Welcome",
