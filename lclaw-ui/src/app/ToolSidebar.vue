@@ -7,6 +7,7 @@ import BackupRestoreDialog from "@/features/settings/BackupRestoreDialog.vue";
 import ChannelSetupDialog from "@/features/settings/ChannelSetupDialog.vue";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import GeneralSettingsDialog from "@/features/settings/GeneralSettingsDialog.vue";
+import UsageStatsDialog from "@/features/settings/UsageStatsDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
@@ -38,6 +39,7 @@ const aboutDialogOpen = ref(false);
 const doctorDialogOpen = ref(false);
 const backupDialogOpen = ref(false);
 const generalSettingsOpen = ref(false);
+const usageStatsOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
 const checkUpdateBusy = ref(false);
@@ -228,6 +230,18 @@ function onRedoFirstRunWizard(): void {
           <span class="ts-label">{{ t('header.skillsBtn') }}</span>
         </button>
       </li>
+      <li>
+        <button type="button" class="ts-item" @click="usageStatsOpen = true">
+          <span class="ts-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1.5" y="9" width="3" height="5.5" rx="0.5" />
+              <rect x="6.5" y="5.5" width="3" height="9" rx="0.5" />
+              <rect x="11.5" y="2" width="3" height="12.5" rx="0.5" />
+            </svg>
+          </span>
+          <span class="ts-label">{{ t('usageStats.menuBtn') }}</span>
+        </button>
+      </li>
 
       <!-- System group (desktop only) -->
       <template v-if="isDidClawElectron()">
@@ -367,6 +381,7 @@ function onRedoFirstRunWizard(): void {
   <BackupRestoreDialog v-model="backupDialogOpen" />
   <ChannelSetupDialog v-model="channelDialogOpen" />
   <GeneralSettingsDialog v-model="generalSettingsOpen" />
+  <UsageStatsDialog v-model="usageStatsOpen" />
 </template>
 
 <style scoped>
