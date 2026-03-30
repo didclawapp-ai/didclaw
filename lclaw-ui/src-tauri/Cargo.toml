@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.6.1"
+version = "0.8.0"
 description = "DidClaw"
 authors = ["DidClaw"]
 edition = "2021"
