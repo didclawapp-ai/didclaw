@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **移除向导预安装列表中的 Gmail**：`@openclaw/gmail` 不存在，Gmail 与 OpenClaw 的集成需要 Google Cloud Pub/Sub + OAuth + 公网 webhook，无法做成一键安装插件，移出向导避免安装失败。默认勾选改为 WhatsApp + 微信。
+
 - **修复插件安装后 Gateway 重启导致持续断开的问题**：企业微信等插件安装后 Gateway 会自重启，WebSocket 以 1012 "service restart" 关闭，UI 之前将其当作永久错误显示"已断开"。现在识别 1012 代码，进入 `connecting` 状态并在 3 秒后自动重连，等待 Gateway 重启完成后恢复连接。
 
 - **修复企业微信插件重复安装报错**：向导已安装的插件再次点击卡片会触发 `openclaw plugins install`，因目录已存在导致非零退出码，UI 显示"安装失败"。在 Rust 层识别 `"plugin already exists"` 输出，改为返回 `ok: true + alreadyInstalled: true`，让 UI 继续进入配置流程。同时将 `check_channel_plugin_installed` 改为检查扩展目录是否存在（非空）而非仅检查 `package.json`，兼容不同安装方式的目录结构。
