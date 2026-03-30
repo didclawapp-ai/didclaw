@@ -1,4 +1,6 @@
+import { i18n } from "@/i18n";
 import { findFirstEmbeddedDataImage } from "@/lib/extract-chat-embedded-image";
+import { ASSISTANT_META_PREFIX, SYSTEM_NO_TEXT_PREFIX } from "@/lib/chat-line";
 
 const MAX_LIST_CHARS = 900;
 
@@ -6,7 +8,7 @@ function truncateWithNote(s: string, max: number): string {
   if (s.length <= max) {
     return s;
   }
-  return `${s.slice(0, max)}\n…（共 ${s.length} 字符，已在左侧列表截断；点选本行可在右侧预览查看全文）`;
+  return `${s.slice(0, max)}\n${i18n.global.t("chatMsgFmt.truncated", { len: s.length })}`;
 }
 
 function isOpenClawMergedConfigJson(j: Record<string, unknown>): boolean {
@@ -50,7 +52,7 @@ export function buildListPreview(fullText: string): string {
     return "";
   }
   if (findFirstEmbeddedDataImage(t)) {
-    return `[图片] 内嵌 Base64 图像（约 ${t.length} 字符）。点选本行在右侧预览并可另存。`;
+    return i18n.global.t("chatMsgFmt.imgPreview", { len: t.length });
   }
   if (t.length < 800 && !t.startsWith("{")) {
     return t;
@@ -59,21 +61,19 @@ export function buildListPreview(fullText: string): string {
     try {
       const j = JSON.parse(t) as Record<string, unknown>;
       if (Array.isArray(j.models) && j.models.length > 0) {
-        const n = j.models.length;
-        return `[配置 JSON] 模型列表等共 ${n} 项（约 ${t.length} 字符）。点选本行在右侧可查看或搜索全文。`;
+        return i18n.global.t("chatMsgFmt.jsonModelList", { n: j.models.length, len: t.length });
       }
       if (typeof j.api === "string" && Array.isArray(j.models)) {
-        const n = j.models.length;
-        return `[配置 JSON] api=${j.api}，含 ${n} 条 models（约 ${t.length} 字符）。右侧预览可看全文。`;
+        return i18n.global.t("chatMsgFmt.jsonApiModels", { api: j.api, n: (j.models as unknown[]).length, len: t.length });
       }
       if (j.meta && j.wizard && isOpenClawMergedConfigJson(j)) {
-        return `[openclaw.json 类配置] 含 wizard / auth / models.providers 等（约 ${t.length} 字符）。右侧预览可看全文。`;
+        return i18n.global.t("chatMsgFmt.openclawConfig", { len: t.length });
       }
       if (j.wizard && j.auth && j.models && typeof j.models === "object") {
-        return `[OpenClaw 配置快照]（约 ${t.length} 字符）。右侧预览可看全文。`;
+        return i18n.global.t("chatMsgFmt.openclawSnapshot", { len: t.length });
       }
     } catch {
-      /* 非合法 JSON，走下方截断 */
+      /* not valid JSON, fall through to truncation */
     }
   }
   if (t.length > MAX_LIST_CHARS) {
@@ -129,10 +129,10 @@ export function shouldHideDiagnosticChatLine(role: "user" | "assistant" | "syste
   }
 
   if (role === "assistant") {
-    if (trim.startsWith("[助手·仅元数据]")) {
+    if (trim.startsWith(ASSISTANT_META_PREFIX)) {
       return true;
     }
-    if (trim.startsWith("[系统] 无文本正文")) {
+    if (trim.startsWith(SYSTEM_NO_TEXT_PREFIX)) {
       return true;
     }
     if (
@@ -302,7 +302,7 @@ export function shouldAlwaysHideFromChatList(
       return true;
     }
   }
-  if (role === "assistant" && trim.startsWith("[助手·仅元数据]")) {
+  if (role === "assistant" && trim.startsWith(ASSISTANT_META_PREFIX)) {
     return true;
   }
   if (role === "system") {

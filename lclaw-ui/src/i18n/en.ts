@@ -992,4 +992,27 @@ export default {
     moreSettingsTitle: "Open local settings: API keys, endpoint, or restore backup",
     moreSettings: "More Settings",
   },
+
+  // ─── Attachment upload errors ─────────────────────────
+  chatAttach: {
+    onlyImages: "Gateway only supports image attachments",
+    tooLarge: "Exceeds ~4.5 MB limit, please compress and retry",
+  },
+
+  // ─── Message list preview (buildListPreview) ──────────
+  chatMsgFmt: {
+    truncated: "({len} chars total — truncated in list; click to view full text in preview)",
+    imgPreview: "[Image] Embedded Base64 image (~{len} chars). Click to preview or save.",
+    jsonModelList: "[Config JSON] Model list with {n} entries (~{len} chars). Click to search in preview.",
+    jsonApiModels: "[Config JSON] api={api}, {n} models (~{len} chars). View full text in preview.",
+    openclawConfig: "[openclaw.json config] Contains wizard / auth / models.providers etc. (~{len} chars). View in preview.",
+    openclawSnapshot: "[OpenClaw config snapshot] (~{len} chars). View in preview.",
+  },
+
+  // ─── chatLine lib ─────────────────────────────────────
+  chatLineLib: {
+    fieldHint: "Fields: ",
+    noTextField: "No common text fields",
+    noTextBody: "no text body",
+  },
 } as const;

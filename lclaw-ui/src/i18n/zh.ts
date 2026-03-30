@@ -992,4 +992,27 @@ export default {
     moreSettingsTitle: "打开本机设置，可改密钥、接口地址或恢复备份",
     moreSettings: "更多设置",
   },
+
+  // ─── 附件上传错误 ─────────────────────────────────────
+  chatAttach: {
+    onlyImages: "网关仅支持图片附件",
+    tooLarge: "超过约 4.5MB 上限，请压缩后重试",
+  },
+
+  // ─── 消息格式化预览（buildListPreview） ───────────────
+  chatMsgFmt: {
+    truncated: "（共 {len} 字符，已在左侧列表截断；点选本行可在右侧预览查看全文）",
+    imgPreview: "[图片] 内嵌 Base64 图像（约 {len} 字符）。点选本行在右侧预览并可另存。",
+    jsonModelList: "[配置 JSON] 模型列表等共 {n} 项（约 {len} 字符）。点选本行在右侧可查看或搜索全文。",
+    jsonApiModels: "[配置 JSON] api={api}，含 {n} 条 models（约 {len} 字符）。右侧预览可看全文。",
+    openclawConfig: "[openclaw.json 类配置] 含 wizard / auth / models.providers 等（约 {len} 字符）。右侧预览可看全文。",
+    openclawSnapshot: "[OpenClaw 配置快照]（约 {len} 字符）。右侧预览可看全文。",
+  },
+
+  // ─── chatLine lib ─────────────────────────────────────
+  chatLineLib: {
+    fieldHint: "字段: ",
+    noTextField: "无常用文本字段",
+    noTextBody: "无文本正文",
+  },
 } as const;

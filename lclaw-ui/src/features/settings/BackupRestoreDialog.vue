@@ -118,7 +118,9 @@ async function doRestore(): Promise<void> {
               class="bkup-close"
               :aria-label="t('common.close')"
               @click="open = false"
-            >✕</button>
+            >
+              ✕
+            </button>
           </div>
 
           <!-- body -->
@@ -157,8 +159,8 @@ async function doRestore(): Promise<void> {
               >
                 <span v-if="status.kind === 'busy'" class="bkup-spinner" aria-hidden="true" />
                 {{ status.kind === 'busy' && status.label === t('backup.backing')
-                    ? t('backup.backing')
-                    : t('backup.backupBtn') }}
+                  ? t('backup.backing')
+                  : t('backup.backupBtn') }}
               </button>
               <button
                 type="button"
@@ -168,8 +170,8 @@ async function doRestore(): Promise<void> {
               >
                 <span v-if="status.kind === 'busy' && status.label === t('backup.restoring')" class="bkup-spinner" aria-hidden="true" />
                 {{ status.kind === 'busy' && status.label === t('backup.restoring')
-                    ? t('backup.restoring')
-                    : t('backup.restoreBtn') }}
+                  ? t('backup.restoring')
+                  : t('backup.restoreBtn') }}
               </button>
             </div>
 
@@ -190,7 +192,9 @@ async function doRestore(): Promise<void> {
                   class="bkup-msg-dismiss"
                   :aria-label="t('common.close')"
                   @click="status = { kind: 'idle' }"
-                >✕</button>
+                >
+                  ✕
+                </button>
               </div>
             </Transition>
 

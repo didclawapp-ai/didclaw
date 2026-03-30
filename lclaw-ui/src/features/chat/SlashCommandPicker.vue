@@ -45,9 +45,9 @@ watch(
         <span
           class="slash-cmd"
           :class="{
-            'slash-cmd--safe':    cmd.risk === 'safe',
+            'slash-cmd--safe': cmd.risk === 'safe',
             'slash-cmd--caution': cmd.risk === 'caution',
-            'slash-cmd--danger':  cmd.risk === 'danger',
+            'slash-cmd--danger': cmd.risk === 'danger',
           }"
         >{{ cmd.command }}<span v-if="cmd.argHint" class="slash-arg">{{ cmd.argHint }}</span></span>
         <span class="slash-desc">{{ t(cmd.descKey) }}</span>

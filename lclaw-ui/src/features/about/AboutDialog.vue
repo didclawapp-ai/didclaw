@@ -53,7 +53,9 @@ const techStack = [
               class="about-close"
               :aria-label="t('about.close')"
               @click="open = false"
-            >✕</button>
+            >
+              ✕
+            </button>
           </div>
 
           <!-- 简介 -->

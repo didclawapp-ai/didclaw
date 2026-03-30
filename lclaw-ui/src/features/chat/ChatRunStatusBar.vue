@@ -176,7 +176,9 @@ const barVisible = computed(() => agentBusy.value || showLastRun.value || showBa
         v-if="backgroundAgentSessionKey"
         class="bg-switch"
         @click="session.selectSession(backgroundAgentSessionKey!)"
-      >{{ t('runBar.bgSwitch') }}</button>
+      >
+        {{ t('runBar.bgSwitch') }}
+      </button>
       <span v-else class="bg-hint">{{ t('runBar.bgHint') }}</span>
     </template>
   </div>

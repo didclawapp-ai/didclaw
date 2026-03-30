@@ -1,4 +1,6 @@
-/** 与网关 `parseMessageWithAttachments` 默认上限对齐（解码后约 5MB） */
+import { i18n } from "@/i18n";
+
+/** Aligned with gateway `parseMessageWithAttachments` default limit (~5 MB decoded) */
 export const MAX_CHAT_IMAGE_ATTACHMENT_BYTES = 4_500_000;
 
 export type GatewayChatAttachmentPayload = {
@@ -8,7 +10,7 @@ export type GatewayChatAttachmentPayload = {
   content: string;
 };
 
-/** DataURL / 裸 base64 中的 base64 段（无 `data:...;base64,` 前缀） */
+/** Extracts the bare base64 segment from a DataURL or raw base64 string (strips `data:...;base64,` prefix) */
 export function readFileAsBase64Content(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -30,10 +32,10 @@ export async function buildImageAttachmentPayload(
   file: File,
 ): Promise<GatewayChatAttachmentPayload> {
   if (!file.type.startsWith("image/")) {
-    throw new Error(`${file.name}：网关当前仅将图片作为附件传入多模态模型`);
+    throw new Error(`${file.name}: ${i18n.global.t("chatAttach.onlyImages")}`);
   }
   if (file.size > MAX_CHAT_IMAGE_ATTACHMENT_BYTES) {
-    throw new Error(`${file.name}：超过约 4.5MB 上限，请压缩后重试`);
+    throw new Error(`${file.name}: ${i18n.global.t("chatAttach.tooLarge")}`);
   }
   const content = await readFileAsBase64Content(file);
   return {

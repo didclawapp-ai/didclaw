@@ -184,7 +184,7 @@ async function waitForGatewayConnected(timeoutMs = 20_000): Promise<boolean> {
   return false;
 }
 
-async function onRestartGateway(auto = false): Promise<void> {
+async function onRestartGateway(_auto = false): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.restartOpenClawGateway) {
     restartError.value = "Auto-restart is not supported in this environment. Please restart Gateway manually.";

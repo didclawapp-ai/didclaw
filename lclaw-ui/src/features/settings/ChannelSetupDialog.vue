@@ -1300,7 +1300,8 @@ onUnmounted(() => {
 
           <!-- ── WhatsApp ── -->
           <div v-if="activeTab === 'whatsapp'" class="ch-panel">
-            <p class="ch-hint">{{ t('channel.whatsapp.hint') }}
+            <p class="ch-hint">
+              {{ t('channel.whatsapp.hint') }}
               <a :href="t('channel.whatsapp.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
             </p>
 
@@ -1311,7 +1312,7 @@ onUnmounted(() => {
                 class="ch-qr-img"
                 alt="WhatsApp QR code"
                 @error="qrImgError = true"
-              />
+              >
             </div>
 
             <!-- CLI 降级提示 -->
@@ -1356,20 +1357,26 @@ onUnmounted(() => {
                 type="button"
                 class="ch-btn ch-btn--primary"
                 @click="startWhatsAppQr"
-              >{{ t('channel.qrStartBtn') }}</button>
+              >
+                {{ t('channel.qrStartBtn') }}
+              </button>
               <button
                 v-if="qrState === 'running' || qrState === 'waiting'"
                 type="button"
                 class="ch-btn"
                 disabled
-              >{{ t('channel.qrStarting') }}</button>
+              >
+                {{ t('channel.qrStarting') }}
+              </button>
               <template v-if="qrState === 'success' && qrNoScanNeeded">
                 <button
                   type="button"
                   class="ch-btn ch-btn--primary"
                   :disabled="qrReconnecting"
                   @click="reconnectWhatsApp"
-                >{{ qrReconnecting ? '重连中…' : '重新连接' }}</button>
+                >
+                  {{ qrReconnecting ? '重连中…' : '重新连接' }}
+                </button>
                 <button type="button" class="ch-btn" @click="restartGateway">
                   🔄 重启 AI 服务
                 </button>
@@ -1386,19 +1393,24 @@ onUnmounted(() => {
                 type="button"
                 class="ch-btn"
                 @click="resetQr"
-              >{{ t('common.refresh') }}</button>
+              >
+                {{ t('common.refresh') }}
+              </button>
               <button
                 v-if="qrState === 'failed'"
                 type="button"
                 class="ch-btn"
                 @click="resetQr"
-              >{{ t('common.refresh') }}</button>
+              >
+                {{ t('common.refresh') }}
+              </button>
             </div>
           </div>
 
           <!-- ── Feishu ── -->
           <div v-else-if="activeTab === 'feishu'" class="ch-panel">
-            <p class="ch-hint">{{ t('channel.feishu.hint') }}
+            <p class="ch-hint">
+              {{ t('channel.feishu.hint') }}
               <a :href="t('channel.feishu.docLink')" target="_blank" rel="noopener" class="ch-link">官方文档 ↗</a>
             </p>
 
@@ -1428,7 +1440,7 @@ onUnmounted(() => {
                   :src="feishuQrDataUrl"
                   class="ch-qr-img"
                   alt="Feishu QR code"
-                />
+                >
               </div>
 
               <div v-if="feishuInstallLines.length" class="ch-wechat-ticker" style="margin-top: 8px;">
@@ -1444,7 +1456,9 @@ onUnmounted(() => {
                   type="button"
                   class="ch-btn ch-btn--primary"
                   @click="startFeishuInstall"
-                >{{ t('channel.feishu.startInstallBtn') }}</button>
+                >
+                  {{ t('channel.feishu.startInstallBtn') }}
+                </button>
                 <button v-if="feishuInstallState === 'running'" type="button" class="ch-btn" disabled>
                   {{ t('channel.feishu.installRunning') }}
                 </button>
@@ -1483,9 +1497,9 @@ onUnmounted(() => {
                   <option value="lark">{{ t('channel.feishu.domainLark') }}</option>
                 </select>
                 <label class="ch-label">{{ t('channel.feishu.appId') }}</label>
-                <input v-model="feishuAppId" type="text" class="ch-input" :placeholder="t('channel.feishu.appIdPlh')" />
+                <input v-model="feishuAppId" type="text" class="ch-input" :placeholder="t('channel.feishu.appIdPlh')">
                 <label class="ch-label">{{ t('channel.feishu.appSecret') }}</label>
-                <input v-model="feishuAppSecret" type="password" class="ch-input" :placeholder="t('channel.feishu.appSecretPlh')" />
+                <input v-model="feishuAppSecret" type="password" class="ch-input" :placeholder="t('channel.feishu.appSecretPlh')">
               </div>
               <p class="ch-restart-hint">{{ t('channel.restartHint') }}</p>
               <div class="ch-actions">
@@ -1498,7 +1512,8 @@ onUnmounted(() => {
 
           <!-- ── WeChat (Personal) ── -->
           <div v-else-if="activeTab === 'wechat'" class="ch-panel">
-            <p class="ch-hint">{{ t('channel.wechat.hint') }}
+            <p class="ch-hint">
+              {{ t('channel.wechat.hint') }}
               <a :href="t('channel.wechat.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
             </p>
 
@@ -1532,7 +1547,7 @@ onUnmounted(() => {
                   :src="wechatQrDataUrl"
                   class="ch-qr-img"
                   alt="WeChat QR code"
-                />
+                >
               </div>
 
               <!-- WeChat QR URL（提取出来单独显示，方便扫码或用浏览器打开） -->
@@ -1557,13 +1572,17 @@ onUnmounted(() => {
                   type="button"
                   class="ch-btn ch-btn--primary"
                   @click="startWechatInstall"
-                >{{ t('channel.wechat.startInstallBtn') }}</button>
+                >
+                  {{ t('channel.wechat.startInstallBtn') }}
+                </button>
                 <button
                   v-if="wechatInstallState === 'running' || wechatInstallState === 'reconnecting'"
                   type="button"
                   class="ch-btn"
                   disabled
-                >{{ wechatInstallState === 'reconnecting' ? '等待 AI 服务重载…' : t('channel.wechat.installRunning') }}</button>
+                >
+                  {{ wechatInstallState === 'reconnecting' ? '等待 AI 服务重载…' : t('channel.wechat.installRunning') }}
+                </button>
                 <template v-if="wechatInstallState === 'success'">
                   <button type="button" class="ch-btn ch-btn--primary" @click="closeDialog">
                     ✓ 关闭，开始对话
@@ -1584,12 +1603,13 @@ onUnmounted(() => {
 
           <!-- ── Discord ── -->
           <div v-else-if="activeTab === 'discord'" class="ch-panel">
-            <p class="ch-hint">{{ t('channel.discord.hint') }}
+            <p class="ch-hint">
+              {{ t('channel.discord.hint') }}
               <a :href="t('channel.discord.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
             </p>
             <div class="ch-form">
               <label class="ch-label">{{ t('channel.discord.token') }}</label>
-              <input v-model="discordToken" type="password" class="ch-input" :placeholder="t('channel.discord.tokenPlh')" />
+              <input v-model="discordToken" type="password" class="ch-input" :placeholder="t('channel.discord.tokenPlh')">
             </div>
             <p class="ch-restart-hint">{{ t('channel.restartHint') }}</p>
             <div class="ch-actions">
@@ -1601,7 +1621,8 @@ onUnmounted(() => {
 
           <!-- ── WeCom ── -->
           <div v-else-if="activeTab === 'wecom'" class="ch-panel">
-            <p class="ch-hint">{{ t('channel.wecom.hint') }}
+            <p class="ch-hint">
+              {{ t('channel.wecom.hint') }}
               <a :href="t('channel.wecom.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
             </p>
 
@@ -1620,9 +1641,9 @@ onUnmounted(() => {
 
             <div class="ch-form">
               <label class="ch-label">{{ t('channel.wecom.botId') }}</label>
-              <input v-model="wecomBotId" type="text" class="ch-input" :placeholder="t('channel.wecom.botIdPlh')" />
+              <input v-model="wecomBotId" type="text" class="ch-input" :placeholder="t('channel.wecom.botIdPlh')">
               <label class="ch-label">{{ t('channel.wecom.secret') }}</label>
-              <input v-model="wecomSecret" type="password" class="ch-input" :placeholder="t('channel.wecom.secretPlh')" />
+              <input v-model="wecomSecret" type="password" class="ch-input" :placeholder="t('channel.wecom.secretPlh')">
             </div>
             <p class="ch-restart-hint">{{ t('channel.restartHint') }}</p>
             <div class="ch-actions">

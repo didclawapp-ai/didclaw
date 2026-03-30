@@ -82,19 +82,25 @@ async function resolve(decision: ApprovalDecision): Promise<void> {
               class="appr-btn appr-btn--deny"
               :disabled="busy"
               @click="resolve('deny')"
-            >{{ t('approval.deny') }}</button>
+            >
+              {{ t('approval.deny') }}
+            </button>
             <button
               type="button"
               class="appr-btn appr-btn--once"
               :disabled="busy"
               @click="resolve('allow-once')"
-            >{{ t('approval.allowOnce') }}</button>
+            >
+              {{ t('approval.allowOnce') }}
+            </button>
             <button
               type="button"
               class="appr-btn appr-btn--always"
               :disabled="busy"
               @click="resolve('allow-always')"
-            >{{ t('approval.allowAlways') }}</button>
+            >
+              {{ t('approval.allowAlways') }}
+            </button>
           </div>
         </div>
       </div>

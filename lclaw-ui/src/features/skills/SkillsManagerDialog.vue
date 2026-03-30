@@ -1611,199 +1611,201 @@ const selectedOpenclawPlugin = computed(() => {
                 class="skills-toast-close"
                 aria-label="关闭提示"
                 @click="() => { installMessage = null; installMessageAction = null; }"
-              >✕</button>
+              >
+                ✕
+              </button>
             </div>
 
             <!-- ClawHub -->
             <div v-show="subTab === 'browse'" class="skills-body" role="tabpanel">
-          <div class="hub-toolbar">
-            <input
-              v-model="searchQuery"
-              type="search"
-              class="skills-search"
-              placeholder="搜索技能或插件…"
-              @keydown.enter="onSearchSubmit"
-            >
-            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" :disabled="searchLoading" @click="onSearchSubmit">
-              {{ searchLoading ? "搜索中…" : "搜索" }}
-            </button>
-          </div>
-          <div class="hub-quick-search" aria-label="ClawHub 快捷搜索">
-            <span class="hub-quick-label muted small">快捷搜索</span>
-            <div class="hub-quick-tags">
-              <button
-                v-for="item in CLAWHUB_QUICK_SEARCH_ITEMS"
-                :key="item.query"
-                type="button"
-                class="lc-btn lc-btn-ghost lc-btn-sm hub-quick-tag"
-                :disabled="searchLoading"
-                :title="`搜索：${item.query}`"
-                @click="onQuickSearch(item.query)"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-          </div>
-          <p v-if="searchError" class="err small">{{ searchError }}</p>
-
-          <div class="hub-results-toolbar">
-            <span class="hub-results-title muted small">搜索结果</span>
-            <div class="hub-view-toggle" role="group" aria-label="展示方式">
-              <button
-                type="button"
-                class="hub-toggle-btn"
-                :class="{ active: hubResultsView === 'cards' }"
-                @click="hubResultsView = 'cards'"
-              >
-                卡片
-              </button>
-              <button
-                type="button"
-                class="hub-toggle-btn"
-                :class="{ active: hubResultsView === 'list' }"
-                @click="hubResultsView = 'list'"
-              >
-                列表
-              </button>
-            </div>
-          </div>
-
-          <div ref="hubResultsRegionEl" class="hub-results-region" aria-live="polite">
-            <p v-if="searchLoading" class="muted small hub-results-status">搜索中…</p>
-            <p v-else-if="!searchHits.length" class="muted small hub-results-empty">
-              搜索技能名称，或点击快捷标签开始探索
-            </p>
-            <template v-else>
-              <div v-if="hubResultsView === 'cards'" class="hub-card-grid">
-                <article
-                  v-for="h in searchHits"
-                  :key="`${h.family}:${h.slug}`"
-                  class="hub-result-card"
-                  :data-catalog-hit-key="catalogHitKey(h)"
+              <div class="hub-toolbar">
+                <input
+                  v-model="searchQuery"
+                  type="search"
+                  class="skills-search"
+                  placeholder="搜索技能或插件…"
+                  @keydown.enter="onSearchSubmit"
                 >
-                  <header class="hub-card-head">
-                    <h3 class="hub-card-title">{{ h.displayName?.trim() || h.slug }}</h3>
-                    <span class="hub-card-family">{{ familyLabel(h.family) }}</span>
-                    <code class="hub-card-slug">{{ h.slug }}</code>
-                  </header>
-                  <p class="hub-card-summary">{{ truncateSummary(h.summary, 200) }}</p>
-                  <footer class="hub-card-actions">
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-sm"
-                      :disabled="installButtonDisabledForHit(h)"
-                      @click="installFromSearchHit(h)"
-                    >
-                      {{ installBusy && installingSlug === h.slug ? "安装中…" : "安装" }}
-                    </button>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-sm"
-                      @click="() => void selectHubSlug(h.slug, h.family)"
-                    >
-                      详情
-                    </button>
-                  </footer>
-                </article>
-              </div>
-              <ul v-else class="hub-result-list" role="list">
-                <li
-                  v-for="h in searchHits"
-                  :key="`${h.family}:${h.slug}`"
-                  class="hub-list-row"
-                  :data-catalog-hit-key="catalogHitKey(h)"
-                >
-                  <div class="hub-list-text">
-                    <div class="hub-list-title-row">
-                      <span class="hub-list-name">{{ h.displayName?.trim() || h.slug }}</span>
-                      <span class="hub-list-family">{{ familyLabel(h.family) }}</span>
-                      <code class="hub-list-slug">{{ h.slug }}</code>
-                    </div>
-                    <p class="hub-list-summary">{{ truncateSummary(h.summary, 280) }}</p>
-                  </div>
-                  <div class="hub-list-actions">
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-sm lc-btn-ghost"
-                      :disabled="installButtonDisabledForHit(h)"
-                      @click="installFromSearchHit(h)"
-                    >
-                      {{ installBusy && installingSlug === h.slug ? "安装中…" : "安装" }}
-                    </button>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-sm"
-                      @click="() => void selectHubSlug(h.slug, h.family)"
-                    >
-                      详情
-                    </button>
-                  </div>
-                </li>
-              </ul>
-              <div v-if="canLoadMoreSearchHits" class="hub-load-more">
-                <button
-                  type="button"
-                  class="lc-btn lc-btn-ghost lc-btn-sm"
-                  :disabled="searchLoading"
-                  @click="loadMoreSearchHits"
-                >
-                  {{ searchLoading ? "加载中…" : "加载更多" }}
+                <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" :disabled="searchLoading" @click="onSearchSubmit">
+                  {{ searchLoading ? "搜索中…" : "搜索" }}
                 </button>
               </div>
-            </template>
-          </div>
+              <div class="hub-quick-search" aria-label="ClawHub 快捷搜索">
+                <span class="hub-quick-label muted small">快捷搜索</span>
+                <div class="hub-quick-tags">
+                  <button
+                    v-for="item in CLAWHUB_QUICK_SEARCH_ITEMS"
+                    :key="item.query"
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm hub-quick-tag"
+                    :disabled="searchLoading"
+                    :title="`搜索：${item.query}`"
+                    @click="onQuickSearch(item.query)"
+                  >
+                    {{ item.label }}
+                  </button>
+                </div>
+              </div>
+              <p v-if="searchError" class="err small">{{ searchError }}</p>
 
-          <div v-if="hubSlug" class="detail-card hub-detail-panel">
-            <h3 class="detail-title">详情：{{ hubSlug }}</h3>
-            <p v-if="detailLoading" class="muted">加载中…</p>
-            <template v-else-if="hubDetailKind === 'skill'">
-              <p v-if="detailError" class="muted small">{{ detailError }}</p>
-              <p class="detail-summary">{{ hubDetail?.skill?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
-              <p v-if="hubDetail?.latestVersion" class="small muted">
-                最新版本：{{ hubDetail.latestVersion.version }}
-              </p>
-              <p v-if="hubDetail?.moderation?.isMalwareBlocked" class="err small">该技能已被标记为恶意，无法安装。</p>
-              <p v-else-if="hubDetail?.moderation?.isSuspicious" class="err small">
-                该技能被标记为可疑，请自行审阅后再安装。
-              </p>
-              <button
-                v-if="canInstallDetail"
-                type="button"
-                class="lc-btn lc-btn-sm skills-install-btn"
-                :disabled="installBusy"
-                @click="installOpenClawSkill(hubSlug, hubDetail?.latestVersion?.version)"
-              >
-                {{ installBusy && installingSlug === hubSlug ? "安装中…" : "安装到 OpenClaw" }}
-              </button>
-            </template>
-            <template v-else-if="hubDetailKind === 'package'">
-              <p v-if="detailError" class="muted small">{{ detailError }}</p>
-              <p v-if="hubPkgDetail?.package?.family || selectedSearchHit?.family" class="small muted">
-                类型：{{ familyLabel(normalizePkgFamily(hubPkgDetail?.package?.family ?? selectedSearchHit?.family)) }}
-              </p>
-              <p class="detail-summary">{{ hubPkgDetail?.package?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
-              <p v-if="hubPkgDetail?.package?.latestVersion" class="small muted">
-                最新版本：{{ hubPkgDetail.package.latestVersion }}
-              </p>
-              <p v-if="hubPkgDetail?.package?.channel" class="small muted">通道：{{ hubPkgDetail.package.channel }}</p>
-              <p v-if="hubPkgDetail?.package?.ownerHandle" class="small muted">发布者：@{{ hubPkgDetail.package.ownerHandle }}</p>
-              <button
-                v-if="canInstallPluginDetail && hubSlug"
-                type="button"
-                class="lc-btn lc-btn-sm skills-install-btn"
-                :disabled="installBusy"
-                @click="installClawhubPluginFromSlug(hubSlug)"
-              >
-                {{ installBusy && installingSlug === hubSlug ? "安装中…" : "安装插件（OpenClaw CLI）" }}
-              </button>
-              <p class="muted small">
-                说明与配置见
-                <a href="https://docs.openclaw.ai/tools/plugin" target="_blank" rel="noopener noreferrer">官方插件文档</a>
-                。
-              </p>
-            </template>
-            <p v-else-if="detailError" class="err small">{{ detailError }}</p>
-          </div>
+              <div class="hub-results-toolbar">
+                <span class="hub-results-title muted small">搜索结果</span>
+                <div class="hub-view-toggle" role="group" aria-label="展示方式">
+                  <button
+                    type="button"
+                    class="hub-toggle-btn"
+                    :class="{ active: hubResultsView === 'cards' }"
+                    @click="hubResultsView = 'cards'"
+                  >
+                    卡片
+                  </button>
+                  <button
+                    type="button"
+                    class="hub-toggle-btn"
+                    :class="{ active: hubResultsView === 'list' }"
+                    @click="hubResultsView = 'list'"
+                  >
+                    列表
+                  </button>
+                </div>
+              </div>
+
+              <div ref="hubResultsRegionEl" class="hub-results-region" aria-live="polite">
+                <p v-if="searchLoading" class="muted small hub-results-status">搜索中…</p>
+                <p v-else-if="!searchHits.length" class="muted small hub-results-empty">
+                  搜索技能名称，或点击快捷标签开始探索
+                </p>
+                <template v-else>
+                  <div v-if="hubResultsView === 'cards'" class="hub-card-grid">
+                    <article
+                      v-for="h in searchHits"
+                      :key="`${h.family}:${h.slug}`"
+                      class="hub-result-card"
+                      :data-catalog-hit-key="catalogHitKey(h)"
+                    >
+                      <header class="hub-card-head">
+                        <h3 class="hub-card-title">{{ h.displayName?.trim() || h.slug }}</h3>
+                        <span class="hub-card-family">{{ familyLabel(h.family) }}</span>
+                        <code class="hub-card-slug">{{ h.slug }}</code>
+                      </header>
+                      <p class="hub-card-summary">{{ truncateSummary(h.summary, 200) }}</p>
+                      <footer class="hub-card-actions">
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-sm"
+                          :disabled="installButtonDisabledForHit(h)"
+                          @click="installFromSearchHit(h)"
+                        >
+                          {{ installBusy && installingSlug === h.slug ? "安装中…" : "安装" }}
+                        </button>
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-ghost lc-btn-sm"
+                          @click="() => void selectHubSlug(h.slug, h.family)"
+                        >
+                          详情
+                        </button>
+                      </footer>
+                    </article>
+                  </div>
+                  <ul v-else class="hub-result-list" role="list">
+                    <li
+                      v-for="h in searchHits"
+                      :key="`${h.family}:${h.slug}`"
+                      class="hub-list-row"
+                      :data-catalog-hit-key="catalogHitKey(h)"
+                    >
+                      <div class="hub-list-text">
+                        <div class="hub-list-title-row">
+                          <span class="hub-list-name">{{ h.displayName?.trim() || h.slug }}</span>
+                          <span class="hub-list-family">{{ familyLabel(h.family) }}</span>
+                          <code class="hub-list-slug">{{ h.slug }}</code>
+                        </div>
+                        <p class="hub-list-summary">{{ truncateSummary(h.summary, 280) }}</p>
+                      </div>
+                      <div class="hub-list-actions">
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-sm lc-btn-ghost"
+                          :disabled="installButtonDisabledForHit(h)"
+                          @click="installFromSearchHit(h)"
+                        >
+                          {{ installBusy && installingSlug === h.slug ? "安装中…" : "安装" }}
+                        </button>
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-ghost lc-btn-sm"
+                          @click="() => void selectHubSlug(h.slug, h.family)"
+                        >
+                          详情
+                        </button>
+                      </div>
+                    </li>
+                  </ul>
+                  <div v-if="canLoadMoreSearchHits" class="hub-load-more">
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-sm"
+                      :disabled="searchLoading"
+                      @click="loadMoreSearchHits"
+                    >
+                      {{ searchLoading ? "加载中…" : "加载更多" }}
+                    </button>
+                  </div>
+                </template>
+              </div>
+
+              <div v-if="hubSlug" class="detail-card hub-detail-panel">
+                <h3 class="detail-title">详情：{{ hubSlug }}</h3>
+                <p v-if="detailLoading" class="muted">加载中…</p>
+                <template v-else-if="hubDetailKind === 'skill'">
+                  <p v-if="detailError" class="muted small">{{ detailError }}</p>
+                  <p class="detail-summary">{{ hubDetail?.skill?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
+                  <p v-if="hubDetail?.latestVersion" class="small muted">
+                    最新版本：{{ hubDetail.latestVersion.version }}
+                  </p>
+                  <p v-if="hubDetail?.moderation?.isMalwareBlocked" class="err small">该技能已被标记为恶意，无法安装。</p>
+                  <p v-else-if="hubDetail?.moderation?.isSuspicious" class="err small">
+                    该技能被标记为可疑，请自行审阅后再安装。
+                  </p>
+                  <button
+                    v-if="canInstallDetail"
+                    type="button"
+                    class="lc-btn lc-btn-sm skills-install-btn"
+                    :disabled="installBusy"
+                    @click="installOpenClawSkill(hubSlug, hubDetail?.latestVersion?.version)"
+                  >
+                    {{ installBusy && installingSlug === hubSlug ? "安装中…" : "安装到 OpenClaw" }}
+                  </button>
+                </template>
+                <template v-else-if="hubDetailKind === 'package'">
+                  <p v-if="detailError" class="muted small">{{ detailError }}</p>
+                  <p v-if="hubPkgDetail?.package?.family || selectedSearchHit?.family" class="small muted">
+                    类型：{{ familyLabel(normalizePkgFamily(hubPkgDetail?.package?.family ?? selectedSearchHit?.family)) }}
+                  </p>
+                  <p class="detail-summary">{{ hubPkgDetail?.package?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
+                  <p v-if="hubPkgDetail?.package?.latestVersion" class="small muted">
+                    最新版本：{{ hubPkgDetail.package.latestVersion }}
+                  </p>
+                  <p v-if="hubPkgDetail?.package?.channel" class="small muted">通道：{{ hubPkgDetail.package.channel }}</p>
+                  <p v-if="hubPkgDetail?.package?.ownerHandle" class="small muted">发布者：@{{ hubPkgDetail.package.ownerHandle }}</p>
+                  <button
+                    v-if="canInstallPluginDetail && hubSlug"
+                    type="button"
+                    class="lc-btn lc-btn-sm skills-install-btn"
+                    :disabled="installBusy"
+                    @click="installClawhubPluginFromSlug(hubSlug)"
+                  >
+                    {{ installBusy && installingSlug === hubSlug ? "安装中…" : "安装插件（OpenClaw CLI）" }}
+                  </button>
+                  <p class="muted small">
+                    说明与配置见
+                    <a href="https://docs.openclaw.ai/tools/plugin" target="_blank" rel="noopener noreferrer">官方插件文档</a>
+                    。
+                  </p>
+                </template>
+                <p v-else-if="detailError" class="err small">{{ detailError }}</p>
+              </div>
             </div>
 
             <!-- OpenClaw -->
@@ -2286,173 +2288,173 @@ const selectedOpenclawPlugin = computed(() => {
 
             <!-- 共享目录 -->
             <div v-show="subTab === 'installed'" class="skills-body" role="tabpanel">
-          <div class="row-actions">
-            <button
-              type="button"
-              class="lc-btn lc-btn-ghost lc-btn-sm"
-              :disabled="installedLoading || !isTauri()"
-              @click="loadInstalled"
-            >
-              {{ installedLoading ? "刷新中…" : "刷新" }}
-            </button>
-          </div>
-          <p v-if="installedError" class="err small">{{ installedError }}</p>
-          <p v-if="!isTauri()" class="muted small">桌面版才可管理共享 skills 目录。</p>
-          <template v-else>
-            <p class="muted small">
-              这里展示的是共享 <code>skills</code> 目录中的手动导入项，不等同于上方 OpenClaw workspace 中通过 CLI 安装的技能。
-            </p>
-            <table v-if="installedRows.length" class="skills-table">
-              <thead>
-                <tr>
-                  <th>技能</th>
-                  <th>来源</th>
-                  <th>版本</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in installedRows" :key="row.slug">
-                  <td>
-                    <code>{{ row.slug }}</code>
-                  </td>
-                  <td>{{ row.source }}</td>
-                  <td>{{ row.installedVersion ?? "—" }}</td>
-                  <td class="td-actions">
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-xs"
-                      :disabled="installBusy"
-                      @click="onUpdateInstalled(row)"
-                    >
-                      更新
-                    </button>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
-                      :disabled="installBusy"
-                      @click="onDeleteInstalled(row)"
-                    >
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-else-if="!installedLoading" class="muted small">共享 skills 目录里还没有内容。</p>
-          </template>
+              <div class="row-actions">
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-sm"
+                  :disabled="installedLoading || !isTauri()"
+                  @click="loadInstalled"
+                >
+                  {{ installedLoading ? "刷新中…" : "刷新" }}
+                </button>
+              </div>
+              <p v-if="installedError" class="err small">{{ installedError }}</p>
+              <p v-if="!isTauri()" class="muted small">桌面版才可管理共享 skills 目录。</p>
+              <template v-else>
+                <p class="muted small">
+                  这里展示的是共享 <code>skills</code> 目录中的手动导入项，不等同于上方 OpenClaw workspace 中通过 CLI 安装的技能。
+                </p>
+                <table v-if="installedRows.length" class="skills-table">
+                  <thead>
+                    <tr>
+                      <th>技能</th>
+                      <th>来源</th>
+                      <th>版本</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in installedRows" :key="row.slug">
+                      <td>
+                        <code>{{ row.slug }}</code>
+                      </td>
+                      <td>{{ row.source }}</td>
+                      <td>{{ row.installedVersion ?? "—" }}</td>
+                      <td class="td-actions">
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-ghost lc-btn-xs"
+                          :disabled="installBusy"
+                          @click="onUpdateInstalled(row)"
+                        >
+                          更新
+                        </button>
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
+                          :disabled="installBusy"
+                          @click="onDeleteInstalled(row)"
+                        >
+                          删除
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p v-else-if="!installedLoading" class="muted small">共享 skills 目录里还没有内容。</p>
+              </template>
             </div>
 
             <!-- 本机安装 -->
             <div v-show="subTab === 'local'" class="skills-body" role="tabpanel">
-          <p v-if="!isTauri()" class="muted small">请使用桌面版选择 ZIP 或文件夹。</p>
-          <template v-else>
-            <div class="local-plugin-card">
-              <p class="muted small local-plugin-title">ClawHub 凭据（可选）</p>
-              <label class="local-slug">
-                <span class="muted small">Token（可留空；留空时走匿名访问或本机 `clawhub login`）</span>
-                <div class="local-secret-row">
-                  <input
-                    v-model="clawhubToken"
-                    :type="showClawhubToken ? 'text' : 'password'"
-                    class="skills-root-input"
-                    spellcheck="false"
-                    autocomplete="off"
-                    placeholder="clh_..."
+              <p v-if="!isTauri()" class="muted small">请使用桌面版选择 ZIP 或文件夹。</p>
+              <template v-else>
+                <div class="local-plugin-card">
+                  <p class="muted small local-plugin-title">ClawHub 凭据（可选）</p>
+                  <label class="local-slug">
+                    <span class="muted small">Token（可留空；留空时走匿名访问或本机 `clawhub login`）</span>
+                    <div class="local-secret-row">
+                      <input
+                        v-model="clawhubToken"
+                        :type="showClawhubToken ? 'text' : 'password'"
+                        class="skills-root-input"
+                        spellcheck="false"
+                        autocomplete="off"
+                        placeholder="clh_..."
+                      >
+                      <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="showClawhubToken = !showClawhubToken">
+                        {{ showClawhubToken ? "隐藏" : "显示" }}
+                      </button>
+                    </div>
+                  </label>
+                  <label class="local-slug">
+                    <span class="muted small">Registry（可选）</span>
+                    <input
+                      v-model="clawhubRegistry"
+                      type="text"
+                      class="skills-root-input"
+                      spellcheck="false"
+                      placeholder="https://clawhub.ai"
+                    >
+                  </label>
+                  <div class="local-actions">
+                    <button type="button" class="lc-btn lc-btn-sm" @click="saveClawhubAuth">
+                      保存凭据
+                    </button>
+                    <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="clearClawhubAuth">
+                      清除凭据
+                    </button>
+                  </div>
+                  <p class="muted small">
+                    会保存在本机 DidClaw SQLite 中，供桌面端匿名 HTTP 请求和 `openclaw skills/plugins` CLI 调用复用。
+                  </p>
+                </div>
+                <label class="local-slug">
+                  <span class="muted small">目录名（slug，可选；不填则用文件名/文件夹名）</span>
+                  <input v-model="localSlug" type="text" class="skills-root-input" spellcheck="false">
+                </label>
+                <div class="local-actions">
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    :disabled="localBusy || localPluginBusy"
+                    @click="onPickZipInstall"
                   >
-                  <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="showClawhubToken = !showClawhubToken">
-                    {{ showClawhubToken ? "隐藏" : "显示" }}
+                    {{ localBusy ? "处理中…" : "选择 ZIP 安装" }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    :disabled="localBusy || localPluginBusy"
+                    @click="onPickFolderInstall"
+                  >
+                    {{ localBusy ? "处理中…" : "选择文件夹安装" }}
                   </button>
                 </div>
-              </label>
-              <label class="local-slug">
-                <span class="muted small">Registry（可选）</span>
-                <input
-                  v-model="clawhubRegistry"
-                  type="text"
-                  class="skills-root-input"
-                  spellcheck="false"
-                  placeholder="https://clawhub.ai"
-                >
-              </label>
-              <div class="local-actions">
-                <button type="button" class="lc-btn lc-btn-sm" @click="saveClawhubAuth">
-                  保存凭据
-                </button>
-                <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="clearClawhubAuth">
-                  清除凭据
-                </button>
-              </div>
-              <p class="muted small">
-                会保存在本机 DidClaw SQLite 中，供桌面端匿名 HTTP 请求和 `openclaw skills/plugins` CLI 调用复用。
-              </p>
-            </div>
-            <label class="local-slug">
-              <span class="muted small">目录名（slug，可选；不填则用文件名/文件夹名）</span>
-              <input v-model="localSlug" type="text" class="skills-root-input" spellcheck="false">
-            </label>
-            <div class="local-actions">
-              <button
-                type="button"
-                class="lc-btn lc-btn-ghost lc-btn-sm"
-                :disabled="localBusy || localPluginBusy"
-                @click="onPickZipInstall"
-              >
-                {{ localBusy ? "处理中…" : "选择 ZIP 安装" }}
-              </button>
-              <button
-                type="button"
-                class="lc-btn lc-btn-ghost lc-btn-sm"
-                :disabled="localBusy || localPluginBusy"
-                @click="onPickFolderInstall"
-              >
-                {{ localBusy ? "处理中…" : "选择文件夹安装" }}
-              </button>
-            </div>
-            <div class="local-plugin-card">
-              <p class="muted small local-plugin-title">本机插件安装（OpenClaw CLI）</p>
-              <label class="local-slug">
-                <span class="muted small">插件目录/归档路径（支持文件夹、`.tgz`、`.zip` 等）</span>
-                <input
-                  v-model="localPluginSpec"
-                  type="text"
-                  class="skills-root-input"
-                  spellcheck="false"
-                  placeholder="C:\path\to\my-plugin 或 C:\path\to\my-plugin.tgz"
-                >
-              </label>
-              <div class="local-actions">
-                <button
-                  type="button"
-                  class="lc-btn lc-btn-ghost lc-btn-sm"
-                  :disabled="localBusy || localPluginBusy"
-                  @click="onPickPluginFolder"
-                >
-                  {{ localPluginBusy ? "处理中…" : "选择插件目录" }}
-                </button>
-                <button
-                  type="button"
-                  class="lc-btn lc-btn-ghost lc-btn-sm"
-                  :disabled="localBusy || localPluginBusy"
-                  @click="onPickPluginPackage"
-                >
-                  {{ localPluginBusy ? "处理中…" : "选择插件包" }}
-                </button>
-                <button
-                  type="button"
-                  class="lc-btn lc-btn-sm"
-                  :disabled="localBusy || localPluginBusy"
-                  @click="onInstallLocalPlugin"
-                >
-                  {{ localPluginBusy ? "安装中…" : "安装本机插件" }}
-                </button>
-              </div>
-              <p class="muted small">
-                会调用 <code>openclaw plugins install &lt;path&gt;</code>；安装完成后通常需要重启 Gateway 才会加载。
-              </p>
-            </div>
-            <p v-if="localMessage" class="small" :class="localMessageKind === 'error' ? 'err' : localMessageKind === 'success' ? 'ok' : 'muted'">{{ localMessage }}</p>
-            </template>
+                <div class="local-plugin-card">
+                  <p class="muted small local-plugin-title">本机插件安装（OpenClaw CLI）</p>
+                  <label class="local-slug">
+                    <span class="muted small">插件目录/归档路径（支持文件夹、`.tgz`、`.zip` 等）</span>
+                    <input
+                      v-model="localPluginSpec"
+                      type="text"
+                      class="skills-root-input"
+                      spellcheck="false"
+                      placeholder="C:\path\to\my-plugin 或 C:\path\to\my-plugin.tgz"
+                    >
+                  </label>
+                  <div class="local-actions">
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-sm"
+                      :disabled="localBusy || localPluginBusy"
+                      @click="onPickPluginFolder"
+                    >
+                      {{ localPluginBusy ? "处理中…" : "选择插件目录" }}
+                    </button>
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-sm"
+                      :disabled="localBusy || localPluginBusy"
+                      @click="onPickPluginPackage"
+                    >
+                      {{ localPluginBusy ? "处理中…" : "选择插件包" }}
+                    </button>
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-sm"
+                      :disabled="localBusy || localPluginBusy"
+                      @click="onInstallLocalPlugin"
+                    >
+                      {{ localPluginBusy ? "安装中…" : "安装本机插件" }}
+                    </button>
+                  </div>
+                  <p class="muted small">
+                    会调用 <code>openclaw plugins install &lt;path&gt;</code>；安装完成后通常需要重启 Gateway 才会加载。
+                  </p>
+                </div>
+                <p v-if="localMessage" class="small" :class="localMessageKind === 'error' ? 'err' : localMessageKind === 'success' ? 'ok' : 'muted'">{{ localMessage }}</p>
+              </template>
             </div>
           </div>
         </div>

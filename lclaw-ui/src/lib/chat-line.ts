@@ -1,19 +1,25 @@
+import { i18n } from "@/i18n";
 import type { GatewayChatMessage } from "@/lib/chat-messages";
 import { extractMessageTimeMs } from "@/lib/chat-history-sort";
 import { buildListPreview } from "@/lib/chat-message-format";
 
 export type ChatLine = {
   role: "user" | "assistant" | "system";
-  /** 完整正文：右侧预览、复制等 */
+  /** Full body text used for right-side preview and copy */
   text: string;
-  /** 左侧消息列表展示（可摘要/截断，避免大块 JSON 刷屏） */
+  /** Abbreviated text shown in the left message list (avoids flooding with large JSON) */
   listText: string;
   streaming?: boolean;
-  /** 本地时 HH:mm，来自网关 `timestamp`（与官方 Web UI 一致） */
+  /** Local HH:mm derived from gateway `timestamp` (matches official Web UI) */
   timeLabel?: string;
 };
 
-/** 消息列表行角标时间（与官方 Control UI 常见展示一致） */
+/** Locale-independent prefix used to identify auto-generated assistant meta-only lines */
+export const ASSISTANT_META_PREFIX = "[assistant\u00b7meta-only]";
+/** Locale-independent prefix used to identify auto-generated system no-text lines */
+export const SYSTEM_NO_TEXT_PREFIX = "[system\u00b7no-text]";
+
+/** Time label for the message list badge (HH:mm, matches official Control UI) */
 export function formatMessageListTime(ms: number): string {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -22,10 +28,12 @@ export function formatMessageListTime(ms: number): string {
 function compactObjectHint(o: Record<string, unknown>): string {
   const keys = Object.keys(o).filter((k) => k !== "content" && k !== "role");
   const head = keys.slice(0, 6).join(", ");
-  return head ? `字段: ${head}${keys.length > 6 ? "…" : ""}` : "无常用文本字段";
+  return head
+    ? `${i18n.global.t("chatLineLib.fieldHint")}${head}${keys.length > 6 ? "…" : ""}`
+    : i18n.global.t("chatLineLib.noTextField");
 }
 
-/** assistant 仅有 api/provider/model 等、无文本 part 时的可读一行 */
+/** Returns a single readable line when the assistant message has only metadata (no text parts) */
 function assistantStructuredSummary(o: Record<string, unknown>): string | null {
   const model = o.model;
   const api = o.api;
@@ -41,7 +49,7 @@ function assistantStructuredSummary(o: Record<string, unknown>): string | null {
   if (parts.length === 0) {
     return null;
   }
-  return `[助手·仅元数据] ${parts.join("，")}（无文本正文）`;
+  return `${ASSISTANT_META_PREFIX} ${parts.join(", ")} (${i18n.global.t("chatLineLib.noTextBody")})`;
 }
 
 function extractBody(o: Record<string, unknown>): string {
@@ -105,7 +113,7 @@ export function messageToChatLine(m: unknown): ChatLine {
       }
     }
     if (!text.trim()) {
-      text = `[系统] 无文本正文（${compactObjectHint(o)}）`;
+      text = `${SYSTEM_NO_TEXT_PREFIX} (${compactObjectHint(o)})`;
     }
   }
 

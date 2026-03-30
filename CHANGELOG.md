@@ -8,8 +8,13 @@
 
 ### 修复
 
+- **ESLint 警告全部清零**：修复 8 个文件共 377+ 条 ESLint 警告：`AboutDialog`、`ChatRunStatusBar`、`ExecApprovalDialog`、`DoctorDialog`、`BackupRestoreDialog` 中的 button 内联文本换行；`SlashCommandPicker` 中的多余空格；`OpenClawUpdatePrompt` 中的未使用参数 `auto → _auto`；`SkillsManagerDialog`（ClawHub 区块，约 300 条）与 `ChannelSetupDialog`（约 30 条）中的缩进与自闭合格式。
 - **ESLint 警告清零（GeneralSettingsDialog / UsageStatsDialog）**：修复两个文件共 6 条 ESLint 警告：`GeneralSettingsDialog` 中的 `<input/>` 自闭合及两处多余空行；`UsageStatsDialog` 中的 `props` 未使用变量及两处多余空行。
 - **ESLint 警告清零（CronJobsDialog）**：修复模板区 85 条 ESLint 警告，含多行元素属性换行与缩进格式、`<input>` 禁止自闭合、`<textarea>` 正确使用自闭合，以及两处多余空行。
+
+### 优化
+
+- **i18n 补全（chat-attachment-encode / chat-line / chat-message-format）**：三个 lib 工具文件接入 vue-i18n，附件上传错误提示（`chatAttach.*`）、消息列表预览文案（`chatMsgFmt.*`）、字段提示与无正文标签（`chatLineLib.*`）均新增中英文 key；内部哨兵字符串改为 locale 无关的 ASCII 常量（`ASSISTANT_META_PREFIX` / `SYSTEM_NO_TEXT_PREFIX`），对应检测逻辑同步更新；文件内中文注释全部改为英文。
 
 ### 优化
 

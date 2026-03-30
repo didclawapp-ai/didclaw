@@ -26,7 +26,9 @@ const open = computed({
               class="doctor-dialog-close"
               :aria-label="t('common.close')"
               @click="open = false"
-            >✕</button>
+            >
+              ✕
+            </button>
           </div>
           <div class="doctor-dialog-body">
             <DoctorPanel />
