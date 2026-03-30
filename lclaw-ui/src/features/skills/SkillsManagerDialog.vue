@@ -48,6 +48,9 @@ import {
 } from "@/lib/skills-invoke";
 import { isTauri } from "@tauri-apps/api/core";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelValue: boolean;
@@ -64,6 +67,11 @@ const open = computed({
 
 type SubTab = "browse" | "openclaw" | "installed" | "local";
 const subTab = ref<SubTab>("browse");
+
+/** Local library (shared install root) row selected for bottom sheet */
+const selectedLocalRowSlug = ref<string | null>(null);
+let marketSearchDebounceTimer: number | null = null;
+const importDropActive = ref(false);
 
 const installRoot = ref("");
 const searchQuery = ref("");
@@ -744,12 +752,165 @@ async function onQuickSearch(keyword: string): Promise<void> {
   if (!k) {
     return;
   }
+  if (marketSearchDebounceTimer !== null) {
+    clearTimeout(marketSearchDebounceTimer);
+    marketSearchDebounceTimer = null;
+  }
   searchQuery.value = k;
+  await onSearch(true);
+}
+
+async function onClearMarketSearch(): Promise<void> {
+  if (marketSearchDebounceTimer !== null) {
+    clearTimeout(marketSearchDebounceTimer);
+    marketSearchDebounceTimer = null;
+  }
+  searchQuery.value = "";
   await onSearch(true);
 }
 
 function onSearchSubmit(): void {
   void onSearch(true);
+}
+
+function onMarketSearchInput(): void {
+  if (marketSearchDebounceTimer !== null) {
+    clearTimeout(marketSearchDebounceTimer);
+  }
+  marketSearchDebounceTimer = window.setTimeout(() => {
+    marketSearchDebounceTimer = null;
+    void onSearch(true);
+  }, 320);
+}
+
+function closeSkillsDetailPanel(): void {
+  hubSlug.value = null;
+  hubDetail.value = null;
+  hubPkgDetail.value = null;
+  hubDetailKind.value = null;
+  detailError.value = null;
+  selectedOpenclawSkillName.value = null;
+  selectedOpenclawPluginId.value = null;
+  openclawPluginInspect.value = null;
+  openclawPluginInspectError.value = null;
+  selectedLocalRowSlug.value = null;
+}
+
+const selectedLocalRow = computed(() => {
+  const s = selectedLocalRowSlug.value?.trim();
+  if (!s) {
+    return null;
+  }
+  return installedRows.value.find((r) => r.slug === s) ?? null;
+});
+
+async function installZipFromFile(file: File): Promise<void> {
+  if (!isTauri()) {
+    return;
+  }
+  const name = file.name?.trim() ?? "";
+  if (!name.toLowerCase().endsWith(".zip")) {
+    localMessage.value = t("skills.dropZipOnly");
+    localMessageKind.value = "error";
+    return;
+  }
+  localMessage.value = null;
+  const slug = localSlug.value.trim() || slugFromFileName(name);
+  if (!slug) {
+    localMessage.value = t("skills.slugRequired");
+    localMessageKind.value = "error";
+    return;
+  }
+  const root = await skillsResolveInstallRoot(installRoot.value.trim() || undefined);
+  localBusy.value = true;
+  try {
+    const buf = await file.arrayBuffer();
+    const b64 = arrayBufferToBase64(buf);
+    const r = await skillsInstallZipBase64(root, slug, b64, {
+      version: 1,
+      registry: currentClawhubAuth().registry || clawhubDefaultRegistry(),
+      slug,
+      installedAt: Date.now(),
+      source: "drop",
+    });
+    if (!r.ok) {
+      localMessage.value = t("skills.installFailed");
+      localMessageKind.value = "error";
+      return;
+    }
+    setStoredSkillsInstallRoot(root);
+    installRoot.value = root;
+    localMessage.value = t("skills.zipInstalled", { slug });
+    localMessageKind.value = "success";
+    await loadInstalled();
+  } catch (e) {
+    localMessage.value = e instanceof Error ? e.message : String(e);
+    localMessageKind.value = "error";
+  } finally {
+    localBusy.value = false;
+  }
+}
+
+function onImportDragOver(ev: DragEvent): void {
+  if (!isTauri() || subTab.value !== "local") {
+    return;
+  }
+  ev.preventDefault();
+  importDropActive.value = true;
+}
+
+function onImportDragLeave(): void {
+  importDropActive.value = false;
+}
+
+function onImportDrop(ev: DragEvent): void {
+  if (!isTauri() || subTab.value !== "local") {
+    return;
+  }
+  ev.preventDefault();
+  importDropActive.value = false;
+  const f = ev.dataTransfer?.files?.[0];
+  if (f) {
+    void installZipFromFile(f);
+  }
+}
+
+async function onMarketCardClick(h: ClawhubCatalogHit): Promise<void> {
+  const isPluginHit = h.family === "code-plugin" || h.family === "bundle-plugin";
+  const expectedKind = isPluginHit ? "package" : "skill";
+  if (hubSlug.value === h.slug && hubDetailKind.value === expectedKind) {
+    closeSkillsDetailPanel();
+    return;
+  }
+  await selectHubSlug(h.slug, h.family);
+}
+
+function toggleOpenclawSkillSelection(name: string): void {
+  const n = name.trim();
+  if (selectedOpenclawSkillName.value === n) {
+    selectedOpenclawSkillName.value = null;
+    return;
+  }
+  selectedOpenclawSkillName.value = n;
+}
+
+async function toggleOpenclawPluginSelection(id: string): Promise<void> {
+  const pid = id.trim();
+  if (selectedOpenclawPluginId.value === pid) {
+    selectedOpenclawPluginId.value = null;
+    openclawPluginInspect.value = null;
+    return;
+  }
+  await inspectOpenClawPlugin(pid);
+}
+
+function toggleLocalRowSelection(slug: string): void {
+  const s = slug.trim();
+  if (selectedLocalRowSlug.value === s) {
+    selectedLocalRowSlug.value = null;
+    return;
+  }
+  selectedLocalRowSlug.value = s;
 }
 
 const canLoadMoreSearchHits = computed(() => {
@@ -1345,12 +1506,14 @@ watch(
       void loadOpenClawCatalog();
       window.addEventListener("keydown", onKeydown);
     } else {
+      closeSkillsDetailPanel();
       window.removeEventListener("keydown", onKeydown);
     }
   },
 );
 
 watch(subTab, (t) => {
+  closeSkillsDetailPanel();
   if (t === "installed" && props.modelValue) {
     void loadInstalled();
   }
@@ -1368,6 +1531,7 @@ watch(openclawCatalogFilter, (filter) => {
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
   if (msgTimer !== null) clearTimeout(msgTimer);
+  if (marketSearchDebounceTimer !== null) clearTimeout(marketSearchDebounceTimer);
 });
 
 const canInstallDetail = computed(() => {
@@ -1476,6 +1640,22 @@ const extraOpenclawSkills = computed(() =>
 
 const showPluginsCatalog = computed(() => openclawCatalogFilter.value === "plugins");
 
+const skillsDetailSheetOpen = computed(() => {
+  if (subTab.value === "browse") {
+    return Boolean(hubSlug.value?.trim());
+  }
+  if (subTab.value === "openclaw") {
+    if (showPluginsCatalog.value) {
+      return Boolean(selectedOpenclawPluginId.value?.trim());
+    }
+    return Boolean(selectedOpenclawSkillName.value?.trim());
+  }
+  if (subTab.value === "installed") {
+    return Boolean(selectedLocalRowSlug.value?.trim());
+  }
+  return false;
+});
+
 const selectedSearchHit = computed(() => {
   const slug = hubSlug.value;
   if (!slug) {
@@ -1505,49 +1685,31 @@ const selectedOpenclawPlugin = computed(() => {
   <Teleport to="body">
     <div v-if="open" class="skills-backdrop" @click.self="open = false">
       <div
-        class="skills-panel"
+        class="skills-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="skills-dialog-title"
         tabindex="-1"
       >
         <div class="skills-head">
-          <h2 id="skills-dialog-title">技能管理</h2>
+          <div class="skills-head-text">
+            <h2 id="skills-dialog-title">{{ t("skills.dialogTitle") }}</h2>
+            <p class="skills-desc muted small">{{ t("skills.lead") }}</p>
+          </div>
           <button
             type="button"
             class="skills-close-btn"
-            aria-label="关闭"
+            :aria-label="t('common.close')"
             @click="open = false"
           >
             ✕
           </button>
         </div>
 
-        <div class="skills-panel-top">
-          <p class="skills-lead muted small">
-            在技能市场中发现并安装技能，AI 会立即获得新能力。
-          </p>
-
-          <div v-if="isTauri()" class="skills-root-row">
-            <label class="skills-root-label">手动导入目录</label>
-            <input
-              v-model="installRoot"
-              type="text"
-              class="skills-root-input"
-              spellcheck="false"
-              @blur="onInstallRootBlur"
-            >
-          </div>
-          <p v-if="isTauri()" class="muted small skills-root-note">
-            从「本地技能库」或「手动导入」页面通过 ZIP/文件夹安装的技能将写入此目录。
-          </p>
-          <p v-else class="muted small skills-web-hint">
-            当前为网页模式，可浏览技能市场；安装技能需使用桌面版。
-          </p>
-        </div>
+        <p v-if="!isTauri()" class="skills-web-banner muted small">{{ t("skills.webModeHint") }}</p>
 
         <div class="skills-panel-body">
-          <nav class="skills-sidebar" role="tablist" aria-label="技能管理">
+          <nav class="skills-sidebar" role="tablist" :aria-label="t('skills.dialogTitle')">
             <button
               type="button"
               role="tab"
@@ -1556,7 +1718,7 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'browse'"
               @click="subTab = 'browse'"
             >
-              技能市场
+              {{ t("skills.tabMarket") }}
             </button>
             <button
               type="button"
@@ -1566,8 +1728,10 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'openclaw'"
               @click="subTab = 'openclaw'"
             >
-              已安装
+              {{ t("skills.tabInstalledOpenclaw") }}
+              <span v-if="openclawSummary" class="skills-side-count">{{ openclawSummary.total }}</span>
             </button>
+            <div class="skills-side-divider" role="presentation" />
             <button
               type="button"
               role="tab"
@@ -1576,7 +1740,7 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'installed'"
               @click="subTab = 'installed'"
             >
-              本地技能库
+              {{ t("skills.tabLocalLibrary") }}
             </button>
             <button
               type="button"
@@ -1586,11 +1750,11 @@ const selectedOpenclawPlugin = computed(() => {
               :aria-selected="subTab === 'local'"
               @click="subTab = 'local'"
             >
-              手动导入
+              {{ t("skills.tabManualImport") }}
             </button>
           </nav>
 
-          <div class="skills-main">
+          <div class="skills-main-column">
             <div
               v-if="installMessage"
               class="skills-toast"
@@ -1609,103 +1773,121 @@ const selectedOpenclawPlugin = computed(() => {
               <button
                 type="button"
                 class="skills-toast-close"
-                aria-label="关闭提示"
+                :aria-label="t('skills.dismissToast')"
                 @click="() => { installMessage = null; installMessageAction = null; }"
               >
                 ✕
               </button>
             </div>
 
+            <div class="skills-main-scroll">
             <!-- ClawHub -->
-            <div v-show="subTab === 'browse'" class="skills-body" role="tabpanel">
-              <div class="hub-toolbar">
-                <input
-                  v-model="searchQuery"
-                  type="search"
-                  class="skills-search"
-                  placeholder="搜索技能或插件…"
-                  @keydown.enter="onSearchSubmit"
-                >
-                <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" :disabled="searchLoading" @click="onSearchSubmit">
-                  {{ searchLoading ? "搜索中…" : "搜索" }}
-                </button>
-              </div>
-              <div class="hub-quick-search" aria-label="ClawHub 快捷搜索">
-                <span class="hub-quick-label muted small">快捷搜索</span>
-                <div class="hub-quick-tags">
-                  <button
-                    v-for="item in CLAWHUB_QUICK_SEARCH_ITEMS"
-                    :key="item.query"
-                    type="button"
-                    class="lc-btn lc-btn-ghost lc-btn-sm hub-quick-tag"
-                    :disabled="searchLoading"
-                    :title="`搜索：${item.query}`"
-                    @click="onQuickSearch(item.query)"
+            <div v-show="subTab === 'browse'" class="skills-body skills-body--market" role="tabpanel">
+              <div class="skills-search-row">
+                <div class="skills-search-wrap">
+                  <span class="skills-search-icon" aria-hidden="true">🔍</span>
+                  <input
+                    v-model="searchQuery"
+                    type="search"
+                    class="skills-search-input"
+                    :placeholder="t('skills.searchMarketPlaceholder')"
+                    @input="onMarketSearchInput"
+                    @keydown.enter="onSearchSubmit"
                   >
-                    {{ item.label }}
+                </div>
+                <div class="skills-view-toggle" role="group" :aria-label="t('skills.resultLayout')">
+                  <button
+                    type="button"
+                    class="skills-view-btn"
+                    :class="{ active: hubResultsView === 'cards' }"
+                    :title="t('skills.viewCards')"
+                    @click="hubResultsView = 'cards'"
+                  >
+                    ⊞
+                  </button>
+                  <button
+                    type="button"
+                    class="skills-view-btn"
+                    :class="{ active: hubResultsView === 'list' }"
+                    :title="t('skills.viewList')"
+                    @click="hubResultsView = 'list'"
+                  >
+                    ☰
                   </button>
                 </div>
+              </div>
+              <div class="skills-tags-row" :aria-label="t('skills.quickTagsAria')">
+                <button
+                  type="button"
+                  class="skills-tag-pill"
+                  :disabled="searchLoading"
+                  @click="onClearMarketSearch"
+                >
+                  {{ t("skills.tagAll") }}
+                </button>
+                <button
+                  v-for="item in CLAWHUB_QUICK_SEARCH_ITEMS"
+                  :key="item.query"
+                  type="button"
+                  class="skills-tag-pill"
+                  :disabled="searchLoading"
+                  @click="onQuickSearch(item.query)"
+                >
+                  {{ item.label }}
+                </button>
               </div>
               <p v-if="searchError" class="err small">{{ searchError }}</p>
 
-              <div class="hub-results-toolbar">
-                <span class="hub-results-title muted small">搜索结果</span>
-                <div class="hub-view-toggle" role="group" aria-label="展示方式">
-                  <button
-                    type="button"
-                    class="hub-toggle-btn"
-                    :class="{ active: hubResultsView === 'cards' }"
-                    @click="hubResultsView = 'cards'"
-                  >
-                    卡片
-                  </button>
-                  <button
-                    type="button"
-                    class="hub-toggle-btn"
-                    :class="{ active: hubResultsView === 'list' }"
-                    @click="hubResultsView = 'list'"
-                  >
-                    列表
-                  </button>
-                </div>
-              </div>
-
-              <div ref="hubResultsRegionEl" class="hub-results-region" aria-live="polite">
-                <p v-if="searchLoading" class="muted small hub-results-status">搜索中…</p>
-                <p v-else-if="!searchHits.length" class="muted small hub-results-empty">
-                  搜索技能名称，或点击快捷标签开始探索
+              <div ref="hubResultsRegionEl" class="skills-market-results" aria-live="polite">
+                <p v-if="searchLoading" class="muted small skills-market-status">{{ t("skills.searching") }}</p>
+                <p v-else-if="!searchHits.length" class="muted small skills-market-empty">
+                  {{ t("skills.marketEmptyHint") }}
                 </p>
                 <template v-else>
-                  <div v-if="hubResultsView === 'cards'" class="hub-card-grid">
+                  <div v-if="hubResultsView === 'cards'" class="skills-card-grid">
                     <article
                       v-for="h in searchHits"
                       :key="`${h.family}:${h.slug}`"
-                      class="hub-result-card"
+                      class="skills-market-card"
+                      :class="{
+                        'skills-market-card--active':
+                          hubSlug === h.slug &&
+                          hubDetailKind === (h.family === 'code-plugin' || h.family === 'bundle-plugin' ? 'package' : 'skill'),
+                      }"
                       :data-catalog-hit-key="catalogHitKey(h)"
+                      role="button"
+                      tabindex="0"
+                      @click="() => void onMarketCardClick(h)"
+                      @keydown.enter.prevent="() => void onMarketCardClick(h)"
                     >
-                      <header class="hub-card-head">
-                        <h3 class="hub-card-title">{{ h.displayName?.trim() || h.slug }}</h3>
-                        <span class="hub-card-family">{{ familyLabel(h.family) }}</span>
-                        <code class="hub-card-slug">{{ h.slug }}</code>
-                      </header>
-                      <p class="hub-card-summary">{{ truncateSummary(h.summary, 200) }}</p>
-                      <footer class="hub-card-actions">
+                      <div class="skills-market-card-top">
+                        <div class="skills-market-card-icon" aria-hidden="true">
+                          {{ h.family === "code-plugin" || h.family === "bundle-plugin" ? "📦" : "🔧" }}
+                        </div>
+                        <span
+                          class="skills-market-badge"
+                          :class="{
+                            'skills-market-badge--plugin': h.family === 'code-plugin' || h.family === 'bundle-plugin',
+                          }"
+                        >{{ familyLabel(h.family) }}</span>
+                      </div>
+                      <div class="skills-market-card-name">{{ h.displayName?.trim() || h.slug }}</div>
+                      <p class="skills-market-card-desc">{{ truncateSummary(h.summary, 120) }}</p>
+                      <div class="skills-market-card-meta">
+                        <code class="skills-market-card-slug">{{ h.slug }}</code>
+                        <span v-if="h.version" class="dot" aria-hidden="true" />
+                        <span v-if="h.version">{{ h.version }}</span>
+                      </div>
+                      <div class="skills-market-card-actions">
                         <button
                           type="button"
                           class="lc-btn lc-btn-sm"
                           :disabled="installButtonDisabledForHit(h)"
-                          @click="installFromSearchHit(h)"
+                          @click.stop="installFromSearchHit(h)"
                         >
-                          {{ installBusy && installingSlug === h.slug ? "安装中…" : "安装" }}
+                          {{ installBusy && installingSlug === h.slug ? t("skills.installing") : t("skills.install") }}
                         </button>
-                        <button
-                          type="button"
-                          class="lc-btn lc-btn-ghost lc-btn-sm"
-                          @click="() => void selectHubSlug(h.slug, h.family)"
-                        >
-                          详情
-                        </button>
-                      </footer>
+                      </div>
                     </article>
                   </div>
                   <ul v-else class="hub-result-list" role="list">
@@ -1730,14 +1912,14 @@ const selectedOpenclawPlugin = computed(() => {
                           :disabled="installButtonDisabledForHit(h)"
                           @click="installFromSearchHit(h)"
                         >
-                          {{ installBusy && installingSlug === h.slug ? "安装中…" : "安装" }}
+                          {{ installBusy && installingSlug === h.slug ? t("skills.installing") : t("skills.install") }}
                         </button>
                         <button
                           type="button"
                           class="lc-btn lc-btn-ghost lc-btn-sm"
-                          @click="() => void selectHubSlug(h.slug, h.family)"
+                          @click="() => void onMarketCardClick(h)"
                         >
-                          详情
+                          {{ t("skills.detail") }}
                         </button>
                       </div>
                     </li>
@@ -1749,62 +1931,10 @@ const selectedOpenclawPlugin = computed(() => {
                       :disabled="searchLoading"
                       @click="loadMoreSearchHits"
                     >
-                      {{ searchLoading ? "加载中…" : "加载更多" }}
+                      {{ searchLoading ? t("common.loading") : t("skills.loadMore") }}
                     </button>
                   </div>
                 </template>
-              </div>
-
-              <div v-if="hubSlug" class="detail-card hub-detail-panel">
-                <h3 class="detail-title">详情：{{ hubSlug }}</h3>
-                <p v-if="detailLoading" class="muted">加载中…</p>
-                <template v-else-if="hubDetailKind === 'skill'">
-                  <p v-if="detailError" class="muted small">{{ detailError }}</p>
-                  <p class="detail-summary">{{ hubDetail?.skill?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
-                  <p v-if="hubDetail?.latestVersion" class="small muted">
-                    最新版本：{{ hubDetail.latestVersion.version }}
-                  </p>
-                  <p v-if="hubDetail?.moderation?.isMalwareBlocked" class="err small">该技能已被标记为恶意，无法安装。</p>
-                  <p v-else-if="hubDetail?.moderation?.isSuspicious" class="err small">
-                    该技能被标记为可疑，请自行审阅后再安装。
-                  </p>
-                  <button
-                    v-if="canInstallDetail"
-                    type="button"
-                    class="lc-btn lc-btn-sm skills-install-btn"
-                    :disabled="installBusy"
-                    @click="installOpenClawSkill(hubSlug, hubDetail?.latestVersion?.version)"
-                  >
-                    {{ installBusy && installingSlug === hubSlug ? "安装中…" : "安装到 OpenClaw" }}
-                  </button>
-                </template>
-                <template v-else-if="hubDetailKind === 'package'">
-                  <p v-if="detailError" class="muted small">{{ detailError }}</p>
-                  <p v-if="hubPkgDetail?.package?.family || selectedSearchHit?.family" class="small muted">
-                    类型：{{ familyLabel(normalizePkgFamily(hubPkgDetail?.package?.family ?? selectedSearchHit?.family)) }}
-                  </p>
-                  <p class="detail-summary">{{ hubPkgDetail?.package?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
-                  <p v-if="hubPkgDetail?.package?.latestVersion" class="small muted">
-                    最新版本：{{ hubPkgDetail.package.latestVersion }}
-                  </p>
-                  <p v-if="hubPkgDetail?.package?.channel" class="small muted">通道：{{ hubPkgDetail.package.channel }}</p>
-                  <p v-if="hubPkgDetail?.package?.ownerHandle" class="small muted">发布者：@{{ hubPkgDetail.package.ownerHandle }}</p>
-                  <button
-                    v-if="canInstallPluginDetail && hubSlug"
-                    type="button"
-                    class="lc-btn lc-btn-sm skills-install-btn"
-                    :disabled="installBusy"
-                    @click="installClawhubPluginFromSlug(hubSlug)"
-                  >
-                    {{ installBusy && installingSlug === hubSlug ? "安装中…" : "安装插件（OpenClaw CLI）" }}
-                  </button>
-                  <p class="muted small">
-                    说明与配置见
-                    <a href="https://docs.openclaw.ai/tools/plugin" target="_blank" rel="noopener noreferrer">官方插件文档</a>
-                    。
-                  </p>
-                </template>
-                <p v-else-if="detailError" class="err small">{{ detailError }}</p>
               </div>
             </div>
 
@@ -1812,20 +1942,23 @@ const selectedOpenclawPlugin = computed(() => {
             <div v-show="subTab === 'openclaw'" class="skills-body" role="tabpanel">
               <p v-if="!isTauri()" class="muted small">桌面版才可读取本机 OpenClaw 的 skills / plugins 发现结果。</p>
               <template v-else>
-                <div class="row-actions openclaw-toolbar">
-                  <input
-                    v-model="openclawFilter"
-                    type="search"
-                    class="skills-search"
-                    placeholder="筛选内置技能和插件…"
-                  >
+                <div class="skills-search-row openclaw-toolbar">
+                  <div class="skills-search-wrap">
+                    <span class="skills-search-icon" aria-hidden="true">🔍</span>
+                    <input
+                      v-model="openclawFilter"
+                      type="search"
+                      class="skills-search-input"
+                      :placeholder="t('skills.filterOpenclawPlaceholder')"
+                    >
+                  </div>
                   <button
                     type="button"
                     class="lc-btn lc-btn-ghost lc-btn-sm"
                     :disabled="openclawLoading"
                     @click="loadOpenClawCatalog(true)"
                   >
-                    {{ openclawLoading ? "扫描中…" : "刷新" }}
+                    {{ openclawLoading ? t("skills.scanning") : t("common.refresh") }}
                   </button>
                 </div>
                 <div class="openclaw-filter-bar" role="group" aria-label="OpenClaw 筛选">
@@ -1890,7 +2023,7 @@ const selectedOpenclawPlugin = computed(() => {
                           <button
                             type="button"
                             class="openclaw-item-hitbox"
-                            @click="selectedOpenclawSkillName = skill.name"
+                            @click="toggleOpenclawSkillSelection(skill.name)"
                           />
                           <div class="openclaw-item-head">
                             <div class="openclaw-item-title-row">
@@ -1934,7 +2067,7 @@ const selectedOpenclawPlugin = computed(() => {
                               v-if="skillInstallSuggestions(skill).length"
                               type="button"
                               class="lc-btn lc-btn-ghost lc-btn-xs"
-                              @click.stop="selectedOpenclawSkillName = skill.name"
+                              @click.stop="toggleOpenclawSkillSelection(skill.name)"
                             >
                               查看安装建议
                             </button>
@@ -1956,7 +2089,7 @@ const selectedOpenclawPlugin = computed(() => {
                           <button
                             type="button"
                             class="openclaw-item-hitbox"
-                            @click="selectedOpenclawSkillName = skill.name"
+                            @click="toggleOpenclawSkillSelection(skill.name)"
                           />
                           <div class="openclaw-item-head">
                             <div class="openclaw-item-title-row">
@@ -2000,7 +2133,7 @@ const selectedOpenclawPlugin = computed(() => {
                               v-if="skillInstallSuggestions(skill).length"
                               type="button"
                               class="lc-btn lc-btn-ghost lc-btn-xs"
-                              @click.stop="selectedOpenclawSkillName = skill.name"
+                              @click.stop="toggleOpenclawSkillSelection(skill.name)"
                             >
                               查看安装建议
                             </button>
@@ -2028,7 +2161,7 @@ const selectedOpenclawPlugin = computed(() => {
                         <button
                           type="button"
                           class="openclaw-item-hitbox"
-                          @click="inspectOpenClawPlugin(plugin.id)"
+                          @click="() => void toggleOpenclawPluginSelection(plugin.id)"
                         />
                         <div class="openclaw-item-head">
                           <div class="openclaw-item-title-row">
@@ -2042,7 +2175,7 @@ const selectedOpenclawPlugin = computed(() => {
                               type="button"
                               class="lc-btn lc-btn-ghost lc-btn-xs"
                               :disabled="openclawPluginToggleBusyId === plugin.id || openclawPluginActionBusyId === plugin.id"
-                              @click.stop="inspectOpenClawPlugin(plugin.id)"
+                              @click.stop="() => void toggleOpenclawPluginSelection(plugin.id)"
                             >
                               查看
                             </button>
@@ -2082,212 +2215,12 @@ const selectedOpenclawPlugin = computed(() => {
                       </article>
                     </div>
                   </section>
-
-                  <section v-if="!showPluginsCatalog && selectedOpenclawSkill" class="openclaw-section">
-                    <div class="openclaw-section-head">
-                      <h3>技能详情</h3>
-                    </div>
-                    <div class="detail-card">
-                      <div class="openclaw-item-title-row">
-                        <span class="openclaw-item-title">
-                          {{ selectedOpenclawSkill.emoji ? `${selectedOpenclawSkill.emoji} ${selectedOpenclawSkill.name}` : selectedOpenclawSkill.name }}
-                        </span>
-                        <span class="openclaw-pill">{{ skillStatusLabel(selectedOpenclawSkill) }}</span>
-                        <span class="openclaw-pill openclaw-pill--muted">{{ skillSourceLabel(selectedOpenclawSkill) }}</span>
-                      </div>
-                      <p class="detail-summary">{{ selectedOpenclawSkill.description ?? "—" }}</p>
-                      <p v-if="skillSetupHint(selectedOpenclawSkill)" class="muted small">
-                        {{ skillSetupHint(selectedOpenclawSkill) }}
-                      </p>
-                      <div v-if="skillInstallSuggestions(selectedOpenclawSkill).length" class="openclaw-suggestion-list">
-                        <div
-                          v-for="item in skillInstallSuggestions(selectedOpenclawSkill)"
-                          :key="`${selectedOpenclawSkill.name}:${item.id ?? item.label ?? item.kind}`"
-                          class="openclaw-suggestion-item"
-                        >
-                          <span class="openclaw-cap-chip">{{ item.kind || "install" }}</span>
-                          <span>{{ item.label || item.id || "查看技能安装要求" }}</span>
-                        </div>
-                      </div>
-                      <div class="openclaw-detail-actions">
-                        <button
-                          type="button"
-                          class="lc-btn lc-btn-ghost lc-btn-sm"
-                          :disabled="openclawSkillToggleBusyName === selectedOpenclawSkill.name || installBusy"
-                          @click="toggleOpenClawSkill(selectedOpenclawSkill)"
-                        >
-                          {{
-                            openclawSkillToggleBusyName === selectedOpenclawSkill.name
-                              ? "处理中…"
-                              : selectedOpenclawSkill.disabled
-                                ? "启用技能"
-                                : "禁用技能"
-                          }}
-                        </button>
-                        <button
-                          v-if="!selectedOpenclawSkill.bundled"
-                          type="button"
-                          class="lc-btn lc-btn-ghost lc-btn-sm"
-                          :disabled="installBusy"
-                          @click="updateOpenClawSkill(selectedOpenclawSkill.name)"
-                        >
-                          {{ openclawSkillActionBusyName === selectedOpenclawSkill.name ? "处理中…" : "通过 OpenClaw 更新" }}
-                        </button>
-                        <button
-                          v-if="!selectedOpenclawSkill.bundled"
-                          type="button"
-                          class="lc-btn lc-btn-ghost lc-btn-sm btn-danger"
-                          :disabled="installBusy"
-                          @click="uninstallOpenClawSkill(selectedOpenclawSkill.name)"
-                        >
-                          {{ openclawSkillActionBusyName === selectedOpenclawSkill.name ? "处理中…" : "通过 OpenClaw 卸载" }}
-                        </button>
-                        <button
-                          type="button"
-                          class="lc-btn lc-btn-ghost lc-btn-sm"
-                          @click="jumpToClawHubSearch(selectedOpenclawSkill.name)"
-                        >
-                          去 ClawHub 搜索
-                        </button>
-                        <a
-                          v-if="selectedOpenclawSkill.homepage"
-                          :href="selectedOpenclawSkill.homepage"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="lc-btn lc-btn-ghost lc-btn-sm openclaw-detail-link"
-                        >
-                          查看主页
-                        </a>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section v-if="showPluginsCatalog" class="openclaw-section">
-                    <div class="openclaw-section-head">
-                      <h3>插件详情</h3>
-                    </div>
-                    <div class="detail-card">
-                      <p v-if="openclawPluginInspectLoading" class="muted small">加载中…</p>
-                      <p v-else-if="openclawPluginInspectError" class="err small">{{ openclawPluginInspectError }}</p>
-                      <template v-else-if="selectedOpenclawPlugin">
-                        <div class="openclaw-item-title-row">
-                          <span class="openclaw-item-title">{{ selectedOpenclawPlugin.name?.trim() || selectedOpenclawPlugin.id }}</span>
-                          <span class="openclaw-pill">{{ pluginStatusLabel(selectedOpenclawPlugin) }}</span>
-                          <span class="openclaw-pill openclaw-pill--muted">{{ pluginOriginLabel(selectedOpenclawPlugin) }}</span>
-                        </div>
-                        <p class="detail-summary">{{ selectedOpenclawPlugin.description ?? "—" }}</p>
-                        <p class="muted small">ID：<code>{{ selectedOpenclawPlugin.id }}</code></p>
-                        <p v-if="openclawPluginInspect?.plugin?.rootDir" class="muted small">
-                          目录：<code>{{ openclawPluginInspect.plugin.rootDir }}</code>
-                        </p>
-                        <div v-if="pluginCapabilities(selectedOpenclawPlugin).length" class="openclaw-cap-list">
-                          <span
-                            v-for="cap in pluginCapabilities(selectedOpenclawPlugin)"
-                            :key="`${selectedOpenclawPlugin.id}:detail:${cap}`"
-                            class="openclaw-cap-chip"
-                          >
-                            {{ cap }}
-                          </span>
-                        </div>
-                        <p class="muted small">
-                          capability mode：{{ openclawPluginInspect?.capabilityMode ?? "—" }}，
-                          capability count：{{ openclawPluginInspect?.capabilityCount ?? 0 }}，
-                          diagnostics：{{ pluginDiagnosticsCount(openclawPluginInspect) }}
-                        </p>
-                        <div class="openclaw-suggestion-list">
-                          <div v-if="pluginInspectCount(openclawPluginInspect?.tools)" class="openclaw-suggestion-item">
-                            <span class="openclaw-cap-chip">tools</span>
-                            <span>{{ pluginInspectCount(openclawPluginInspect?.tools) }} 个</span>
-                          </div>
-                          <div v-if="pluginInspectCount(openclawPluginInspect?.commands)" class="openclaw-suggestion-item">
-                            <span class="openclaw-cap-chip">commands</span>
-                            <span>{{ pluginInspectCount(openclawPluginInspect?.commands) }} 个</span>
-                          </div>
-                          <div v-if="pluginInspectCount(openclawPluginInspect?.services)" class="openclaw-suggestion-item">
-                            <span class="openclaw-cap-chip">services</span>
-                            <span>{{ pluginInspectCount(openclawPluginInspect?.services) }} 个</span>
-                          </div>
-                          <div v-if="pluginInspectCount(openclawPluginInspect?.gatewayMethods)" class="openclaw-suggestion-item">
-                            <span class="openclaw-cap-chip">gateway</span>
-                            <span>{{ pluginInspectCount(openclawPluginInspect?.gatewayMethods) }} 个方法</span>
-                          </div>
-                          <div v-if="pluginInspectCount(openclawPluginInspect?.mcpServers)" class="openclaw-suggestion-item">
-                            <span class="openclaw-cap-chip">mcp</span>
-                            <span>{{ pluginInspectCount(openclawPluginInspect?.mcpServers) }} 个 server</span>
-                          </div>
-                          <div v-if="pluginInspectCount(openclawPluginInspect?.compatibility)" class="openclaw-suggestion-item">
-                            <span class="openclaw-cap-chip">compat</span>
-                            <span>{{ pluginInspectCount(openclawPluginInspect?.compatibility) }} 项兼容性说明</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="openclawPluginInspect?.plugin?.configUiHints && Object.keys(openclawPluginInspect.plugin.configUiHints).length"
-                          class="openclaw-inspect-block"
-                        >
-                          <p class="openclaw-subtitle">配置项提示</p>
-                          <div class="openclaw-suggestion-list">
-                            <div
-                              v-for="(hint, key) in openclawPluginInspect.plugin.configUiHints"
-                              :key="`hint:${key}`"
-                              class="openclaw-suggestion-item"
-                            >
-                              <span class="openclaw-cap-chip">{{ key }}</span>
-                              <span>{{ hint.label || hint.help || (hint.advanced ? "高级配置项" : "配置项") }}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div
-                          v-if="openclawPluginInspect?.diagnostics?.length"
-                          class="openclaw-inspect-block"
-                        >
-                          <p class="openclaw-subtitle">诊断信息</p>
-                          <div class="openclaw-suggestion-list">
-                            <div
-                              v-for="(diagnostic, index) in openclawPluginInspect.diagnostics"
-                              :key="`diag:${index}`"
-                              class="openclaw-suggestion-item"
-                            >
-                              <span class="openclaw-cap-chip">{{ String(diagnostic.level ?? diagnostic.severity ?? "info") }}</span>
-                              <span>{{ String(diagnostic.message ?? diagnostic.code ?? "无详细说明") }}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="openclaw-detail-actions">
-                          <button
-                            type="button"
-                            class="lc-btn lc-btn-ghost lc-btn-sm"
-                            :disabled="openclawPluginToggleBusyId === selectedOpenclawPlugin.id || openclawPluginActionBusyId === selectedOpenclawPlugin.id"
-                            @click="toggleOpenClawPlugin(selectedOpenclawPlugin)"
-                          >
-                            {{ openclawPluginToggleBusyId === selectedOpenclawPlugin.id ? "处理中…" : selectedOpenclawPlugin.enabled ? "禁用插件" : "启用插件" }}
-                          </button>
-                          <button
-                            type="button"
-                            class="lc-btn lc-btn-ghost lc-btn-sm"
-                            :disabled="openclawPluginToggleBusyId === selectedOpenclawPlugin.id || openclawPluginActionBusyId === selectedOpenclawPlugin.id"
-                            @click="updateOpenClawPlugin(selectedOpenclawPlugin)"
-                          >
-                            {{ openclawPluginActionBusyId === selectedOpenclawPlugin.id ? "处理中…" : "更新插件" }}
-                          </button>
-                          <button
-                            type="button"
-                            class="lc-btn lc-btn-ghost lc-btn-sm btn-danger"
-                            :disabled="openclawPluginToggleBusyId === selectedOpenclawPlugin.id || openclawPluginActionBusyId === selectedOpenclawPlugin.id"
-                            @click="uninstallOpenClawPlugin(selectedOpenclawPlugin)"
-                          >
-                            {{ openclawPluginActionBusyId === selectedOpenclawPlugin.id ? "处理中…" : "卸载插件" }}
-                          </button>
-                        </div>
-                      </template>
-                      <p v-else class="muted small">选择一个插件查看详细信息。</p>
-                    </div>
-                  </section>
                 </template>
               </template>
             </div>
 
             <!-- 共享目录 -->
-            <div v-show="subTab === 'installed'" class="skills-body" role="tabpanel">
+            <div v-show="subTab === 'installed'" class="skills-body skills-body--local-lib" role="tabpanel">
               <div class="row-actions">
                 <button
                   type="button"
@@ -2295,60 +2228,68 @@ const selectedOpenclawPlugin = computed(() => {
                   :disabled="installedLoading || !isTauri()"
                   @click="loadInstalled"
                 >
-                  {{ installedLoading ? "刷新中…" : "刷新" }}
+                  {{ installedLoading ? t("skills.refreshingInstalled") : t("common.refresh") }}
                 </button>
               </div>
               <p v-if="installedError" class="err small">{{ installedError }}</p>
-              <p v-if="!isTauri()" class="muted small">桌面版才可管理共享 skills 目录。</p>
+              <p v-if="!isTauri()" class="muted small">{{ t("skills.desktopOnlySharedDir") }}</p>
               <template v-else>
-                <p class="muted small">
-                  这里展示的是共享 <code>skills</code> 目录中的手动导入项，不等同于上方 OpenClaw workspace 中通过 CLI 安装的技能。
-                </p>
-                <table v-if="installedRows.length" class="skills-table">
-                  <thead>
-                    <tr>
-                      <th>技能</th>
-                      <th>来源</th>
-                      <th>版本</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="row in installedRows" :key="row.slug">
-                      <td>
-                        <code>{{ row.slug }}</code>
-                      </td>
-                      <td>{{ row.source }}</td>
-                      <td>{{ row.installedVersion ?? "—" }}</td>
-                      <td class="td-actions">
-                        <button
-                          type="button"
-                          class="lc-btn lc-btn-ghost lc-btn-xs"
-                          :disabled="installBusy"
-                          @click="onUpdateInstalled(row)"
-                        >
-                          更新
-                        </button>
-                        <button
-                          type="button"
-                          class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
-                          :disabled="installBusy"
-                          @click="onDeleteInstalled(row)"
-                        >
-                          删除
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p v-else-if="!installedLoading" class="muted small">共享 skills 目录里还没有内容。</p>
+                <p class="muted small">{{ t("skills.localLibraryHint") }}</p>
+                <div v-if="installedRows.length" class="skills-card-grid skills-card-grid--local">
+                  <button
+                    v-for="row in installedRows"
+                    :key="row.slug"
+                    type="button"
+                    class="skills-local-card"
+                    :class="{ 'skills-local-card--active': selectedLocalRowSlug === row.slug }"
+                    @click="toggleLocalRowSelection(row.slug)"
+                  >
+                    <span class="skills-local-card-icon" aria-hidden="true">📂</span>
+                    <span class="skills-local-card-name"><code>{{ row.slug }}</code></span>
+                    <span class="skills-local-card-meta">{{ row.source }} · {{ row.installedVersion ?? "—" }}</span>
+                  </button>
+                </div>
+                <div v-else-if="!installedLoading" class="skills-empty-local">
+                  <span class="skills-empty-local-icon" aria-hidden="true">📂</span>
+                  <p class="muted">{{ t("skills.sharedDirEmpty") }}</p>
+                  <p v-if="openclawManagedSkillsDir" class="muted small">{{ t("skills.hintDropSkillsDir", { path: openclawManagedSkillsDir }) }}</p>
+                </div>
               </template>
             </div>
 
             <!-- 本机安装 -->
-            <div v-show="subTab === 'local'" class="skills-body" role="tabpanel">
-              <p v-if="!isTauri()" class="muted small">请使用桌面版选择 ZIP 或文件夹。</p>
+            <div v-show="subTab === 'local'" class="skills-body skills-body--import" role="tabpanel">
+              <p v-if="!isTauri()" class="muted small">{{ t("skills.desktopZipFolder") }}</p>
               <template v-else>
+                <div class="skills-import-root-block">
+                  <label class="skills-field-label">{{ t("skills.importTargetDir") }}</label>
+                  <input
+                    v-model="installRoot"
+                    type="text"
+                    class="skills-root-input"
+                    spellcheck="false"
+                    @blur="onInstallRootBlur"
+                  >
+                  <p class="muted small skills-import-root-note">{{ t("skills.importRootNote") }}</p>
+                </div>
+                <div
+                  class="skills-drop-zone"
+                  :class="{ 'skills-drop-zone--active': importDropActive }"
+                  @dragover="onImportDragOver"
+                  @dragleave="onImportDragLeave"
+                  @drop="onImportDrop"
+                >
+                  <span class="skills-drop-icon" aria-hidden="true">📦</span>
+                  <p class="skills-drop-text">{{ t("skills.dropZipTitle") }}</p>
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    :disabled="localBusy"
+                    @click="onPickZipInstall"
+                  >
+                    {{ localBusy ? t("common.processing") : t("skills.pickZipInstall") }}
+                  </button>
+                </div>
                 <div class="local-plugin-card">
                   <p class="muted small local-plugin-title">ClawHub 凭据（可选）</p>
                   <label class="local-slug">
@@ -2456,8 +2397,336 @@ const selectedOpenclawPlugin = computed(() => {
                 <p v-if="localMessage" class="small" :class="localMessageKind === 'error' ? 'err' : localMessageKind === 'success' ? 'ok' : 'muted'">{{ localMessage }}</p>
               </template>
             </div>
+            </div>
           </div>
         </div>
+
+        <div
+          class="skills-bottom"
+          :class="{ 'skills-bottom--open': skillsDetailSheetOpen }"
+          :aria-hidden="skillsDetailSheetOpen ? undefined : 'true'"
+        >
+          <div class="skills-bottom-inner">
+            <!-- Market / ClawHub detail -->
+            <template v-if="subTab === 'browse' && hubSlug">
+              <div class="skills-sheet-row">
+                <span class="skills-sheet-icon" aria-hidden="true">{{
+                  hubDetailKind === "package" ? "📦" : "🔧"
+                }}</span>
+                <div class="skills-sheet-info">
+                  <div class="skills-sheet-title">{{ hubSlug }}</div>
+                  <p v-if="detailLoading" class="muted small">{{ t("common.loading") }}</p>
+                  <template v-else-if="hubDetailKind === 'skill'">
+                    <p v-if="detailError" class="muted small">{{ detailError }}</p>
+                    <p class="skills-sheet-desc">{{ hubDetail?.skill?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
+                    <p v-if="hubDetail?.latestVersion" class="small muted">
+                      {{ t("skills.latestVersion") }} {{ hubDetail.latestVersion.version }}
+                    </p>
+                    <p v-if="hubDetail?.moderation?.isMalwareBlocked" class="err small">{{ t("skills.malwareBlocked") }}</p>
+                    <p v-else-if="hubDetail?.moderation?.isSuspicious" class="err small">{{ t("skills.suspiciousSkill") }}</p>
+                  </template>
+                  <template v-else-if="hubDetailKind === 'package'">
+                    <p v-if="detailError" class="muted small">{{ detailError }}</p>
+                    <p v-if="hubPkgDetail?.package?.family || selectedSearchHit?.family" class="small muted">
+                      {{ t("skills.packageType") }}
+                      {{ familyLabel(normalizePkgFamily(hubPkgDetail?.package?.family ?? selectedSearchHit?.family)) }}
+                    </p>
+                    <p class="skills-sheet-desc">{{ hubPkgDetail?.package?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
+                    <p v-if="hubPkgDetail?.package?.latestVersion" class="small muted">
+                      {{ t("skills.latestVersion") }} {{ hubPkgDetail.package.latestVersion }}
+                    </p>
+                    <p class="muted small">
+                      <a href="https://docs.openclaw.ai/tools/plugin" target="_blank" rel="noopener noreferrer">{{ t("skills.pluginDocsLink") }}</a>
+                    </p>
+                  </template>
+                  <p v-else-if="detailError" class="err small">{{ detailError }}</p>
+                </div>
+                <div class="skills-sheet-actions">
+                  <button
+                    v-if="hubDetailKind === 'skill' && canInstallDetail && hubSlug"
+                    type="button"
+                    class="lc-btn lc-btn-sm"
+                    :disabled="installBusy"
+                    @click="installOpenClawSkill(hubSlug, hubDetail?.latestVersion?.version)"
+                  >
+                    {{ installBusy && installingSlug === hubSlug ? t("skills.installing") : t("skills.installToOpenclaw") }}
+                  </button>
+                  <button
+                    v-if="hubDetailKind === 'package' && canInstallPluginDetail && hubSlug"
+                    type="button"
+                    class="lc-btn lc-btn-sm"
+                    :disabled="installBusy"
+                    @click="installClawhubPluginFromSlug(hubSlug)"
+                  >
+                    {{ installBusy && installingSlug === hubSlug ? t("skills.installing") : t("skills.installPluginCli") }}
+                  </button>
+                  <button
+                    type="button"
+                    class="skills-sheet-close"
+                    :aria-label="t('skills.closeDetail')"
+                    @click="closeSkillsDetailPanel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div v-if="hubDetailKind === 'skill' && hubSlug" class="skills-sheet-meta">
+                <div class="skills-meta-item">
+                  <span class="skills-meta-label">{{ t("skills.metaSlug") }}</span>
+                  <span class="skills-meta-value"><code>{{ hubSlug }}</code></span>
+                </div>
+              </div>
+            </template>
+
+            <!-- OpenClaw skill detail -->
+            <template v-else-if="subTab === 'openclaw' && !showPluginsCatalog && selectedOpenclawSkill">
+              <div class="skills-sheet-row">
+                <span class="skills-sheet-icon" aria-hidden="true">{{ selectedOpenclawSkill.emoji || "🔧" }}</span>
+                <div class="skills-sheet-info">
+                  <div class="skills-sheet-title">
+                    {{ selectedOpenclawSkill.emoji ? `${selectedOpenclawSkill.emoji} ${selectedOpenclawSkill.name}` : selectedOpenclawSkill.name }}
+                  </div>
+                  <p class="skills-sheet-desc">{{ selectedOpenclawSkill.description ?? "—" }}</p>
+                  <p v-if="skillSetupHint(selectedOpenclawSkill)" class="muted small">
+                    {{ skillSetupHint(selectedOpenclawSkill) }}
+                  </p>
+                </div>
+                <div class="skills-sheet-actions">
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    :disabled="openclawSkillToggleBusyName === selectedOpenclawSkill.name || installBusy"
+                    @click="toggleOpenClawSkill(selectedOpenclawSkill)"
+                  >
+                    {{
+                      openclawSkillToggleBusyName === selectedOpenclawSkill.name
+                        ? t("common.processing")
+                        : selectedOpenclawSkill.disabled
+                          ? t("skills.enableSkill")
+                          : t("skills.disableSkill")
+                    }}
+                  </button>
+                  <button
+                    v-if="!selectedOpenclawSkill.bundled"
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    :disabled="installBusy"
+                    @click="updateOpenClawSkill(selectedOpenclawSkill.name)"
+                  >
+                    {{ openclawSkillActionBusyName === selectedOpenclawSkill.name ? t("common.processing") : t("skills.updateViaOpenclaw") }}
+                  </button>
+                  <button
+                    v-if="!selectedOpenclawSkill.bundled"
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm btn-danger"
+                    :disabled="installBusy"
+                    @click="uninstallOpenClawSkill(selectedOpenclawSkill.name)"
+                  >
+                    {{ openclawSkillActionBusyName === selectedOpenclawSkill.name ? t("common.processing") : t("skills.uninstallViaOpenclaw") }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    @click="jumpToClawHubSearch(selectedOpenclawSkill.name)"
+                  >
+                    {{ t("skills.searchOnClawhub") }}
+                  </button>
+                  <a
+                    v-if="selectedOpenclawSkill.homepage"
+                    :href="selectedOpenclawSkill.homepage"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="lc-btn lc-btn-ghost lc-btn-sm openclaw-detail-link"
+                  >{{ t("skills.openHomepage") }}</a>
+                  <button
+                    type="button"
+                    class="skills-sheet-close"
+                    :aria-label="t('skills.closeDetail')"
+                    @click="closeSkillsDetailPanel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div
+                v-if="skillInstallSuggestions(selectedOpenclawSkill).length"
+                class="skills-sheet-extra openclaw-suggestion-list"
+              >
+                <div
+                  v-for="item in skillInstallSuggestions(selectedOpenclawSkill)"
+                  :key="`${selectedOpenclawSkill.name}:${item.id ?? item.label ?? item.kind}`"
+                  class="openclaw-suggestion-item"
+                >
+                  <span class="openclaw-cap-chip">{{ item.kind || "install" }}</span>
+                  <span>{{ item.label || item.id || t("skills.installHintFallback") }}</span>
+                </div>
+              </div>
+            </template>
+
+            <!-- OpenClaw plugin detail -->
+            <template v-else-if="subTab === 'openclaw' && showPluginsCatalog && selectedOpenclawPlugin">
+              <div class="skills-sheet-row">
+                <span class="skills-sheet-icon" aria-hidden="true">📦</span>
+                <div class="skills-sheet-info">
+                  <div class="skills-sheet-title">{{ selectedOpenclawPlugin.name?.trim() || selectedOpenclawPlugin.id }}</div>
+                  <p v-if="openclawPluginInspectLoading" class="muted small">{{ t("common.loading") }}</p>
+                  <p v-else-if="openclawPluginInspectError" class="err small">{{ openclawPluginInspectError }}</p>
+                  <p class="skills-sheet-desc">{{ selectedOpenclawPlugin.description ?? "—" }}</p>
+                  <p class="muted small"><code>{{ selectedOpenclawPlugin.id }}</code></p>
+                </div>
+                <div class="skills-sheet-actions">
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    :disabled="openclawPluginToggleBusyId === selectedOpenclawPlugin.id || openclawPluginActionBusyId === selectedOpenclawPlugin.id"
+                    @click="toggleOpenClawPlugin(selectedOpenclawPlugin)"
+                  >
+                    {{ openclawPluginToggleBusyId === selectedOpenclawPlugin.id ? t("common.processing") : selectedOpenclawPlugin.enabled ? t("skills.disablePlugin") : t("skills.enablePlugin") }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    :disabled="openclawPluginToggleBusyId === selectedOpenclawPlugin.id || openclawPluginActionBusyId === selectedOpenclawPlugin.id"
+                    @click="updateOpenClawPlugin(selectedOpenclawPlugin)"
+                  >
+                    {{ openclawPluginActionBusyId === selectedOpenclawPlugin.id ? t("common.processing") : t("skills.updatePlugin") }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm btn-danger"
+                    :disabled="openclawPluginToggleBusyId === selectedOpenclawPlugin.id || openclawPluginActionBusyId === selectedOpenclawPlugin.id"
+                    @click="uninstallOpenClawPlugin(selectedOpenclawPlugin)"
+                  >
+                    {{ openclawPluginActionBusyId === selectedOpenclawPlugin.id ? t("common.processing") : t("skills.uninstallPlugin") }}
+                  </button>
+                  <button
+                    type="button"
+                    class="skills-sheet-close"
+                    :aria-label="t('skills.closeDetail')"
+                    @click="closeSkillsDetailPanel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div v-if="!openclawPluginInspectLoading && selectedOpenclawPlugin" class="skills-sheet-extra">
+                <p v-if="openclawPluginInspect?.plugin?.rootDir" class="muted small">
+                  {{ t("skills.pluginRootDir") }} <code>{{ openclawPluginInspect.plugin.rootDir }}</code>
+                </p>
+                <div v-if="pluginCapabilities(selectedOpenclawPlugin).length" class="openclaw-cap-list">
+                  <span
+                    v-for="cap in pluginCapabilities(selectedOpenclawPlugin)"
+                    :key="`${selectedOpenclawPlugin.id}:sheet:${cap}`"
+                    class="openclaw-cap-chip"
+                  >{{ cap }}</span>
+                </div>
+                <p class="muted small">
+                  capability mode：{{ openclawPluginInspect?.capabilityMode ?? "—" }}，
+                  capability count：{{ openclawPluginInspect?.capabilityCount ?? 0 }}，
+                  diagnostics：{{ pluginDiagnosticsCount(openclawPluginInspect) }}
+                </p>
+                <div class="openclaw-suggestion-list">
+                  <div v-if="pluginInspectCount(openclawPluginInspect?.tools)" class="openclaw-suggestion-item">
+                    <span class="openclaw-cap-chip">tools</span>
+                    <span>{{ pluginInspectCount(openclawPluginInspect?.tools) }} 个</span>
+                  </div>
+                  <div v-if="pluginInspectCount(openclawPluginInspect?.commands)" class="openclaw-suggestion-item">
+                    <span class="openclaw-cap-chip">commands</span>
+                    <span>{{ pluginInspectCount(openclawPluginInspect?.commands) }} 个</span>
+                  </div>
+                  <div v-if="pluginInspectCount(openclawPluginInspect?.services)" class="openclaw-suggestion-item">
+                    <span class="openclaw-cap-chip">services</span>
+                    <span>{{ pluginInspectCount(openclawPluginInspect?.services) }} 个</span>
+                  </div>
+                  <div v-if="pluginInspectCount(openclawPluginInspect?.gatewayMethods)" class="openclaw-suggestion-item">
+                    <span class="openclaw-cap-chip">gateway</span>
+                    <span>{{ pluginInspectCount(openclawPluginInspect?.gatewayMethods) }} 个方法</span>
+                  </div>
+                  <div v-if="pluginInspectCount(openclawPluginInspect?.mcpServers)" class="openclaw-suggestion-item">
+                    <span class="openclaw-cap-chip">mcp</span>
+                    <span>{{ pluginInspectCount(openclawPluginInspect?.mcpServers) }} 个 server</span>
+                  </div>
+                  <div v-if="pluginInspectCount(openclawPluginInspect?.compatibility)" class="openclaw-suggestion-item">
+                    <span class="openclaw-cap-chip">compat</span>
+                    <span>{{ pluginInspectCount(openclawPluginInspect?.compatibility) }} 项兼容性说明</span>
+                  </div>
+                </div>
+                <div
+                  v-if="openclawPluginInspect?.plugin?.configUiHints && Object.keys(openclawPluginInspect.plugin.configUiHints).length"
+                  class="openclaw-inspect-block"
+                >
+                  <p class="openclaw-subtitle">{{ t("skills.configUiHints") }}</p>
+                  <div class="openclaw-suggestion-list">
+                    <div
+                      v-for="(hint, key) in openclawPluginInspect.plugin.configUiHints"
+                      :key="`sheet-hint:${key}`"
+                      class="openclaw-suggestion-item"
+                    >
+                      <span class="openclaw-cap-chip">{{ key }}</span>
+                      <span>{{ hint.label || hint.help || (hint.advanced ? t("skills.configAdvanced") : t("skills.configItem")) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-if="openclawPluginInspect?.diagnostics?.length"
+                  class="openclaw-inspect-block"
+                >
+                  <p class="openclaw-subtitle">{{ t("skills.diagnosticsTitle") }}</p>
+                  <div class="openclaw-suggestion-list">
+                    <div
+                      v-for="(diagnostic, index) in openclawPluginInspect.diagnostics"
+                      :key="`sheet-diag:${index}`"
+                      class="openclaw-suggestion-item"
+                    >
+                      <span class="openclaw-cap-chip">{{ String(diagnostic.level ?? diagnostic.severity ?? "info") }}</span>
+                      <span>{{ String(diagnostic.message ?? diagnostic.code ?? t("skills.noDiagnosticDetail")) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Shared install root row -->
+            <template v-else-if="subTab === 'installed' && selectedLocalRow">
+              <div class="skills-sheet-row">
+                <span class="skills-sheet-icon" aria-hidden="true">📂</span>
+                <div class="skills-sheet-info">
+                  <div class="skills-sheet-title"><code>{{ selectedLocalRow.slug }}</code></div>
+                  <p class="skills-sheet-desc small muted">
+                    {{ selectedLocalRow.source }} · {{ selectedLocalRow.installedVersion ?? "—" }}
+                  </p>
+                </div>
+                <div class="skills-sheet-actions">
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm"
+                    :disabled="installBusy"
+                    @click="onUpdateInstalled(selectedLocalRow)"
+                  >
+                    {{ t("skills.refreshUpdate") }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lc-btn lc-btn-ghost lc-btn-sm btn-danger"
+                    :disabled="installBusy"
+                    @click="onDeleteInstalled(selectedLocalRow)"
+                  >
+                    {{ t("skills.removeFromDisk") }}
+                  </button>
+                  <button
+                    type="button"
+                    class="skills-sheet-close"
+                    :aria-label="t('skills.closeDetail')"
+                    @click="closeSkillsDetailPanel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
       </div>
     </div>
   </Teleport>
@@ -2475,38 +2744,51 @@ const selectedOpenclawPlugin = computed(() => {
   padding: 20px;
   box-sizing: border-box;
 }
-.skills-panel {
+.skills-dialog {
   display: flex;
   flex-direction: column;
-  width: min(960px, 100%);
-  max-height: min(88vh, 900px);
+  width: min(820px, 100%);
+  height: min(560px, 88vh);
+  max-height: 88vh;
   overflow: hidden;
   background: var(--lc-surface-panel);
   border: 1px solid var(--lc-border);
-  border-radius: var(--lc-radius-sm);
-  box-shadow: var(--lc-shadow-sm);
-  padding: 18px 20px 22px;
+  border-radius: var(--lc-radius-lg, 12px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+  padding: 14px 16px 0;
   box-sizing: border-box;
+  position: relative;
 }
-.skills-panel-top {
+.skills-web-banner {
+  margin: 0 0 8px;
   flex-shrink: 0;
 }
 .skills-panel-body {
   display: flex;
   flex: 1;
   min-height: 0;
-  margin-top: 12px;
-  padding-top: 12px;
+  padding-top: 8px;
   border-top: 1px solid var(--lc-border);
 }
 .skills-sidebar {
-  flex: 0 0 152px;
+  flex: 0 0 132px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-right: 14px;
+  gap: 2px;
+  padding-right: 12px;
   border-right: 1px solid var(--lc-border);
   align-self: stretch;
+}
+.skills-side-divider {
+  height: 1px;
+  background: var(--lc-border);
+  margin: 6px 4px;
+}
+.skills-side-count {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--lc-text-dim);
+  font-weight: 400;
 }
 .skills-side-tab {
   width: 100%;
@@ -2525,29 +2807,57 @@ const selectedOpenclawPlugin = computed(() => {
   background: var(--lc-bg-elevated);
 }
 .skills-side-tab.active {
-  border-color: var(--lc-border-strong);
+  border-left: 3px solid var(--lc-accent);
+  padding-left: 9px;
+  border-color: transparent;
   color: var(--lc-text);
   background: var(--lc-bg-raised);
   font-weight: 600;
 }
-.skills-main {
+.skills-main-column {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-left: 12px;
+  padding-bottom: 8px;
+}
+.skills-main-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-left: 16px;
-  padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lc-border) transparent;
+}
+.skills-main-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.skills-main-scroll::-webkit-scrollbar-thumb {
+  background: var(--lc-border);
+  border-radius: 2px;
 }
 .skills-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  flex-shrink: 0;
+  padding-bottom: 4px;
+}
+.skills-head-text {
+  flex: 1;
+  min-width: 0;
 }
 .skills-head h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 16px;
+  font-weight: 600;
+}
+.skills-desc {
+  margin: 4px 0 0;
+  line-height: 1.4;
 }
 .skills-close-btn {
   flex-shrink: 0;
@@ -2648,6 +2958,410 @@ const selectedOpenclawPlugin = computed(() => {
 .skills-body {
   min-height: 120px;
 }
+.skills-body--market {
+  display: flex;
+  flex-direction: column;
+  min-height: min(360px, 48vh);
+}
+.skills-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+.skills-search-wrap {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+.skills-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.skills-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px 8px 32px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  font-size: 13px;
+  font-family: inherit;
+}
+.skills-search-input:focus {
+  outline: none;
+  border-color: var(--lc-accent);
+}
+.skills-view-toggle {
+  display: flex;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.skills-view-btn {
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+}
+.skills-view-btn:hover {
+  color: var(--lc-text);
+  background: var(--lc-bg-elevated);
+}
+.skills-view-btn.active {
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text);
+  font-weight: 600;
+}
+.skills-tags-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.skills-tags-row::-webkit-scrollbar {
+  display: none;
+}
+.skills-tag-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  font-size: 12px;
+  color: var(--lc-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.skills-tag-pill:hover:not(:disabled) {
+  color: var(--lc-text);
+  border-color: var(--lc-border-strong);
+}
+.skills-tag-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.skills-market-results {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lc-border) transparent;
+}
+.skills-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  align-content: start;
+}
+@media (max-width: 640px) {
+  .skills-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 420px) {
+  .skills-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.skills-market-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--lc-border);
+  border-radius: 10px;
+  background: var(--lc-bg-raised);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.1s ease;
+}
+.skills-market-card:hover {
+  border-color: var(--lc-border-strong);
+  background: var(--lc-bg-elevated);
+  transform: translateY(-1px);
+}
+.skills-market-card--active {
+  border-color: var(--lc-accent);
+  background: var(--lc-accent-soft);
+}
+.skills-market-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.skills-market-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--lc-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.skills-market-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--lc-accent) 14%, transparent);
+  color: var(--lc-accent);
+}
+.skills-market-badge--plugin {
+  background: color-mix(in srgb, var(--lc-success, #22c55e) 14%, transparent);
+  color: var(--lc-success, #22c55e);
+}
+.skills-market-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lc-text);
+  line-height: 1.3;
+}
+.skills-market-card-desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--lc-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.skills-market-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--lc-text-dim);
+  margin-top: auto;
+}
+.skills-market-card-meta .dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--lc-border-strong);
+}
+.skills-market-card-slug {
+  font-size: 10px;
+  font-family: var(--lc-mono);
+  color: var(--lc-accent);
+}
+.skills-market-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.skills-bottom {
+  flex-shrink: 0;
+  height: 0;
+  overflow: hidden;
+  background: var(--lc-bg-raised);
+  border-top: 1px solid transparent;
+  transition: height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.skills-bottom--open {
+  height: min(240px, 38vh);
+  border-top-color: var(--lc-border);
+}
+.skills-bottom-inner {
+  height: min(240px, 38vh);
+  padding: 12px 16px 14px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.skills-sheet-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.skills-sheet-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--lc-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.skills-sheet-info {
+  flex: 1;
+  min-width: 0;
+}
+.skills-sheet-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lc-text);
+  margin-bottom: 4px;
+}
+.skills-sheet-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lc-text-muted);
+}
+.skills-sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 42%;
+}
+.skills-sheet-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.skills-sheet-close:hover {
+  color: var(--lc-text);
+  background: var(--lc-bg-hover);
+}
+.skills-sheet-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--lc-border);
+  font-size: 11px;
+}
+.skills-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.skills-meta-label {
+  font-size: 10px;
+  color: var(--lc-text-dim);
+}
+.skills-meta-value {
+  color: var(--lc-text-muted);
+}
+.skills-sheet-extra {
+  margin-top: 10px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.skills-import-root-block {
+  margin-bottom: 14px;
+}
+.skills-field-label {
+  display: block;
+  font-size: 12px;
+  color: var(--lc-text-muted);
+  margin-bottom: 6px;
+}
+.skills-import-root-note {
+  margin-top: 6px;
+}
+.skills-drop-zone {
+  border: 1.5px dashed var(--lc-border);
+  border-radius: 10px;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  color: var(--lc-text-muted);
+  font-size: 12px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.skills-drop-zone--active {
+  border-color: var(--lc-accent);
+  background: var(--lc-accent-soft);
+}
+.skills-drop-icon {
+  font-size: 24px;
+  opacity: 0.7;
+}
+.skills-drop-text {
+  margin: 0;
+  text-align: center;
+  line-height: 1.4;
+}
+.skills-local-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--lc-border);
+  border-radius: 10px;
+  background: var(--lc-bg-raised);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 0.12s ease;
+}
+.skills-local-card:hover {
+  border-color: var(--lc-border-strong);
+}
+.skills-local-card--active {
+  border-color: var(--lc-accent);
+  background: var(--lc-accent-soft);
+}
+.skills-local-card-icon {
+  font-size: 20px;
+}
+.skills-local-card-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.skills-local-card-meta {
+  font-size: 11px;
+  color: var(--lc-text-muted);
+}
+.skills-empty-local {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 160px;
+  color: var(--lc-text-muted);
+}
+.skills-empty-local-icon {
+  font-size: 32px;
+  opacity: 0.45;
+}
 @media (max-width: 560px) {
   .skills-panel-body {
     flex-direction: column;
@@ -2668,7 +3382,7 @@ const selectedOpenclawPlugin = computed(() => {
     text-align: center;
     padding: 8px 10px;
   }
-  .skills-main {
+  .skills-main-column {
     padding-left: 0;
     padding-top: 12px;
   }

@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **技能管理对话框改为卡片式布局**：`SkillsManagerDialog` 与渠道面板一致采用固定高度对话框、左侧四个 Tab（技能市场 / 已安装 / 本地技能库 / 手动导入）、市场页三列卡片网格与底部滑出详情；搜索框内嵌图标并防抖实时查询，标签单行横向滚动；手动导入 Tab 集中展示安装目录与 ZIP 拖拽区；关闭对话框时重置详情状态。补充 `skills.*` 中英文文案。
+
 - **新增 Slack、LINE、Microsoft Teams、Google Chat 渠道卡片**：这四个渠道均为 openclaw 内置 extension（无需安装插件），现在在渠道面板以卡片形式展示。点击卡片可填写凭据：Slack 需要 Bot Token (xoxb-) + App Token (xapp-)，LINE 需要 Channel Access Token + Channel Secret，Teams 需要 App ID + App Password，Google Chat 需要 Service Account JSON 文件路径。保存后自动重启 Gateway 并刷新连接状态，流程与企业微信一致。
 
 - **修复企业微信保存后无反应的问题**：`WeComPanel` 写入配置后既未重启 Gateway（导致 WeCom WebSocket 不启动），也未调用 `onSuccess()`（导致卡片状态不刷新、对话框不关闭）。现在保存成功后先调 `restartGatewayAndReconnect` 再调 `onSuccess()`，整个流程与 WhatsApp/微信 一致。
