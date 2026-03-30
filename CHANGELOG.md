@@ -8,6 +8,7 @@
 
 ### 优化
 
+- **i18n 补全（WeChatIndicator / WhatsAppIndicator）**：渠道指示器弹窗的状态标题、扫码流程进度、插件安装/启用、Gateway 重启及错误全部接入 vue-i18n；新增 `channel.gwDisconnected` / `gwRestarting` / `retry` / `channelSetup` 等共享 key，以及 `channel.wechat.*` / `channel.whatsapp.*` 品牌专属 key（含参数插值）。
 - **i18n 补全（ChatLineBody / ChatRunStatusBar / ComposerAttachments）**：链接右键菜单（另存为、系统打开、邮件、分享、复制链接）、图片说明、剪贴板错误提示、后台子代理状态栏、附件面板（待发附件标题、类型徽标、随信发送、仅预览、移除按钮）均已接入 vue-i18n；中文注释改为英文。
 - **i18n 补全（SessionHistoryDialog）**：历史会话弹窗的标题、副标题、关闭按钮、搜索框占位符、条数统计、「当前」/「已结束」徽标及空状态文案均已接入 vue-i18n。
 - **i18n 补全（AppShell）**：主界面 `AppShell.vue` 全部硬编码中文已替换为 `t()` 调用，涵盖延迟配置提示横幅、会话加载状态、消息面板标题、跟随最新/诊断过滤开关、本地文件按钮、Token 用量标签、历史加载、空状态提示、过滤提示及文件预览面板；同步将文件内所有中文注释改为英文，并修复 `displayLines` 中本地变量 `t` 遮蔽 `useI18n` 的问题。
