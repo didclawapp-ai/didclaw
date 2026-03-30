@@ -82,6 +82,10 @@ function tauriApi(): DidClawElectronApi {
     startChannelQrFlow: (channel: string, gatewayUrl: string, flowId: string) =>
       invoke("start_channel_qr_flow", { channel, gatewayUrl, flowId }),
     quitApp: () => invoke("quit_app"),
+    getAutostartEnabled: () => invoke<boolean>("get_autostart_enabled"),
+    setAutostartEnabled: (enabled) => invoke("set_autostart_enabled", { enabled }),
+    getPreventSleepEnabled: () => invoke<boolean>("get_prevent_sleep_enabled"),
+    setPreventSleepEnabled: (enabled) => invoke("set_prevent_sleep_enabled", { enabled }),
     checkDidClawUpdate: (payload) =>
       invoke("check_didclaw_update", { endpoint: payload?.endpoint ?? null }),
     installDidClawUpdate: (payload) =>

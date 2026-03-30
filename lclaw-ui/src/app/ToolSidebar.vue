@@ -6,6 +6,7 @@ import DoctorDialog from "@/features/settings/DoctorDialog.vue";
 import BackupRestoreDialog from "@/features/settings/BackupRestoreDialog.vue";
 import ChannelSetupDialog from "@/features/settings/ChannelSetupDialog.vue";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
+import GeneralSettingsDialog from "@/features/settings/GeneralSettingsDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
@@ -36,6 +37,7 @@ const skillsDialogOpen = ref(false);
 const aboutDialogOpen = ref(false);
 const doctorDialogOpen = ref(false);
 const backupDialogOpen = ref(false);
+const generalSettingsOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
 const checkUpdateBusy = ref(false);
@@ -291,6 +293,19 @@ function onRedoFirstRunWizard(): void {
         </button>
       </li>
 
+      <!-- General Settings (desktop only) -->
+      <li v-if="isDidClawElectron()">
+        <button type="button" class="ts-item" @click="generalSettingsOpen = true">
+          <span class="ts-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="8" r="2" />
+              <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" />
+            </svg>
+          </span>
+          <span class="ts-label">{{ t('generalSettings.title') }}</span>
+        </button>
+      </li>
+
       <!-- Quit (desktop only) -->
       <li v-if="isDidClawElectron()" class="ts-sep-thin" role="separator" />
       <li v-if="isDidClawElectron()">
@@ -351,6 +366,7 @@ function onRedoFirstRunWizard(): void {
   <DoctorDialog v-model="doctorDialogOpen" />
   <BackupRestoreDialog v-model="backupDialogOpen" />
   <ChannelSetupDialog v-model="channelDialogOpen" />
+  <GeneralSettingsDialog v-model="generalSettingsOpen" />
 </template>
 
 <style scoped>

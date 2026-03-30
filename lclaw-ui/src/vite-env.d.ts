@@ -134,6 +134,14 @@ interface DidClawElectronApi {
   }): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;
   /** 立即退出 DidClaw（绕过关闭到托盘逻辑） */
   quitApp?(): Promise<void>;
+  /** 开机自启：读取当前状态 */
+  getAutostartEnabled?(): Promise<boolean>;
+  /** 开机自启：设置启用/禁用 */
+  setAutostartEnabled?(enabled: boolean): Promise<void>;
+  /** 防休眠：读取当前状态 */
+  getPreventSleepEnabled?(): Promise<boolean>;
+  /** 防休眠：设置启用/禁用 */
+  setPreventSleepEnabled?(enabled: boolean): Promise<void>;
   /** 检查 DidClaw 自身是否有新版本（从 VITE_DIDCLAW_UPDATE_ENDPOINT 端点拉取清单） */
   checkDidClawUpdate?(payload: { endpoint?: string }): Promise<
     | {

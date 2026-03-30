@@ -68,4 +68,8 @@ commands.allow = [
   "check_didclaw_update",
   "install_didclaw_update",
   "quit_app",
+  "get_autostart_enabled",
+  "set_autostart_enabled",
+  "get_prevent_sleep_enabled",
+  "set_prevent_sleep_enabled",
 ]

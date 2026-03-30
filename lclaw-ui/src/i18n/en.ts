@@ -642,4 +642,13 @@ export default {
       installFail: "Failed to install the WeCom plugin",
     },
   },
+
+  // ─── General Settings ─────────────────────────────────
+  generalSettings: {
+    title: "General Settings",
+    autostartLabel: "Launch at Login",
+    autostartDesc: "DidClaw starts automatically in the background when you log in.",
+    preventSleepLabel: "Prevent Sleep",
+    preventSleepDesc: "Keep the computer awake during long AI tasks so they are not interrupted.",
+  },
 } as const;

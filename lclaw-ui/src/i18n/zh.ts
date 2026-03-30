@@ -642,4 +642,13 @@ export default {
       installFail: "企业微信插件安装失败",
     },
   },
+
+  // ─── 通用设置 GeneralSettingsDialog ──────────────────
+  generalSettings: {
+    title: "通用设置",
+    autostartLabel: "开机自动启动",
+    autostartDesc: "开机后 DidClaw 自动在后台就绪，无需手动启动。",
+    preventSleepLabel: "防止电脑休眠",
+    preventSleepDesc: "开启后，电脑不会因无操作而进入休眠，适合 AI 长任务运行期间使用。",
+  },
 } as const;

@@ -756,3 +756,23 @@ pub async fn start_channel_qr_flow(
 ) -> Result<Value, String> {
     Ok(crate::openclaw_channel_config::start_channel_qr_flow(app, channel, gateway_url, flow_id).await)
 }
+
+#[tauri::command]
+pub fn get_autostart_enabled(app: tauri::AppHandle) -> Result<bool, String> {
+    crate::general_settings::get_autostart(&app)
+}
+
+#[tauri::command]
+pub fn set_autostart_enabled(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    crate::general_settings::set_autostart(&app, enabled)
+}
+
+#[tauri::command]
+pub fn get_prevent_sleep_enabled() -> bool {
+    crate::general_settings::get_prevent_sleep()
+}
+
+#[tauri::command]
+pub fn set_prevent_sleep_enabled(enabled: bool) -> Result<(), String> {
+    crate::general_settings::set_prevent_sleep(enabled)
+}

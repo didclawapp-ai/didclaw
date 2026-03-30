@@ -1,4 +1,5 @@
 mod commands;
+mod general_settings;
 mod didclaw_db;
 mod didclaw_update;
 mod tray_icon;
@@ -90,6 +91,10 @@ pub fn run() {
     launch_log::init();
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
         .manage(std::sync::Arc::new(tokio::sync::Mutex::new(
             gateway_tunnel::GatewayTunnelSlot::default(),
         )))
@@ -220,6 +225,10 @@ pub fn run() {
             commands::check_didclaw_update,
             commands::install_didclaw_update,
             commands::quit_app,
+            commands::get_autostart_enabled,
+            commands::set_autostart_enabled,
+            commands::get_prevent_sleep_enabled,
+            commands::set_prevent_sleep_enabled,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {
