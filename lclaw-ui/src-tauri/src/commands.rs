@@ -180,6 +180,11 @@ pub async fn check_openclaw_update(app: tauri::AppHandle) -> Result<Value, Strin
 }
 
 #[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 pub async fn check_didclaw_update(
     app: tauri::AppHandle,
     endpoint: Option<String>,

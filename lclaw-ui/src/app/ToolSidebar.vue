@@ -160,6 +160,13 @@ async function onCheckUpdate(): Promise<void> {
   }
 }
 
+async function onQuit(): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (api?.quitApp) {
+    await api.quitApp();
+  }
+}
+
 function onRedoFirstRunWizard(): void {
   if (!window.confirm(t("header.redoOnboardingConfirm"))) return;
   resetFirstRunWizardLocalState();
@@ -281,6 +288,21 @@ function onRedoFirstRunWizard(): void {
             </svg>
           </span>
           <span class="ts-label">{{ copiedDiag ? t('header.copyDiagDone') : t('header.copyDiag') }}</span>
+        </button>
+      </li>
+
+      <!-- Quit (desktop only) -->
+      <li v-if="isDidClawElectron()" class="ts-sep-thin" role="separator" />
+      <li v-if="isDidClawElectron()">
+        <button type="button" class="ts-item ts-item--danger" @click="onQuit">
+          <span class="ts-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+              <path d="M11 11l3-3-3-3" />
+              <path d="M14 8H6" />
+            </svg>
+          </span>
+          <span class="ts-label">退出 DidClaw</span>
         </button>
       </li>
 

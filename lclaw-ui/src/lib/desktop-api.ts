@@ -81,6 +81,7 @@ function tauriApi(): DidClawElectronApi {
       }),
     startChannelQrFlow: (channel: string, gatewayUrl: string, flowId: string) =>
       invoke("start_channel_qr_flow", { channel, gatewayUrl, flowId }),
+    quitApp: () => invoke("quit_app"),
     checkDidClawUpdate: (payload) =>
       invoke("check_didclaw_update", { endpoint: payload?.endpoint ?? null }),
     installDidClawUpdate: (payload) =>

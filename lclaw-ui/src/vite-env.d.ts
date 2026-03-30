@@ -132,6 +132,8 @@ interface DidClawElectronApi {
   writeOpenClawEnv?(payload: {
     patch: Record<string, string | null>;
   }): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;
+  /** 立即退出 DidClaw（绕过关闭到托盘逻辑） */
+  quitApp?(): Promise<void>;
   /** 检查 DidClaw 自身是否有新版本（从 VITE_DIDCLAW_UPDATE_ENDPOINT 端点拉取清单） */
   checkDidClawUpdate?(payload: { endpoint?: string }): Promise<
     | {

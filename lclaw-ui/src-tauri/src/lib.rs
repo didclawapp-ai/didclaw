@@ -1,6 +1,7 @@
 mod commands;
 mod didclaw_db;
 mod didclaw_update;
+mod tray_icon;
 mod openclaw_backup;
 mod openclaw_ai_snapshot;
 mod openclaw_clawhub;
@@ -139,6 +140,10 @@ pub fn run() {
                 }
             }
 
+            if let Err(e) = tray_icon::setup_tray(app) {
+                launch_log::line(&format!("tray: 创建系统托盘图标失败（可忽略）: {e}"));
+            }
+
             launch_log::line("setup: 成功，进入事件循环");
             Ok(())
         })
@@ -214,6 +219,7 @@ pub fn run() {
             commands::start_channel_qr_flow,
             commands::check_didclaw_update,
             commands::install_didclaw_update,
+            commands::quit_app,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {
@@ -223,17 +229,32 @@ pub fn run() {
         .expect("error while building tauri application");
     launch_log::line("tauri: 开始 run 事件循环");
     app.run(|app_handle, event| {
-        if let tauri::RunEvent::Exit = event {
-            launch_log::line("RunEvent::Exit");
-            if let Some(st) = app_handle.try_state::<std::sync::Arc<
-                tokio::sync::Mutex<gateway_tunnel::GatewayTunnelSlot>,
-            >>() {
-                let s = std::sync::Arc::clone(st.inner());
-                tauri::async_runtime::block_on(gateway_tunnel::shutdown_tunnel_slot(&s));
+        match event {
+            // Close button → hide to tray instead of quitting
+            tauri::RunEvent::WindowEvent {
+                ref label,
+                event: tauri::WindowEvent::CloseRequested { ref api, .. },
+                ..
+            } if label == "main" => {
+                api.prevent_close();
+                if let Some(w) = app_handle.get_webview_window("main") {
+                    let _ = w.hide();
+                }
+                launch_log::line("tray: 主窗口已隐藏到托盘");
             }
-            openclaw_gateway::dispose_managed_open_claw_gateway(app_handle);
-            #[cfg(windows)]
-            openclaw_gateway::cleanup_windows_gateway_console_titles();
+            tauri::RunEvent::Exit => {
+                launch_log::line("RunEvent::Exit");
+                if let Some(st) = app_handle.try_state::<std::sync::Arc<
+                    tokio::sync::Mutex<gateway_tunnel::GatewayTunnelSlot>,
+                >>() {
+                    let s = std::sync::Arc::clone(st.inner());
+                    tauri::async_runtime::block_on(gateway_tunnel::shutdown_tunnel_slot(&s));
+                }
+                openclaw_gateway::dispose_managed_open_claw_gateway(app_handle);
+                #[cfg(windows)]
+                openclaw_gateway::cleanup_windows_gateway_console_titles();
+            }
+            _ => {}
         }
     });
 }

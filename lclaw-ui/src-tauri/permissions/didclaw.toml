@@ -67,4 +67,5 @@ commands.allow = [
   "start_channel_qr_flow",
   "check_didclaw_update",
   "install_didclaw_update",
+  "quit_app",
 ]
