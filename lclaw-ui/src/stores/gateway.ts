@@ -347,31 +347,49 @@ export const useGatewayStore = defineStore("gateway", () => {
            */
           gc.stop();
           const stillCurrent = client.value === gc;
-          if (stillCurrent) {
-            client.value = null;
-            status.value = "error";
-            helloInfo.value = null;
-            const detailText = error ? describeGatewayError(error) : String(reason ?? "").trim();
-            lastError.value = detailText
-              ? i18n.global.t("gatewayConn.disconnectedWithDetail", { code, detail: detailText })
-              : i18n.global.t("gatewayConn.disconnectedCodeOnly", { code });
+          if (!stillCurrent) return;
 
-            const lowerDetail = detailText.toLowerCase();
-            if (lowerDetail.includes("pairing")) {
-              lastError.value += i18n.global.t("gatewayConn.pairingHint");
-            }
+          client.value = null;
+          helloInfo.value = null;
 
-            // Clear cached deviceToken on AUTH_TOKEN_MISMATCH / device auth errors
-            const isAuthError = lowerDetail.includes("unauthorized") || 
-                               lowerDetail.includes("auth") ||
-                               lowerDetail.includes("token") ||
-                               error?.gatewayCode === "AUTH_TOKEN_MISMATCH" ||
-                               error?.gatewayCode?.startsWith("DEVICE_AUTH_");
-            if (isAuthError && cachedDeviceToken) {
-              console.log("[didclaw] clearing cached deviceToken due to auth error");
-              cachedDeviceToken = undefined;
-              void clearDeviceToken().catch(() => { /* ignore */ });
-            }
+          // WS 1012 = Service Restart: gateway is restarting (e.g. after plugin install).
+          // Auto-reconnect after a short delay instead of showing a persistent error.
+          const isServiceRestart =
+            code === 1012 ||
+            String(reason ?? "").toLowerCase().includes("service restart");
+          if (isServiceRestart) {
+            status.value = "connecting";
+            lastError.value = null;
+            window.setTimeout(() => {
+              // Only reconnect if nothing else has taken over
+              if (client.value === null && status.value === "connecting") {
+                connect();
+              }
+            }, 3000);
+            return;
+          }
+
+          status.value = "error";
+          const detailText = error ? describeGatewayError(error) : String(reason ?? "").trim();
+          lastError.value = detailText
+            ? i18n.global.t("gatewayConn.disconnectedWithDetail", { code, detail: detailText })
+            : i18n.global.t("gatewayConn.disconnectedCodeOnly", { code });
+
+          const lowerDetail = detailText.toLowerCase();
+          if (lowerDetail.includes("pairing")) {
+            lastError.value += i18n.global.t("gatewayConn.pairingHint");
+          }
+
+          // Clear cached deviceToken on AUTH_TOKEN_MISMATCH / device auth errors
+          const isAuthError = lowerDetail.includes("unauthorized") ||
+                             lowerDetail.includes("auth") ||
+                             lowerDetail.includes("token") ||
+                             error?.gatewayCode === "AUTH_TOKEN_MISMATCH" ||
+                             error?.gatewayCode?.startsWith("DEVICE_AUTH_");
+          if (isAuthError && cachedDeviceToken) {
+            console.log("[didclaw] clearing cached deviceToken due to auth error");
+            cachedDeviceToken = undefined;
+            void clearDeviceToken().catch(() => { /* ignore */ });
           }
         },
       });
