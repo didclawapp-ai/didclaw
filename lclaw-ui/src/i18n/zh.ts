@@ -881,6 +881,14 @@ export default {
     imgSaveFailed: "保存图片生成模型失败",
     imgEnabled: "✓ 图片生成已开启（{model}）— 请重启网关后生效",
     imgDisabled: "已关闭图片生成",
+    searchPlaceholder: "搜索服务商…",
+    tagAll: "全部",
+    tagConfigured: "已配置",
+    tagRecommended: "推荐",
+    tagCN: "国内",
+    tagIntl: "海外",
+    tagLocal: "本地",
+    noMatch: "未找到匹配的服务商",
   },
 
   // ─── Exec 审批 ExecApprovalDialog ──────────────────

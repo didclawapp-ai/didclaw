@@ -882,6 +882,14 @@ export default {
     imgSaveFailed: "Failed to save image generation model",
     imgEnabled: "✓ Image generation enabled ({model}) — restart gateway to apply",
     imgDisabled: "Image generation disabled",
+    searchPlaceholder: "Search providers…",
+    tagAll: "All",
+    tagConfigured: "Configured",
+    tagRecommended: "Recommended",
+    tagCN: "China",
+    tagIntl: "International",
+    tagLocal: "Local",
+    noMatch: "No matching providers found",
   },
 
   // ─── Exec approvals ExecApprovalDialog ────────────────

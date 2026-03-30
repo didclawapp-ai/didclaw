@@ -74,7 +74,6 @@ function setToast(msg: string) {
 }
 
 const providerGroups = computed(() => buildAiProviderViews(aiSnapshot.value));
-const recommendedProviders = computed(() => providerGroups.value.recommended);
 const detectedProviders = computed(() => providerGroups.value.detected);
 const allProviders = computed(() => providerGroups.value.all);
 const currentPrimary = computed(() => aiSnapshot.value.primaryModel);
@@ -85,6 +84,36 @@ const availableFallbackSuggestions = computed(() => buildFallbackSuggestions({
 const expandedProvider = computed<OpenClawAiProviderView | null>(() =>
   allProviders.value.find((item) => item.id === expandedId.value) ?? null,
 );
+
+/** known CN provider IDs for region filter */
+const CN_PROVIDER_IDS = new Set([
+  "kimi", "moonshot", "deepseek", "zhipu", "minimax", "qwen", "tongyi",
+  "baidu", "ernie", "mimo", "xiaomi", "baichuan", "hunyuan", "spark", "yi",
+  "siliconflow", "stepfun", "doubao", "volcengine", "lingyiwanwu",
+]);
+/** known local/self-hosted provider IDs */
+const LOCAL_PROVIDER_IDS = new Set([
+  "ollama", "lmstudio", "oobabooga", "jan", "koboldcpp", "localai", "xinference",
+]);
+
+const providerSearchQuery = ref("");
+const providerTagFilter = ref("all");
+const showFallbackEditor = ref(false);
+
+const filteredProviders = computed(() => {
+  const q = providerSearchQuery.value.toLowerCase().trim();
+  const tag = providerTagFilter.value;
+  return allProviders.value.filter((p) => {
+    if (tag === "configured" && !p.isConfigured) return false;
+    if (tag === "recommended" && p.source !== "recommended") return false;
+    if (tag === "cn" && !CN_PROVIDER_IDS.has(p.id)) return false;
+    if (tag === "intl" && (CN_PROVIDER_IDS.has(p.id) || LOCAL_PROVIDER_IDS.has(p.id))) return false;
+    if (tag === "local" && !LOCAL_PROVIDER_IDS.has(p.id)) return false;
+    if (q && !p.displayName.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q)
+        && !(p.description?.toLowerCase().includes(q))) return false;
+    return true;
+  });
+});
 
 watch(
   () => props.open,
@@ -488,319 +517,312 @@ async function removeImageGen() {
 }
 </script>
 
+
 <template>
   <div class="aips">
-    <div class="aips-primary-bar" :class="{ 'aips-primary-bar--set': currentPrimary }">
-      <span class="aips-primary-label">{{ t('aiProvider.primaryLabel') }}</span>
-      <span class="aips-primary-value">{{ currentPrimaryLabel() }}</span>
+    <!-- Primary model banner -->
+    <div class="aips-banner" :class="{ 'aips-banner--set': currentPrimary }">
+      <span class="aips-banner-label">{{ t('aiProvider.primaryLabel') }}</span>
+      <span class="aips-banner-sep" aria-hidden="true" />
+      <span class="aips-banner-value">{{ currentPrimaryLabel() }}</span>
     </div>
 
-    <div class="aips-fallback">
-      <div class="aips-fallback-head">
-        <span class="aips-fallback-title">{{ t('aiProvider.fallbackTitle') }}</span>
-        <span class="aips-fallback-hint">{{ t('aiProvider.fallbackHint') }}</span>
+    <!-- Fallback row (compact) -->
+    <div class="aips-fallback-bar">
+      <span class="aips-fallback-bar-label">{{ t('aiProvider.fallbackTitle') }}</span>
+      <div class="aips-fallback-bar-chips">
+        <span v-if="!fallbackModels.length" class="aips-fallback-bar-empty">{{ t('aiProvider.notConfigured') }}</span>
+        <span
+          v-for="m in fallbackModels"
+          :key="m"
+          class="aips-fallback-chip"
+        >{{ m }}<button type="button" class="aips-fallback-chip-del" :aria-label="t('aiProvider.removeModel', { m })" @click.stop="removeFallback(m)">x</button></span>
       </div>
-      <div class="aips-fallback-chips">
-        <template v-if="fallbackModels.length">
-          <span
-            v-for="m in fallbackModels"
-            :key="m"
-            class="aips-fallback-chip"
-          >
-            {{ m }}
-            <button type="button" class="aips-fallback-chip-del" :aria-label="t('aiProvider.removeModel', { m })" @click.stop="removeFallback(m)">×</button>
-          </span>
-        </template>
-        <span v-else class="aips-fallback-empty">{{ t('aiProvider.notConfigured') }}</span>
-      </div>
-      <div class="aips-fallback-add">
-        <select
-          v-if="availableFallbackSuggestions.length"
-          class="aips-fallback-select"
-          @change="(e) => { addFallback((e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = '' }"
+      <button
+        type="button"
+        class="aips-fallback-bar-toggle"
+        :class="{ 'aips-fallback-bar-toggle--active': showFallbackEditor }"
+        @click="showFallbackEditor = !showFallbackEditor"
+      >
+        {{ showFallbackEditor ? t('aiProvider.done') : '+ ' + t('aiProvider.add') }}
+      </button>
+    </div>
+
+    <!-- Fallback editor (expandable) -->
+    <div v-if="showFallbackEditor" class="aips-fallback-editor">
+      <select
+        v-if="availableFallbackSuggestions.length"
+        class="aips-select"
+        @change="(e) => { addFallback((e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = '' }"
+      >
+        <option value="">{{ t('aiProvider.pickFromConfigured') }}</option>
+        <option v-for="s in availableFallbackSuggestions" :key="s" :value="s">{{ s }}</option>
+      </select>
+      <div class="aips-fallback-manual-row">
+        <input
+          v-model="fallbackInput"
+          type="text"
+          class="aips-key-input"
+          :placeholder="t('aiProvider.manualInput')"
+          @keydown.enter.prevent="addFallback(fallbackInput)"
         >
-          <option value="">{{ t('aiProvider.pickFromConfigured') }}</option>
-          <option v-for="s in availableFallbackSuggestions" :key="s" :value="s">{{ s }}</option>
-        </select>
-        <div class="aips-fallback-manual">
-          <input
-            v-model="fallbackInput"
-            type="text"
-            class="aips-key-input"
-            :placeholder="t('aiProvider.manualInput')"
-            @keydown.enter.prevent="addFallback(fallbackInput)"
-          >
-          <button
-            type="button"
-            class="aips-ghost-btn aips-sm-btn"
-            :disabled="!fallbackInput.trim()"
-            @click="addFallback(fallbackInput)"
-          >
-            {{ t('aiProvider.add') }}
-          </button>
-        </div>
-        <button
-          type="button"
-          class="aips-ghost-btn aips-sm-btn aips-fallback-save"
-          :disabled="fallbackBusy"
-          @click="saveFallbacks"
-        >
+        <button type="button" class="aips-ghost-btn aips-sm-btn" :disabled="!fallbackInput.trim()" @click="addFallback(fallbackInput)">
+          {{ t('aiProvider.add') }}
+        </button>
+        <button type="button" class="aips-save-btn" :disabled="fallbackBusy" @click="saveFallbacks">
           {{ fallbackBusy ? t('aiProvider.saving') : t('aiProvider.save') }}
         </button>
       </div>
     </div>
 
-    <!-- 反馈 -->
+    <!-- Feedback -->
     <p v-if="toast" class="aips-toast">{{ toast }}</p>
     <p v-if="error" class="aips-error">{{ error }}</p>
 
-    <div class="aips-section">
-      <div class="aips-section-head">
-        <h3 class="aips-section-title">{{ t('aiProvider.recommended') }}</h3>
-        <p class="aips-section-hint">{{ t('aiProvider.recommendedHint') }}</p>
-      </div>
-      <div class="aips-grid">
-        <div
-          v-for="provider in recommendedProviders"
-          :key="provider.id"
-          class="aips-card"
-          :class="{
-            'aips-card--active': expandedId === provider.id,
-            'aips-card--configured': provider.isConfigured,
-            'aips-card--primary': provider.isPrimary,
-          }"
-          :style="{ '--card-color': provider.color }"
-          @click="expandCard(provider)"
+    <!-- Search row -->
+    <div class="aips-search-row">
+      <div class="aips-search-wrap">
+        <span class="aips-search-icon" aria-hidden="true">&#128269;</span>
+        <input
+          v-model="providerSearchQuery"
+          type="search"
+          class="aips-search-input"
+          :placeholder="t('aiProvider.searchPlaceholder')"
         >
-          <div class="aips-card-body">
-            <div class="aips-card-name">{{ provider.displayName }}</div>
-            <div class="aips-card-desc">{{ provider.description }}</div>
-            <div class="aips-card-meta">
-              <span>{{ providerModelsSummary(provider) }}</span>
-              <span v-if="provider.baseUrl" class="aips-card-meta-mono">{{ provider.baseUrl }}</span>
-            </div>
-          </div>
-          <div class="aips-card-status">
-            <span v-if="provider.catalog?.imageModels?.length" class="aips-badge aips-badge--img" :title="t('aiProvider.imgGenSupported')">🎨</span>
-            <span v-if="provider.isPrimary" class="aips-badge aips-badge--primary">{{ t('aiProvider.primary') }}</span>
-            <span v-else-if="provider.authState === 'configured'" class="aips-badge aips-badge--ok">{{ t('aiProvider.configured') }}</span>
-            <span v-else-if="provider.authState === 'notRequired'" class="aips-badge aips-badge--neutral">{{ t('aiProvider.noKeyNeeded') }}</span>
-            <span v-else class="aips-badge aips-badge--warn">{{ t('aiProvider.pendingConfig') }}</span>
-          </div>
-        </div>
       </div>
     </div>
 
-    <!-- ── 图片生成 ──────────────────────────────────────────── -->
-    <div class="aips-section">
-      <div class="aips-section-head">
-        <h3 class="aips-section-title">{{ t('aiProvider.imgGen') }}</h3>
-        <p class="aips-section-hint">
-          {{ t('aiProvider.imgGenDesc') }}
-          <template v-if="aiSnapshot.imageGenerationModel">
-            {{ t('aiProvider.current') }}<strong>{{ aiSnapshot.imageGenerationModel }}</strong>
-            <button type="button" class="aips-img-off-btn" @click="removeImageGen">{{ t('aiProvider.disable') }}</button>
-          </template>
-        </p>
+    <!-- Tag filter pills -->
+    <div class="aips-tags-row">
+      <button
+        v-for="tag in [
+          { id: 'all', label: t('aiProvider.tagAll') },
+          { id: 'configured', label: t('aiProvider.tagConfigured') },
+          { id: 'recommended', label: t('aiProvider.tagRecommended') },
+          { id: 'cn', label: t('aiProvider.tagCN') },
+          { id: 'intl', label: t('aiProvider.tagIntl') },
+          { id: 'local', label: t('aiProvider.tagLocal') },
+        ]"
+        :key="tag.id"
+        type="button"
+        class="aips-tag-pill"
+        :class="{ 'aips-tag-pill--active': providerTagFilter === tag.id }"
+        @click="providerTagFilter = tag.id"
+      >
+        {{ tag.label }}
+      </button>
+    </div>
+
+    <!-- Provider grid (scrollable) -->
+    <div class="aips-grid-wrap">
+      <!-- Empty state -->
+      <div v-if="filteredProviders.length === 0 && !IMAGE_GEN_CATALOG.length" class="aips-empty">
+        <span class="aips-empty-icon" aria-hidden="true">&#128269;</span>
+        <span>{{ t('aiProvider.noMatch') }}</span>
       </div>
-      <div class="aips-grid aips-grid--img">
-        <template v-for="imgEntry in IMAGE_GEN_CATALOG" :key="imgEntry.id">
-          <!-- Collapsed card -->
-          <div
-            v-if="expandedImgId !== imgEntry.id"
-            class="aips-card aips-card--img"
-            :class="{ 'aips-card--configured': aiSnapshot.imageGenerationModel === imgEntry.modelRef }"
-            :style="{ '--card-color': imgEntry.color }"
-            @click="toggleImgCard(imgEntry)"
-          >
-            <div class="aips-card-head">
-              <span class="aips-card-icon" :style="{ background: imgEntry.color + '22', color: imgEntry.color }">
-                {{ imgEntry.icon }}
-              </span>
-              <div class="aips-card-meta">
-                <span class="aips-card-name">{{ imgEntry.name }}</span>
-                <span class="aips-card-desc">{{ imgEntry.description }}</span>
-                <span class="aips-card-model-hint">{{ imgEntry.modelLabel }}</span>
+
+      <!-- Provider cards -->
+      <div v-if="filteredProviders.length" class="aips-providers-grid">
+        <div
+          v-for="provider in filteredProviders"
+          :key="provider.id"
+          class="aips-pcard"
+          :class="{
+            'aips-pcard--active': expandedId === provider.id,
+            'aips-pcard--primary': provider.isPrimary,
+          }"
+          @click="expandCard(provider)"
+        >
+          <div class="aips-pcard-top">
+            <span class="aips-pcard-icon" aria-hidden="true">{{ provider.icon }}</span>
+            <span
+              class="aips-pcard-badge"
+              :class="{
+                'aips-pcard-badge--primary': provider.isPrimary,
+                'aips-pcard-badge--ok': !provider.isPrimary && provider.isConfigured,
+                'aips-pcard-badge--free': !provider.isPrimary && !provider.isConfigured && !provider.apiKeyRequired,
+                'aips-pcard-badge--pending': !provider.isPrimary && !provider.isConfigured && provider.apiKeyRequired,
+              }"
+            >
+              {{
+                provider.isPrimary ? t('aiProvider.primary')
+                : provider.isConfigured ? t('aiProvider.configured')
+                  : !provider.apiKeyRequired ? t('aiProvider.noKeyNeeded')
+                    : t('aiProvider.pendingConfig')
+              }}
+            </span>
+          </div>
+          <div class="aips-pcard-name">{{ provider.displayName }}</div>
+          <p class="aips-pcard-desc">{{ provider.description }}</p>
+          <div class="aips-pcard-meta">
+            <span>{{ providerModelsSummary(provider) }}</span>
+            <span v-if="provider.baseUrl" class="aips-pcard-dot" aria-hidden="true" />
+            <span v-if="provider.baseUrl" class="aips-pcard-url">{{ provider.baseUrl }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Image gen sub-section -->
+      <template v-if="providerTagFilter === 'all' || providerTagFilter === 'recommended'">
+        <div v-if="IMAGE_GEN_CATALOG.length" class="aips-sub-section">
+          <div class="aips-sub-title">&#127912; {{ t('aiProvider.imgGen') }}</div>
+          <div class="aips-img-grid">
+            <div
+              v-for="imgEntry in IMAGE_GEN_CATALOG"
+              :key="imgEntry.id"
+              class="aips-pcard aips-pcard--img"
+              :class="{ 'aips-pcard--active': expandedImgId === imgEntry.id }"
+              @click="toggleImgCard(imgEntry)"
+            >
+              <div class="aips-pcard-top">
+                <span class="aips-pcard-icon" aria-hidden="true">{{ imgEntry.icon }}</span>
+                <span
+                  class="aips-pcard-badge"
+                  :class="aiSnapshot.imageGenerationModel === imgEntry.modelRef ? 'aips-pcard-badge--ok' : 'aips-pcard-badge--pending'"
+                >
+                  {{ aiSnapshot.imageGenerationModel === imgEntry.modelRef ? t('aiProvider.on') : t('aiProvider.off') }}
+                </span>
+              </div>
+              <div class="aips-pcard-name">{{ imgEntry.name }}</div>
+              <p class="aips-pcard-desc">{{ imgEntry.description }}</p>
+              <div class="aips-pcard-meta">
+                <code class="aips-pcard-model-id">{{ imgEntry.modelLabel }}</code>
               </div>
             </div>
-            <div class="aips-card-footer">
-              <span
-                class="aips-status-tag"
-                :class="aiSnapshot.imageGenerationModel === imgEntry.modelRef ? 'aips-status-tag--on' : 'aips-status-tag--off'"
-              >
-                {{ aiSnapshot.imageGenerationModel === imgEntry.modelRef ? t('aiProvider.on') : t('aiProvider.off') }}
-              </span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Detected providers sub-section -->
+      <template v-if="providerTagFilter === 'all' || providerTagFilter === 'configured'">
+        <div v-if="detectedProviders.length" class="aips-sub-section">
+          <div class="aips-sub-title">{{ t('aiProvider.detected') }}</div>
+          <div class="aips-providers-grid">
+            <div
+              v-for="provider in detectedProviders"
+              :key="`detected:${provider.id}`"
+              class="aips-pcard"
+              :class="{ 'aips-pcard--active': expandedId === provider.id }"
+              @click="expandCard(provider)"
+            >
+              <div class="aips-pcard-top">
+                <span class="aips-pcard-icon" aria-hidden="true">{{ provider.icon }}</span>
+                <span class="aips-pcard-badge aips-pcard-badge--free">{{ t('aiProvider.detectedBadge') }}</span>
+              </div>
+              <div class="aips-pcard-name">{{ provider.displayName }}</div>
+              <p class="aips-pcard-desc">{{ provider.description }}</p>
+              <div class="aips-pcard-meta">
+                <span>{{ providerModelsSummary(provider) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Bottom config panel (absolute overlay) -->
+    <div
+      class="aips-bottom"
+      :class="{ 'aips-bottom--open': expandedProvider !== null || expandedImgId !== null }"
+    >
+      <div class="aips-bottom-inner">
+        <!-- Provider config panel -->
+        <template v-if="expandedProvider && expandedImgId === null">
+          <div class="aips-bottom-head">
+            <span class="aips-bottom-icon" aria-hidden="true">{{ expandedProvider.icon }}</span>
+            <div class="aips-bottom-info">
+              <div class="aips-bottom-name">{{ expandedProvider.displayName }}</div>
+              <div class="aips-bottom-url">{{ editingBaseUrl || expandedProvider.baseUrl }}</div>
+            </div>
+            <div class="aips-bottom-head-actions">
+              <a
+                v-if="expandedProvider.docsUrl"
+                :href="expandedProvider.docsUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="aips-bottom-docs"
+              >{{ t('aiProvider.docs') }}</a>
+              <button type="button" class="aips-bottom-close" @click="expandedId = null">x</button>
             </div>
           </div>
 
-          <!-- Expanded card -->
-          <div
-            v-else
-            class="aips-card aips-card--img aips-card--active aips-card--expanded"
-            :style="{ '--card-color': imgEntry.color }"
-          >
-            <div class="aips-panel-header">
-              <span class="aips-panel-icon" :style="{ background: imgEntry.color + '22', color: imgEntry.color }">{{ imgEntry.icon }}</span>
-              <span class="aips-panel-name">{{ imgEntry.name }}</span>
-              <span class="aips-panel-model">{{ imgEntry.modelLabel }}</span>
-            </div>
-            <p class="aips-hint" style="margin-bottom:12px;">
-              {{ t('aiProvider.imgCardHint') }}
-            </p>
-            <div class="aips-field">
-              <label class="aips-field-label">API Key</label>
+          <div class="aips-bottom-fields">
+            <div class="aips-bottom-field">
+              <div class="aips-field-label-row">
+                <label class="aips-field-label">API Key</label>
+              </div>
               <div class="aips-key-row">
                 <input
-                  v-model="imgEditingKey"
-                  :type="imgShowKey ? 'text' : 'password'"
-                  class="aips-input"
-                  :placeholder="imgEntry.apiKeyPlaceholder"
+                  v-model="editingKey"
+                  :type="showKey ? 'text' : 'password'"
+                  class="aips-key-input"
+                  :placeholder="expandedProvider.apiKeyRequired ? (expandedProvider.catalog?.apiKeyPlaceholder || t('aiProvider.pasteApiKey')) : t('aiProvider.noKeyRequired')"
+                  :disabled="!expandedProvider.apiKeyRequired"
                   autocomplete="off"
                 >
-                <button type="button" class="aips-ghost-btn" @click="imgShowKey = !imgShowKey">
-                  {{ imgShowKey ? t('aiProvider.hide') : t('aiProvider.show') }}
+                <button
+                  v-if="expandedProvider.apiKeyRequired"
+                  type="button"
+                  class="aips-ghost-btn aips-eye-btn"
+                  @click="showKey = !showKey"
+                >
+                  {{ showKey ? t('aiProvider.hide') : t('aiProvider.show') }}
                 </button>
               </div>
-              <p class="aips-hint">{{ t('aiProvider.imgKeyHint') }}</p>
             </div>
-            <div class="aips-panel-actions">
-              <button type="button" class="aips-ghost-btn" :disabled="imgBusy" @click="toggleImgCard(imgEntry)">{{ t('aiProvider.cancel') }}</button>
+
+            <div class="aips-bottom-field">
+              <div class="aips-field-label-row">
+                <label class="aips-field-label">{{ t('aiProvider.baseUrl') }}</label>
+                <div v-if="expandedProvider.baseUrlAlt" class="aips-node-pills">
+                  <button
+                    type="button"
+                    class="aips-node-pill"
+                    :class="{ 'aips-node-pill--active': nodeChoice === 'main' }"
+                    @click="useMainNode()"
+                  >
+                    {{ expandedProvider.baseUrlLabel }}
+                  </button>
+                  <button
+                    type="button"
+                    class="aips-node-pill"
+                    :class="{ 'aips-node-pill--active': nodeChoice === 'alt' }"
+                    @click="useAltNode()"
+                  >
+                    {{ expandedProvider.baseUrlAltLabel }}
+                  </button>
+                </div>
+              </div>
+              <input
+                v-model="editingBaseUrl"
+                type="text"
+                class="aips-key-input"
+                placeholder="https://..."
+                autocomplete="off"
+                spellcheck="false"
+              >
+            </div>
+          </div>
+
+          <div class="aips-bottom-models">
+            <div class="aips-field-label-row">
+              <span class="aips-field-label">{{ t('aiProvider.models') }}</span>
               <button
                 type="button"
-                class="aips-primary-btn"
-                :disabled="imgBusy"
-                @click="applyImageGen(imgEntry)"
+                class="aips-ghost-btn aips-sm-btn"
+                @click="() => { modelEditMode = !modelEditMode; if (modelEditMode) modelEditText = expandedProviderModels().join(', '); }"
               >
-                {{ imgBusy ? t('aiProvider.saving') : t('aiProvider.imgEnable') }}
+                {{ modelEditMode ? t('aiProvider.done') : t('aiProvider.edit') }}
               </button>
             </div>
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <div v-if="detectedProviders.length" class="aips-section">
-      <div class="aips-section-head">
-        <h3 class="aips-section-title">{{ t('aiProvider.detected') }}</h3>
-        <p class="aips-section-hint">{{ t('aiProvider.detectedHint') }}</p>
-      </div>
-      <div class="aips-grid">
-        <div
-          v-for="provider in detectedProviders"
-          :key="provider.id"
-          class="aips-card"
-          :class="{
-            'aips-card--active': expandedId === provider.id,
-            'aips-card--configured': provider.isConfigured,
-            'aips-card--primary': provider.isPrimary,
-          }"
-          :style="{ '--card-color': provider.color }"
-          @click="expandCard(provider)"
-        >
-          <div class="aips-card-body">
-            <div class="aips-card-name">{{ provider.displayName }}</div>
-            <div class="aips-card-desc">{{ provider.description }}</div>
-            <div class="aips-card-meta">
-              <span>{{ provider.id }}</span>
-              <span v-if="provider.models.length">{{ providerModelsSummary(provider) }}</span>
-            </div>
-          </div>
-          <div class="aips-card-status">
-            <span class="aips-badge aips-badge--neutral">{{ t('aiProvider.detectedBadge') }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <Transition name="aips-panel">
-      <div v-if="expandedProvider" class="aips-panel">
-        <div class="aips-panel-head" :style="{ borderColor: expandedProvider.color }">
-          <span class="aips-panel-title">{{ expandedProvider.displayName }}</span>
-          <span class="aips-panel-source">{{ expandedProvider.source === "recommended" ? t('aiProvider.sourceRecommended') : t('aiProvider.sourceDetected') }}</span>
-          <a
-            v-if="expandedProvider.docsUrl"
-            :href="expandedProvider.docsUrl"
-            target="_blank"
-            rel="noopener"
-            class="aips-panel-docs"
-          >{{ t('aiProvider.docs') }}</a>
-          <button type="button" class="aips-panel-close" @click="expandedId = null">✕</button>
-        </div>
-
-        <div class="aips-field">
-          <div class="aips-field-label-row">
-            <span class="aips-field-label">{{ t('aiProvider.baseUrl') }}</span>
-            <div v-if="expandedProvider.baseUrlAlt" class="aips-node-pills">
-              <button
-                type="button"
-                class="aips-node-pill"
-                :class="{ 'aips-node-pill--active': nodeChoice === 'main' }"
-                @click="useMainNode()"
-              >
-                {{ expandedProvider.baseUrlLabel }}
-              </button>
-              <button
-                type="button"
-                class="aips-node-pill"
-                :class="{ 'aips-node-pill--active': nodeChoice === 'alt' }"
-                @click="useAltNode()"
-              >
-                {{ expandedProvider.baseUrlAltLabel }}
-              </button>
-            </div>
-          </div>
-          <input
-            v-model="editingBaseUrl"
-            type="text"
-            class="aips-key-input"
-            placeholder="https://..."
-            autocomplete="off"
-            spellcheck="false"
-          >
-        </div>
-
-        <div v-if="expandedProvider.apiKeyRequired" class="aips-field">
-          <span class="aips-field-label">API Key</span>
-          <div class="aips-key-row">
-            <input
-              v-model="editingKey"
-              :type="showKey ? 'text' : 'password'"
-              class="aips-key-input"
-              :placeholder="expandedProvider.catalog?.apiKeyPlaceholder || t('aiProvider.pasteApiKey')"
-              autocomplete="off"
-            >
-            <button type="button" class="aips-ghost-btn aips-eye-btn" @click="showKey = !showKey">
-              {{ showKey ? t('aiProvider.hide') : t('aiProvider.show') }}
-            </button>
-          </div>
-        </div>
-        <div v-else class="aips-field">
-          <span class="aips-field-label">API Key</span>
-          <span class="aips-url-hint">{{ t('aiProvider.noKeyRequired') }}</span>
-        </div>
-
-        <div class="aips-field">
-          <div class="aips-field-label-row">
-            <span class="aips-field-label">{{ t('aiProvider.models') }}</span>
-            <button
-              type="button"
-              class="aips-ghost-btn aips-sm-btn"
-              @click="() => { modelEditMode = !modelEditMode; if (modelEditMode) modelEditText = expandedProviderModels().join(', '); }"
-            >
-              {{ modelEditMode ? t('aiProvider.done') : t('aiProvider.edit') }}
-            </button>
-          </div>
-          <template v-if="modelEditMode">
             <textarea
+              v-if="modelEditMode"
               v-model="modelEditText"
               class="aips-model-textarea"
               :placeholder="t('aiProvider.modelPlaceholder')"
-              rows="3"
+              rows="2"
             />
-            <p class="aips-hint">{{ t('aiProvider.modelHint') }}</p>
-          </template>
-          <template v-else>
-            <div class="aips-model-chips">
+            <div v-else class="aips-model-chips">
               <span
                 v-for="m in expandedProviderModels()"
                 :key="m"
@@ -808,318 +830,605 @@ async function removeImageGen() {
                 :class="{ 'aips-chip--default': m === expandedProviderDefaultModel() }"
               >{{ m }}</span>
             </div>
-            <p class="aips-hint">
-              {{ t('aiProvider.defaultPrimary') }}：<strong>{{ expandedProviderDefaultModel() }}</strong>
-              （{{ t('aiProvider.defaultPrimaryNote') }}）
-            </p>
-            <p v-if="expandedProvider.modelsSource === 'recommended'" class="aips-hint">
-              {{ t('aiProvider.recommendedDefault') }}
-            </p>
-          </template>
-        </div>
-
-        <div class="aips-panel-actions">
-          <button
-            v-if="expandedProvider.raw"
-            type="button"
-            class="aips-ghost-btn aips-danger-btn"
-            :disabled="busy"
-            @click="removeProvider(expandedProvider)"
-          >
-            {{ t('aiProvider.remove') }}
-          </button>
-          <div class="aips-panel-actions-right">
-            <button type="button" class="aips-ghost-btn" @click="expandedId = null">
-              {{ t('aiProvider.cancel') }}
-            </button>
-            <button
-              v-if="!expandedProvider.isPrimary"
-              type="button"
-              class="aips-primary-btn aips-ghost-btn"
-              :disabled="busy || (expandedProvider.apiKeyRequired && !editingKey.trim())"
-              @click="applyProvider(expandedProvider, false)"
-            >
-              {{ busy ? t('aiProvider.saving') : t('aiProvider.saveOnly') }}
-            </button>
-            <button
-              type="button"
-              class="aips-apply-btn"
-              :disabled="busy || (expandedProvider.apiKeyRequired && !editingKey.trim())"
-              @click="applyProvider(expandedProvider, true)"
-            >
-              {{ busy ? t('aiProvider.applying') : expandedProvider.isPrimary ? t('aiProvider.update') : t('aiProvider.applyAsPrimary') }}
-            </button>
           </div>
-        </div>
+
+          <div class="aips-bottom-footer">
+            <button
+              v-if="expandedProvider.raw"
+              type="button"
+              class="aips-ghost-btn aips-danger-btn"
+              :disabled="busy"
+              @click="removeProvider(expandedProvider)"
+            >
+              {{ t('aiProvider.remove') }}
+            </button>
+            <div class="aips-footer-right">
+              <button type="button" class="aips-ghost-btn" @click="expandedId = null">{{ t('aiProvider.cancel') }}</button>
+              <button
+                v-if="!expandedProvider.isPrimary"
+                type="button"
+                class="aips-ghost-btn"
+                :disabled="busy || (expandedProvider.apiKeyRequired && !editingKey.trim())"
+                @click="applyProvider(expandedProvider, false)"
+              >
+                {{ busy ? t('aiProvider.saving') : t('aiProvider.saveOnly') }}
+              </button>
+              <button
+                type="button"
+                class="aips-apply-btn"
+                :disabled="busy || (expandedProvider.apiKeyRequired && !editingKey.trim())"
+                @click="applyProvider(expandedProvider, true)"
+              >
+                {{ busy ? t('aiProvider.applying') : expandedProvider.isPrimary ? t('aiProvider.update') : t('aiProvider.applyAsPrimary') }}
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Image gen config panel -->
+        <template v-else-if="expandedImgId !== null">
+          <template v-for="imgEntry in IMAGE_GEN_CATALOG" :key="imgEntry.id">
+            <template v-if="expandedImgId === imgEntry.id">
+              <div class="aips-bottom-head">
+                <span class="aips-bottom-icon" aria-hidden="true">{{ imgEntry.icon }}</span>
+                <div class="aips-bottom-info">
+                  <div class="aips-bottom-name">{{ imgEntry.name }}</div>
+                  <code class="aips-bottom-url">{{ imgEntry.modelLabel }}</code>
+                </div>
+                <div class="aips-bottom-head-actions">
+                  <button type="button" class="aips-bottom-close" @click="toggleImgCard(imgEntry)">x</button>
+                </div>
+              </div>
+              <div class="aips-bottom-fields">
+                <div class="aips-bottom-field" style="grid-column: 1 / -1">
+                  <label class="aips-field-label">API Key</label>
+                  <div class="aips-key-row">
+                    <input
+                      v-model="imgEditingKey"
+                      :type="imgShowKey ? 'text' : 'password'"
+                      class="aips-key-input"
+                      :placeholder="imgEntry.apiKeyPlaceholder"
+                      autocomplete="off"
+                    >
+                    <button type="button" class="aips-ghost-btn aips-eye-btn" @click="imgShowKey = !imgShowKey">
+                      {{ imgShowKey ? t('aiProvider.hide') : t('aiProvider.show') }}
+                    </button>
+                  </div>
+                  <p class="aips-hint">{{ t('aiProvider.imgKeyHint') }}</p>
+                </div>
+              </div>
+              <div class="aips-bottom-footer">
+                <button
+                  v-if="aiSnapshot.imageGenerationModel === imgEntry.modelRef"
+                  type="button"
+                  class="aips-ghost-btn aips-danger-btn"
+                  @click="removeImageGen"
+                >
+                  {{ t('aiProvider.disable') }}
+                </button>
+                <div class="aips-footer-right">
+                  <button type="button" class="aips-ghost-btn" :disabled="imgBusy" @click="toggleImgCard(imgEntry)">{{ t('aiProvider.cancel') }}</button>
+                  <button type="button" class="aips-apply-btn" :disabled="imgBusy" @click="applyImageGen(imgEntry)">
+                    {{ imgBusy ? t('aiProvider.saving') : t('aiProvider.imgEnable') }}
+                  </button>
+                </div>
+              </div>
+            </template>
+          </template>
+        </template>
       </div>
-    </Transition>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .aips {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  height: 480px;
+  overflow: hidden;
 }
 
-/* ── 主力模型状态栏 ── */
-.aips-primary-bar {
+.aips-banner {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 9px 14px;
   border-radius: var(--lc-radius-sm);
   background: var(--lc-bg-elevated);
   border: 1px solid var(--lc-border);
   font-size: 12px;
-}
-.aips-primary-bar--set {
-  border-color: rgba(6,182,212,0.4);
-  background: var(--lc-accent-soft);
-}
-.aips-primary-label {
-  color: var(--lc-text-muted);
-  font-weight: 600;
   flex-shrink: 0;
 }
-.aips-primary-value {
+.aips-banner--set {
+  border-color: color-mix(in srgb, var(--lc-accent) 35%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lc-accent) 10%, transparent), transparent);
+}
+.aips-banner-label {
+  color: var(--lc-text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.aips-banner-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--lc-border);
+  flex-shrink: 0;
+}
+.aips-banner-value {
   color: var(--lc-accent);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
 }
 
-/* ── 反馈 ── */
+.aips-fallback-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-raised);
+  border: 1px solid var(--lc-border);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.aips-fallback-bar-label {
+  color: var(--lc-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.aips-fallback-bar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.aips-fallback-bar-empty {
+  font-size: 11px;
+  color: var(--lc-text-dim, var(--lc-text-muted));
+}
+.aips-fallback-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--lc-bg-elevated);
+  border: 1px solid var(--lc-border);
+  color: var(--lc-text-muted);
+  font-family: var(--lc-mono);
+}
+.aips-fallback-chip-del {
+  background: none;
+  border: none;
+  color: var(--lc-text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  line-height: 1;
+}
+.aips-fallback-chip-del:hover { color: var(--lc-error); }
+.aips-fallback-bar-toggle {
+  background: transparent;
+  border: 1px solid var(--lc-border);
+  border-radius: 5px;
+  color: var(--lc-text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  flex-shrink: 0;
+  transition: border-color 0.12s, color 0.12s;
+}
+.aips-fallback-bar-toggle:hover,
+.aips-fallback-bar-toggle--active {
+  border-color: var(--lc-accent);
+  color: var(--lc-accent);
+}
+
+.aips-fallback-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--lc-bg-raised);
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  flex-shrink: 0;
+}
+.aips-fallback-manual-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.aips-fallback-manual-row .aips-key-input { flex: 1; }
+.aips-select {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  font-size: 12px;
+  font-family: inherit;
+}
+.aips-save-btn {
+  background: color-mix(in srgb, var(--lc-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lc-accent) 30%, transparent);
+  color: var(--lc-accent);
+  border-radius: var(--lc-radius-sm);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.aips-save-btn:hover { background: color-mix(in srgb, var(--lc-accent) 20%, transparent); }
+.aips-save-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
 .aips-toast {
   font-size: 12px;
   color: #16a34a;
   margin: 0;
-  padding: 6px 10px;
-  background: rgba(34,197,94,0.08);
+  padding: 5px 10px;
+  background: rgba(34,197,94,.08);
   border-radius: var(--lc-radius-sm);
-  border: 1px solid rgba(34,197,94,0.25);
+  border: 1px solid rgba(34,197,94,.25);
+  flex-shrink: 0;
 }
 .aips-error {
   font-size: 12px;
   color: var(--lc-error);
   margin: 0;
-  padding: 6px 10px;
-  background: var(--lc-error-bg, rgba(239,68,68,0.08));
+  padding: 5px 10px;
+  background: var(--lc-error-bg, rgba(239,68,68,.08));
   border-radius: var(--lc-radius-sm);
-  border: 1px solid rgba(239,68,68,0.25);
+  border: 1px solid rgba(239,68,68,.25);
+  flex-shrink: 0;
 }
 
-.aips-section {
+.aips-search-row { flex-shrink: 0; }
+.aips-search-wrap { position: relative; }
+.aips-search-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  font-size: 12px; pointer-events: none;
+}
+.aips-search-input {
+  width: 100%;
+  background: var(--lc-bg-raised);
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  padding: 7px 10px 7px 28px;
+  font-size: 13px;
+  color: var(--lc-text);
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.aips-search-input::placeholder { color: var(--lc-text-dim, var(--lc-text-muted)); }
+.aips-search-input:focus { border-color: var(--lc-accent); }
+
+.aips-tags-row {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+  padding-bottom: 1px;
+}
+.aips-tags-row::-webkit-scrollbar { display: none; }
+.aips-tag-pill {
+  padding: 3px 10px;
+  background: var(--lc-bg-raised);
+  border: 1px solid var(--lc-border);
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--lc-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.aips-tag-pill:hover { color: var(--lc-text); border-color: var(--lc-border-strong, var(--lc-border)); }
+.aips-tag-pill--active {
+  background: color-mix(in srgb, var(--lc-accent) 12%, transparent);
+  border-color: var(--lc-accent);
+  color: var(--lc-accent);
+}
+
+.aips-grid-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lc-border) transparent;
+}
+.aips-grid-wrap::-webkit-scrollbar { width: 4px; }
+.aips-grid-wrap::-webkit-scrollbar-thumb { background: var(--lc-border); border-radius: 2px; }
+
+.aips-providers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+  align-content: start;
 }
-.aips-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+.aips-img-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  flex-wrap: wrap;
-}
-.aips-section-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
-}
-.aips-section-hint {
-  margin: 0;
-  font-size: 11px;
-  color: var(--lc-text-muted);
 }
 
-/* ── 卡片网格 ── */
-.aips-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
-}
-.aips-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--lc-border);
-  border-left: 3px solid var(--card-color, var(--lc-border));
-  border-radius: var(--lc-radius-sm);
+.aips-pcard {
   background: var(--lc-bg-raised);
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm, 10px);
+  padding: 12px;
   cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.1s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   user-select: none;
 }
-.aips-card:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transform: translateY(-1px);
+.aips-pcard:hover {
+  border-color: var(--lc-border-strong, var(--lc-accent));
   background: var(--lc-bg-elevated);
 }
-.aips-card--active {
-  border-color: var(--card-color, var(--lc-accent));
+.aips-pcard--active {
+  border-color: var(--lc-accent);
+  background: color-mix(in srgb, var(--lc-accent) 6%, transparent);
+}
+.aips-pcard--primary {
+  border-color: color-mix(in srgb, var(--lc-accent) 40%, transparent);
+}
+
+.aips-pcard-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.aips-pcard-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.aips-pcard-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.aips-pcard-badge--primary {
+  background: color-mix(in srgb, var(--lc-accent) 18%, transparent);
+  color: var(--lc-accent);
+}
+.aips-pcard-badge--ok {
+  background: rgba(52, 199, 89, 0.15);
+  color: #34c759;
+}
+.aips-pcard-badge--free {
   background: var(--lc-bg-elevated);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-color, var(--lc-accent)) 20%, transparent);
+  color: var(--lc-text-dim, var(--lc-text-muted));
+  border: 1px solid var(--lc-border);
 }
-.aips-card--primary {
-  border-left-width: 3px;
+.aips-pcard-badge--pending {
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text-muted);
+  border: 1px solid var(--lc-border);
 }
-.aips-card-body {
-  flex: 1;
-  min-width: 0;
-}
-.aips-card-name {
-  font-size: 11px;
-  font-weight: 600;
+
+.aips-pcard-name {
+  font-size: 13px;
+  font-weight: 500;
   color: var(--lc-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.aips-card-desc {
-  font-size: 10px;
+.aips-pcard-desc {
+  font-size: 11px;
   color: var(--lc-text-muted);
+  line-height: 1.4;
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.aips-pcard-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--lc-text-dim, var(--lc-text-muted));
+  margin-top: 2px;
+  overflow: hidden;
+}
+.aips-pcard-dot {
+  width: 3px; height: 3px;
+  background: var(--lc-border);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.aips-pcard-url {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-top: 2px;
+  font-family: var(--lc-mono);
+  font-size: 10px;
+  flex: 1;
 }
-.aips-card-meta {
+.aips-pcard-model-id {
+  font-family: var(--lc-mono);
+  font-size: 10px;
+  color: var(--lc-text-muted);
+}
+
+.aips-empty {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-  font-size: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
   color: var(--lc-text-dim, var(--lc-text-muted));
+  padding: 40px 0;
 }
-.aips-card-meta-mono {
+.aips-empty-icon { font-size: 32px; opacity: 0.4; }
+
+.aips-sub-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.aips-sub-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lc-text-muted);
+  padding-top: 4px;
+  border-top: 1px solid var(--lc-border);
+}
+
+/* ── Bottom config panel ── */
+.aips-bottom {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: var(--lc-bg-raised);
+  border-top: 1px solid var(--lc-border);
+  border-radius: 0 0 var(--lc-radius-sm, 10px) var(--lc-radius-sm, 10px);
+  transform: translateY(100%);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 290px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.12);
+  z-index: 2;
+}
+.aips-bottom--open { transform: translateY(0); }
+
+.aips-bottom-inner {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+}
+
+.aips-bottom-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--lc-border);
+  flex-shrink: 0;
+}
+.aips-bottom-icon { font-size: 22px; flex-shrink: 0; }
+.aips-bottom-info { flex: 1; min-width: 0; }
+.aips-bottom-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lc-text);
+  margin-bottom: 2px;
+}
+.aips-bottom-url {
+  font-size: 11px;
+  color: var(--lc-text-dim, var(--lc-text-muted));
   font-family: var(--lc-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.aips-card-status {
-  flex-shrink: 0;
-}
-
-/* ── 徽章 ── */
-.aips-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 10px;
-}
-.aips-badge--ok {
-  background: rgba(34,197,94,0.12);
-  color: #16a34a;
-}
-.aips-badge--primary {
-  background: rgba(6,182,212,0.12);
-  color: var(--lc-accent);
-}
-.aips-badge--warn {
-  background: rgba(245, 158, 11, 0.12);
-  color: #d97706;
-}
-.aips-badge--neutral {
-  background: rgba(100, 116, 139, 0.12);
-  color: #475569;
-}
-[data-theme="dark"] .aips-badge--ok { color: #4ade80; }
-[data-theme="dark"] .aips-badge--primary { color: #67e8f9; }
-[data-theme="dark"] .aips-badge--warn { color: #fbbf24; }
-[data-theme="dark"] .aips-badge--neutral { color: #cbd5e1; }
-
-/* ── 配置面板 ── */
-.aips-panel {
-  border: 1px solid var(--lc-border);
-  border-radius: var(--lc-radius-sm);
-  padding: 14px 16px;
-  background: var(--lc-bg-elevated);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.aips-panel-head {
+.aips-bottom-head-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid var(--lc-border);
+  flex-shrink: 0;
 }
-.aips-panel-title {
-  flex: 1;
-  font-weight: 700;
-  font-size: 14px;
-}
-.aips-panel-source {
-  font-size: 11px;
-  color: var(--lc-text-muted);
-}
-.aips-panel-docs {
-  font-size: 11px;
+.aips-bottom-docs {
+  font-size: 12px;
   color: var(--lc-accent);
   text-decoration: none;
 }
-.aips-panel-docs:hover { text-decoration: underline; }
-.aips-panel-close {
-  background: transparent;
+.aips-bottom-docs:hover { text-decoration: underline; }
+.aips-bottom-close {
+  width: 26px; height: 26px;
   border: none;
+  background: var(--lc-bg-elevated);
   color: var(--lc-text-muted);
+  font-size: 12px;
   cursor: pointer;
-  font-size: 14px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.12s, color 0.12s;
 }
-.aips-panel-close:hover { color: var(--lc-text); background: var(--lc-bg-raised); }
+.aips-bottom-close:hover { background: var(--lc-bg-hover, var(--lc-bg-elevated)); color: var(--lc-text); }
 
-/* ── 字段 ── */
-.aips-field, .aips-url-line {
+.aips-bottom-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.aips-bottom-field {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
+
+.aips-bottom-models {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.aips-bottom-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--lc-border);
+  flex-shrink: 0;
+}
+.aips-footer-right {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* ── Shared form inputs ── */
 .aips-field-label-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 .aips-field-label {
   font-size: 11px;
   font-weight: 600;
   color: var(--lc-text-muted);
 }
-.aips-url-hint {
-  font-size: 11px;
-  color: var(--lc-text-dim, var(--lc-text-muted));
-  font-family: var(--lc-mono);
-}
-
-/* ── 节点选择 ── */
-.aips-node-pills {
-  display: flex;
-  gap: 6px;
-}
-.aips-node-pill {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 3px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--lc-border);
-  background: var(--lc-bg-raised);
-  color: var(--lc-text-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.aips-node-pill--active {
-  border-color: var(--lc-accent);
-  background: var(--lc-accent-soft);
-  color: var(--lc-accent);
-}
-
-/* ── Key 输入 ── */
 .aips-key-row {
   display: flex;
   gap: 6px;
@@ -1127,20 +1436,37 @@ async function removeImageGen() {
 }
 .aips-key-input {
   flex: 1;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: 1px solid var(--lc-border);
   border-radius: var(--lc-radius-sm);
   font-size: 12px;
   font-family: var(--lc-mono);
-  background: var(--lc-bg-deep, var(--lc-bg-raised));
+  background: var(--lc-bg-raised);
   color: var(--lc-text);
+  min-width: 0;
 }
-.aips-key-input:focus {
-  outline: none;
-  border-color: var(--lc-border-strong);
+.aips-key-input:focus { outline: none; border-color: var(--lc-accent); }
+.aips-key-input:disabled { opacity: 0.5; }
+
+.aips-node-pills { display: flex; gap: 5px; }
+.aips-node-pill {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg-raised);
+  color: var(--lc-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+.aips-node-pill--active {
+  border-color: var(--lc-accent);
+  background: color-mix(in srgb, var(--lc-accent) 12%, transparent);
+  color: var(--lc-accent);
 }
 
-/* ── 模型 chips ── */
 .aips-model-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1158,326 +1484,60 @@ async function removeImageGen() {
 .aips-chip--default {
   border-color: var(--lc-accent);
   color: var(--lc-accent);
-  background: var(--lc-accent-soft);
+  background: color-mix(in srgb, var(--lc-accent) 10%, transparent);
 }
 .aips-model-textarea {
   width: 100%;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: 1px solid var(--lc-border);
   border-radius: var(--lc-radius-sm);
   font-size: 12px;
   font-family: var(--lc-mono);
-  background: var(--lc-bg-deep, var(--lc-bg-raised));
+  background: var(--lc-bg-raised);
   color: var(--lc-text);
-  resize: vertical;
+  resize: none;
   box-sizing: border-box;
 }
+.aips-model-textarea:focus { outline: none; border-color: var(--lc-accent); }
+
 .aips-hint {
   font-size: 11px;
   color: var(--lc-text-muted);
   margin: 0;
 }
 
-/* ── 操作按钮 ── */
-.aips-panel-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--lc-border);
-  margin-top: 4px;
-}
-.aips-panel-actions-right {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
+/* ── Buttons ── */
 .aips-ghost-btn {
   background: transparent;
   border: 1px solid var(--lc-border);
   border-radius: var(--lc-radius-sm);
   color: var(--lc-text-muted);
   font-size: 12px;
-  font-family: inherit;
-  padding: 6px 12px;
+  padding: 5px 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
 }
-.aips-ghost-btn:hover:not(:disabled) {
-  border-color: var(--lc-border-strong);
-  color: var(--lc-text);
-}
-.aips-ghost-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.aips-eye-btn { padding: 6px 10px; white-space: nowrap; }
+.aips-ghost-btn:hover { background: var(--lc-bg-elevated); color: var(--lc-text); }
+.aips-ghost-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .aips-sm-btn { padding: 3px 8px; font-size: 11px; }
-.aips-danger-btn { color: var(--lc-error); border-color: rgba(239,68,68,0.35); }
-.aips-danger-btn:hover:not(:disabled) { background: var(--lc-error-bg, rgba(239,68,68,0.08)); }
-.aips-primary-btn { color: var(--lc-accent); border-color: rgba(6,182,212,0.4); }
+.aips-eye-btn { padding: 5px 8px; flex-shrink: 0; }
+.aips-danger-btn { color: var(--lc-error); border-color: rgba(239,68,68,.3); }
+.aips-danger-btn:hover { background: var(--lc-error-bg, rgba(239,68,68,.08)); }
 .aips-apply-btn {
-  background: linear-gradient(135deg, #0e7490, #0891b2);
+  background: var(--lc-accent);
   border: none;
   border-radius: var(--lc-radius-sm);
   color: #fff;
   font-size: 12px;
-  font-weight: 600;
-  font-family: inherit;
+  font-weight: 500;
   padding: 6px 14px;
   cursor: pointer;
-  transition: opacity 0.15s;
-}
-.aips-apply-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.aips-apply-btn:hover:not(:disabled) { opacity: 0.9; }
-
-/* ── 面板展开动画 ── */
-.aips-panel-enter-active,
-.aips-panel-leave-active {
-  transition: opacity 0.18s, transform 0.18s;
-}
-.aips-panel-enter-from,
-.aips-panel-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-/* ── 备用模型 ── */
-.aips-fallback {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-bg-elevated);
-  border: 1px solid var(--lc-border);
-  font-size: 12px;
-}
-.aips-fallback-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.aips-fallback-title {
-  font-weight: 600;
-  color: var(--lc-text);
-}
-.aips-fallback-hint {
-  color: var(--lc-text-muted);
-}
-.aips-fallback-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  min-height: 22px;
-}
-.aips-fallback-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--lc-accent-soft);
-  color: var(--lc-accent);
-  font-size: 11px;
-  font-weight: 500;
-  font-family: var(--lc-font-mono, monospace);
-}
-.aips-fallback-chip-del {
-  background: none;
-  border: none;
-  color: var(--lc-text-muted);
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-  padding: 0;
-}
-.aips-fallback-chip-del:hover { color: var(--lc-error); }
-.aips-fallback-empty {
-  color: var(--lc-text-dim, var(--lc-text-muted));
-  font-style: italic;
-}
-.aips-fallback-add {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.aips-fallback-select {
-  width: 100%;
-  padding: 5px 8px;
-  border: 1px solid var(--lc-border);
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-bg-raised);
-  color: var(--lc-text);
-  font-size: 12px;
   font-family: inherit;
-}
-.aips-fallback-manual {
-  display: flex;
-  gap: 6px;
-}
-.aips-fallback-manual .aips-key-input {
-  flex: 1;
-  padding: 5px 8px;
-  font-size: 12px;
-}
-.aips-fallback-save {
-  align-self: flex-start;
-  color: var(--lc-accent);
-  border-color: rgba(6,182,212,0.4);
-}
-
-/* ── 图片生成 ── */
-.aips-badge--img {
-  font-size: 13px;
-  padding: 0 2px;
-  background: transparent;
-  border: none;
-}
-.aips-field--img {
-  background: rgba(139, 92, 246, 0.04);
-  border: 1px solid rgba(139, 92, 246, 0.18);
-  border-radius: var(--lc-radius-sm);
-  padding: 10px 12px;
-  gap: 6px;
-}
-.aips-img-badge-new {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: rgba(139, 92, 246, 0.15);
-  color: #7c3aed;
-  letter-spacing: 0.04em;
-}
-.aips-img-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 4px;
-}
-.aips-img-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: var(--lc-radius-sm);
-  border: 1px solid var(--lc-border);
-  background: var(--lc-bg-raised);
-  cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
-}
-.aips-img-option:hover {
-  border-color: rgba(139, 92, 246, 0.35);
-  background: rgba(139, 92, 246, 0.06);
-}
-.aips-img-option--active {
-  border-color: rgba(139, 92, 246, 0.5);
-  background: rgba(139, 92, 246, 0.08);
-}
-.aips-img-radio {
-  accent-color: #7c3aed;
-  flex-shrink: 0;
-}
-.aips-img-option-label {
-  font-size: 13px;
-  color: var(--lc-text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.aips-img-model-id {
-  font-family: var(--lc-mono);
-  font-size: 11px;
-  color: var(--lc-text-muted);
-  background: var(--lc-bg-elevated);
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--lc-border);
-}
-.aips-hint--ok {
-  color: #16a34a;
-  font-size: 11px;
-}
-
-/* ── 独立图片生成网格（比普通卡片宽） ── */
-.aips-grid--img {
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-}
-
-/* ── 独立图片生成卡 ── */
-.aips-card--img {
-  cursor: pointer;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  overflow: hidden;
-}
-.aips-card--img .aips-card-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-}
-.aips-card--img .aips-card-meta {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-.aips-card--img .aips-card-name {
-  white-space: normal;
-  word-break: break-word;
-  overflow: visible;
-}
-.aips-card--img .aips-card-desc {
-  white-space: normal;
-  word-break: break-word;
-  overflow: visible;
-  text-overflow: unset;
-  line-height: 1.4;
-}
-.aips-card--img .aips-card-model-hint {
-  font-family: var(--lc-mono);
-  font-size: 10px;
-  color: var(--lc-text-muted);
-  margin-top: 2px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  transition: opacity 0.12s;
 }
-.aips-card--img .aips-card-footer {
-  margin-top: 2px;
-}
-.aips-status-tag {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.03em;
-}
-.aips-status-tag--on {
-  background: rgba(22, 163, 74, 0.12);
-  color: #15803d;
-}
-.aips-status-tag--off {
-  background: var(--lc-bg-elevated);
-  color: var(--lc-text-muted);
-}
-.aips-img-off-btn {
-  border: none;
-  background: none;
-  color: var(--lc-text-muted);
-  font-size: 11px;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0 4px;
-  margin-left: 4px;
-}
-.aips-img-off-btn:hover {
-  color: #dc2626;
-}
-.aips-card--expanded {
-  grid-column: 1 / -1;
-}
+.aips-apply-btn:hover:not(:disabled) { opacity: 0.88; }
+.aips-apply-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

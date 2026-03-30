@@ -1249,6 +1249,7 @@ h2 {
 .tab--advanced:hover, .tab--advanced.active { opacity: 1; }
 .tab-panel {
   min-height: 120px;
+  position: relative;
 }
 .hint {
   margin: 0 0 14px;
