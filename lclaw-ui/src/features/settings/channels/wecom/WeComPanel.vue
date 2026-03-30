@@ -5,7 +5,7 @@ import { useI18n } from "vue-i18n";
 import { useChannelContext } from "../base/useChannelContext";
 
 const { t } = useI18n();
-const { busy, showToast, ensureChannelReady } = useChannelContext();
+const { busy, showToast, ensureChannelReady, restartGatewayAndReconnect, onSuccess } = useChannelContext();
 
 const botId = ref("");
 const secret = ref("");
@@ -38,6 +38,7 @@ async function refreshPluginInstalled(): Promise<void> {
   }
 }
 
+/** Returns true when plugin is installed; installs it first if missing. */
 async function ensurePluginInstalled(): Promise<boolean> {
   const api = getDidClawDesktopApi();
   if (api?.checkChannelPluginInstalled) {
@@ -70,22 +71,29 @@ async function save(): Promise<void> {
   const bid = botId.value.trim();
   const sec = secret.value.trim();
   if (!bid || !sec) {
-    showToast("请填写 Bot ID 和 Secret", true);
+    showToast(t("channel.wecom.missingCredentials"), true);
     return;
   }
   busy.value = true;
   try {
     const ready = await ensurePluginInstalled();
     if (!ready) return;
+
     const r = await api.writeChannelConfig("wecom", {
       enabled: true,
-      accounts: { main: { botId: bid, secret: sec } },
+      botId: bid,
+      secret: sec,
     });
-    if (r.ok) {
-      pluginInstalled.value = true;
-      showToast(t("channel.saveOk"));
-    } else {
+    if (!r.ok) {
       showToast(t("channel.saveFail") + `：${(r as { error: string }).error}`, true);
+      return;
+    }
+
+    pluginInstalled.value = true;
+    // Gateway must restart to apply new credentials and start the WeCom WebSocket.
+    const restarted = await restartGatewayAndReconnect(t("channel.wecom.restarting"));
+    if (restarted) {
+      onSuccess?.();
     }
   } catch (e) {
     showToast(t("channel.saveFail") + `：${e}`, true);

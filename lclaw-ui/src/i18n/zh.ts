@@ -1017,6 +1017,8 @@ export default {
       secret:    "Secret",
       secretPlh: "粘贴 Secret",
       installFail: "企业微信插件安装失败",
+      missingCredentials: "请填写 Bot ID 和 Secret",
+      restarting: "配置已保存，正在重启网关以连接企业微信…",
     },
 
     // ── 通用插件渠道面板 ───────────────────────────────────────────────────────

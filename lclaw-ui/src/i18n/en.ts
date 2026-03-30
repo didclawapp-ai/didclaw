@@ -1018,6 +1018,8 @@ export default {
       secret:    "Secret",
       secretPlh: "Paste Secret",
       installFail: "Failed to install the WeCom plugin",
+      missingCredentials: "Please fill in Bot ID and Secret",
+      restarting: "Config saved. Restarting gateway to connect WeCom…",
     },
 
     // ── Generic plugin channel panel ──────────────────────────────────────────
