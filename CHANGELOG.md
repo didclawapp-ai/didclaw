@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 重构
+
+- **渠道设置模块化重构（阶段六完成）**：将 `ChannelSetupDialog.vue`（原 2114 行）拆分为独立渠道面板组件架构。新增 `channels/` 目录，包含 `types.ts`（接口定义）、`registry.ts`（渠道注册表）、`base/useChannelContext.ts`（共享上下文）、`base/useStreamingInstall.ts`（CLI 流式安装复用组件），以及 Discord、WeCom、Feishu、WeChat、WhatsApp 各自的 `def.ts` + `Panel.vue`。对话框主文件精简至约 80 行，各渠道逻辑完全自治，支持 `defineAsyncComponent` 懒加载。
+
 ## [0.8.1] - 2026-03-30
 
 ### 优化

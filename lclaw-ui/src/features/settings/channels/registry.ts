@@ -5,6 +5,7 @@ import { discordDef } from "./discord/def";
 import { feishuDef } from "./feishu/def";
 import { wecomDef } from "./wecom/def";
 import { wechatDef } from "./wechat/def";
+import { whatsappDef } from "./whatsapp/def";
 
 export type ChannelEntry = ChannelDef & { panel: Component };
 
@@ -18,20 +19,23 @@ export type ChannelEntry = ChannelDef & { panel: Component };
  */
 export const BUILTIN_CHANNELS: ChannelEntry[] = [
   {
-    ...discordDef,
-    panel: defineAsyncComponent(() => import("./discord/DiscordPanel.vue")),
-  },
-  {
-    ...feishuDef,
-    panel: defineAsyncComponent(() => import("./feishu/FeishuPanel.vue")),
+    ...whatsappDef,
+    panel: defineAsyncComponent(() => import("./whatsapp/WhatsAppPanel.vue")),
   },
   {
     ...wechatDef,
     panel: defineAsyncComponent(() => import("./wechat/WechatPanel.vue")),
   },
   {
+    ...feishuDef,
+    panel: defineAsyncComponent(() => import("./feishu/FeishuPanel.vue")),
+  },
+  {
     ...wecomDef,
     panel: defineAsyncComponent(() => import("./wecom/WeComPanel.vue")),
   },
-  // WhatsApp added in phase 6.
+  {
+    ...discordDef,
+    panel: defineAsyncComponent(() => import("./discord/DiscordPanel.vue")),
+  },
 ];
