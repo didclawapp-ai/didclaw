@@ -696,6 +696,17 @@ export default {
     note: "Source: Gateway sessions.list — cumulative usage for active sessions only.",
   },
 
+  sessionHistory: {
+    title: "Session History",
+    subtitle: "Sorted by most recently active. Click to switch.",
+    closeBtn: "Close history",
+    searchPlaceholder: "Search by name, channel, or session key",
+    count: "{n} sessions",
+    badgeCurrent: "Current",
+    badgeClosed: "Closed",
+    empty: "No matching sessions found.",
+  },
+
   appUpdate: {
     installerTitle: "Installer Launched",
     installerNote: "The installer is running. Follow the wizard to complete installation, then reopen DidClaw.",

@@ -696,6 +696,17 @@ export default {
     note: "数据来源：Gateway sessions.list，仅含当前活跃会话的累计用量。",
   },
 
+  sessionHistory: {
+    title: "历史会话",
+    subtitle: "按最近活跃排序，点击即可切换查看。",
+    closeBtn: "关闭历史会话",
+    searchPlaceholder: "搜索会话名、渠道或 session key",
+    count: "共 {n} 条",
+    badgeCurrent: "当前",
+    badgeClosed: "已结束",
+    empty: "没有匹配的历史会话。",
+  },
+
   appUpdate: {
     installerTitle: "安装程序已启动",
     installerNote: "安装程序正在运行，请按照向导完成安装。安装完成后重新打开 DidClaw 即可使用新版本。",

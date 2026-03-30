@@ -2,6 +2,9 @@
 import { formatSessionHistoryTime, sessionDisplayLabel } from "@/lib/session-display";
 import type { SessionRow } from "@/stores/session";
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   open: boolean;
@@ -66,13 +69,13 @@ function selectSession(key: string): void {
       >
         <div class="history-dialog-head">
           <div>
-            <h2 id="history-dialog-title" class="history-dialog-title">历史会话</h2>
-            <p class="history-dialog-subtitle">按最近活跃排序，点击即可切换查看。</p>
+            <h2 id="history-dialog-title" class="history-dialog-title">{{ t('sessionHistory.title') }}</h2>
+            <p class="history-dialog-subtitle">{{ t('sessionHistory.subtitle') }}</p>
           </div>
           <button
             type="button"
             class="history-dialog-close"
-            title="关闭历史会话"
+            :title="t('sessionHistory.closeBtn')"
             @click="close"
           >
             ×
@@ -83,9 +86,9 @@ function selectSession(key: string): void {
             v-model="search"
             class="history-search-input"
             type="search"
-            placeholder="搜索会话名、渠道或 session key"
+            :placeholder="t('sessionHistory.searchPlaceholder')"
           >
-          <span class="history-count">共 {{ filteredRows.length }} 条</span>
+          <span class="history-count">{{ t('sessionHistory.count', { n: filteredRows.length }) }}</span>
         </div>
         <div v-if="filteredRows.length > 0" class="history-list">
           <button
@@ -99,15 +102,15 @@ function selectSession(key: string): void {
             <div class="history-item-main">
               <div class="history-item-title-row">
                 <span class="history-item-title">{{ sessionDisplayLabel(row.key, row.label) }}</span>
-                <span v-if="row.key === activeSessionKey" class="history-item-badge">当前</span>
-                <span v-else-if="row.localOnly" class="history-item-badge muted-badge">已结束</span>
+                <span v-if="row.key === activeSessionKey" class="history-item-badge">{{ t('sessionHistory.badgeCurrent') }}</span>
+                <span v-else-if="row.localOnly" class="history-item-badge muted-badge">{{ t('sessionHistory.badgeClosed') }}</span>
               </div>
               <div class="history-item-key">{{ row.key }}</div>
             </div>
             <div class="history-item-time">{{ formatSessionHistoryTime(row.lastActiveAt) }}</div>
           </button>
         </div>
-        <div v-else class="history-empty muted">没有匹配的历史会话。</div>
+        <div v-else class="history-empty muted">{{ t('sessionHistory.empty') }}</div>
       </div>
     </div>
   </transition>
