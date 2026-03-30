@@ -68,6 +68,9 @@ const open = computed({
 type SubTab = "browse" | "openclaw" | "installed" | "local";
 const subTab = ref<SubTab>("browse");
 
+/** Currently active quick-search tag label (for active styling) */
+const activeQuickTag = ref<string>("all");
+
 /** Local library (shared install root) row selected for bottom sheet */
 const selectedLocalRowSlug = ref<string | null>(null);
 let marketSearchDebounceTimer: number | null = null;
@@ -747,7 +750,7 @@ async function onSearch(resetLimits = false): Promise<void> {
   }
 }
 
-async function onQuickSearch(keyword: string): Promise<void> {
+async function onQuickSearch(keyword: string, tagLabel?: string): Promise<void> {
   const k = keyword.trim();
   if (!k) {
     return;
@@ -756,6 +759,7 @@ async function onQuickSearch(keyword: string): Promise<void> {
     clearTimeout(marketSearchDebounceTimer);
     marketSearchDebounceTimer = null;
   }
+  activeQuickTag.value = tagLabel ?? k;
   searchQuery.value = k;
   await onSearch(true);
 }
@@ -765,6 +769,7 @@ async function onClearMarketSearch(): Promise<void> {
     clearTimeout(marketSearchDebounceTimer);
     marketSearchDebounceTimer = null;
   }
+  activeQuickTag.value = "all";
   searchQuery.value = "";
   await onSearch(true);
 }
@@ -1630,13 +1635,6 @@ const displayedOpenclawSkills = computed(() => {
   }
 });
 
-const bundledOpenclawSkills = computed(() =>
-  displayedOpenclawSkills.value.filter((skill) => skill.bundled),
-);
-
-const extraOpenclawSkills = computed(() =>
-  displayedOpenclawSkills.value.filter((skill) => !skill.bundled),
-);
 
 const showPluginsCatalog = computed(() => openclawCatalogFilter.value === "plugins");
 
@@ -1820,6 +1818,7 @@ const selectedOpenclawPlugin = computed(() => {
                 <button
                   type="button"
                   class="skills-tag-pill"
+                  :class="{ 'skills-tag-pill--active': activeQuickTag === 'all' }"
                   :disabled="searchLoading"
                   @click="onClearMarketSearch"
                 >
@@ -1830,8 +1829,9 @@ const selectedOpenclawPlugin = computed(() => {
                   :key="item.query"
                   type="button"
                   class="skills-tag-pill"
+                  :class="{ 'skills-tag-pill--active': activeQuickTag === item.label }"
                   :disabled="searchLoading"
-                  @click="onQuickSearch(item.query)"
+                  @click="onQuickSearch(item.query, item.label)"
                 >
                   {{ item.label }}
                 </button>
@@ -1877,16 +1877,6 @@ const selectedOpenclawPlugin = computed(() => {
                         <code class="skills-market-card-slug">{{ h.slug }}</code>
                         <span v-if="h.version" class="dot" aria-hidden="true" />
                         <span v-if="h.version">{{ h.version }}</span>
-                      </div>
-                      <div class="skills-market-card-actions">
-                        <button
-                          type="button"
-                          class="lc-btn lc-btn-sm"
-                          :disabled="installButtonDisabledForHit(h)"
-                          @click.stop="installFromSearchHit(h)"
-                        >
-                          {{ installBusy && installingSlug === h.slug ? t("skills.installing") : t("skills.install") }}
-                        </button>
                       </div>
                     </article>
                   </div>
@@ -2011,208 +2001,53 @@ const selectedOpenclawPlugin = computed(() => {
                 <p v-else-if="openclawLoading" class="muted small">正在从本机 OpenClaw 扫描 skills / plugins，这一步可能需要几十秒。</p>
                 <template v-else>
                   <section v-if="!showPluginsCatalog" class="openclaw-section">
-                    <div class="openclaw-section-head">
-                      <h3>Skills</h3>
-                      <span class="muted small">{{ displayedOpenclawSkills.length }}</span>
-                    </div>
                     <p v-if="!displayedOpenclawSkills.length" class="muted small">没有匹配当前筛选条件的技能。</p>
-                    <div v-if="bundledOpenclawSkills.length" class="openclaw-subsection">
-                      <p class="openclaw-subtitle">内置 Skills</p>
-                      <div class="openclaw-item-list">
-                        <article v-for="skill in bundledOpenclawSkills" :key="`skill:${skill.name}`" class="openclaw-item">
-                          <button
-                            type="button"
-                            class="openclaw-item-hitbox"
-                            @click="toggleOpenclawSkillSelection(skill.name)"
-                          />
-                          <div class="openclaw-item-head">
-                            <div class="openclaw-item-title-row">
-                              <span class="openclaw-item-title">{{ skill.emoji ? `${skill.emoji} ${skill.name}` : skill.name }}</span>
-                              <span class="openclaw-pill">{{ skillStatusLabel(skill) }}</span>
-                              <span class="openclaw-pill openclaw-pill--muted">{{ skillSourceLabel(skill) }}</span>
-                            </div>
-                            <div class="openclaw-item-actions">
-                              <button
-                                type="button"
-                                class="lc-btn lc-btn-ghost lc-btn-xs"
-                                :disabled="openclawSkillToggleBusyName === skill.name || installBusy"
-                                @click.stop="toggleOpenClawSkill(skill)"
-                              >
-                                {{
-                                  openclawSkillToggleBusyName === skill.name
-                                    ? "处理中…"
-                                    : skill.disabled
-                                      ? "启用"
-                                      : "禁用"
-                                }}
-                              </button>
-                              <a
-                                v-if="skill.homepage"
-                                :href="skill.homepage"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="openclaw-link"
-                              >主页</a>
-                            </div>
-                          </div>
-                          <p class="openclaw-item-desc">{{ truncateSummary(skill.description, 260) }}</p>
-                          <p v-if="!skill.eligible && skillSetupHint(skill)" class="muted small openclaw-setup-hint">
-                            {{ skillSetupHint(skill) }}
-                          </p>
-                          <div
-                            v-if="!skill.eligible && (skillInstallSuggestions(skill).length || skill.homepage)"
-                            class="openclaw-inline-actions"
-                          >
-                            <button
-                              v-if="skillInstallSuggestions(skill).length"
-                              type="button"
-                              class="lc-btn lc-btn-ghost lc-btn-xs"
-                              @click.stop="toggleOpenclawSkillSelection(skill.name)"
-                            >
-                              查看安装建议
-                            </button>
-                            <button
-                              type="button"
-                              class="lc-btn lc-btn-ghost lc-btn-xs"
-                              @click.stop="jumpToClawHubSearch(skill.name)"
-                            >
-                              去 ClawHub 搜索
-                            </button>
-                          </div>
-                        </article>
-                      </div>
-                    </div>
-                    <div v-if="extraOpenclawSkills.length" class="openclaw-subsection">
-                      <p class="openclaw-subtitle">扩展 / 工作区 Skills</p>
-                      <div class="openclaw-item-list">
-                        <article v-for="skill in extraOpenclawSkills" :key="`skill:${skill.name}`" class="openclaw-item">
-                          <button
-                            type="button"
-                            class="openclaw-item-hitbox"
-                            @click="toggleOpenclawSkillSelection(skill.name)"
-                          />
-                          <div class="openclaw-item-head">
-                            <div class="openclaw-item-title-row">
-                              <span class="openclaw-item-title">{{ skill.emoji ? `${skill.emoji} ${skill.name}` : skill.name }}</span>
-                              <span class="openclaw-pill">{{ skillStatusLabel(skill) }}</span>
-                              <span class="openclaw-pill openclaw-pill--muted">{{ skillSourceLabel(skill) }}</span>
-                            </div>
-                            <div class="openclaw-item-actions">
-                              <button
-                                type="button"
-                                class="lc-btn lc-btn-ghost lc-btn-xs"
-                                :disabled="openclawSkillToggleBusyName === skill.name || installBusy"
-                                @click.stop="toggleOpenClawSkill(skill)"
-                              >
-                                {{
-                                  openclawSkillToggleBusyName === skill.name
-                                    ? "处理中…"
-                                    : skill.disabled
-                                      ? "启用"
-                                      : "禁用"
-                                }}
-                              </button>
-                              <a
-                                v-if="skill.homepage"
-                                :href="skill.homepage"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="openclaw-link"
-                              >主页</a>
-                            </div>
-                          </div>
-                          <p class="openclaw-item-desc">{{ truncateSummary(skill.description, 260) }}</p>
-                          <p v-if="!skill.eligible && skillSetupHint(skill)" class="muted small openclaw-setup-hint">
-                            {{ skillSetupHint(skill) }}
-                          </p>
-                          <div
-                            v-if="!skill.eligible && (skillInstallSuggestions(skill).length || skill.homepage)"
-                            class="openclaw-inline-actions"
-                          >
-                            <button
-                              v-if="skillInstallSuggestions(skill).length"
-                              type="button"
-                              class="lc-btn lc-btn-ghost lc-btn-xs"
-                              @click.stop="toggleOpenclawSkillSelection(skill.name)"
-                            >
-                              查看安装建议
-                            </button>
-                            <button
-                              type="button"
-                              class="lc-btn lc-btn-ghost lc-btn-xs"
-                              @click.stop="jumpToClawHubSearch(skill.name)"
-                            >
-                              去 ClawHub 搜索
-                            </button>
-                          </div>
-                        </article>
-                      </div>
+                    <div class="skills-installed-list">
+                      <button
+                        v-for="skill in displayedOpenclawSkills"
+                        :key="`skill:${skill.name}`"
+                        type="button"
+                        class="skills-installed-item"
+                        :class="{ 'skills-installed-item--active': selectedOpenclawSkill?.name === skill.name }"
+                        @click="toggleOpenclawSkillSelection(skill.name)"
+                      >
+                        <span class="skills-installed-icon" aria-hidden="true">{{ skill.emoji || "🔧" }}</span>
+                        <div class="skills-installed-info">
+                          <div class="skills-installed-name">{{ skill.name }}</div>
+                          <div class="skills-installed-sub">{{ skillSourceLabel(skill) }} · {{ skillStatusLabel(skill) }}</div>
+                        </div>
+                        <span
+                          class="skills-installed-dot"
+                          :class="{
+                            'skills-installed-dot--green': !skill.disabled && skill.eligible,
+                            'skills-installed-dot--yellow': !skill.disabled && !skill.eligible,
+                          }"
+                        />
+                      </button>
                     </div>
                   </section>
 
                   <section v-else class="openclaw-section">
-                    <div class="openclaw-section-head">
-                      <h3>Plugins</h3>
-                      <span class="muted small">{{ searchedOpenclawPlugins.length }}</span>
-                    </div>
                     <p v-if="!searchedOpenclawPlugins.length" class="muted small">没有匹配当前筛选条件的插件。</p>
-                    <div class="openclaw-item-list">
-                      <article v-for="plugin in searchedOpenclawPlugins" :key="`plugin:${plugin.id}`" class="openclaw-item">
-                        <button
-                          type="button"
-                          class="openclaw-item-hitbox"
-                          @click="() => void toggleOpenclawPluginSelection(plugin.id)"
+                    <div class="skills-installed-list">
+                      <button
+                        v-for="plugin in searchedOpenclawPlugins"
+                        :key="`plugin:${plugin.id}`"
+                        type="button"
+                        class="skills-installed-item"
+                        :class="{ 'skills-installed-item--active': selectedOpenclawPlugin?.id === plugin.id }"
+                        @click="() => void toggleOpenclawPluginSelection(plugin.id)"
+                      >
+                        <span class="skills-installed-icon" aria-hidden="true">📦</span>
+                        <div class="skills-installed-info">
+                          <div class="skills-installed-name">{{ plugin.name?.trim() || plugin.id }}</div>
+                          <div class="skills-installed-sub">{{ pluginOriginLabel(plugin) }} · {{ pluginStatusLabel(plugin) }}</div>
+                        </div>
+                        <span
+                          class="skills-installed-dot"
+                          :class="{ 'skills-installed-dot--green': plugin.enabled }"
                         />
-                        <div class="openclaw-item-head">
-                          <div class="openclaw-item-title-row">
-                            <span class="openclaw-item-title">{{ plugin.name?.trim() || plugin.id }}</span>
-                            <span class="openclaw-pill">{{ pluginStatusLabel(plugin) }}</span>
-                            <span class="openclaw-pill openclaw-pill--muted">{{ pluginOriginLabel(plugin) }}</span>
-                          </div>
-                          <div class="openclaw-item-actions">
-                            <code class="hub-card-slug">{{ plugin.id }}</code>
-                            <button
-                              type="button"
-                              class="lc-btn lc-btn-ghost lc-btn-xs"
-                              :disabled="openclawPluginToggleBusyId === plugin.id || openclawPluginActionBusyId === plugin.id"
-                              @click.stop="() => void toggleOpenclawPluginSelection(plugin.id)"
-                            >
-                              查看
-                            </button>
-                            <button
-                              type="button"
-                              class="lc-btn lc-btn-ghost lc-btn-xs"
-                              :disabled="openclawPluginToggleBusyId === plugin.id || openclawPluginActionBusyId === plugin.id"
-                              @click.stop="toggleOpenClawPlugin(plugin)"
-                            >
-                              {{ openclawPluginToggleBusyId === plugin.id ? "处理中…" : plugin.enabled ? "禁用" : "启用" }}
-                            </button>
-                            <button
-                              type="button"
-                              class="lc-btn lc-btn-ghost lc-btn-xs"
-                              :disabled="openclawPluginToggleBusyId === plugin.id || openclawPluginActionBusyId === plugin.id"
-                              @click.stop="updateOpenClawPlugin(plugin)"
-                            >
-                              {{ openclawPluginActionBusyId === plugin.id ? "处理中…" : "更新" }}
-                            </button>
-                            <button
-                              type="button"
-                              class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
-                              :disabled="openclawPluginToggleBusyId === plugin.id || openclawPluginActionBusyId === plugin.id"
-                              @click.stop="uninstallOpenClawPlugin(plugin)"
-                            >
-                              {{ openclawPluginActionBusyId === plugin.id ? "处理中…" : "卸载" }}
-                            </button>
-                          </div>
-                        </div>
-                        <p class="openclaw-item-desc">{{ truncateSummary(plugin.description, 260) }}</p>
-                        <div v-if="pluginCapabilities(plugin).length" class="openclaw-cap-list">
-                          <span v-for="cap in pluginCapabilities(plugin)" :key="`${plugin.id}:${cap}`" class="openclaw-cap-chip">
-                            {{ cap }}
-                          </span>
-                        </div>
-                        <p v-if="plugin.error" class="muted small">{{ plugin.error }}</p>
-                      </article>
+                      </button>
                     </div>
                   </section>
                 </template>
@@ -2414,52 +2249,48 @@ const selectedOpenclawPlugin = computed(() => {
                   hubDetailKind === "package" ? "📦" : "🔧"
                 }}</span>
                 <div class="skills-sheet-info">
-                  <div class="skills-sheet-title">{{ hubSlug }}</div>
-                  <p v-if="detailLoading" class="muted small">{{ t("common.loading") }}</p>
+                  <div class="skills-sheet-title">
+                    {{ (hubDetailKind === 'skill' ? (hubDetail?.skill?.displayName ?? selectedSearchHit?.displayName) : (hubPkgDetail?.package?.name ?? selectedSearchHit?.displayName)) || hubSlug }}
+                  </div>
+                  <p v-if="detailLoading" class="skills-sheet-desc muted">{{ t("common.loading") }}</p>
                   <template v-else-if="hubDetailKind === 'skill'">
                     <p v-if="detailError" class="muted small">{{ detailError }}</p>
                     <p class="skills-sheet-desc">{{ hubDetail?.skill?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
-                    <p v-if="hubDetail?.latestVersion" class="small muted">
-                      {{ t("skills.latestVersion") }} {{ hubDetail.latestVersion.version }}
-                    </p>
                     <p v-if="hubDetail?.moderation?.isMalwareBlocked" class="err small">{{ t("skills.malwareBlocked") }}</p>
                     <p v-else-if="hubDetail?.moderation?.isSuspicious" class="err small">{{ t("skills.suspiciousSkill") }}</p>
                   </template>
                   <template v-else-if="hubDetailKind === 'package'">
                     <p v-if="detailError" class="muted small">{{ detailError }}</p>
-                    <p v-if="hubPkgDetail?.package?.family || selectedSearchHit?.family" class="small muted">
-                      {{ t("skills.packageType") }}
-                      {{ familyLabel(normalizePkgFamily(hubPkgDetail?.package?.family ?? selectedSearchHit?.family)) }}
-                    </p>
                     <p class="skills-sheet-desc">{{ hubPkgDetail?.package?.summary ?? selectedSearchHit?.summary ?? "—" }}</p>
-                    <p v-if="hubPkgDetail?.package?.latestVersion" class="small muted">
-                      {{ t("skills.latestVersion") }} {{ hubPkgDetail.package.latestVersion }}
-                    </p>
-                    <p class="muted small">
-                      <a href="https://docs.openclaw.ai/tools/plugin" target="_blank" rel="noopener noreferrer">{{ t("skills.pluginDocsLink") }}</a>
-                    </p>
                   </template>
                   <p v-else-if="detailError" class="err small">{{ detailError }}</p>
                 </div>
                 <div class="skills-sheet-actions">
-                  <button
-                    v-if="hubDetailKind === 'skill' && canInstallDetail && hubSlug"
-                    type="button"
-                    class="lc-btn lc-btn-sm"
-                    :disabled="installBusy"
-                    @click="installOpenClawSkill(hubSlug, hubDetail?.latestVersion?.version)"
-                  >
-                    {{ installBusy && installingSlug === hubSlug ? t("skills.installing") : t("skills.installToOpenclaw") }}
-                  </button>
-                  <button
-                    v-if="hubDetailKind === 'package' && canInstallPluginDetail && hubSlug"
-                    type="button"
-                    class="lc-btn lc-btn-sm"
-                    :disabled="installBusy"
-                    @click="installClawhubPluginFromSlug(hubSlug)"
-                  >
-                    {{ installBusy && installingSlug === hubSlug ? t("skills.installing") : t("skills.installPluginCli") }}
-                  </button>
+                  <template v-if="installBusy && installingSlug === hubSlug">
+                    <button type="button" class="lc-btn lc-btn-sm" disabled>
+                      <span class="skills-spinner" aria-hidden="true" />{{ t("skills.installing") }}
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button
+                      v-if="hubDetailKind === 'skill' && canInstallDetail && hubSlug"
+                      type="button"
+                      class="lc-btn lc-btn-sm"
+                      :disabled="installBusy"
+                      @click="installOpenClawSkill(hubSlug, hubDetail?.latestVersion?.version)"
+                    >
+                      {{ t("skills.install") }}
+                    </button>
+                    <button
+                      v-if="hubDetailKind === 'package' && canInstallPluginDetail && hubSlug"
+                      type="button"
+                      class="lc-btn lc-btn-sm"
+                      :disabled="installBusy"
+                      @click="installClawhubPluginFromSlug(hubSlug)"
+                    >
+                      {{ t("skills.install") }}
+                    </button>
+                  </template>
                   <button
                     type="button"
                     class="skills-sheet-close"
@@ -2470,10 +2301,34 @@ const selectedOpenclawPlugin = computed(() => {
                   </button>
                 </div>
               </div>
-              <div v-if="hubDetailKind === 'skill' && hubSlug" class="skills-sheet-meta">
-                <div class="skills-meta-item">
+              <div class="skills-sheet-meta">
+                <div v-if="hubSlug" class="skills-meta-item">
                   <span class="skills-meta-label">{{ t("skills.metaSlug") }}</span>
                   <span class="skills-meta-value"><code>{{ hubSlug }}</code></span>
+                </div>
+                <div class="skills-meta-item">
+                  <span class="skills-meta-label">{{ t("skills.metaType") }}</span>
+                  <span class="skills-meta-value">{{ familyLabel(normalizePkgFamily(hubPkgDetail?.package?.family ?? selectedSearchHit?.family)) }}</span>
+                </div>
+                <div
+                  v-if="hubDetail?.latestVersion?.version || hubPkgDetail?.package?.latestVersion || selectedSearchHit?.version"
+                  class="skills-meta-item"
+                >
+                  <span class="skills-meta-label">{{ t("skills.metaVersion") }}</span>
+                  <span class="skills-meta-value">v{{ hubDetail?.latestVersion?.version ?? hubPkgDetail?.package?.latestVersion ?? selectedSearchHit?.version }}</span>
+                </div>
+                <div
+                  v-if="hubDetail?.owner?.handle || hubPkgDetail?.package?.ownerHandle"
+                  class="skills-meta-item"
+                >
+                  <span class="skills-meta-label">{{ t("skills.metaAuthor") }}</span>
+                  <span class="skills-meta-value">@{{ hubDetail?.owner?.handle ?? hubPkgDetail?.package?.ownerHandle }}</span>
+                </div>
+                <div v-if="hubDetailKind === 'package'" class="skills-meta-item">
+                  <span class="skills-meta-label">{{ t("skills.metaDocs") }}</span>
+                  <span class="skills-meta-value">
+                    <a href="https://docs.openclaw.ai/tools/plugin" target="_blank" rel="noopener noreferrer">{{ t("skills.pluginDocsLink") }}</a>
+                  </span>
                 </div>
               </div>
             </template>
@@ -3053,6 +2908,11 @@ const selectedOpenclawPlugin = computed(() => {
   color: var(--lc-text);
   border-color: var(--lc-border-strong);
 }
+.skills-tag-pill--active {
+  background: color-mix(in srgb, var(--lc-accent) 15%, transparent) !important;
+  border-color: var(--lc-accent) !important;
+  color: var(--lc-accent) !important;
+}
 .skills-tag-pill:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -3173,23 +3033,29 @@ const selectedOpenclawPlugin = computed(() => {
   margin-top: 4px;
 }
 .skills-bottom {
-  flex-shrink: 0;
-  height: 0;
-  overflow: hidden;
-  background: var(--lc-bg-raised);
-  border-top: 1px solid transparent;
-  transition: height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--lc-surface-panel);
+  border-top: 1px solid var(--lc-border);
+  border-radius: 0 0 var(--lc-radius-lg, 12px) var(--lc-radius-lg, 12px);
+  transform: translateY(100%);
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.14);
 }
 .skills-bottom--open {
-  height: min(240px, 38vh);
-  border-top-color: var(--lc-border);
+  transform: translateY(0);
 }
 .skills-bottom-inner {
-  height: min(240px, 38vh);
-  padding: 12px 16px 14px;
+  padding: 14px 18px 16px;
   box-sizing: border-box;
   overflow-y: auto;
   scrollbar-width: thin;
+  flex: 1;
 }
 .skills-sheet-row {
   display: flex;
@@ -3250,10 +3116,22 @@ const selectedOpenclawPlugin = computed(() => {
   color: var(--lc-text);
   background: var(--lc-bg-hover);
 }
+@keyframes skills-spin { to { transform: rotate(360deg); } }
+.skills-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: skills-spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 5px;
+}
 .skills-sheet-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid var(--lc-border);
@@ -3657,6 +3535,65 @@ const selectedOpenclawPlugin = computed(() => {
 }
 .openclaw-section + .openclaw-section {
   margin-top: 18px;
+}
+/* compact installed list (demo-style) */
+.skills-installed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skills-installed-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--lc-bg-raised);
+  border: 1px solid var(--lc-border);
+  border-radius: var(--lc-radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  width: 100%;
+}
+.skills-installed-item:hover {
+  border-color: var(--lc-border-strong);
+}
+.skills-installed-item--active {
+  border-color: var(--lc-accent);
+  background: color-mix(in srgb, var(--lc-accent) 6%, transparent);
+}
+.skills-installed-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.skills-installed-info {
+  flex: 1;
+  min-width: 0;
+}
+.skills-installed-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lc-text);
+}
+.skills-installed-sub {
+  font-size: 11px;
+  color: var(--lc-text-dim);
+  margin-top: 2px;
+}
+.skills-installed-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lc-border-strong);
+  flex-shrink: 0;
+}
+.skills-installed-dot--green {
+  background: #34c759;
+}
+.skills-installed-dot--yellow {
+  background: #ff9500;
 }
 .openclaw-section-head {
   display: flex;

@@ -9,6 +9,7 @@
 ### 新增
 
 - **技能管理对话框改为卡片式布局**：`SkillsManagerDialog` 与渠道面板一致采用固定高度对话框、左侧四个 Tab（技能市场 / 已安装 / 本地技能库 / 手动导入）、市场页三列卡片网格与底部滑出详情；搜索框内嵌图标并防抖实时查询，标签单行横向滚动；手动导入 Tab 集中展示安装目录与 ZIP 拖拽区；关闭对话框时重置详情状态。补充 `skills.*` 中英文文案。
+- **进一步对齐 HTML Demo 视觉细节**：底部详情面板改为 `position:absolute` overlay（`translateY` 动画）不再占用 flex 高度；市场卡片移除内联安装按钮，点击卡片弹出面板、面板内统一处理安装/卸载并附带版本/作者/类型/来源 meta 行与旋转 spinner；标签增加 active 高亮追踪；"已安装"Tab 技能与插件列表改为 demo 同款紧凑行（icon + 名称 + 来源/状态 + 状态圆点），操作全归到底部面板。
 
 - **新增 Slack、LINE、Microsoft Teams、Google Chat 渠道卡片**：这四个渠道均为 openclaw 内置 extension（无需安装插件），现在在渠道面板以卡片形式展示。点击卡片可填写凭据：Slack 需要 Bot Token (xoxb-) + App Token (xapp-)，LINE 需要 Channel Access Token + Channel Secret，Teams 需要 App ID + App Password，Google Chat 需要 Service Account JSON 文件路径。保存后自动重启 Gateway 并刷新连接状态，流程与企业微信一致。
 
