@@ -255,7 +255,7 @@ onUnmounted(() => {
                 >
                   {{ (busy && activeCardId === ch.id) ? t('channel.card.busy') :
                     connectedIds.has(ch.id) ? t('channel.card.connected') :
-                    t('channel.card.idle') }}
+                    ch.pluginPackageSpec ? t('channel.card.idle') : t('channel.card.unconfigured') }}
                 </span>
               </button>
             </div>
@@ -284,7 +284,7 @@ onUnmounted(() => {
                 >
                   {{ busy ? t('channel.card.busy') :
                     connectedIds.has(activeEntry.id) ? t('channel.card.connected') :
-                    t('channel.card.idle') }}
+                    activeEntry.pluginPackageSpec ? t('channel.card.idle') : t('channel.card.unconfigured') }}
                 </span>
                 <button
                   type="button"

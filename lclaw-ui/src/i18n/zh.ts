@@ -852,9 +852,10 @@ export default {
     notConfigured: "未配置",
     // 卡片状态徽标
     card: {
-      connected: "已连接",
-      idle:      "未安装",
-      busy:      "处理中…",
+      connected:    "已连接",
+      idle:         "未安装",
+      unconfigured: "未配置",
+      busy:         "处理中…",
     },
     saveBtn:   "保存配置",
     saveOk:    "配置已保存",

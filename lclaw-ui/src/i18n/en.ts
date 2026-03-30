@@ -853,9 +853,10 @@ export default {
     notConfigured: "Not configured",
     // Card status badges
     card: {
-      connected: "Connected",
-      idle:      "Not installed",
-      busy:      "Working…",
+      connected:    "Connected",
+      idle:         "Not installed",
+      unconfigured: "Not configured",
+      busy:         "Working…",
     },
     saveBtn:   "Save Config",
     saveOk:    "Config saved",
