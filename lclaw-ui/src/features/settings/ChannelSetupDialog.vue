@@ -5,6 +5,12 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import QRCode from "qrcode";
 import { computed, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import {
+  delay,
+  provideChannelContext,
+} from "./channels/base/useChannelContext";
+import DiscordPanel from "./channels/discord/DiscordPanel.vue";
+import WeComPanel from "./channels/wecom/WeComPanel.vue";
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ "update:modelValue": [v: boolean] }>();
@@ -28,19 +34,22 @@ const tabs: { id: ChannelId; icon: string }[] = [
   { id: "wecom",    icon: "💼" },
 ];
 
-// ── Shared ────────────────────────────────────────────────────────────────────
+// ── Auto-close ────────────────────────────────────────────────────────────────
 
-const busy = ref(false);
-const toast = ref<string | null>(null);
-const toastError = ref(false);
+let autoCloseTimer: number | null = null;
 
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
-function showToast(msg: string, error = false): void {
-  toast.value = msg;
-  toastError.value = error;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.value = null; }, 5000);
+function scheduleAutoClose(): void {
+  if (autoCloseTimer !== null) return;
+  autoCloseTimer = window.setTimeout(() => {
+    autoCloseTimer = null;
+    if (open.value) closeDialog();
+  }, 1800);
 }
+
+// ── Shared context (provided to all channel panel components) ─────────────────
+
+const { busy, toast, toastError, showToast, ensureGatewayConnected, restartGatewayAndReconnect, ensureChannelReady } =
+  provideChannelContext({ onSuccess: scheduleAutoClose });
 
 function closeDialog(): void { open.value = false; }
 
@@ -563,47 +572,8 @@ async function startWechatInstall(): Promise<void> {
 
 const feishuAppId = ref("");
 const feishuAppSecret = ref("");
-const discordToken = ref("");
-const wecomBotId = ref("");
-const wecomSecret = ref("");
 
-// WeCom plugin install
-const wecomPluginInstalling = ref(false);
-const wecomPluginInstalled = ref<boolean | null>(null);
-const wecomPluginChecking = ref(false);
-
-const WECOM_PLUGIN_SPEC = "@wecom/wecom-openclaw-plugin";
-const WHATSAPP_PLUGIN_SPEC = "@openclaw/whatsapp";
 const WECHAT_PLUGIN_SPEC = "@tencent-weixin/openclaw-weixin";
-
-type ChannelReadyMeta = {
-  pluginPackageSpec?: string;
-  configPatch?: Record<string, unknown>;
-  restartGatewayAfterSetup?: boolean;
-};
-
-const CHANNEL_READY_META: Record<ChannelId, ChannelReadyMeta> = {
-  whatsapp: {
-    pluginPackageSpec: WHATSAPP_PLUGIN_SPEC,
-    configPatch: { enabled: true },
-    restartGatewayAfterSetup: true,
-  },
-  feishu: {
-    configPatch: { enabled: true },
-  },
-  discord: {
-    configPatch: { enabled: true },
-  },
-  wecom: {
-    pluginPackageSpec: WECOM_PLUGIN_SPEC,
-    configPatch: { enabled: true },
-  },
-  wechat: {},
-};
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 type WhatsAppChannelHealth = {
   linked: boolean;
@@ -648,193 +618,11 @@ async function verifyWhatsAppLinked(): Promise<boolean | null> {
   return health.linked;
 }
 
-function withChannelReadyPatch(
-  channelKey: ChannelId,
-  payload: Record<string, unknown>,
-): Record<string, unknown> {
-  return {
-    ...(CHANNEL_READY_META[channelKey].configPatch ?? {}),
-    ...payload,
-  };
-}
-
-/**
- * 仅重新建立 WS 连接（不重启网关进程）。
- * 用于网关自行重启（1012 service restart）后，DidClaw 侧恢复 WS 会话。
- * ensureOpenClawGateway 内部会检测端口是否已开放，若网关已在运行则直接连接。
- */
-async function ensureGatewayConnected(timeoutMs = 18000): Promise<boolean> {
-  const isConnected = () => (gwStore.status as string) === "connected";
-  if (isConnected()) return true;
-  await delay(2000);
-  if (isConnected()) return true;
-  await gwStore.reloadConnection();
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (isConnected()) {
-      await delay(800);
-      return true;
-    }
-    await delay(500);
-  }
-  return false;
-}
-
-async function restartGatewayAndReconnect(toastMessage = "Gateway 重启中，稍等片刻…"): Promise<boolean> {
-  const api = getDidClawDesktopApi();
-  if (!api?.restartOpenClawGateway) {
-    showToast("当前不支持重启 AI 服务", true);
-    return false;
-  }
-  const result = await api.restartOpenClawGateway();
-  if (!result?.ok) {
-    showToast(`重启 AI 服务失败：${(result as { error?: string }).error ?? "未知错误"}`, true);
-    return false;
-  }
-  showToast(toastMessage);
-  await gwStore.reloadConnection();
-  const deadline = Date.now() + 20000;
-  const isConnected = () => (gwStore.status as string) === "connected";
-  while (Date.now() < deadline) {
-    if (isConnected()) {
-      await delay(800);
-      return true;
-    }
-    await delay(500);
-  }
-  showToast("AI 服务重启后连接未恢复，请稍后重试。", true);
-  return false;
-}
-
-type EnsureChannelReadyOptions = {
-  installPlugin?: boolean;
-  writeConfigPatch?: boolean;
-  restartGateway?: boolean;
-  restartToast?: string;
-  installFailureMessage?: string;
-  configFailureMessage?: string;
-  successToast?: string;
-};
-
-async function ensureChannelReady(
-  channelKey: ChannelId,
-  options: EnsureChannelReadyOptions = {},
-): Promise<boolean> {
-  const api = getDidClawDesktopApi();
-  const meta = CHANNEL_READY_META[channelKey];
-
-  if (options.installPlugin && meta.pluginPackageSpec) {
-    if (!api?.openclawPluginsInstall) {
-      showToast(options.installFailureMessage ?? "桌面端不支持插件安装", true);
-      return false;
-    }
-    const result = await api.openclawPluginsInstall({ packageSpec: meta.pluginPackageSpec });
-    if (!result.ok) {
-      showToast(
-        (options.installFailureMessage ?? t("channel.pluginInstallFail")) +
-          ((result as { error?: string }).error ? `：${(result as { error?: string }).error}` : ""),
-        true,
-      );
-      return false;
-    }
-  }
-
-  if (options.writeConfigPatch && meta.configPatch) {
-    if (!api?.writeChannelConfig) {
-      showToast(options.configFailureMessage ?? "桌面端不支持写入渠道配置", true);
-      return false;
-    }
-    const result = await api.writeChannelConfig(channelKey, meta.configPatch);
-    if (!result.ok) {
-      showToast(
-        (options.configFailureMessage ?? t("channel.saveFail")) +
-          `：${(result as { error?: string }).error ?? "未知错误"}`,
-        true,
-      );
-      return false;
-    }
-  }
-
-  const shouldRestartGateway = options.restartGateway ?? meta.restartGatewayAfterSetup ?? false;
-  if (shouldRestartGateway) {
-    const restarted = await restartGatewayAndReconnect(options.restartToast);
-    if (!restarted) {
-      return false;
-    }
-  }
-
-  if (options.successToast) {
-    showToast(options.successToast);
-  }
-  return true;
-}
-
-async function refreshWecomPluginInstalled(): Promise<void> {
-  const api = getDidClawDesktopApi();
-  if (!api?.checkChannelPluginInstalled) {
-    wecomPluginInstalled.value = null;
-    return;
-  }
-  wecomPluginChecking.value = true;
-  try {
-    const result = await api.checkChannelPluginInstalled("wecom");
-    if (result.ok) {
-      wecomPluginInstalled.value = result.installed;
-    } else {
-      wecomPluginInstalled.value = null;
-    }
-  } catch {
-    wecomPluginInstalled.value = null;
-  } finally {
-    wecomPluginChecking.value = false;
-  }
-}
-
-async function ensureWecomPluginInstalled(): Promise<boolean> {
-  const api = getDidClawDesktopApi();
-  if (api?.checkChannelPluginInstalled) {
-    try {
-      const installedState = await api.checkChannelPluginInstalled("wecom");
-      if (installedState.ok) {
-        wecomPluginInstalled.value = installedState.installed;
-        if (installedState.installed) {
-          return true;
-        }
-      }
-    } catch {
-      /* fall through to install path */
-    }
-  }
-
-  wecomPluginInstalling.value = true;
-  try {
-    const ready = await ensureChannelReady("wecom", {
-      installPlugin: true,
-      installFailureMessage: t("channel.wecom.installFail"),
-    });
-    if (ready) {
-      wecomPluginInstalled.value = true;
-    }
-    return ready;
-  } finally {
-    wecomPluginInstalling.value = false;
-  }
-}
-
-const wecomPrimaryActionLabel = computed(() => {
-  if (busy.value || wecomPluginInstalling.value) {
-    return t("common.saving");
-  }
-  return wecomPluginInstalled.value === true
-    ? t("channel.wecom.saveAndEnableBtn")
-    : t("channel.wecom.installAndSaveBtn");
-});
 
 async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api) return;
 
-  let payload: Record<string, unknown> = {};
   if (channelKey === "feishu") {
     const appId = feishuAppId.value.trim();
     const appSecret = feishuAppSecret.value.trim();
@@ -856,45 +644,6 @@ async function saveCredentialChannel(channelKey: ChannelId): Promise<void> {
     } finally {
       busy.value = false;
     }
-    return;
-  } else if (channelKey === "discord") {
-    if (!api.writeChannelConfig) return;
-    const token = discordToken.value.trim();
-    if (!token) { showToast("请填写 Bot Token", true); return; }
-    payload = { accounts: { main: { token } } };
-  } else if (channelKey === "wecom") {
-    if (!api.writeChannelConfig) return;
-    const botId = wecomBotId.value.trim();
-    const secret = wecomSecret.value.trim();
-    if (!botId || !secret) { showToast("请填写 Bot ID 和 Secret", true); return; }
-    payload = { accounts: { main: { botId, secret } } };
-  }
-
-  if (!api.writeChannelConfig) return;
-
-  payload = withChannelReadyPatch(channelKey, payload);
-
-  busy.value = true;
-  try {
-    if (channelKey === "wecom") {
-      const ready = await ensureWecomPluginInstalled();
-      if (!ready) {
-        return;
-      }
-    }
-    const r = await api.writeChannelConfig(channelKey, payload);
-    if (r.ok) {
-      if (channelKey === "wecom") {
-        wecomPluginInstalled.value = true;
-      }
-      showToast(t("channel.saveOk"));
-    } else {
-      showToast(t("channel.saveFail") + `：${(r as { error: string }).error}`, true);
-    }
-  } catch (e) {
-    showToast(t("channel.saveFail") + `：${e}`, true);
-  } finally {
-    busy.value = false;
   }
 }
 
@@ -1194,18 +943,6 @@ function resetQr(): void {
   waHealth.value = null;
 }
 
-// ── Auto-close after binding success ─────────────────────────────────────────
-
-let autoCloseTimer: number | null = null;
-
-function scheduleAutoClose(): void {
-  if (autoCloseTimer !== null) return;
-  autoCloseTimer = window.setTimeout(() => {
-    autoCloseTimer = null;
-    if (open.value) closeDialog();
-  }, 1800);
-}
-
 watch(
   () => [qrState.value, qrMode.value, wechatInstallState.value] as const,
   ([wa, mode, wc]) => {
@@ -1246,15 +983,6 @@ watch(
   },
 );
 
-watch(
-  () => [props.modelValue, activeTab.value] as const,
-  ([dialogOpen, tab]) => {
-    if (dialogOpen && tab === "wecom") {
-      void refreshWecomPluginInstalled();
-    }
-  },
-  { immediate: true },
-);
 
 onUnmounted(() => {
   if (autoCloseTimer !== null) {
@@ -1262,7 +990,6 @@ onUnmounted(() => {
     autoCloseTimer = null;
   }
   cleanupListeners();
-  if (toastTimer) clearTimeout(toastTimer);
 });
 </script>
 
@@ -1602,56 +1329,10 @@ onUnmounted(() => {
           </div>
 
           <!-- ── Discord ── -->
-          <div v-else-if="activeTab === 'discord'" class="ch-panel">
-            <p class="ch-hint">
-              {{ t('channel.discord.hint') }}
-              <a :href="t('channel.discord.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
-            </p>
-            <div class="ch-form">
-              <label class="ch-label">{{ t('channel.discord.token') }}</label>
-              <input v-model="discordToken" type="password" class="ch-input" :placeholder="t('channel.discord.tokenPlh')">
-            </div>
-            <p class="ch-restart-hint">{{ t('channel.restartHint') }}</p>
-            <div class="ch-actions">
-              <button type="button" class="ch-btn ch-btn--primary" :disabled="busy" @click="saveCredentialChannel('discord')">
-                {{ busy ? t('common.saving') : t('channel.saveBtn') }}
-              </button>
-            </div>
-          </div>
+          <DiscordPanel v-else-if="activeTab === 'discord'" />
 
           <!-- ── WeCom ── -->
-          <div v-else-if="activeTab === 'wecom'" class="ch-panel">
-            <p class="ch-hint">
-              {{ t('channel.wecom.hint') }}
-              <a :href="t('channel.wecom.docLink')" target="_blank" rel="noopener" class="ch-link">文档 ↗</a>
-            </p>
-
-            <div class="ch-install-card">
-              <div class="ch-qr-status" style="margin-top: 8px;">
-                <span v-if="wecomPluginInstalling" class="ch-status-running">{{ t('channel.pluginInstalling') }}</span>
-                <span v-else-if="wecomPluginChecking" class="ch-status-idle">{{ t('channel.wecom.pluginChecking') }}</span>
-                <span v-else-if="wecomPluginInstalled === true" class="ch-status-ok">✓ {{ t('channel.wecom.pluginInstalled') }}</span>
-                <span v-else-if="wecomPluginInstalled === false" class="ch-status-idle">{{ t('channel.wecom.pluginMissing') }}</span>
-                <span v-else class="ch-status-idle">{{ t('channel.wecom.pluginAutoInstall') }}</span>
-              </div>
-              <p class="ch-restart-hint" style="margin-top: 8px;">
-                {{ t('channel.wecom.quickHint') }}
-              </p>
-            </div>
-
-            <div class="ch-form">
-              <label class="ch-label">{{ t('channel.wecom.botId') }}</label>
-              <input v-model="wecomBotId" type="text" class="ch-input" :placeholder="t('channel.wecom.botIdPlh')">
-              <label class="ch-label">{{ t('channel.wecom.secret') }}</label>
-              <input v-model="wecomSecret" type="password" class="ch-input" :placeholder="t('channel.wecom.secretPlh')">
-            </div>
-            <p class="ch-restart-hint">{{ t('channel.restartHint') }}</p>
-            <div class="ch-actions">
-              <button type="button" class="ch-btn ch-btn--primary" :disabled="busy || wecomPluginInstalling" @click="saveCredentialChannel('wecom')">
-                {{ wecomPrimaryActionLabel }}
-              </button>
-            </div>
-          </div>
+          <WeComPanel v-else-if="activeTab === 'wecom'" />
         </div>
       </div>
     </Transition>
