@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **修复微信卡片显示"未安装"的问题**：微信插件在 Gateway 中注册的渠道 key 是 `openclaw-weixin`，而非 UI 的 `wechat`。在 `ChannelDef` 增加可选字段 `gatewayChannelId`，`wechatDef` 设置为 `"openclaw-weixin"`。`refreshChannelStatuses()` 改为用 `gatewayChannelId ?? id` 作为 `channels.status` 响应的查找 key，并将 `linked || connected` 均视为已连接（QR 渠道绑定后 linked=true）。
+
 - **渠道面板全新卡片式 UI**：`ChannelSetupDialog` 重写为固定尺寸（480px 高）+ 4 列卡片网格 + 底部滑出详情面板。卡片右下角绿点表示已连接，旋转圆环表示操作中；面板区域可随渠道增多自动滚动，整体对话框尺寸不变。底部面板动画滑出（230px），展示对应渠道的 QR / 凭证 / OAuth 操作 UI。所有现有 Panel 组件（WhatsApp、WeChat、飞书、企业微信、Discord）无需改动，通过 `:deep()` 样式适配新布局。
 - **渠道连接状态实时同步**：对话框打开时调用 `channels.status` RPC 初始化卡片连接状态；Panel 报告成功后自动刷新；动态插件渠道每 8 秒轮询一次，用户在外部安装的插件自动出现在卡片列表中。
 

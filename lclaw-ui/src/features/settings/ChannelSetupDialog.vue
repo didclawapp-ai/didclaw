@@ -53,18 +53,28 @@ async function refreshChannelStatuses(): Promise<void> {
   const gc = gwStore.client;
   if (!gc || (gwStore.status as string) !== "connected") return;
   try {
-    type Resp = { channels?: Record<string, { connected?: boolean }> } | null;
+    type ChanEntry = { connected?: boolean; linked?: boolean; running?: boolean };
+    type Resp = { channels?: Record<string, ChanEntry> } | null;
     const res = await gc.request<Resp>("channels.status", {
       probe: true,
       timeoutMs: 8000,
     });
-    if (res?.channels) {
-      connectedIds.value = new Set(
-        Object.entries(res.channels)
-          .filter(([, v]) => (v as { connected?: boolean })?.connected === true)
-          .map(([k]) => k),
-      );
+    const chans = res?.channels;
+    if (!chans) return;
+
+    // Build set of UI channel ids that are active in the Gateway.
+    // Each ChannelDef may declare a gatewayChannelId that differs from its UI id
+    // (e.g. WeChat UI id = "wechat" but Gateway key = "openclaw-weixin").
+    // A channel counts as "connected" when connected OR linked is true.
+    const active = new Set<string>();
+    for (const ch of allChannels.value) {
+      const key = ch.gatewayChannelId ?? ch.id;
+      const entry = chans[key];
+      if (entry && (entry.connected === true || entry.linked === true)) {
+        active.add(ch.id);
+      }
     }
+    connectedIds.value = active;
   } catch {
     /* Gateway may not yet implement this RPC – degrade gracefully */
   }

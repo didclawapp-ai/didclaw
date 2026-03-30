@@ -30,6 +30,12 @@ export interface ChannelDef {
   pluginPackageSpec?: string;
   configPatch?: Record<string, unknown>;
   restartGatewayAfterSetup?: boolean;
+  /**
+   * The key used by the Gateway in channels.status responses.
+   * Defaults to `id` when not set. Required for channels whose plugin
+   * registers under a different name (e.g. WeChat → "openclaw-weixin").
+   */
+  gatewayChannelId?: string;
 
   // Plugin channel fields (populated from Manifest)
   packageName?: string;
