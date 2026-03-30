@@ -1157,7 +1157,6 @@ async function removeJob(jobId: string): Promise<void> {
         </div>
 
         <div v-else-if="panelTab === 'list'" class="cron-body" role="tabpanel">
-
           <!-- 状态栏 -->
           <section class="cron-status-strip" :aria-label="t('cron.statusScheduler')">
             <div class="cron-status-item">
@@ -1180,8 +1179,12 @@ async function removeJob(jobId: string): Promise<void> {
 
           <!-- 紧凑工具栏 -->
           <div class="cron-toolbar-compact">
-            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
-              :disabled="listLoading || statusLoading" @click="refreshList">
+            <button
+              type="button"
+              class="lc-btn lc-btn-ghost lc-btn-sm"
+              :disabled="listLoading || statusLoading"
+              @click="refreshList"
+            >
               {{ listLoading || statusLoading ? t('common.refreshing') : t('common.refresh') }}
             </button>
             <span class="cron-toolbar-sep">|</span>
@@ -1214,10 +1217,13 @@ async function removeJob(jobId: string): Promise<void> {
 
           <!-- 任务卡片列表 -->
           <div v-if="jobs.length" class="cron-job-list">
-            <div v-for="(j, idx) in jobs" :key="jobIdOf(j) || `row-${idx}`"
+            <div
+              v-for="(j, idx) in jobs"
+              :key="jobIdOf(j) || `row-${idx}`"
               class="cron-job-card"
               :class="jobCardClass(j)"
-              :title="jobStateDetailTooltip(j) || undefined">
+              :title="jobStateDetailTooltip(j) || undefined"
+            >
               <div class="cron-job-card__head">
                 <div class="cron-job-card__name">{{ typeof j.name === "string" ? j.name : t('cron.jobUnnamed') }}</div>
                 <div class="cron-job-card__phase-badge" :class="'cron-job-card__phase-badge--' + jobCardClass(j).replace('cron-job-card--', '')">
@@ -1232,25 +1238,49 @@ async function removeJob(jobId: string): Promise<void> {
                 <span v-else-if="!isJobEnabled(j)" class="muted" style="font-size:11px">{{ t('cron.jobPaused') }}</span>
               </div>
               <div class="cron-job-card__actions">
-                <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-xs"
                   :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                  @click="selectJobForRuns(jobIdOf(j))">{{ t('cron.jobHistory') }}</button>
-                <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
+                  @click="selectJobForRuns(jobIdOf(j))"
+                >
+                  {{ t('cron.jobHistory') }}
+                </button>
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-xs"
                   :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                  @click="runJobNow(jobIdOf(j))">{{ t('cron.jobRunNow') }}</button>
-                <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
+                  @click="runJobNow(jobIdOf(j))"
+                >
+                  {{ t('cron.jobRunNow') }}
+                </button>
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-xs"
                   :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                  @click="toggleEnabled(j)">{{ isJobEnabled(j) ? t('cron.jobPause') : t('cron.jobResume') }}</button>
-                <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
+                  @click="toggleEnabled(j)"
+                >
+                  {{ isJobEnabled(j) ? t('cron.jobPause') : t('cron.jobResume') }}
+                </button>
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-xs btn-danger"
                   :disabled="!jobIdOf(j) || rowBusyId === jobIdOf(j)"
-                  @click="removeJob(jobIdOf(j))">{{ t('cron.jobDelete') }}</button>
+                  @click="removeJob(jobIdOf(j))"
+                >
+                  {{ t('cron.jobDelete') }}
+                </button>
               </div>
             </div>
           </div>
 
           <div v-if="jobsHasMore" class="cron-load-more">
-            <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
-              :disabled="jobsLoadingMore" @click="loadMoreJobs">
+            <button
+              type="button"
+              class="lc-btn lc-btn-ghost lc-btn-sm"
+              :disabled="jobsLoadingMore"
+              @click="loadMoreJobs"
+            >
               {{ jobsLoadingMore ? t('cron.loadingMore') : t('cron.loadMoreJobs') }}
             </button>
           </div>
@@ -1270,8 +1300,12 @@ async function removeJob(jobId: string): Promise<void> {
                   <option value="all">{{ t('cron.runsFilterAll') }}</option>
                   <option value="job">{{ t('cron.runsFilterJob') }}</option>
                 </select>
-                <select v-if="runsScope === 'job'" class="cron-select cron-select-sm"
-                  :value="runsJobId ?? ''" @change="onRunsJobSelect">
+                <select
+                  v-if="runsScope === 'job'"
+                  class="cron-select cron-select-sm"
+                  :value="runsJobId ?? ''"
+                  @change="onRunsJobSelect"
+                >
                   <option value="">{{ t('cron.runsSelectJob') }}</option>
                   <option v-for="(j, jidx) in jobs" :key="jobIdOf(j) || `opt-${jidx}`" :value="jobIdOf(j)">
                     {{ typeof j.name === "string" ? j.name : jobIdOf(j) || "—" }}
@@ -1294,12 +1328,14 @@ async function removeJob(jobId: string): Promise<void> {
                 <li v-for="(r, ridx) in runs" :key="ridx" class="cron-run-entry" :class="runCardClass(r)">
                   <div class="cron-run-entry__head">
                     <span class="cron-run-entry__title">{{ runEntryTitle(r) }}</span>
-                    <span class="cron-run-entry__status"
+                    <span
+                      class="cron-run-entry__status"
                       :class="{
                         'cron-run-status--ok': /^(ok|success|done|completed)$/i.test(runEntryStatus(r)),
                         'cron-run-status--err': /^(error|fail|failed|timeout)$/i.test(runEntryStatus(r)),
                         'cron-run-status--run': /^(running|active|pending)$/i.test(runEntryStatus(r)),
-                      }">{{ runEntryStatus(r) }}</span>
+                      }"
+                    >{{ runEntryStatus(r) }}</span>
                   </div>
                   <div class="cron-run-entry__summary muted small">{{ runEntrySummaryLine(r) }}</div>
                   <div class="cron-run-entry__meta muted small">
@@ -1308,15 +1344,24 @@ async function removeJob(jobId: string): Promise<void> {
                     <span v-if="typeof r.model === 'string' && r.model"> · {{ r.model }}</span>
                   </div>
                   <div v-if="runSessionKey(r)" class="cron-run-entry__actions">
-                    <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs"
-                      @click="openRunInChat(runSessionKey(r))">{{ t('cron.runOpenSession') }}</button>
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-xs"
+                      @click="openRunInChat(runSessionKey(r))"
+                    >
+                      {{ t('cron.runOpenSession') }}
+                    </button>
                   </div>
                 </li>
               </ul>
 
               <div v-if="runsHasMore && (runsScope === 'all' || runsJobId)" class="cron-load-more">
-                <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm"
-                  :disabled="runsLoadingMore" @click="loadMoreRuns">
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-sm"
+                  :disabled="runsLoadingMore"
+                  @click="loadMoreRuns"
+                >
                   {{ runsLoadingMore ? t('cron.loadingMore') : t('cron.loadMoreRuns') }}
                 </button>
                 <span class="muted small" style="margin-left:8px">{{ runs.length }} / {{ runsTotal }}</span>
@@ -1326,7 +1371,6 @@ async function removeJob(jobId: string): Promise<void> {
         </div>
 
         <div v-else class="cron-body cron-create" role="tabpanel">
-
           <!-- 任务名称 -->
           <div class="cron-create-card">
             <label class="cron-field" style="margin-bottom:0">
@@ -1336,7 +1380,7 @@ async function removeJob(jobId: string): Promise<void> {
                 type="text"
                 class="cron-input cron-create-name-input"
                 :placeholder="t('cron.jobNamePlaceholder')"
-              />
+              >
             </label>
           </div>
 
@@ -1350,14 +1394,16 @@ async function removeJob(jobId: string): Promise<void> {
                 type="button"
                 :class="['cron-freq-pill', { active: quickSchedule === f.value }]"
                 @click="quickSchedule = f.value"
-              >{{ f.label }}</button>
+              >
+                {{ f.label }}
+              </button>
             </div>
 
             <!-- 每天：选时间 -->
             <div v-if="quickSchedule === 'daily'" class="cron-schedule-detail">
               <label class="cron-field" style="margin-bottom:0">
                 <span class="cron-label">{{ t('cron.schedTimeDailyLabel') }}</span>
-                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
+                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time">
               </label>
             </div>
 
@@ -1372,12 +1418,14 @@ async function removeJob(jobId: string): Promise<void> {
                     type="button"
                     :class="['cron-dow-pill', { active: quickScheduleDay === d.value }]"
                     @click="quickScheduleDay = d.value"
-                  >{{ d.label }}</button>
+                  >
+                    {{ d.label }}
+                  </button>
                 </div>
               </div>
               <label class="cron-field" style="margin-bottom:0">
                 <span class="cron-label">{{ t('cron.schedTimeWeeklyTime') }}</span>
-                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
+                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time">
               </label>
             </div>
 
@@ -1385,11 +1433,11 @@ async function removeJob(jobId: string): Promise<void> {
             <div v-else-if="quickSchedule === 'monthly'" class="cron-schedule-detail">
               <label class="cron-field">
                 <span class="cron-label">{{ t('cron.schedTimeMonthlyDay') }}<span class="muted">{{ t('cron.schedTimeMonthlyDayHint') }}</span></span>
-                <input v-model.number="quickScheduleDay" type="number" min="1" max="28" class="cron-input cron-input-narrow" />
+                <input v-model.number="quickScheduleDay" type="number" min="1" max="28" class="cron-input cron-input-narrow">
               </label>
               <label class="cron-field" style="margin-bottom:0">
                 <span class="cron-label">{{ t('cron.schedTimeMonthlyTime') }}</span>
-                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time" />
+                <input v-model="quickScheduleTime" type="time" class="cron-input cron-input-time">
               </label>
             </div>
 
@@ -1397,10 +1445,10 @@ async function removeJob(jobId: string): Promise<void> {
             <div v-else-if="quickSchedule === 'once'" class="cron-schedule-detail">
               <label class="cron-field">
                 <span class="cron-label">{{ t('cron.schedOnceTimeLabel') }} <span class="cron-req">{{ t('common.required') }}</span></span>
-                <input v-model="scheduleAtLocal" type="datetime-local" class="cron-input" />
+                <input v-model="scheduleAtLocal" type="datetime-local" class="cron-input">
               </label>
               <label class="cron-check" style="margin-bottom:0">
-                <input v-model="deleteAfterRun" type="checkbox" />
+                <input v-model="deleteAfterRun" type="checkbox">
                 {{ t('cron.schedOnceDeleteAfter') }}
               </label>
             </div>
@@ -1410,7 +1458,7 @@ async function removeJob(jobId: string): Promise<void> {
               <div class="cron-row2">
                 <label class="cron-field cron-field-inline">
                   <span class="cron-label">{{ t('cron.schedCustomEveryLabel') }} <span class="cron-req">{{ t('common.required') }}</span></span>
-                  <input v-model.number="scheduleEveryValue" type="number" min="1" class="cron-input cron-input-narrow" />
+                  <input v-model.number="scheduleEveryValue" type="number" min="1" class="cron-input cron-input-narrow">
                 </label>
                 <label class="cron-field cron-field-inline cron-field-grow">
                   <span class="cron-label">{{ t('cron.schedCustomUnit') }}</span>
@@ -1437,7 +1485,7 @@ async function removeJob(jobId: string): Promise<void> {
 
           <!-- 通知 -->
           <label class="cron-check cron-create-notify">
-            <input v-model="simpleNotify" type="checkbox" />
+            <input v-model="simpleNotify" type="checkbox">
             <span>{{ t('cron.notifyLabel') }}</span>
           </label>
 
@@ -1452,7 +1500,7 @@ async function removeJob(jobId: string): Promise<void> {
               <legend class="cron-legend">{{ t('cron.advancedTitle') }}</legend>
               <label class="cron-field">
                 <span class="cron-label">{{ t('cron.descLabel') }}</span>
-                <input v-model="jobDescription" type="text" class="cron-input" :placeholder="t('cron.descPlaceholder')" />
+                <input v-model="jobDescription" type="text" class="cron-input" :placeholder="t('cron.descPlaceholder')">
               </label>
               <label class="cron-field">
                 <span class="cron-label">{{ t('cron.agentLabel') }}</span>
@@ -1469,7 +1517,7 @@ async function removeJob(jobId: string): Promise<void> {
                   type="text"
                   class="cron-input cron-agent-custom-input"
                   :placeholder="t('cron.agentCustomPlaceholder')"
-                />
+                >
               </label>
               <label class="cron-field">
                 <span class="cron-label">{{ t('cron.sessionModeLabel') }}</span>
@@ -1481,8 +1529,12 @@ async function removeJob(jobId: string): Promise<void> {
               <template v-if="sessionTarget === 'main'">
                 <label class="cron-field">
                   <span class="cron-label">{{ t('cron.systemEventLabel') }} <span class="cron-req">{{ t('common.required') }}</span></span>
-                  <textarea v-model="systemEventText" class="cron-textarea" rows="3"
-                    :placeholder="t('cron.systemEventPlaceholder')" />
+                  <textarea
+                    v-model="systemEventText"
+                    class="cron-textarea"
+                    rows="3"
+                    :placeholder="t('cron.systemEventPlaceholder')"
+                  />
                 </label>
               </template>
               <label class="cron-field">
@@ -1493,7 +1545,7 @@ async function removeJob(jobId: string): Promise<void> {
                   inputmode="numeric"
                   class="cron-input cron-input-narrow"
                   :placeholder="t('cron.timeoutPlaceholder')"
-                />
+                >
               </label>
               <template v-if="simpleNotify && sessionTarget === 'isolated'">
                 <label class="cron-field">
@@ -1514,8 +1566,12 @@ async function removeJob(jobId: string): Promise<void> {
                     <span v-if="deliveryToRequired" class="cron-req">{{ t('cron.deliveryToRequired') }}</span>
                     <span v-else class="muted">（{{ t('common.optional') }}）</span>
                   </span>
-                  <input v-model="deliveryTo" type="text" class="cron-input"
-                    :placeholder="deliveryToPlaceholder" />
+                  <input
+                    v-model="deliveryTo"
+                    type="text"
+                    class="cron-input"
+                    :placeholder="deliveryToPlaceholder"
+                  >
                 </label>
                 <p
                   v-if="activeSessionDeliveryPrefill && deliveryTo === activeSessionDeliveryPrefill.to && deliveryChannel === activeSessionDeliveryPrefill.channel"
@@ -1527,21 +1583,25 @@ async function removeJob(jobId: string): Promise<void> {
                   {{ t('cron.deliveryChannelHint') }}
                 </p>
                 <label class="cron-check">
-                  <input v-model="deliveryBestEffort" type="checkbox" />
+                  <input v-model="deliveryBestEffort" type="checkbox">
                   {{ t('cron.deliveryBestEffort') }}
                 </label>
               </template>
               <label class="cron-check">
-                <input v-model="createJobEnabled" type="checkbox" />
+                <input v-model="createJobEnabled" type="checkbox">
                 {{ t('cron.jobEnabledLabel') }}
               </label>
               <!-- Cron 表达式直接编辑（高级） -->
               <label v-if="quickSchedule !== 'once' && quickSchedule !== 'custom'" class="cron-field">
                 <span class="cron-label">{{ t('cron.cronExprLabel') }}</span>
-                <input v-model="scheduleCronExpr" type="text" class="cron-input cron-mono" :placeholder="t('cron.cronExprPlaceholder')" />
+                <input v-model="scheduleCronExpr" type="text" class="cron-input cron-mono" :placeholder="t('cron.cronExprPlaceholder')">
                 <span class="muted small cron-field-hint">{{ t('cron.cronTzHint') }}
-                  <input v-model="scheduleCronTz" type="text" class="cron-input cron-input-tz"
-                    :placeholder="t('cron.cronTzPlaceholder')" /></span>
+                  <input
+                    v-model="scheduleCronTz"
+                    type="text"
+                    class="cron-input cron-input-tz"
+                    :placeholder="t('cron.cronTzPlaceholder')"
+                  ></span>
               </label>
             </fieldset>
           </div>

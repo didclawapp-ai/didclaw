@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 修复
+
+- **ESLint 警告清零（CronJobsDialog）**：修复模板区 85 条 ESLint 警告，含多行元素属性换行与缩进格式、`<input>` 禁止自闭合、`<textarea>` 正确使用自闭合，以及两处多余空行。
+
 ### 优化
 
 - **i18n 补全（WeChatIndicator / WhatsAppIndicator）**：渠道指示器弹窗的状态标题、扫码流程进度、插件安装/启用、Gateway 重启及错误全部接入 vue-i18n；新增 `channel.gwDisconnected` / `gwRestarting` / `retry` / `channelSetup` 等共享 key，以及 `channel.wechat.*` / `channel.whatsapp.*` 品牌专属 key（含参数插值）。
