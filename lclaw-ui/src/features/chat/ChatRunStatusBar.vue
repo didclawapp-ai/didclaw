@@ -5,6 +5,9 @@ import { useSessionStore } from "@/stores/session";
 import { useToolTimelineStore } from "@/stores/toolTimeline";
 import { storeToRefs } from "pinia";
 import { computed, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const STALL_NO_FIRST_MS = 35_000;
 const STALL_SILENCE_MS = 48_000;
@@ -114,7 +117,7 @@ const stallHint = computed(() => {
   const t0 = runStartedAtMs.value;
   const ld = lastDeltaAtMs.value;
   const now = Date.now();
-  // 文本 delta 和工具事件都算「agent 有动静」，取两者最新时间
+  // Both text deltas and tool events count as agent activity; take the latest of the two.
   const lastToolAt = toolEntriesThisRun.value[0]?.at ?? null;
   const lastActivityAt =
     ld != null || lastToolAt != null
@@ -168,13 +171,13 @@ const barVisible = computed(() => agentBusy.value || showLastRun.value || showBa
     </template>
     <template v-else-if="showBackgroundActivity">
       <span class="bg-dot" aria-hidden="true" />
-      <span class="bg-label">后台子代理运行中…</span>
+      <span class="bg-label">{{ t('runBar.bgRunning') }}</span>
       <button
         v-if="backgroundAgentSessionKey"
         class="bg-switch"
         @click="session.selectSession(backgroundAgentSessionKey!)"
-      >切换会话查看进度 →</button>
-      <span v-else class="bg-hint">（切换会话可查看进度）</span>
+      >{{ t('runBar.bgSwitch') }}</button>
+      <span v-else class="bg-hint">{{ t('runBar.bgHint') }}</span>
     </template>
   </div>
 </template>

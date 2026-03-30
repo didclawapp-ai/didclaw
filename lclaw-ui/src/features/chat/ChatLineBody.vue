@@ -3,6 +3,9 @@ import { segmentTextWithLinks } from "@/lib/extract-chat-links";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { useFilePreviewStore } from "@/stores/filePreview";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   text: string;
@@ -162,7 +165,7 @@ async function ctxCopyLink(): Promise<void> {
   try {
     await navigator.clipboard.writeText(m.url);
   } catch {
-    window.alert("无法写入剪贴板");
+    window.alert(t('chatLine.clipboardError'));
   }
 }
 </script>
@@ -184,7 +187,7 @@ async function ctxCopyLink(): Promise<void> {
             @error="onImageError(seg.url)"
           >
           <span class="img-caption" @click="onImageClick(seg.url, seg.label, $event)">
-            点击查看大图
+            {{ t('chatLine.imgCaption') }}
           </span>
         </span>
       </template>
@@ -218,12 +221,12 @@ async function ctxCopyLink(): Promise<void> {
           <template v-if="canElectronLocalOps(ctxMenu.url)">
             <li role="none">
               <button type="button" role="menuitem" class="link-ctx-item" @click="ctxSaveAs">
-                另存为…
+                {{ t('chatLine.ctxSaveAs') }}
               </button>
             </li>
             <li role="none">
               <button type="button" role="menuitem" class="link-ctx-item" @click="ctxOpenSystem">
-                用系统应用打开
+                {{ t('chatLine.ctxOpenSystem') }}
               </button>
             </li>
             <li role="none">
@@ -231,10 +234,10 @@ async function ctxCopyLink(): Promise<void> {
                 type="button"
                 role="menuitem"
                 class="link-ctx-item"
-                title="在文件夹中显示该文件，并复制路径到剪贴板"
+                :title="t('chatLine.ctxEmailTitle')"
                 @click="ctxEmail"
               >
-                邮件
+                {{ t('chatLine.ctxEmail') }}
               </button>
             </li>
             <li role="none">
@@ -242,17 +245,17 @@ async function ctxCopyLink(): Promise<void> {
                 type="button"
                 role="menuitem"
                 class="link-ctx-item"
-                title="复制文件名、路径与 file 链接"
+                :title="t('chatLine.ctxShareTitle')"
                 @click="ctxShare"
               >
-                分享
+                {{ t('chatLine.ctxShare') }}
               </button>
             </li>
             <li class="link-ctx-sep" role="separator" aria-hidden="true" />
           </template>
           <li role="none">
             <button type="button" role="menuitem" class="link-ctx-item" @click="ctxCopyLink">
-              复制链接
+              {{ t('chatLine.ctxCopyLink') }}
             </button>
           </li>
         </ul>

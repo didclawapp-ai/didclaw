@@ -221,6 +221,16 @@ export default {
     sendReady: "Send (session idle)",
     shortcutTip: "Enter to send, Shift+Enter for new line\nSend is disabled while the assistant is responding\nCtrl+V to paste screenshots as images, drag files in\nSee attachment panel for 'Send with' vs 'Preview only'",
     attachTitle: "Select file (image, PDF, Office…)",
+    pendingFiles: "Attachments ({n})",
+    docThumb: "Doc",
+    badgeImg: "IMG",
+    badgeDoc: "DOC",
+    sendWithMessage: "Send with message",
+    previewOnlyTitle: "Preview only — will not be embedded in the message, kept after send",
+    previewOnly: "Preview only",
+    previewTitle: "Preview on the right",
+    preview: "Preview",
+    remove: "Remove",
   },
 
   // ─── Cron jobs ────────────────────────────────────────
@@ -694,6 +704,24 @@ export default {
     noData: "No usage data available. Connect to Gateway to see stats.",
     tokenUnit: " tokens",
     note: "Source: Gateway sessions.list — cumulative usage for active sessions only.",
+  },
+
+  chatLine: {
+    imgCaption: "Click to enlarge",
+    ctxSaveAs: "Save As…",
+    ctxOpenSystem: "Open with System App",
+    ctxEmailTitle: "Show in folder and copy path to clipboard",
+    ctxEmail: "Email",
+    ctxShareTitle: "Copy file name, path and file link",
+    ctxShare: "Share",
+    ctxCopyLink: "Copy Link",
+    clipboardError: "Unable to write to clipboard",
+  },
+
+  runBar: {
+    bgRunning: "Background agent running…",
+    bgSwitch: "Switch session to view progress →",
+    bgHint: "(switch session to view progress)",
   },
 
   sessionHistory: {

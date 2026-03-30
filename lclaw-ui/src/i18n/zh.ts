@@ -221,6 +221,16 @@ export default {
     sendReady: "发送（会话空闲）",
     shortcutTip: "Enter 发送，Shift+Enter 换行\n助手回复进行中时「发送」禁用，可先编辑下一条\nCtrl+V 粘贴截图为图片，拖入文件自动识别\n「随信发送」与「仅预览」见附件区",
     attachTitle: "选择文件（图片、PDF、Office…）",
+    pendingFiles: "待发附件（{n}）",
+    docThumb: "文",
+    badgeImg: "图",
+    badgeDoc: "文",
+    sendWithMessage: "随信发送",
+    previewOnlyTitle: "仅预览：不写入消息，发送后仍保留",
+    previewOnly: "仅预览",
+    previewTitle: "在右侧预览",
+    preview: "预览",
+    remove: "移除",
   },
 
   // ─── 定时任务 CronJobsDialog ─────────────────────────
@@ -694,6 +704,24 @@ export default {
     noData: "当前没有可显示的用量数据。连接 Gateway 后会自动更新。",
     tokenUnit: " tokens",
     note: "数据来源：Gateway sessions.list，仅含当前活跃会话的累计用量。",
+  },
+
+  chatLine: {
+    imgCaption: "点击查看大图",
+    ctxSaveAs: "另存为…",
+    ctxOpenSystem: "用系统应用打开",
+    ctxEmailTitle: "在文件夹中显示该文件，并复制路径到剪贴板",
+    ctxEmail: "邮件",
+    ctxShareTitle: "复制文件名、路径与 file 链接",
+    ctxShare: "分享",
+    ctxCopyLink: "复制链接",
+    clipboardError: "无法写入剪贴板",
+  },
+
+  runBar: {
+    bgRunning: "后台子代理运行中…",
+    bgSwitch: "切换会话查看进度 →",
+    bgHint: "（切换会话可查看进度）",
   },
 
   sessionHistory: {

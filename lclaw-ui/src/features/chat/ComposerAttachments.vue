@@ -4,6 +4,9 @@ import { useFilePreviewStore } from "@/stores/filePreview";
 import { useGatewayStore } from "@/stores/gateway";
 import { storeToRefs } from "pinia";
 import { ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const chat = useChatStore();
 const filePreview = useFilePreviewStore();
@@ -12,7 +15,7 @@ const { pendingComposerFiles, sending } = storeToRefs(chat);
 const { status } = storeToRefs(gw);
 
 const inputRef = ref<HTMLInputElement | null>(null);
-/** 附件列表展开；超过 3 个时自动收起以免挤占输入区 */
+/** Attachment list expanded; auto-collapses when more than 3 items to avoid crowding the input. */
 const listExpanded = ref(true);
 
 watch(
@@ -86,7 +89,7 @@ function formatSize(n: number): string {
       :disabled="sending"
       @click="listExpanded = !listExpanded"
     >
-      <span class="toggle-label">待发附件（{{ pendingComposerFiles.length }}）</span>
+      <span class="toggle-label">{{ t('composer.pendingFiles', { n: pendingComposerFiles.length }) }}</span>
       <span class="chev" aria-hidden="true">{{ listExpanded ? "▼" : "▶" }}</span>
     </button>
 
@@ -98,12 +101,12 @@ function formatSize(n: number): string {
           :src="p.objectUrl"
           alt=""
         >
-        <div v-else class="thumb thumb-doc" aria-hidden="true">文</div>
+        <div v-else class="thumb thumb-doc" aria-hidden="true">{{ t('composer.docThumb') }}</div>
 
         <div class="meta">
           <div class="line1">
             <span class="badge" :data-k="p.file.type.startsWith('image/') ? 'img' : 'doc'">
-              {{ p.file.type.startsWith("image/") ? "图" : "文" }}
+              {{ p.file.type.startsWith("image/") ? t('composer.badgeImg') : t('composer.badgeDoc') }}
             </span>
             <span class="name" :title="p.file.name">{{ p.file.name }}</span>
           </div>
@@ -116,7 +119,7 @@ function formatSize(n: number): string {
                 :disabled="sending"
                 @change="onToggleInclude($event, p.id)"
               >
-              随信发送
+              {{ t('composer.sendWithMessage') }}
             </label>
           </div>
         </div>
@@ -126,19 +129,19 @@ function formatSize(n: number): string {
             type="button"
             class="mini"
             :disabled="sending"
-            title="仅预览：不写入消息，发送后仍保留"
+            :title="t('composer.previewOnlyTitle')"
             @click="previewOnly(p)"
           >
-            仅预览
+            {{ t('composer.previewOnly') }}
           </button>
           <button
             type="button"
             class="mini"
             :disabled="sending"
-            title="在右侧预览"
+            :title="t('composer.previewTitle')"
             @click="onPreview(p.objectUrl, p.file.name)"
           >
-            预览
+            {{ t('composer.preview') }}
           </button>
           <button
             type="button"
@@ -146,7 +149,7 @@ function formatSize(n: number): string {
             :disabled="sending"
             @click="chat.removePendingComposerFile(p.id)"
           >
-            移除
+            {{ t('composer.remove') }}
           </button>
         </div>
       </li>
