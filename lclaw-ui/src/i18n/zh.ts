@@ -996,6 +996,38 @@ export default {
       secretPlh: "粘贴 Secret",
       installFail: "企业微信插件安装失败",
     },
+
+    // ── 通用插件渠道面板 ───────────────────────────────────────────────────────
+    plugin: {
+      privacySensitive: "此渠道会访问敏感个人数据，请仅连接您完全掌控的账号。",
+      noConfigNeeded:   "无需额外配置。",
+      enableBtn:        "启用渠道",
+      saveCredentials:  "保存凭据",
+      saveOk:           "设置已保存",
+      saveFail:         "保存失败",
+      noDesktopSave:    "保存配置需要桌面端",
+      authorizeBtn:     "授权",
+      authorizing:      "授权中…",
+      authorizeOk:      "已授权",
+      authorizeFail:    "授权失败",
+      selectPlaceholder: "请选择…",
+    },
+
+    // ── 安装新渠道面板（+ Tab）────────────────────────────────────────────────
+    installNew: {
+      tab:            "添加",
+      desc:           "安装插件以接入新的消息平台。",
+      pkgLabel:       "包名",
+      pkgPlaceholder: "例如 openclaw-gmail",
+      installBtn:     "安装",
+      installing:     "安装中…",
+      installOk:      "安装成功，刷新后即可看到新渠道。",
+      installFail:    "安装失败",
+      installAnother: "继续安装其他",
+      recommended:    "推荐插件",
+      noDesktop:      "安装插件需要桌面端",
+      invalidPkg:     "包名格式不正确",
+    },
   },
 
   // ─── 通用设置 GeneralSettingsDialog ──────────────────

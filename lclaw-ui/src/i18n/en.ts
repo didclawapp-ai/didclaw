@@ -997,6 +997,38 @@ export default {
       secretPlh: "Paste Secret",
       installFail: "Failed to install the WeCom plugin",
     },
+
+    // ── Generic plugin channel panel ──────────────────────────────────────────
+    plugin: {
+      privacySensitive: "This channel accesses sensitive personal data. Only connect accounts you fully control.",
+      noConfigNeeded:   "No additional configuration required.",
+      enableBtn:        "Enable Channel",
+      saveCredentials:  "Save Credentials",
+      saveOk:           "Settings saved",
+      saveFail:         "Save failed",
+      noDesktopSave:    "Config save requires the desktop app",
+      authorizeBtn:     "Authorize",
+      authorizing:      "Authorizing…",
+      authorizeOk:      "Authorized",
+      authorizeFail:    "Authorization failed",
+      selectPlaceholder: "Select…",
+    },
+
+    // ── Install new channel panel (+ tab) ─────────────────────────────────────
+    installNew: {
+      tab:            "Add",
+      desc:           "Install a plugin to connect a new messaging platform.",
+      pkgLabel:       "Package Name",
+      pkgPlaceholder: "e.g. openclaw-gmail",
+      installBtn:     "Install",
+      installing:     "Installing…",
+      installOk:      "Installed successfully. Refresh to see the new channel.",
+      installFail:    "Install failed",
+      installAnother: "Install another",
+      recommended:    "Recommended Plugins",
+      noDesktop:      "Plugin installation requires the desktop app",
+      invalidPkg:     "Invalid package name",
+    },
   },
 
   // ─── General Settings ─────────────────────────────────

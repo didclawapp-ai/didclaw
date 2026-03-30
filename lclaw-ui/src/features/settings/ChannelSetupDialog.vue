@@ -1,13 +1,10 @@
 <script setup lang="ts">
-import { useGatewayStore } from "@/stores/gateway";
-import { computed, onUnmounted, ref, watch } from "vue";
+import { defineAsyncComponent, computed, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useGatewayStore } from "@/stores/gateway";
 import { provideChannelContext } from "./channels/base/useChannelContext";
-import DiscordPanel from "./channels/discord/DiscordPanel.vue";
-import FeishuPanel from "./channels/feishu/FeishuPanel.vue";
-import WeComPanel from "./channels/wecom/WeComPanel.vue";
-import WechatPanel from "./channels/wechat/WechatPanel.vue";
-import WhatsAppPanel from "./channels/whatsapp/WhatsAppPanel.vue";
+import { useInstalledPlugins } from "./channels/base/useInstalledPlugins";
+import { BUILTIN_CHANNELS, type ChannelEntry } from "./channels/registry";
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ "update:modelValue": [v: boolean] }>();
@@ -19,17 +16,35 @@ const open = computed({
   set: (v) => emit("update:modelValue", v),
 });
 
-// ── Tab state ────────────────────────────────────────────────────────────────
+// ── Dynamic plugin channels ───────────────────────────────────────────────────
 
-type ChannelId = "whatsapp" | "feishu" | "discord" | "wecom" | "wechat";
-const activeTab = ref<ChannelId>("whatsapp");
+const { channels: dynamicChannels, fetchInstalledPlugins } = useInstalledPlugins();
 
-const tabs: { id: ChannelId; icon: string }[] = [
-  { id: "whatsapp", icon: "💬" },
-  { id: "wechat",   icon: "🟢" },
-  { id: "feishu",   icon: "🪶" },
-  { id: "wecom",    icon: "💼" },
-];
+// The "+" install tab entry
+const INSTALL_ENTRY: ChannelEntry = {
+  id: "__install__",
+  source: "plugin",
+  icon: "➕",
+  nameKey: "channel.installNew.tab",
+  paradigm: "wizard",
+  panel: defineAsyncComponent(
+    () => import("./channels/_install/InstallChannelPanel.vue"),
+  ),
+};
+
+const allChannels = computed<ChannelEntry[]>(() => [
+  ...BUILTIN_CHANNELS,
+  ...dynamicChannels.value,
+  INSTALL_ENTRY,
+]);
+
+// ── Tab state ─────────────────────────────────────────────────────────────────
+
+const activeTab = ref<string>("whatsapp");
+
+const activeEntry = computed<ChannelEntry | undefined>(() =>
+  allChannels.value.find((c) => c.id === activeTab.value),
+);
 
 // ── Auto-close ────────────────────────────────────────────────────────────────
 
@@ -50,20 +65,28 @@ const { toast, toastError } =
 
 function closeDialog(): void { open.value = false; }
 
-
+function handlePluginInstalled(channelId: string): void {
+  void fetchInstalledPlugins().then(() => {
+    // Switch to the newly installed channel if it appeared in the list
+    const found = dynamicChannels.value.find((c) => c.id === channelId);
+    if (found) activeTab.value = channelId;
+  });
+}
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 
 watch(
   () => props.modelValue,
   (v) => {
-    if (!v) {
+    if (v) {
+      // Fetch dynamic channels each time dialog opens
+      void fetchInstalledPlugins();
+    } else {
       if (autoCloseTimer !== null) {
         clearTimeout(autoCloseTimer);
         autoCloseTimer = null;
       }
       toast.value = null;
-      // Channel panels clean up their own listeners in onUnmounted
       if (gwStore.status !== "connected") {
         void gwStore.reloadConnection();
       }
@@ -94,37 +117,36 @@ onUnmounted(() => {
           <!-- Tabs -->
           <div class="ch-tabs" role="tablist">
             <button
-              v-for="tab in tabs"
-              :key="tab.id"
+              v-for="ch in allChannels"
+              :key="ch.id"
               type="button"
               role="tab"
               class="ch-tab"
-              :class="{ 'ch-tab--active': activeTab === tab.id }"
-              :aria-selected="activeTab === tab.id"
-              @click="activeTab = tab.id"
+              :class="{
+                'ch-tab--active': activeTab === ch.id,
+                'ch-tab--install': ch.id === '__install__',
+              }"
+              :aria-selected="activeTab === ch.id"
+              @click="activeTab = ch.id"
             >
-              <span aria-hidden="true">{{ tab.icon }}</span>
-              {{ t(`channel.${tab.id}.name`) }}
+              <span aria-hidden="true">{{ ch.icon }}</span>
+              {{ ch.displayName ?? t(`channel.${ch.id}.name`) }}
             </button>
           </div>
 
           <!-- Toast -->
           <p v-if="toast" class="ch-toast" :class="{ 'ch-toast--error': toastError }">{{ toast }}</p>
 
-          <!-- ── WhatsApp ── -->
-          <WhatsAppPanel v-if="activeTab === 'whatsapp'" />
-
-          <!-- ── Feishu ── -->
-          <FeishuPanel v-else-if="activeTab === 'feishu'" />
-
-          <!-- ── WeChat (Personal) ── -->
-          <WechatPanel v-else-if="activeTab === 'wechat'" @close="closeDialog" />
-
-          <!-- ── Discord ── -->
-          <DiscordPanel v-else-if="activeTab === 'discord'" />
-
-          <!-- ── WeCom ── -->
-          <WeComPanel v-else-if="activeTab === 'wecom'" />
+          <!-- Active channel panel (data-driven) -->
+          <component
+            :is="activeEntry?.panel"
+            v-if="activeEntry"
+            v-bind="activeEntry.source === 'plugin' && activeEntry.id !== '__install__'
+              ? { channelDef: activeEntry }
+              : {}"
+            @close="closeDialog"
+            @plugin-installed="handlePluginInstalled"
+          />
         </div>
       </div>
     </Transition>
@@ -219,6 +241,17 @@ onUnmounted(() => {
   background: var(--lc-bg-hover);
 }
 .ch-tab--active {
+  color: var(--lc-accent);
+  border-bottom-color: var(--lc-accent);
+  background: var(--lc-accent-soft);
+}
+.ch-tab--install {
+  margin-left: auto;
+  color: var(--lc-text-muted);
+  border-left: 1px solid var(--lc-border);
+  border-radius: 0;
+}
+.ch-tab--install.ch-tab--active {
   color: var(--lc-accent);
   border-bottom-color: var(--lc-accent);
   background: var(--lc-accent-soft);

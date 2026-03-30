@@ -16,8 +16,10 @@ export interface ChannelDef {
   id: string;
   source: ChannelSource;
   icon: string;
-  /** i18n key */
+  /** i18n key for the channel name */
   nameKey: string;
+  /** Direct display name override (plugin channels); takes priority over nameKey */
+  displayName?: string;
   paradigm: SetupParadigm;
   privacyLevel?: "normal" | "sensitive";
   supportsMultiAccount?: boolean;
@@ -33,6 +35,20 @@ export interface ChannelDef {
   packageName?: string;
   version?: string;
   configSchema?: ChannelConfigField[];
+}
+
+/** Plugin manifest returned by Gateway's plugins.installed RPC. */
+export interface InstalledPluginManifest {
+  channelId: string;
+  displayName: string;
+  icon: string;
+  paradigm: SetupParadigm;
+  packageName: string;
+  version?: string;
+  privacyLevel?: "normal" | "sensitive";
+  supportsMultiAccount?: boolean;
+  configSchema?: ChannelConfigField[];
+  docLink?: string;
 }
 
 export interface EnsureChannelReadyOptions {

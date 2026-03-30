@@ -7,7 +7,7 @@ import { useI18n } from "vue-i18n";
 import { delay, useChannelContext } from "../base/useChannelContext";
 import { useStreamingInstall } from "../base/useStreamingInstall";
 
-const emit = defineEmits<{ close: [] }>();
+const _emit = defineEmits<{ close: [] }>();
 
 const { t } = useI18n();
 const { showToast, ensureGatewayConnected, onSuccess: onContextSuccess } = useChannelContext();

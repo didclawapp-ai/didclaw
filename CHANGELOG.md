@@ -8,7 +8,9 @@
 
 ### 重构
 
-- **渠道设置模块化重构（阶段六完成）**：将 `ChannelSetupDialog.vue`（原 2114 行）拆分为独立渠道面板组件架构。新增 `channels/` 目录，包含 `types.ts`（接口定义）、`registry.ts`（渠道注册表）、`base/useChannelContext.ts`（共享上下文）、`base/useStreamingInstall.ts`（CLI 流式安装复用组件），以及 Discord、WeCom、Feishu、WeChat、WhatsApp 各自的 `def.ts` + `Panel.vue`。对话框主文件精简至约 80 行，各渠道逻辑完全自治，支持 `defineAsyncComponent` 懒加载。
+- **渠道插件化架构完成（阶段七 + 八）**：在模块化基础上完成动态插件渠道支持与 OAuth 范式。新增 `base/useInstalledPlugins.ts`（调用 Gateway `plugins.installed` RPC，优雅降级），`base/useOAuthFlow.ts`（系统浏览器授权 + 轮询 `oauth.status`），`_generic/GenericPluginPanel.vue`（按 `configSchema` 动态渲染表单，支持 text/password/select/multiselect/oauth-button 字段），`_install/InstallChannelPanel.vue`（`+` Tab，含推荐插件列表与自定义包名安装）。`ChannelSetupDialog.vue` 改为完全数据驱动：Tab 栏由 `BUILTIN_CHANNELS + dynamicChannels + 安装 Tab` 合并生成，面板渲染通过 `<component :is>` 统一分发；新增渠道只需在 `registry.ts` 加一行。
+
+- **渠道设置模块化重构（阶段一至六）**：将 `ChannelSetupDialog.vue`（原 2114 行）拆分为独立渠道面板组件架构。新增 `channels/` 目录，包含 `types.ts`（接口定义）、`registry.ts`（渠道注册表）、`base/useChannelContext.ts`（共享上下文）、`base/useStreamingInstall.ts`（CLI 流式安装复用组件），以及 Discord、WeCom、Feishu、WeChat、WhatsApp 各自的 `def.ts` + `Panel.vue`。对话框主文件精简至约 80 行，各渠道逻辑完全自治，支持 `defineAsyncComponent` 懒加载。
 
 ## [0.8.1] - 2026-03-30
 
