@@ -502,6 +502,7 @@ export default {
     techStack: "Tech stack",
     copyright: "Copyright",
     close: "Close",
+    docs: "Docs",
   },
 
   // ─── Skills manager ───────────────────────────────────

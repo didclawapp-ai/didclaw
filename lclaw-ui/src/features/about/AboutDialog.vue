@@ -42,56 +42,64 @@ const techStack = [
     <Transition name="about-fade">
       <div v-if="open" class="about-backdrop" @click.self="open = false">
         <div class="about-dialog" role="dialog" :aria-label="t('about.title')">
-          <!-- 头部 -->
-          <div class="about-header">
-            <div class="about-brand">
-              <span class="about-glyph" aria-hidden="true" />
-              <span class="about-name">DidClaw</span>
-            </div>
-            <button
-              type="button"
-              class="about-close"
-              :aria-label="t('about.close')"
-              @click="open = false"
-            >
-              ✕
-            </button>
+
+          <!-- close -->
+          <button
+            type="button"
+            class="about-close"
+            :aria-label="t('about.close')"
+            @click="open = false"
+          >✕</button>
+
+          <!-- hero -->
+          <div class="about-hero">
+            <span class="about-hero-glyph" aria-hidden="true" />
+            <h1 class="about-hero-name">DidClaw</h1>
+            <p class="about-hero-tagline">{{ t('about.desc') }}</p>
           </div>
 
-          <!-- 简介 -->
-          <p class="about-desc">{{ t('about.desc') }}</p>
-
-          <!-- 版本信息 -->
-          <div class="about-section">
-            <div class="about-row">
-              <span class="about-label">{{ t('about.appVersion') }}</span>
-              <code class="about-value">{{ appVersion }}</code>
+          <!-- versions -->
+          <div class="about-versions">
+            <div class="about-ver-row">
+              <span class="about-ver-label">{{ t('about.appVersion') }}</span>
+              <code class="about-ver-badge">{{ appVersion }}</code>
             </div>
-            <div class="about-row">
-              <span class="about-label">{{ t('about.gatewayVersion') }}</span>
+            <div class="about-ver-row">
+              <span class="about-ver-label">{{ t('about.gatewayVersion') }}</span>
               <code
-                class="about-value"
-                :class="{ 'about-value--muted': !gatewayVersion }"
+                class="about-ver-badge"
+                :class="{ 'about-ver-badge--dim': !gatewayVersion }"
               >{{ gatewayVersion ?? t('about.gatewayNotConnected') }}</code>
             </div>
           </div>
 
-          <!-- 技术栈 -->
-          <div class="about-section">
-            <p class="about-section-title">{{ t('about.techStack') }}</p>
-            <div class="about-chips">
-              <span
-                v-for="item in techStack"
-                :key="item.name"
-                class="about-chip"
-              >{{ item.name }}</span>
-            </div>
+          <!-- tech stack -->
+          <div class="about-stack">
+            <a
+              v-for="item in techStack"
+              :key="item.name"
+              :href="item.href"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="about-stack-chip"
+            >{{ item.name }}</a>
           </div>
 
-          <!-- 版权 -->
-          <p class="about-copyright">
-            © {{ currentYear }} DidClaw. Open source, built with ❤️
-          </p>
+          <!-- links -->
+          <div class="about-links">
+            <a href="https://github.com/OpenClaw-AI/didclaw" target="_blank" rel="noopener noreferrer" class="about-link-btn">
+              GitHub
+            </a>
+            <a href="https://openclaw.ai" target="_blank" rel="noopener noreferrer" class="about-link-btn">
+              openclaw.ai
+            </a>
+            <a href="https://docs.openclaw.ai" target="_blank" rel="noopener noreferrer" class="about-link-btn">
+              {{ t('about.docs') }}
+            </a>
+          </div>
+
+          <!-- copyright -->
+          <p class="about-copyright">© {{ currentYear }} DidClaw · Open source, built with ❤️</p>
         </div>
       </div>
     </Transition>
@@ -103,7 +111,7 @@ const techStack = [
   position: fixed;
   inset: 0;
   z-index: 10060;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -111,46 +119,26 @@ const techStack = [
 }
 
 .about-dialog {
-  background: var(--lc-surface, #fff);
+  position: relative;
+  background: var(--lc-surface-panel, var(--lc-surface, #1e1e1e));
   border: 1px solid var(--lc-border);
-  border-radius: var(--lc-radius-md, 12px);
-  box-shadow: var(--lc-shadow-xl, 0 20px 60px rgba(0,0,0,0.25));
+  border-radius: 16px;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.35);
   width: 100%;
   max-width: 360px;
-  padding: 24px 24px 20px;
+  overflow: hidden;
   font-family: var(--lc-font);
   color: var(--lc-text);
 }
 
-/* 头部 */
-.about-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-.about-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.about-glyph {
-  display: inline-block;
-  width: 28px;
-  height: 28px;
-  background: var(--lc-brand-glyph-url, url('/favicon.svg')) center / contain no-repeat;
-  flex-shrink: 0;
-}
-.about-name {
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--lc-accent);
-}
+/* close button */
 .about-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: 7px;
   border: none;
   background: transparent;
   color: var(--lc-text-muted);
@@ -160,104 +148,162 @@ const techStack = [
   align-items: center;
   justify-content: center;
   transition: background 0.12s, color 0.12s;
+  z-index: 1;
 }
 .about-close:hover {
   background: var(--lc-bg-hover);
   color: var(--lc-text);
 }
 
-/* 简介 */
-.about-desc {
-  font-size: 13px;
+/* hero */
+.about-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px 24px;
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--lc-accent) 14%, transparent) 0%,
+    transparent 70%
+  );
+  border-bottom: 1px solid var(--lc-border);
+  text-align: center;
+  gap: 8px;
+}
+.about-hero-glyph {
+  display: block;
+  width: 52px;
+  height: 52px;
+  background: var(--lc-brand-glyph-url, url('/favicon.svg')) center / contain no-repeat;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 4px 12px color-mix(in srgb, var(--lc-accent) 40%, transparent));
+}
+.about-hero-name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   color: var(--lc-text);
-  margin: 0 0 16px;
-  line-height: 1.6;
+}
+.about-hero-tagline {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lc-text-muted);
+  line-height: 1.5;
+  max-width: 260px;
 }
 
-/* 信息区块 */
-.about-section {
-  background: var(--lc-bg-secondary, var(--lc-bg-raised));
-  border-radius: var(--lc-radius-sm);
-  padding: 10px 12px;
-  margin-bottom: 12px;
+/* versions */
+.about-versions {
+  margin: 16px 20px 0;
+  background: var(--lc-bg-raised);
+  border: 1px solid var(--lc-border);
+  border-radius: 10px;
+  overflow: hidden;
 }
-.about-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--lc-text-muted);
-  margin: 0 0 8px;
-}
-.about-row {
+.about-ver-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 3px 0;
+  padding: 9px 14px;
 }
-.about-row + .about-row {
+.about-ver-row + .about-ver-row {
   border-top: 1px solid var(--lc-border);
-  margin-top: 3px;
-  padding-top: 6px;
 }
-.about-label {
+.about-ver-label {
   font-size: 13px;
   color: var(--lc-text-muted);
 }
-.about-value {
+.about-ver-badge {
   font-family: var(--lc-mono, monospace);
   font-size: 12px;
   color: var(--lc-accent);
-  background: var(--lc-bg-elevated, var(--lc-bg-raised));
-  padding: 2px 7px;
-  border-radius: 4px;
+  background: color-mix(in srgb, var(--lc-accent) 12%, transparent);
+  padding: 2px 8px;
+  border-radius: 5px;
+  letter-spacing: 0.01em;
 }
-.about-value--muted {
-  color: var(--lc-text-muted);
+.about-ver-badge--dim {
+  color: var(--lc-text-dim);
+  background: transparent;
 }
 
-/* 技术栈 chips */
-.about-chips {
+/* tech stack */
+.about-stack {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  padding: 14px 20px 0;
 }
-.about-chip {
+.about-stack-chip {
   font-size: 11px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 20px;
   border: 1px solid var(--lc-border);
   color: var(--lc-text-muted);
   background: transparent;
+  text-decoration: none;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.about-stack-chip:hover {
+  border-color: var(--lc-accent);
+  color: var(--lc-accent);
+  background: color-mix(in srgb, var(--lc-accent) 8%, transparent);
 }
 
-/* 版权 */
+/* external links */
+.about-links {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 0;
+}
+.about-link-btn {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--lc-border);
+  color: var(--lc-text-muted);
+  background: transparent;
+  text-decoration: none;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  font-family: inherit;
+}
+.about-link-btn:hover {
+  border-color: var(--lc-border-strong);
+  color: var(--lc-text);
+  background: var(--lc-bg-elevated);
+}
+
+/* copyright */
 .about-copyright {
   font-size: 11px;
-  color: var(--lc-text-muted);
+  color: var(--lc-text-dim);
   text-align: center;
-  margin: 4px 0 0;
+  padding: 14px 20px 18px;
+  margin: 0;
 }
 
-/* 动画 */
+/* animation */
 .about-fade-enter-active,
 .about-fade-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity 0.18s ease;
 }
 .about-fade-enter-active .about-dialog,
 .about-fade-leave-active .about-dialog {
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.18s ease;
 }
 .about-fade-enter-from,
 .about-fade-leave-to {
   opacity: 0;
 }
 .about-fade-enter-from .about-dialog {
-  transform: scale(0.95) translateY(8px);
+  transform: scale(0.93) translateY(10px);
+  opacity: 0;
 }
 .about-fade-leave-to .about-dialog {
-  transform: scale(0.95);
+  transform: scale(0.96);
   opacity: 0;
 }
 </style>

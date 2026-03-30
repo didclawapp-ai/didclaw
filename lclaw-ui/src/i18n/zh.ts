@@ -502,6 +502,7 @@ export default {
     techStack: "主要技术栈",
     copyright: "版权",
     close: "关闭",
+    docs: "文档",
   },
 
   // ─── 技能管理 SkillsManagerDialog ───────────────────
