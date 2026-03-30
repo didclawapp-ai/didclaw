@@ -17,6 +17,9 @@ import {
 } from "@/lib/provider-catalog";
 import { useChatStore } from "@/stores/chat";
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{ open: boolean }>();
 
@@ -44,12 +47,12 @@ const editingBaseUrl = ref("");
 const modelEditMode = ref(false);
 const modelEditText = ref("");
 
-/** 展开面板时，用户对图片生成的选择（嵌入式，已废弃，保留以防编译错误） */
+/** user image model choice when panel open (deprecated inline field, kept to avoid compile errors) */
 const imageModelChoice = ref<string>("");
 
-/** 当前展开的图片生成卡 id */
+/** id of the currently expanded image generation card */
 const expandedImgId = ref<string | null>(null);
-/** 图片生成卡编辑中的 API Key */
+/** API key being edited in the image gen card */
 const imgEditingKey = ref("");
 const imgShowKey = ref(false);
 const imgBusy = ref(false);
@@ -129,7 +132,7 @@ async function saveFallbacks(): Promise<void> {
   try {
     const r = await api.writeOpenClawModelConfig({ model: { fallbacks: fallbackModels.value } });
     if (!r.ok) {
-      error.value = String(r.error || "保存失败");
+      error.value = String(r.error || t('aiProvider.saveFailed'));
       return;
     }
     aiSnapshot.value = {
@@ -137,7 +140,7 @@ async function saveFallbacks(): Promise<void> {
       fallbacks: [...fallbackModels.value],
       model: { ...aiSnapshot.value.model, fallbacks: [...fallbackModels.value] },
     };
-    setToast("备用模型已保存");
+    setToast(t('aiProvider.fallbackSaved'));
     afterOpenClawModelConfigSaved();
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -148,7 +151,7 @@ async function saveFallbacks(): Promise<void> {
 
 function currentPrimaryLabel(): string {
   if (!currentPrimary.value) {
-    return "未设置";
+    return t('aiProvider.notSet');
   }
   const provider = allProviders.value.find((item) => currentPrimary.value.startsWith(`${item.id}/`));
   if (!provider) {
@@ -236,16 +239,16 @@ function expandedProviderModels(): string[] {
 }
 
 function expandedProviderDefaultModel(): string {
-  return expandedProvider.value?.defaultModel || "未设置";
+  return expandedProvider.value?.defaultModel || t('aiProvider.notSet');
 }
 
 function providerModelsSummary(view: OpenClawAiProviderView): string {
   if (!view.models.length) {
-    return "尚未检测到模型";
+    return t('aiProvider.noModels');
   }
   return view.modelsSource === "configured"
-    ? `${view.models.length} 个已配置模型`
-    : `${view.models.length} 个推荐模型`;
+    ? t('aiProvider.configuredModels', { n: view.models.length })
+    : t('aiProvider.recommendedModels', { n: view.models.length });
 }
 
 async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) {
@@ -256,7 +259,7 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
 
   const modelIds = resolveProviderModels(view);
   if (modelIds.length === 0) {
-    error.value = "至少保留一个模型 ID。";
+    error.value = t('aiProvider.needOneModel');
     return;
   }
 
@@ -282,7 +285,7 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
 
     const pr = await api.writeOpenClawProvidersPatch({ patch: { [view.id]: providerBody } });
     if (!pr.ok) {
-      error.value = String(pr.error || "保存失败");
+      error.value = String(pr.error || t('aiProvider.saveFailed'));
       return;
     }
 
@@ -306,7 +309,7 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
       models: existingModels,
     });
     if (!mr.ok) {
-      error.value = String(mr.error || "设置模型失败");
+      error.value = String(mr.error || t('aiProvider.setModelFailed'));
       return;
     }
 
@@ -329,8 +332,8 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
     afterOpenClawModelConfigSaved();
     setToast(
       setPrimary
-        ? `✓ 已保存并将 ${view.displayName} 设为主力模型`
-        : `✓ ${view.displayName} 配置已保存`,
+        ? t('aiProvider.savedAsPrimary', { name: view.displayName })
+        : t('aiProvider.configSaved', { name: view.displayName }),
     );
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -340,7 +343,7 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
 }
 
 async function removeProvider(view: OpenClawAiProviderView) {
-  if (!window.confirm(`确定移除「${view.displayName}」的配置？`)) {
+  if (!window.confirm(t('aiProvider.confirmRemove', { name: view.displayName }))) {
     return;
   }
   const api = getDidClawDesktopApi();
@@ -351,7 +354,7 @@ async function removeProvider(view: OpenClawAiProviderView) {
   try {
     const r = await api.writeOpenClawProvidersPatch({ patch: { [view.id]: null } });
     if (!r.ok) {
-      error.value = String(r.error || "移除失败");
+      error.value = String(r.error || t('aiProvider.removeFailed'));
       return;
     }
     const trimmed = stripProviderModelRefs(aiSnapshot.value, view.id);
@@ -363,7 +366,7 @@ async function removeProvider(view: OpenClawAiProviderView) {
       models: trimmed.models,
     });
     if (!mr.ok) {
-      error.value = String(mr.error || "清理模型引用失败");
+      error.value = String(mr.error || t('aiProvider.cleanupFailed'));
       return;
     }
     // Clean up env var if this provider had image generation
@@ -380,7 +383,7 @@ async function removeProvider(view: OpenClawAiProviderView) {
     chat.flashOpenClawConfigHint();
     afterOpenClawProvidersSaved();
     afterOpenClawModelConfigSaved();
-    setToast(`已移除 ${view.displayName}`);
+    setToast(t('aiProvider.removed', { name: view.displayName }));
   } finally {
     busy.value = false;
   }
@@ -388,7 +391,7 @@ async function removeProvider(view: OpenClawAiProviderView) {
 
 // ── 图片生成卡 ────────────────────────────────────────────────
 
-/** 展开 / 折叠图片生成卡，并预填 Key */
+/** toggle image gen card open/closed and pre-fill the API key */
 function toggleImgCard(entry: ImageGenCatalogEntry) {
   if (expandedImgId.value === entry.id) {
     expandedImgId.value = null;
@@ -398,7 +401,7 @@ function toggleImgCard(entry: ImageGenCatalogEntry) {
   }
   expandedImgId.value = entry.id;
   imgShowKey.value = false;
-  // 预填：若对应聊天 provider 已配置，从 providers 里取 key
+  // prefill: read key from providers if the corresponding chat provider is already configured
   const providerData = aiSnapshot.value.providers?.[entry.providerId] as
     | Record<string, unknown>
     | undefined;
@@ -445,7 +448,7 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
       imageGenerationModel: { primary: entry.modelRef },
     });
     if (!mr.ok) {
-      error.value = String(mr.error || "保存图片生成模型失败");
+      error.value = String(mr.error || t('aiProvider.imgSaveFailed'));
       return;
     }
 
@@ -466,7 +469,7 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
     expandedImgId.value = null;
     imgEditingKey.value = "";
     afterOpenClawModelConfigSaved();
-    setToast(`✓ 图片生成已开启（${entry.modelLabel}）— 请重启网关后生效`);
+    setToast(t('aiProvider.imgEnabled', { model: entry.modelLabel }));
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -480,7 +483,7 @@ async function removeImageGen() {
   const mr = await api.writeOpenClawModelConfig({ imageGenerationModel: null });
   if (mr.ok) {
     await loadAll();
-    setToast("已关闭图片生成");
+    setToast(t('aiProvider.imgDisabled'));
   }
 }
 </script>
@@ -488,14 +491,14 @@ async function removeImageGen() {
 <template>
   <div class="aips">
     <div class="aips-primary-bar" :class="{ 'aips-primary-bar--set': currentPrimary }">
-      <span class="aips-primary-label">当前主力模型</span>
+      <span class="aips-primary-label">{{ t('aiProvider.primaryLabel') }}</span>
       <span class="aips-primary-value">{{ currentPrimaryLabel() }}</span>
     </div>
 
     <div class="aips-fallback">
       <div class="aips-fallback-head">
-        <span class="aips-fallback-title">备用模型（故障切换）</span>
-        <span class="aips-fallback-hint">主力不可用时依序尝试</span>
+        <span class="aips-fallback-title">{{ t('aiProvider.fallbackTitle') }}</span>
+        <span class="aips-fallback-hint">{{ t('aiProvider.fallbackHint') }}</span>
       </div>
       <div class="aips-fallback-chips">
         <template v-if="fallbackModels.length">
@@ -505,10 +508,10 @@ async function removeImageGen() {
             class="aips-fallback-chip"
           >
             {{ m }}
-            <button type="button" class="aips-fallback-chip-del" :aria-label="`移除 ${m}`" @click.stop="removeFallback(m)">×</button>
+            <button type="button" class="aips-fallback-chip-del" :aria-label="t('aiProvider.removeModel', { m })" @click.stop="removeFallback(m)">×</button>
           </span>
         </template>
-        <span v-else class="aips-fallback-empty">未配置</span>
+        <span v-else class="aips-fallback-empty">{{ t('aiProvider.notConfigured') }}</span>
       </div>
       <div class="aips-fallback-add">
         <select
@@ -516,7 +519,7 @@ async function removeImageGen() {
           class="aips-fallback-select"
           @change="(e) => { addFallback((e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = '' }"
         >
-          <option value="">+ 从已配置模型选择…</option>
+          <option value="">{{ t('aiProvider.pickFromConfigured') }}</option>
           <option v-for="s in availableFallbackSuggestions" :key="s" :value="s">{{ s }}</option>
         </select>
         <div class="aips-fallback-manual">
@@ -524,22 +527,26 @@ async function removeImageGen() {
             v-model="fallbackInput"
             type="text"
             class="aips-key-input"
-            placeholder="或手动输入 provider/model…"
+            :placeholder="t('aiProvider.manualInput')"
             @keydown.enter.prevent="addFallback(fallbackInput)"
-          />
+          >
           <button
             type="button"
             class="aips-ghost-btn aips-sm-btn"
             :disabled="!fallbackInput.trim()"
             @click="addFallback(fallbackInput)"
-          >添加</button>
+          >
+            {{ t('aiProvider.add') }}
+          </button>
         </div>
         <button
           type="button"
           class="aips-ghost-btn aips-sm-btn aips-fallback-save"
           :disabled="fallbackBusy"
           @click="saveFallbacks"
-        >{{ fallbackBusy ? "保存中…" : "保存" }}</button>
+        >
+          {{ fallbackBusy ? t('aiProvider.saving') : t('aiProvider.save') }}
+        </button>
       </div>
     </div>
 
@@ -549,8 +556,8 @@ async function removeImageGen() {
 
     <div class="aips-section">
       <div class="aips-section-head">
-        <h3 class="aips-section-title">推荐服务</h3>
-        <p class="aips-section-hint">保留适合普通用户的推荐卡片，但优先显示 OpenClaw 当前真实配置。</p>
+        <h3 class="aips-section-title">{{ t('aiProvider.recommended') }}</h3>
+        <p class="aips-section-hint">{{ t('aiProvider.recommendedHint') }}</p>
       </div>
       <div class="aips-grid">
         <div
@@ -574,11 +581,11 @@ async function removeImageGen() {
             </div>
           </div>
           <div class="aips-card-status">
-            <span v-if="provider.catalog?.imageModels?.length" class="aips-badge aips-badge--img" title="此服务商支持 AI 图片生成">🎨</span>
-            <span v-if="provider.isPrimary" class="aips-badge aips-badge--primary">主力</span>
-            <span v-else-if="provider.authState === 'configured'" class="aips-badge aips-badge--ok">已配置</span>
-            <span v-else-if="provider.authState === 'notRequired'" class="aips-badge aips-badge--neutral">免密钥</span>
-            <span v-else class="aips-badge aips-badge--warn">待配置</span>
+            <span v-if="provider.catalog?.imageModels?.length" class="aips-badge aips-badge--img" :title="t('aiProvider.imgGenSupported')">🎨</span>
+            <span v-if="provider.isPrimary" class="aips-badge aips-badge--primary">{{ t('aiProvider.primary') }}</span>
+            <span v-else-if="provider.authState === 'configured'" class="aips-badge aips-badge--ok">{{ t('aiProvider.configured') }}</span>
+            <span v-else-if="provider.authState === 'notRequired'" class="aips-badge aips-badge--neutral">{{ t('aiProvider.noKeyNeeded') }}</span>
+            <span v-else class="aips-badge aips-badge--warn">{{ t('aiProvider.pendingConfig') }}</span>
           </div>
         </div>
       </div>
@@ -587,12 +594,12 @@ async function removeImageGen() {
     <!-- ── 图片生成 ──────────────────────────────────────────── -->
     <div class="aips-section">
       <div class="aips-section-head">
-        <h3 class="aips-section-title">图片生成</h3>
+        <h3 class="aips-section-title">{{ t('aiProvider.imgGen') }}</h3>
         <p class="aips-section-hint">
-          开启后，在聊天中描述想要的图片，AI 会直接绘图并显示在对话里。
+          {{ t('aiProvider.imgGenDesc') }}
           <template v-if="aiSnapshot.imageGenerationModel">
-            当前：<strong>{{ aiSnapshot.imageGenerationModel }}</strong>
-            <button type="button" class="aips-img-off-btn" @click="removeImageGen">关闭</button>
+            {{ t('aiProvider.current') }}<strong>{{ aiSnapshot.imageGenerationModel }}</strong>
+            <button type="button" class="aips-img-off-btn" @click="removeImageGen">{{ t('aiProvider.disable') }}</button>
           </template>
         </p>
       </div>
@@ -621,7 +628,7 @@ async function removeImageGen() {
                 class="aips-status-tag"
                 :class="aiSnapshot.imageGenerationModel === imgEntry.modelRef ? 'aips-status-tag--on' : 'aips-status-tag--off'"
               >
-                {{ aiSnapshot.imageGenerationModel === imgEntry.modelRef ? '已开启' : '未开启' }}
+                {{ aiSnapshot.imageGenerationModel === imgEntry.modelRef ? t('aiProvider.on') : t('aiProvider.off') }}
               </span>
             </div>
           </div>
@@ -638,7 +645,7 @@ async function removeImageGen() {
               <span class="aips-panel-model">{{ imgEntry.modelLabel }}</span>
             </div>
             <p class="aips-hint" style="margin-bottom:12px;">
-              开启后在对话中直接描述图片，AI 即可绘制并嵌入对话。图片生成使用与对话相同的 API Key，已在上方配置过则自动预填。
+              {{ t('aiProvider.imgCardHint') }}
             </p>
             <div class="aips-field">
               <label class="aips-field-label">API Key</label>
@@ -649,22 +656,22 @@ async function removeImageGen() {
                   class="aips-input"
                   :placeholder="imgEntry.apiKeyPlaceholder"
                   autocomplete="off"
-                />
+                >
                 <button type="button" class="aips-ghost-btn" @click="imgShowKey = !imgShowKey">
-                  {{ imgShowKey ? '隐藏' : '显示' }}
+                  {{ imgShowKey ? t('aiProvider.hide') : t('aiProvider.show') }}
                 </button>
               </div>
-              <p class="aips-hint">不填则直接复用已配置的 Key，填写后会同步更新。</p>
+              <p class="aips-hint">{{ t('aiProvider.imgKeyHint') }}</p>
             </div>
             <div class="aips-panel-actions">
-              <button type="button" class="aips-ghost-btn" :disabled="imgBusy" @click="toggleImgCard(imgEntry)">取消</button>
+              <button type="button" class="aips-ghost-btn" :disabled="imgBusy" @click="toggleImgCard(imgEntry)">{{ t('aiProvider.cancel') }}</button>
               <button
                 type="button"
                 class="aips-primary-btn"
                 :disabled="imgBusy"
                 @click="applyImageGen(imgEntry)"
               >
-                {{ imgBusy ? '保存中…' : '开启图片生成' }}
+                {{ imgBusy ? t('aiProvider.saving') : t('aiProvider.imgEnable') }}
               </button>
             </div>
           </div>
@@ -674,8 +681,8 @@ async function removeImageGen() {
 
     <div v-if="detectedProviders.length" class="aips-section">
       <div class="aips-section-head">
-        <h3 class="aips-section-title">检测到的其他配置</h3>
-        <p class="aips-section-hint">这些 Provider 来自你当前的 OpenClaw 配置，未纳入推荐卡片目录。</p>
+        <h3 class="aips-section-title">{{ t('aiProvider.detected') }}</h3>
+        <p class="aips-section-hint">{{ t('aiProvider.detectedHint') }}</p>
       </div>
       <div class="aips-grid">
         <div
@@ -699,7 +706,7 @@ async function removeImageGen() {
             </div>
           </div>
           <div class="aips-card-status">
-            <span class="aips-badge aips-badge--neutral">已检测</span>
+            <span class="aips-badge aips-badge--neutral">{{ t('aiProvider.detectedBadge') }}</span>
           </div>
         </div>
       </div>
@@ -709,33 +716,37 @@ async function removeImageGen() {
       <div v-if="expandedProvider" class="aips-panel">
         <div class="aips-panel-head" :style="{ borderColor: expandedProvider.color }">
           <span class="aips-panel-title">{{ expandedProvider.displayName }}</span>
-          <span class="aips-panel-source">{{ expandedProvider.source === "recommended" ? "推荐服务" : "检测到的配置" }}</span>
+          <span class="aips-panel-source">{{ expandedProvider.source === "recommended" ? t('aiProvider.sourceRecommended') : t('aiProvider.sourceDetected') }}</span>
           <a
             v-if="expandedProvider.docsUrl"
             :href="expandedProvider.docsUrl"
             target="_blank"
             rel="noopener"
             class="aips-panel-docs"
-          >文档 ↗</a>
+          >{{ t('aiProvider.docs') }}</a>
           <button type="button" class="aips-panel-close" @click="expandedId = null">✕</button>
         </div>
 
         <div class="aips-field">
           <div class="aips-field-label-row">
-            <span class="aips-field-label">接口地址</span>
+            <span class="aips-field-label">{{ t('aiProvider.baseUrl') }}</span>
             <div v-if="expandedProvider.baseUrlAlt" class="aips-node-pills">
               <button
                 type="button"
                 class="aips-node-pill"
                 :class="{ 'aips-node-pill--active': nodeChoice === 'main' }"
                 @click="useMainNode()"
-              >{{ expandedProvider.baseUrlLabel }}</button>
+              >
+                {{ expandedProvider.baseUrlLabel }}
+              </button>
               <button
                 type="button"
                 class="aips-node-pill"
                 :class="{ 'aips-node-pill--active': nodeChoice === 'alt' }"
                 @click="useAltNode()"
-              >{{ expandedProvider.baseUrlAltLabel }}</button>
+              >
+                {{ expandedProvider.baseUrlAltLabel }}
+              </button>
             </div>
           </div>
           <input
@@ -745,7 +756,7 @@ async function removeImageGen() {
             placeholder="https://..."
             autocomplete="off"
             spellcheck="false"
-          />
+          >
         </div>
 
         <div v-if="expandedProvider.apiKeyRequired" class="aips-field">
@@ -755,38 +766,38 @@ async function removeImageGen() {
               v-model="editingKey"
               :type="showKey ? 'text' : 'password'"
               class="aips-key-input"
-              :placeholder="expandedProvider.catalog?.apiKeyPlaceholder || '粘贴 API Key'"
+              :placeholder="expandedProvider.catalog?.apiKeyPlaceholder || t('aiProvider.pasteApiKey')"
               autocomplete="off"
-            />
+            >
             <button type="button" class="aips-ghost-btn aips-eye-btn" @click="showKey = !showKey">
-              {{ showKey ? "隐藏" : "显示" }}
+              {{ showKey ? t('aiProvider.hide') : t('aiProvider.show') }}
             </button>
           </div>
         </div>
         <div v-else class="aips-field">
           <span class="aips-field-label">API Key</span>
-          <span class="aips-url-hint">无需密钥，直接应用即可</span>
+          <span class="aips-url-hint">{{ t('aiProvider.noKeyRequired') }}</span>
         </div>
 
         <div class="aips-field">
           <div class="aips-field-label-row">
-            <span class="aips-field-label">模型</span>
+            <span class="aips-field-label">{{ t('aiProvider.models') }}</span>
             <button
               type="button"
               class="aips-ghost-btn aips-sm-btn"
               @click="() => { modelEditMode = !modelEditMode; if (modelEditMode) modelEditText = expandedProviderModels().join(', '); }"
             >
-              {{ modelEditMode ? "完成" : "编辑" }}
+              {{ modelEditMode ? t('aiProvider.done') : t('aiProvider.edit') }}
             </button>
           </div>
           <template v-if="modelEditMode">
             <textarea
               v-model="modelEditText"
               class="aips-model-textarea"
-              placeholder="每行或用逗号分隔，如: glm-5, glm-4.7"
+              :placeholder="t('aiProvider.modelPlaceholder')"
               rows="3"
             />
-            <p class="aips-hint">每行或逗号分隔一个模型 ID，点“应用”后写入配置。</p>
+            <p class="aips-hint">{{ t('aiProvider.modelHint') }}</p>
           </template>
           <template v-else>
             <div class="aips-model-chips">
@@ -798,11 +809,11 @@ async function removeImageGen() {
               >{{ m }}</span>
             </div>
             <p class="aips-hint">
-              默认主力：<strong>{{ expandedProviderDefaultModel() }}</strong>
-              （应用并设为主力时优先使用）
+              {{ t('aiProvider.defaultPrimary') }}：<strong>{{ expandedProviderDefaultModel() }}</strong>
+              （{{ t('aiProvider.defaultPrimaryNote') }}）
             </p>
             <p v-if="expandedProvider.modelsSource === 'recommended'" class="aips-hint">
-              当前这里展示的是推荐默认模型；一旦保存，会同步写入 OpenClaw 配置。
+              {{ t('aiProvider.recommendedDefault') }}
             </p>
           </template>
         </div>
@@ -814,22 +825,30 @@ async function removeImageGen() {
             class="aips-ghost-btn aips-danger-btn"
             :disabled="busy"
             @click="removeProvider(expandedProvider)"
-          >移除</button>
+          >
+            {{ t('aiProvider.remove') }}
+          </button>
           <div class="aips-panel-actions-right">
-            <button type="button" class="aips-ghost-btn" @click="expandedId = null">取消</button>
+            <button type="button" class="aips-ghost-btn" @click="expandedId = null">
+              {{ t('aiProvider.cancel') }}
+            </button>
             <button
               v-if="!expandedProvider.isPrimary"
               type="button"
               class="aips-primary-btn aips-ghost-btn"
               :disabled="busy || (expandedProvider.apiKeyRequired && !editingKey.trim())"
               @click="applyProvider(expandedProvider, false)"
-            >{{ busy ? "保存中…" : "仅保存" }}</button>
+            >
+              {{ busy ? t('aiProvider.saving') : t('aiProvider.saveOnly') }}
+            </button>
             <button
               type="button"
               class="aips-apply-btn"
               :disabled="busy || (expandedProvider.apiKeyRequired && !editingKey.trim())"
               @click="applyProvider(expandedProvider, true)"
-            >{{ busy ? "应用中…" : expandedProvider.isPrimary ? "更新" : "应用并设为主力" }}</button>
+            >
+              {{ busy ? t('aiProvider.applying') : expandedProvider.isPrimary ? t('aiProvider.update') : t('aiProvider.applyAsPrimary') }}
+            </button>
           </div>
         </div>
       </div>
