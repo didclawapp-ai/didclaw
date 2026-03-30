@@ -1044,7 +1044,7 @@ export default {
       tab:            "Add",
       desc:           "Install a plugin to connect a new messaging platform.",
       pkgLabel:       "Package Name",
-      pkgPlaceholder: "e.g. openclaw-gmail",
+      pkgPlaceholder: "e.g. @scope/openclaw-my-plugin",
       installBtn:     "Install",
       installing:     "Installing…",
       installOk:      "Installed successfully. Refresh to see the new channel.",

@@ -1043,7 +1043,7 @@ export default {
       tab:            "添加",
       desc:           "安装插件以接入新的消息平台。",
       pkgLabel:       "包名",
-      pkgPlaceholder: "例如 openclaw-gmail",
+      pkgPlaceholder: "例如 @scope/openclaw-my-plugin",
       installBtn:     "安装",
       installing:     "安装中…",
       installOk:      "安装成功，刷新后即可看到新渠道。",

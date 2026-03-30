@@ -18,13 +18,10 @@ interface RecommendedPlugin {
   channelId: string;
 }
 
-const RECOMMENDED: RecommendedPlugin[] = [
-  { icon: "📧", name: "Gmail",    packageSpec: "openclaw-gmail",    channelId: "gmail" },
-  { icon: "💬", name: "Telegram", packageSpec: "openclaw-telegram", channelId: "telegram" },
-  { icon: "📋", name: "Notion",   packageSpec: "openclaw-notion",   channelId: "notion" },
-  { icon: "🔵", name: "Slack",    packageSpec: "openclaw-slack",    channelId: "slack" },
-  { icon: "🤝", name: "Teams",    packageSpec: "openclaw-teams",    channelId: "teams" },
-];
+// Verified third-party plugins published on ClawHub.
+// Only list packages that are confirmed to exist; common channels (Telegram, Slack,
+// Discord, etc.) are built into openclaw core and do not need a separate install.
+const RECOMMENDED: RecommendedPlugin[] = [];
 
 // ── Install state ─────────────────────────────────────────────────────────────
 
