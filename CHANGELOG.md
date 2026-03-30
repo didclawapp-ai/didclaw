@@ -12,6 +12,7 @@
 
 ### 优化
 
+- **i18n 补全（GatewayLocalDialog）**：补全 3 处硬编码中文备份路径错误提示（`onDeleteProvider`、`onSaveModel`、`onRestoreModel`），新增 `settings.errBackupNote` key（中英文）；修正 `formatProviderSaveToast` 中的中文标点拼接（`。`→尾号已并入 key）；更新 `settings.providerBackupNote` 加入句尾标点；8 处中文注释（脚本 + 模板）改为英文。
 - **i18n 补全（AiProviderSetup）**：AI Provider 配置面板全面接入 vue-i18n，新增 63 个 `aiProvider.*` key（中英文），涵盖主力/备用模型栏、卡片徽章、图片生成面板、编辑面板所有标签与按钮、错误/成功反馈及确认对话框；同步修复 18 条 ESLint 警告（4 处 `<input/>` 自闭合、14 处 button 内联文本需换行）；脚本注释改为英文。
 - **i18n 补全（PreviewPane）**：文件预览面板全面接入 vue-i18n，新增 22 个 `preview.*` key（中英文），涵盖工具栏按钮、提示段落、加载状态、LibreOffice 错误面板、Office 不支持嵌入提示、时间线标题与空状态；中文文案按「语句尽量简短」原则压缩。
 - **英文化（OpenClawUpdatePrompt）**：将 `OpenClawUpdatePrompt.vue` 中所有中文硬编码字符串（脚本与模板）改为英文；文档链接同步切换为英文页面。

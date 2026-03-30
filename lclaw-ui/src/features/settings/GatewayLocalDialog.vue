@@ -44,9 +44,9 @@ const tab = ref<TabId>("gateway");
 const wsUrl = ref("");
 const token = ref("");
 const password = ref("");
-/** 默认 true：连接开关打开时由主进程无窗口启动本机 openclaw gateway */
+/** default true: main process silently starts the local openclaw gateway when the connection switch is on */
 const autoStartOpenClaw = ref(true);
-/** 为 true 时退出 LCLaw 会结束由本应用 spawn 的网关子进程 */
+/** when true, quitting the app also terminates the gateway subprocess spawned by this app */
 const stopManagedGatewayOnQuit = ref(false);
 const openclawExecutable = ref("");
 const saveError = ref<string | null>(null);
@@ -59,7 +59,7 @@ const modelError = ref<string | null>(null);
 const modelBusy = ref(false);
 const modelToast = ref<string | null>(null);
 
-/** models.providers 编辑 */
+/** models.providers editor state */
 const providerSnapshots = ref<Record<string, Record<string, unknown>>>({});
 const selectedProviderKey = ref("");
 const creatingNewProvider = ref(false);
@@ -82,11 +82,11 @@ const aiSnapshot = ref<OpenClawAiSnapshot>({
   imageGenerationModel: "",
 });
 
-/** 与 api、authHeader 等一并写入 provider（模板或从已有配置带出） */
+/** extra fields (api, authHeader, etc.) written alongside the provider — from preset or existing config */
 const pvProviderExtras = ref<Record<string, unknown>>({});
 
 const providerKeyList = computed(() => Object.keys(providerSnapshots.value).sort());
-/** 正在编辑的服务代号（含「新建」时草稿），用于 Ollama 密钥提示等 */
+/** the provider ID being edited (draft when creating), used for Ollama key hint etc. */
 const editingProviderKey = computed(() =>
   creatingNewProvider.value ? newProviderKeyDraft.value.trim() : selectedProviderKey.value,
 );
@@ -340,7 +340,7 @@ function formatProviderSaveToast(
   if (r.agentModelsBackupPath || r.authProfilesBackupPath || r.backupPath) {
     tails.push(t("settings.providerBackupNote"));
   }
-  return tails.length > 0 ? `${head} ${tails.join("。")}。` : head;
+  return tails.length > 0 ? `${head} ${tails.join(" ")}` : head;
 }
 
 async function onSaveProvider(): Promise<void> {
@@ -442,7 +442,7 @@ async function onDeleteProvider(): Promise<void> {
     });
     if (!modelResult.ok) {
       provError.value = modelResult.backupPath
-        ? `${modelResult.error}（备份：${modelResult.backupPath}）`
+        ? `${modelResult.error}${t('settings.errBackupNote', { path: modelResult.backupPath })}`
         : modelResult.error;
       return;
     }
@@ -554,7 +554,7 @@ async function onSaveModel(): Promise<void> {
     });
     if (!r.ok) {
       modelError.value = r.backupPath
-        ? `${r.error}（备份已生成：${r.backupPath}）`
+        ? `${r.error}${t('settings.errBackupNote', { path: r.backupPath })}`
         : r.error;
       return;
     }
@@ -584,7 +584,7 @@ async function onRestoreModel(): Promise<void> {
     const r = await api.restoreOpenClawConfigToLatestBackup();
     if (!r.ok) {
       modelError.value = r.backupPath
-        ? `${r.error}（当前文件已先备份至：${r.backupPath}）`
+        ? `${r.error}${t('settings.errBackupNote', { path: r.backupPath })}`
         : r.error;
       return;
     }
@@ -601,7 +601,7 @@ async function onRestoreModel(): Promise<void> {
 </script>
 
 <template>
-  <!-- Teleport 避免遮罩留在 header 内：main 在 DOM 中后绘制，会盖住同层叠上下文中 header 下的 fixed 层 -->
+  <!-- Teleport avoids the backdrop being trapped inside the header stacking context -->
   <Teleport to="body">
     <div v-if="open" class="backdrop" @click.self="open = false">
       <div
@@ -649,7 +649,7 @@ async function onRestoreModel(): Promise<void> {
           </button>
         </div>
 
-        <!-- ② AI 配置（新卡片式界面） -->
+        <!-- AI config panel -->
         <div v-if="tab === 'ai'" class="tab-panel">
           <AiProviderSetup :open="open && tab === 'ai'" />
         </div>
