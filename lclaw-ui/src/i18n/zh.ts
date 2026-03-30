@@ -881,6 +881,8 @@ export default {
     imgSaveFailed: "保存图片生成模型失败",
     imgEnabled: "✓ 图片生成已开启（{model}）— 请重启网关后生效",
     imgDisabled: "已关闭图片生成",
+    switchHint: "切换 ›",
+    addFallback: "+ 添加",
     searchPlaceholder: "搜索服务商…",
     tagAll: "全部",
     tagConfigured: "已配置",

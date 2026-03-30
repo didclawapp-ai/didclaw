@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **AI 配置面板二次修正**：修复 provider 卡片网格实际渲染为 2 列的问题（将 `repeat(3, 1fr)` 改为 `repeat(3, minmax(0, 1fr))` 并给卡片加 `min-width: 0; overflow: hidden`，防止内容撑开隐式最小宽）；卡片补充 `min-height: 100px`；Primary banner 右侧补充"切换 ›"文字；备用模型行的添加按钮改为文字链样式，与 Demo 一致。
+
 - **AI 配置面板重设计（AiProviderSetup）**：整体风格向技能/渠道面板对齐。改为固定 480px 高度的自容器布局；顶部展示主力模型 banner 与可折叠备用模型编辑行；搜索框 + 六个横向滚动标签（全部/已配置/推荐/国内/海外/本地）快速过滤；三列 provider 卡片展示 icon、名称、描述、模型数与 baseUrl；图片生成独立子区块；配置面板改为 `position:absolute` 底部滑出 overlay（含 API Key、baseUrl、节点切换、模型 chips 及保存/设为主力按钮），与技能面板动画方式一致。补充 `aiProvider.searchPlaceholder / tagAll / tagConfigured / tagRecommended / tagCN / tagIntl / tagLocal / noMatch` 中英文文案。
 
 - **技能管理对话框改为卡片式布局**：`SkillsManagerDialog` 与渠道面板一致采用固定高度对话框、左侧四个 Tab（技能市场 / 已安装 / 本地技能库 / 手动导入）、市场页三列卡片网格与底部滑出详情；搜索框内嵌图标并防抖实时查询，标签单行横向滚动；手动导入 Tab 集中展示安装目录与 ZIP 拖拽区；关闭对话框时重置详情状态。补充 `skills.*` 中英文文案。

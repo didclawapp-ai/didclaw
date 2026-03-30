@@ -882,6 +882,8 @@ export default {
     imgSaveFailed: "Failed to save image generation model",
     imgEnabled: "✓ Image generation enabled ({model}) — restart gateway to apply",
     imgDisabled: "Image generation disabled",
+    switchHint: "Switch ›",
+    addFallback: "+ Add",
     searchPlaceholder: "Search providers…",
     tagAll: "All",
     tagConfigured: "Configured",

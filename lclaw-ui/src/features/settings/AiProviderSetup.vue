@@ -525,6 +525,7 @@ async function removeImageGen() {
       <span class="aips-banner-label">{{ t('aiProvider.primaryLabel') }}</span>
       <span class="aips-banner-sep" aria-hidden="true" />
       <span class="aips-banner-value">{{ currentPrimaryLabel() }}</span>
+      <span class="aips-banner-switch">{{ t('aiProvider.switchHint') }}</span>
     </div>
 
     <!-- Fallback row (compact) -->
@@ -536,16 +537,16 @@ async function removeImageGen() {
           v-for="m in fallbackModels"
           :key="m"
           class="aips-fallback-chip"
-        >{{ m }}<button type="button" class="aips-fallback-chip-del" :aria-label="t('aiProvider.removeModel', { m })" @click.stop="removeFallback(m)">x</button></span>
+        >{{ m }}<button type="button" class="aips-fallback-chip-del" :aria-label="t('aiProvider.removeModel', { m })" @click.stop="removeFallback(m)">×</button></span>
       </div>
-      <button
-        type="button"
-        class="aips-fallback-bar-toggle"
-        :class="{ 'aips-fallback-bar-toggle--active': showFallbackEditor }"
+      <span
+        class="aips-fallback-add-link"
+        :class="{ 'aips-fallback-add-link--active': showFallbackEditor }"
+        role="button"
+        tabindex="0"
         @click="showFallbackEditor = !showFallbackEditor"
-      >
-        {{ showFallbackEditor ? t('aiProvider.done') : '+ ' + t('aiProvider.add') }}
-      </button>
+        @keydown.enter.prevent="showFallbackEditor = !showFallbackEditor"
+      >{{ showFallbackEditor ? t('aiProvider.done') : t('aiProvider.addFallback') }}</span>
     </div>
 
     <!-- Fallback editor (expandable) -->
@@ -966,6 +967,13 @@ async function removeImageGen() {
   white-space: nowrap;
   flex: 1;
 }
+.aips-banner-switch {
+  font-size: 11px;
+  color: var(--lc-accent);
+  white-space: nowrap;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
 
 .aips-fallback-bar {
   display: flex;
@@ -1017,23 +1025,19 @@ async function removeImageGen() {
   line-height: 1;
 }
 .aips-fallback-chip-del:hover { color: var(--lc-error); }
-.aips-fallback-bar-toggle {
-  background: transparent;
-  border: 1px solid var(--lc-border);
-  border-radius: 5px;
-  color: var(--lc-text-muted);
+.aips-fallback-add-link {
   font-size: 11px;
-  padding: 2px 8px;
+  color: var(--lc-accent);
   cursor: pointer;
   white-space: nowrap;
-  font-family: inherit;
   flex-shrink: 0;
-  transition: border-color 0.12s, color 0.12s;
+  user-select: none;
+  opacity: 0.8;
+  transition: opacity 0.12s;
 }
-.aips-fallback-bar-toggle:hover,
-.aips-fallback-bar-toggle--active {
-  border-color: var(--lc-accent);
-  color: var(--lc-accent);
+.aips-fallback-add-link:hover,
+.aips-fallback-add-link--active {
+  opacity: 1;
 }
 
 .aips-fallback-editor {
@@ -1163,13 +1167,13 @@ async function removeImageGen() {
 
 .aips-providers-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   align-content: start;
 }
 .aips-img-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1184,6 +1188,9 @@ async function removeImageGen() {
   flex-direction: column;
   gap: 4px;
   user-select: none;
+  min-height: 100px;
+  min-width: 0;
+  overflow: hidden;
 }
 .aips-pcard:hover {
   border-color: var(--lc-border-strong, var(--lc-accent));
