@@ -851,6 +851,12 @@ export default {
     desc:      "Link chat apps so AI can respond on your phone or team tools.",
     configured: "Configured",
     notConfigured: "Not configured",
+    // Card status badges
+    card: {
+      connected: "Connected",
+      idle:      "Not installed",
+      busy:      "Working…",
+    },
     saveBtn:   "Save Config",
     saveOk:    "Config saved",
     saveFail:  "Save failed, please retry",

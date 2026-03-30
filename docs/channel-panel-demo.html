@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DidClaw – Channel Panel v4</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:#111120;
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;color:#ddd;
+}
+
+/* ── Dialog: FIXED SIZE, never grows ─────────────── */
+.dialog{
+  background:#1c1c2d;
+  border:1px solid #2a2a40;
+  border-radius:14px;
+  width:520px;
+  height:480px;          /* fixed total height */
+  display:flex;
+  flex-direction:column;
+  box-shadow:0 28px 72px rgba(0,0,0,.65);
+  overflow:hidden;
+}
+
+/* ── Header (fixed) ─────────────────────────────── */
+.dlg-header{
+  padding:15px 20px 11px;
+  border-bottom:1px solid #24243a;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.dlg-header h2{font-size:14px;font-weight:600;color:#f0f0f0}
+.dlg-header p{font-size:11px;color:#555;margin-top:1px}
+.x-btn{background:none;border:none;cursor:pointer;color:#555;font-size:15px;
+  padding:3px 7px;border-radius:5px;transition:.15s}
+.x-btn:hover{color:#bbb;background:#2a2a40}
+
+/* ── Card area: fills remaining space, scrollable ── */
+.grid-area{
+  flex:1;              /* takes all space not used by header + panel */
+  overflow-y:auto;
+  padding:12px 14px 10px;
+  /* custom scrollbar */
+  scrollbar-width:thin;
+  scrollbar-color:#2c2c48 transparent;
+}
+.grid-area::-webkit-scrollbar{width:4px}
+.grid-area::-webkit-scrollbar-track{background:transparent}
+.grid-area::-webkit-scrollbar-thumb{background:#2c2c48;border-radius:4px}
+
+.card-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:9px;
+}
+
+/* ── Channel card ───────────────────────────────── */
+.ch-card{
+  background:#22223a;
+  border:1.5px solid #2c2c48;
+  border-radius:10px;
+  padding:12px 6px 9px;
+  cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  position:relative;
+  transition:border-color .15s,background .15s,transform .1s;
+  user-select:none;
+}
+.ch-card:hover{background:#27274a;border-color:#3c3c68;transform:translateY(-1px)}
+.ch-card:active{transform:translateY(0)}
+.ch-card.selected{border-color:#6366f1;background:#26264a}
+
+.icon-wrap{
+  position:relative;width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;
+}
+.ch-icon{font-size:22px;position:relative;z-index:1;line-height:1}
+
+.s-dot{
+  position:absolute;bottom:1px;right:1px;
+  width:9px;height:9px;border-radius:50%;
+  border:1.5px solid #1c1c2d;background:#2e2e4e;z-index:2;
+}
+[data-status="connected"]                        .s-dot{background:#22c55e}
+[data-status="error"]                            .s-dot{background:#ef4444}
+[data-status="installing"] .s-dot,
+[data-status="restarting"] .s-dot,
+[data-status="reconnecting"] .s-dot{display:none}
+
+.spin-ring{
+  position:absolute;inset:-4px;border-radius:50%;
+  border:2px solid transparent;display:none;
+}
+[data-status="installing"] .spin-ring{
+  display:block;border-top-color:#22c55e;border-right-color:#22c55e;
+  animation:spin .7s linear infinite}
+[data-status="restarting"] .spin-ring,
+[data-status="reconnecting"] .spin-ring{
+  display:block;border-top-color:#f59e0b;border-right-color:#f59e0b;
+  animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.ch-name{font-size:11px;font-weight:500;color:#c0c0e0;text-align:center;line-height:1.2}
+.ch-status-lbl{
+  font-size:9.5px;padding:1px 5px;border-radius:3px;font-weight:500;
+}
+[data-status="idle"]         .ch-status-lbl{background:rgba(148,163,184,.07);color:#484868}
+[data-status="connected"]    .ch-status-lbl{background:rgba(34,197,94,.1); color:#22c55e}
+[data-status="error"]        .ch-status-lbl{background:rgba(239,68,68,.1); color:#ef4444}
+[data-status="installing"]   .ch-status-lbl,
+[data-status="restarting"]   .ch-status-lbl,
+[data-status="reconnecting"] .ch-status-lbl{
+  background:rgba(34,197,94,.07);color:#22c55e;
+  animation:blink .6s ease-in-out infinite alternate}
+@keyframes blink{from{opacity:.5}to{opacity:1}}
+
+/* ── Bottom panel: FIXED HEIGHT, slides up ────────── */
+.bottom-panel{
+  flex-shrink:0;
+  height:0;
+  overflow:hidden;
+  border-top:0px solid transparent;
+  background:#181828;
+  transition:height .22s cubic-bezier(.4,0,.2,1),
+             border-top-color .22s, border-top-width .05s;
+}
+.bottom-panel.open{
+  height:190px;
+  border-top:1px solid #24243a;
+}
+
+.bp-inner{
+  height:190px;
+  padding:13px 16px 14px;
+  display:flex;flex-direction:column;gap:10px;
+}
+
+/* panel header */
+.bp-head{
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.bp-icon{font-size:18px;line-height:1}
+.bp-title{font-size:13px;font-weight:600;color:#f0f0f0}
+.bp-pill{
+  font-size:9.5px;padding:1px 6px;border-radius:10px;font-weight:500;
+}
+.pill-idle       {background:rgba(148,163,184,.08);color:#505070}
+.pill-installing,
+.pill-restarting {background:rgba(245,158,11,.1);color:#f59e0b;
+  animation:blink .6s ease-in-out infinite alternate}
+.pill-connected  {background:rgba(34,197,94,.1);color:#22c55e}
+.pill-error      {background:rgba(239,68,68,.1);color:#ef4444}
+.bp-close{margin-left:auto;background:none;border:none;cursor:pointer;
+  color:#3a3a5a;font-size:14px;padding:2px 5px;border-radius:4px;transition:.15s}
+.bp-close:hover{color:#aaa;background:#222238}
+
+/* panel body */
+.bp-body{flex:1;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+
+/* install btn */
+.install-btn{
+  padding:7px 13px;
+  background:rgba(99,102,241,.14);color:#a5b4fc;
+  border:1px solid rgba(99,102,241,.25);border-radius:7px;
+  font-size:12px;font-weight:600;cursor:pointer;transition:.15s;
+  white-space:nowrap;flex-shrink:0;
+}
+.install-btn:hover{background:rgba(99,102,241,.26)}
+
+/* busy state */
+.busy-row{display:flex;align-items:center;gap:9px;font-size:12px;color:#888}
+.mini-ring{
+  width:14px;height:14px;border-radius:50%;flex-shrink:0;
+  border:2px solid transparent;animation:spin .7s linear infinite;
+}
+.mini-ring.green{border-top-color:#22c55e;border-right-color:#22c55e}
+.mini-ring.amber{border-top-color:#f59e0b;border-right-color:#f59e0b}
+
+/* QR layout */
+.qr-row{display:flex;align-items:center;gap:14px;height:100%}
+.qr-wrap{background:#fff;border-radius:7px;padding:6px;flex-shrink:0}
+.qr-wrap svg{display:block;width:92px;height:92px}
+.qr-meta{display:flex;flex-direction:column;gap:5px}
+.qr-hint{font-size:11.5px;color:#999;line-height:1.5}
+.qr-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qr-timer-row{font-size:11px;color:#555}
+.qr-timer{color:#22c55e;font-weight:600}
+.qr-refresh-btn{
+  padding:4px 9px;font-size:10.5px;cursor:pointer;
+  background:rgba(34,197,94,.07);color:#22c55e;
+  border:1px solid rgba(34,197,94,.16);border-radius:5px;transition:.15s;
+}
+.qr-refresh-btn:hover{background:rgba(34,197,94,.14)}
+
+/* credential layout */
+.cred-row{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;width:100%}
+.cred-field{display:flex;flex-direction:column;gap:3px;flex:1;min-width:90px}
+.cred-field label{font-size:10px;font-weight:600;color:#666;letter-spacing:.04em}
+.cred-field input{
+  background:#1e1e32;border:1px solid #2c2c48;
+  border-radius:6px;padding:5px 8px;font-size:11.5px;color:#ddd;
+  outline:none;transition:border-color .15s;
+}
+.cred-field input:focus{border-color:#6366f1}
+.cred-field input::placeholder{color:#33334a}
+.save-btn{
+  padding:6px 13px;background:#6366f1;color:#fff;
+  border:none;border-radius:6px;font-size:12px;font-weight:600;
+  cursor:pointer;transition:.15s;white-space:nowrap;
+  height:30px;align-self:flex-end;flex-shrink:0;
+}
+.save-btn:hover{background:#5558e8}
+
+/* oauth layout */
+.oauth-row{display:flex;align-items:center;gap:14px;width:100%}
+.oauth-desc{font-size:11.5px;color:#888;line-height:1.55;flex:1}
+.oauth-login-btn{
+  padding:7px 13px;background:#fff;color:#222;
+  border:none;border-radius:7px;font-size:12px;font-weight:600;
+  cursor:pointer;display:flex;align-items:center;gap:6px;
+  transition:.15s;white-space:nowrap;flex-shrink:0;
+}
+.oauth-login-btn:hover{background:#eee}
+.oauth-badge{
+  width:15px;height:15px;border-radius:2px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;flex-shrink:0;
+}
+
+/* ── Toast ──────────────────────────────────────── */
+.toast{
+  position:fixed;bottom:16px;left:50%;
+  transform:translateX(-50%) translateY(8px);
+  background:#22c55e;color:#fff;font-size:12px;font-weight:500;
+  padding:7px 14px;border-radius:6px;
+  box-shadow:0 6px 20px rgba(0,0,0,.4);
+  opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;z-index:999;
+}
+.toast.vis{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.warn{background:#f59e0b}
+</style>
+</head>
+<body>
+
+<div class="dialog">
+  <div class="dlg-header">
+    <div>
+      <h2>接入消息渠道</h2>
+      <p>连接聊天应用，让 AI 在手机或团队工具上响应你</p>
+    </div>
+    <button class="x-btn" onclick="collapsePanel()">✕</button>
+  </div>
+
+  <!-- scrollable card grid -->
+  <div class="grid-area">
+    <div class="card-grid" id="card-grid"></div>
+  </div>
+
+  <!-- fixed-height bottom detail panel -->
+  <div class="bottom-panel" id="bottom-panel">
+    <div class="bp-inner">
+      <div class="bp-head" id="bp-head"></div>
+      <div class="bp-body" id="bp-body"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<template id="qr-tpl">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100" height="100" fill="white"/>
+  <rect x="5" y="5" width="30" height="30" rx="2" fill="#111"/>
+  <rect x="9" y="9" width="22" height="22" rx="1" fill="white"/>
+  <rect x="13" y="13" width="14" height="14" fill="#111"/>
+  <rect x="65" y="5" width="30" height="30" rx="2" fill="#111"/>
+  <rect x="69" y="9" width="22" height="22" rx="1" fill="white"/>
+  <rect x="73" y="13" width="14" height="14" fill="#111"/>
+  <rect x="5" y="65" width="30" height="30" rx="2" fill="#111"/>
+  <rect x="9" y="69" width="22" height="22" rx="1" fill="white"/>
+  <rect x="13" y="73" width="14" height="14" fill="#111"/>
+  <rect x="40" y="5"  width="5" height="5" fill="#111"/>
+  <rect x="47" y="5"  width="5" height="5" fill="#111"/>
+  <rect x="54" y="5"  width="5" height="5" fill="#111"/>
+  <rect x="40" y="12" width="5" height="5" fill="#111"/>
+  <rect x="54" y="12" width="5" height="5" fill="#111"/>
+  <rect x="40" y="19" width="5" height="5" fill="#111"/>
+  <rect x="47" y="19" width="5" height="5" fill="#111"/>
+  <rect x="40" y="26" width="5" height="5" fill="#111"/>
+  <rect x="54" y="26" width="5" height="5" fill="#111"/>
+  <rect x="40" y="40" width="5" height="5" fill="#111"/>
+  <rect x="47" y="40" width="5" height="5" fill="#111"/>
+  <rect x="54" y="40" width="5" height="5" fill="#111"/>
+  <rect x="5"  y="40" width="5" height="5" fill="#111"/>
+  <rect x="12" y="40" width="5" height="5" fill="#111"/>
+  <rect x="19" y="40" width="5" height="5" fill="#111"/>
+  <rect x="26" y="40" width="5" height="5" fill="#111"/>
+  <rect x="61" y="40" width="5" height="5" fill="#111"/>
+  <rect x="68" y="40" width="5" height="5" fill="#111"/>
+  <rect x="75" y="40" width="5" height="5" fill="#111"/>
+  <rect x="82" y="40" width="5" height="5" fill="#111"/>
+  <rect x="61" y="47" width="5" height="5" fill="#111"/>
+  <rect x="75" y="47" width="5" height="5" fill="#111"/>
+  <rect x="61" y="54" width="5" height="5" fill="#111"/>
+  <rect x="68" y="54" width="5" height="5" fill="#111"/>
+  <rect x="82" y="54" width="5" height="5" fill="#111"/>
+  <rect x="61" y="61" width="5" height="5" fill="#111"/>
+  <rect x="75" y="61" width="5" height="5" fill="#111"/>
+  <rect x="61" y="68" width="5" height="5" fill="#111"/>
+  <rect x="82" y="68" width="5" height="5" fill="#111"/>
+  <rect x="61" y="75" width="5" height="5" fill="#111"/>
+  <rect x="68" y="75" width="5" height="5" fill="#111"/>
+  <rect x="61" y="82" width="5" height="5" fill="#111"/>
+  <rect x="82" y="82" width="5" height="5" fill="#111"/>
+  <rect x="61" y="89" width="5" height="5" fill="#111"/>
+  <rect x="68" y="89" width="5" height="5" fill="#111"/>
+  <rect x="75" y="89" width="5" height="5" fill="#111"/>
+  <rect x="5"  y="47" width="5" height="5" fill="#111"/>
+  <rect x="19" y="47" width="5" height="5" fill="#111"/>
+  <rect x="26" y="47" width="5" height="5" fill="#111"/>
+  <rect x="5"  y="54" width="5" height="5" fill="#111"/>
+  <rect x="12" y="54" width="5" height="5" fill="#111"/>
+  <rect x="26" y="54" width="5" height="5" fill="#111"/>
+  <rect x="5"  y="61" width="5" height="5" fill="#111"/>
+  <rect x="19" y="61" width="5" height="5" fill="#111"/>
+  <rect x="5"  y="68" width="5" height="5" fill="#111"/>
+  <rect x="12" y="68" width="5" height="5" fill="#111"/>
+  <rect x="26" y="68" width="5" height="5" fill="#111"/>
+  <rect x="5"  y="75" width="5" height="5" fill="#111"/>
+  <rect x="19" y="75" width="5" height="5" fill="#111"/>
+  <rect x="26" y="75" width="5" height="5" fill="#111"/>
+  <rect x="5"  y="82" width="5" height="5" fill="#111"/>
+  <rect x="12" y="82" width="5" height="5" fill="#111"/>
+  <rect x="19" y="82" width="5" height="5" fill="#111"/>
+  <rect x="40" y="47" width="5" height="5" fill="#111"/>
+  <rect x="47" y="47" width="5" height="5" fill="#111"/>
+  <rect x="54" y="47" width="5" height="5" fill="#111"/>
+  <rect x="40" y="54" width="5" height="5" fill="#111"/>
+  <rect x="54" y="54" width="5" height="5" fill="#111"/>
+  <rect x="40" y="61" width="5" height="5" fill="#111"/>
+  <rect x="47" y="61" width="5" height="5" fill="#111"/>
+  <rect x="54" y="61" width="5" height="5" fill="#111"/>
+</svg>
+</template>
+
+<script>
+const CHANNELS = [
+  { id:"wechat",   icon:"🟢", name:"微信",     paradigm:"qr",
+    hint:"微信 → 扫一扫",      needsPlugin:true,  gatewayRestart:true,  status:"connected" },
+  { id:"whatsapp", icon:"💬", name:"WhatsApp", paradigm:"qr",
+    hint:"WhatsApp → Linked Devices → Scan",
+    needsPlugin:true,  gatewayRestart:true,  status:"idle" },
+  { id:"gmail",    icon:"📧", name:"Gmail",    paradigm:"oauth",
+    oauthLabel:"使用 Google 账号授权", oauthBadge:"G", oauthBadgeBg:"#ea4335",
+    needsPlugin:true,  gatewayRestart:false, status:"idle" },
+  { id:"wecom",    icon:"💼", name:"企业微信",  paradigm:"credential",
+    fields:[{key:"botId",label:"Bot ID",placeholder:"粘贴 Bot ID"},
+            {key:"secret",label:"Secret",placeholder:"粘贴 Secret",type:"password"}],
+    needsPlugin:true,  gatewayRestart:true,  status:"idle" },
+  { id:"feishu",   icon:"🐦", name:"飞书",     paradigm:"credential",
+    fields:[{key:"appId",label:"App ID",placeholder:"cli_xxxx"},
+            {key:"appSecret",label:"App Secret",placeholder:"粘贴 App Secret",type:"password"}],
+    needsPlugin:true,  gatewayRestart:false, status:"idle" },
+  { id:"discord",  icon:"🎮", name:"Discord",  paradigm:"credential",
+    fields:[{key:"token",label:"Bot Token",placeholder:"Paste Token",type:"password"}],
+    needsPlugin:false, gatewayRestart:false, status:"idle" },
+  { id:"slack",    icon:"💜", name:"Slack",    paradigm:"oauth",
+    oauthLabel:"Sign in with Slack", oauthBadge:"S", oauthBadgeBg:"#4a154b",
+    needsPlugin:true,  gatewayRestart:false, status:"idle" },
+  // extra channels to show scrolling behaviour
+  { id:"line",     icon:"💚", name:"Line",     paradigm:"qr",
+    hint:"Line → QR Code Login",
+    needsPlugin:true,  gatewayRestart:false, status:"idle" },
+  { id:"teams",    icon:"🔵", name:"MS Teams", paradigm:"oauth",
+    oauthLabel:"Sign in with Microsoft", oauthBadge:"M", oauthBadgeBg:"#0078d4",
+    needsPlugin:true,  gatewayRestart:false, status:"idle" },
+  { id:"more",     icon:"➕", name:"更多",      paradigm:"more",
+    needsPlugin:false, gatewayRestart:false, status:"idle" },
+];
+
+const STATUS_TEXT={
+  idle:"未安装",installing:"安装中…",
+  restarting:"重启中…",reconnecting:"重连中…",
+  connected:"已连接",error:"失败"
+};
+
+let activeId=null, qrInterval=null;
+
+function renderCards(){
+  const g=document.getElementById("card-grid");
+  g.innerHTML="";
+  CHANNELS.forEach(ch=>{
+    const el=document.createElement("div");
+    el.className="ch-card"+(activeId===ch.id?" selected":"");
+    el.id="card-"+ch.id;
+    el.dataset.status=ch.status;
+    el.innerHTML=`
+      <div class="icon-wrap">
+        <span class="ch-icon">${ch.icon}</span>
+        <div class="spin-ring"></div>
+        <div class="s-dot"></div>
+      </div>
+      <span class="ch-name">${ch.name}</span>
+      <span class="ch-status-lbl">${STATUS_TEXT[ch.status]||ch.status}</span>`;
+    if(ch.id!=="more"){
+      el.onclick=()=>onCardClick(ch);
+    } else {
+      el.style.opacity=".3"; el.style.cursor="default";
+    }
+    g.appendChild(el);
+  });
+}
+
+function setCardStatus(id,s){
+  const ch=CHANNELS.find(c=>c.id===id);
+  if(ch) ch.status=s;
+  const el=document.getElementById("card-"+id);
+  if(!el) return;
+  el.dataset.status=s;
+  el.querySelector(".ch-status-lbl").textContent=STATUS_TEXT[s]||s;
+}
+
+function onCardClick(ch){
+  if(["installing","restarting","reconnecting"].includes(ch.status)) return;
+  const wasActive = activeId===ch.id;
+  activeId = wasActive ? null : ch.id;
+  renderCards();
+  if(wasActive){ collapsePanel(); return; }
+  // scroll selected card into view
+  setTimeout(()=>{
+    const card=document.getElementById("card-"+ch.id);
+    if(card) card.scrollIntoView({block:"nearest",behavior:"smooth"});
+  },30);
+  openPanel(ch);
+}
+
+function openPanel(ch){
+  const panel=document.getElementById("bottom-panel");
+  panel.classList.add("open");
+  renderPanelHead(ch);
+  renderPanelBody(ch);
+}
+
+function collapsePanel(){
+  activeId=null;
+  clearQrTimer();
+  document.getElementById("bottom-panel").classList.remove("open");
+  renderCards();
+}
+
+function renderPanelHead(ch){
+  const pillCls={
+    idle:"idle",installing:"installing",restarting:"restarting",
+    reconnecting:"restarting",connected:"connected",error:"error"
+  }[ch.status]||"idle";
+  document.getElementById("bp-head").innerHTML=`
+    <span class="bp-icon">${ch.icon}</span>
+    <span class="bp-title">${ch.name}</span>
+    <span class="bp-pill pill-${pillCls}">${STATUS_TEXT[ch.status]||ch.status}</span>
+    <button class="bp-close" onclick="collapsePanel()">✕</button>`;
+}
+
+function renderPanelBody(ch){
+  const body=document.getElementById("bp-body");
+  body.innerHTML="";
+
+  if(ch.status==="installing"){
+    body.innerHTML=`<div class="busy-row">
+      <div class="mini-ring green"></div>
+      <span>正在安装 ${ch.name} 插件…</span></div>`;
+    return;
+  }
+  if(ch.status==="restarting"||ch.status==="reconnecting"){
+    const msg=ch.status==="restarting"?"网关重启中，即将自动重连…":"重连网关中，稍后显示二维码…";
+    body.innerHTML=`<div class="busy-row">
+      <div class="mini-ring amber"></div><span>${msg}</span></div>`;
+    return;
+  }
+  if(ch.status==="error"){
+    body.innerHTML=`<div class="busy-row" style="gap:10px">
+      <span style="color:#ef4444;font-size:12px">安装失败</span>
+      <button class="install-btn" onclick="doInstall('${ch.id}')">重试</button></div>`;
+    return;
+  }
+  if(ch.status==="idle"&&ch.needsPlugin){
+    const desc={qr:"安装后扫码绑定，全程手机端完成",
+      credential:"安装后填写 API 凭证即可",
+      oauth:"安装后浏览器完成账号授权"}[ch.paradigm]||"";
+    body.innerHTML=`<div class="busy-row" style="gap:14px">
+      <span style="font-size:11.5px;color:#888;flex:1;line-height:1.5">${desc}</span>
+      <button class="install-btn" onclick="doInstall('${ch.id}')">安装并连接</button></div>`;
+    return;
+  }
+  if(ch.paradigm==="qr")         renderQR(ch,body);
+  else if(ch.paradigm==="credential") renderCredential(ch,body);
+  else if(ch.paradigm==="oauth")  renderOAuth(ch,body);
+}
+
+/* QR */
+function renderQR(ch,el){
+  const svg=document.getElementById("qr-tpl").innerHTML;
+  el.innerHTML=`<div class="qr-row">
+    <div class="qr-wrap">${svg}</div>
+    <div class="qr-meta">
+      <p class="qr-hint">${ch.hint||"扫码绑定账号"}</p>
+      <div class="qr-footer">
+        <span class="qr-timer-row">有效期 <span class="qr-timer" id="qr-timer">2:00</span></span>
+        <button class="qr-refresh-btn" onclick="refreshQr()">刷新</button>
+      </div>
+    </div></div>`;
+  startQrTimer();
+}
+function startQrTimer(){
+  clearQrTimer(); let s=120;
+  const upd=()=>{
+    const el=document.getElementById("qr-timer");
+    if(!el){clearQrTimer();return;}
+    if(s<=0){clearQrTimer();el.textContent="已过期";el.style.color="#ef4444";return;}
+    el.style.color="#22c55e";
+    el.textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+    s--;
+  };
+  upd(); qrInterval=setInterval(upd,1000);
+}
+function clearQrTimer(){clearInterval(qrInterval);qrInterval=null;}
+function refreshQr(){startQrTimer();showToast("二维码已刷新");}
+
+/* Credential */
+function renderCredential(ch,el){
+  let html=`<div class="cred-row">`;
+  (ch.fields||[]).forEach(f=>{
+    html+=`<div class="cred-field"><label>${f.label}</label>
+      <input type="${f.type||'text'}" placeholder="${f.placeholder}" autocomplete="off"></div>`;
+  });
+  html+=`<button class="save-btn" onclick="saveCredential('${ch.id}')">保存</button></div>`;
+  el.innerHTML=html;
+}
+function saveCredential(id){
+  setCardStatus(id,"connected"); updatePanelHead(id);
+  showToast("已保存，正在连接…");
+}
+
+/* OAuth */
+function renderOAuth(ch,el){
+  el.innerHTML=`<div class="oauth-row">
+    <p class="oauth-desc">通过 ${ch.name} 官方 OAuth 授权，不存储密码。</p>
+    <button class="oauth-login-btn" onclick="doOAuth('${ch.id}')">
+      <span class="oauth-badge" style="background:${ch.oauthBadgeBg||'#555'};color:#fff">${ch.oauthBadge||"?"}</span>
+      ${ch.oauthLabel||"授权登录"}</button></div>`;
+}
+function doOAuth(id){
+  setCardStatus(id,"connected"); updatePanelHead(id);
+  showToast("浏览器已打开，授权后自动回调");
+}
+
+/* Install + restart flow */
+function doInstall(id){
+  const ch=CHANNELS.find(c=>c.id===id);
+  if(!ch) return;
+  setCardStatus(id,"installing"); updatePanelHead(id); renderPanelBody(ch);
+
+  setTimeout(()=>{
+    if(ch.gatewayRestart){
+      setCardStatus(id,"restarting"); updatePanelHead(id); renderPanelBody(ch);
+      setTimeout(()=>{
+        setCardStatus(id,"reconnecting"); updatePanelHead(id); renderPanelBody(ch);
+        setTimeout(()=>{
+          setCardStatus(id,"connected"); updatePanelHead(id);
+          showToast(`${ch.name} 已就绪，请扫码绑定`);
+          renderPanelBody(ch);
+        },1800);
+      },1600);
+    } else {
+      setCardStatus(id,"connected"); updatePanelHead(id);
+      showToast(`${ch.name} 插件已安装`);
+      renderPanelBody(ch);
+    }
+  },1800+Math.random()*600);
+}
+
+function updatePanelHead(id){
+  const ch=CHANNELS.find(c=>c.id===id);
+  if(ch) renderPanelHead(ch);
+}
+
+let toastT=null;
+function showToast(msg,type=""){
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.className="toast vis"+(type?" "+type:"");
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove("vis"),2800);
+}
+
+document.addEventListener("keydown",e=>{if(e.key==="Escape")collapsePanel();});
+renderCards();
+</script>
+</body>
+</html>

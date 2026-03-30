@@ -850,6 +850,12 @@ export default {
     desc:      "连接聊天应用，让 AI 在手机或团队工具上响应你。",
     configured: "已配置",
     notConfigured: "未配置",
+    // 卡片状态徽标
+    card: {
+      connected: "已连接",
+      idle:      "未安装",
+      busy:      "处理中…",
+    },
     saveBtn:   "保存配置",
     saveOk:    "配置已保存",
     saveFail:  "保存失败，请重试",
