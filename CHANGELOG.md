@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 修复
+
+- **Gateway 连接握手失败（client.id 校验错误）**：`GATEWAY_CLIENT_ID` 从 `"didclaw"` 改为 `"openclaw-control-ui"`，与 Gateway `GATEWAY_CLIENT_IDS` 枚举对齐。此前值不在 Gateway schema 白名单中，导致连接握手被拒、首次安装后 AI 引导无法出现。
+
 ### 重构
 
 - **渠道插件化架构完成（阶段七 + 八）**：在模块化基础上完成动态插件渠道支持与 OAuth 范式。新增 `base/useInstalledPlugins.ts`（调用 Gateway `plugins.installed` RPC，优雅降级），`base/useOAuthFlow.ts`（系统浏览器授权 + 轮询 `oauth.status`），`_generic/GenericPluginPanel.vue`（按 `configSchema` 动态渲染表单，支持 text/password/select/multiselect/oauth-button 字段），`_install/InstallChannelPanel.vue`（`+` Tab，含推荐插件列表与自定义包名安装）。`ChannelSetupDialog.vue` 改为完全数据驱动：Tab 栏由 `BUILTIN_CHANNELS + dynamicChannels + 安装 Tab` 合并生成，面板渲染通过 `<component :is>` 统一分发；新增渠道只需在 `registry.ts` 加一行。
