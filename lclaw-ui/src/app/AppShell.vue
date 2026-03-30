@@ -42,8 +42,8 @@ import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
 
-/** 与参考「流式占位」一致：首包 delta 到达前也显示助手行（长任务常处于推理/工具阶段，无文本增量） */
-const STREAMING_PENDING_LABEL = "正在处理（推理或工具调用中，请稍候）…";
+/** Matches the streaming placeholder: show the assistant row before the first delta arrives
+ *  (long tasks stay in reasoning/tool phase with no text delta). */
 
 const session = useSessionStore();
 const chat = useChatStore();
@@ -99,7 +99,7 @@ function formatTokenCount(n: number): string {
   return String(n);
 }
 
-/** 当前会话的 token 用量（来自 sessions.list），用于状态栏展示 */
+/** Token usage for the active session (from sessions.list), shown in the toolbar. */
 const sessionTokenUsage = computed(() => {
   const row = activeSession.value;
   if (!row) return null;
@@ -125,7 +125,7 @@ const canCloseActiveSession = computed(
   () => Boolean(activeSessionKey.value) && activeSessionKey.value !== "agent:main:main",
 );
 
-/** 有注册表行或已有 primary 时显示下拉（纯空配置仅保留「管理模型」） */
+/** Show the model picker when there are registry rows or an existing primary model. */
 const showOpenClawModelSelect = computed(
   () =>
     isDidClawElectron() &&
@@ -191,7 +191,7 @@ function onGlobalDocumentClick(event: MouseEvent): void {
   }
   event.preventDefault();
   void openExternalUrl(href).catch(() => {
-    window.alert("打开外链失败，请稍后重试。");
+    window.alert(t('shell.openExternalFailed'));
   });
 }
 
@@ -244,13 +244,14 @@ const displayLines = computed(() => {
   if (runId.value != null) {
     const raw = streamText.value ?? "";
     const hasBody = raw.trim().length > 0;
-    const t = hasBody ? raw : STREAMING_PENDING_LABEL;
+    const pendingLabel = t('shell.streaming');
+    const streamingContent = hasBody ? raw : pendingLabel;
     list = [
       ...base,
       {
         role: "assistant" as const,
-        text: t,
-        listText: hasBody ? buildListPreview(raw) : STREAMING_PENDING_LABEL,
+        text: streamingContent,
+        listText: hasBody ? buildListPreview(raw) : pendingLabel,
         streaming: true as const,
       },
     ];
@@ -341,7 +342,7 @@ async function pickLocalFileForPreview(): Promise<void> {
       role="status"
     >
       <span class="lc-deferred-model-banner__text">
-        您已选择稍后配置对话模型。发消息前请在本机设置中完成「② AI 账号」与「③ 选模型」。
+        {{ t('shell.deferredModelBanner') }}
       </span>
       <div class="lc-deferred-model-banner__actions">
         <button
@@ -349,14 +350,14 @@ async function pickLocalFileForPreview(): Promise<void> {
           class="lc-btn lc-btn-primary lc-btn-xs"
           @click="onDeferredBannerOpenSettings"
         >
-          打开本机设置
+          {{ t('shell.deferredModelOpenSettings') }}
         </button>
         <button
           type="button"
           class="lc-btn lc-btn-ghost lc-btn-xs"
           @click="onDeferredBannerDismiss"
         >
-          已完成配置
+          {{ t('shell.deferredModelDone') }}
         </button>
       </div>
     </div>
@@ -387,11 +388,11 @@ async function pickLocalFileForPreview(): Promise<void> {
             @open-ai-settings="localSettings.open('ai')"
           />
           <p v-if="sessionsError" class="err small">{{ sessionsError }}</p>
-          <div v-if="sessionsLoading" class="muted">加载中…</div>
+          <div v-if="sessionsLoading" class="muted">{{ t('shell.sessionsLoading') }}</div>
 
           <div class="left-conversation">
             <div class="panel-title row-title">
-              <span>消息</span>
+              <span>{{ t('shell.messagesTitle') }}</span>
               <div v-if="!historyLoading" class="msg-toolbar">
                 <label class="msg-filter">
                   <input
@@ -399,7 +400,7 @@ async function pickLocalFileForPreview(): Promise<void> {
                     :checked="followLatest"
                     @change="preview.setFollowLatest(($event.target as HTMLInputElement).checked)"
                   >
-                  跟随最新
+                  {{ t('shell.followLatest') }}
                 </label>
                 <label class="msg-filter">
                   <input
@@ -409,22 +410,22 @@ async function pickLocalFileForPreview(): Promise<void> {
                       preview.setShowDiagnosticMessages(($event.target as HTMLInputElement).checked)
                     "
                   >
-                  显示诊断/配置
+                  {{ t('shell.showDiagnostic') }}
                 </label>
                 <button
                   v-if="isDidClawElectron() && !isPreviewPaneOpen"
                   type="button"
                   class="lc-btn lc-btn-ghost lc-btn-xs toolbar-mini"
-                  title="打开本地文件并在右侧预览（PDF / 图片 / Office / Markdown / 文本）"
+                  :title="t('shell.localFileTitle')"
                   @click="pickLocalFileForPreview"
                 >
-                  本地文件…
+                  {{ t('shell.localFileBtn') }}
                 </button>
                 <span
                   v-if="sessionTokenUsage"
                   class="token-usage"
                   :title="t('usage.tooltipSession')"
-                  aria-label="Token 用量"
+                  :aria-label="t('shell.tokenUsageLabel')"
                 >
                   <span class="token-in">{{ t('usage.in') }}{{ formatTokenCount(sessionTokenUsage.in) }}</span>
                   <span class="token-out">{{ t('usage.out') }}{{ formatTokenCount(sessionTokenUsage.out) }}</span>
@@ -434,15 +435,14 @@ async function pickLocalFileForPreview(): Promise<void> {
             <ChatRunStatusBar />
             <div class="left-messages">
               <template v-if="historyLoading">
-                <div class="muted">加载历史…</div>
+                <div class="muted">{{ t('shell.historyLoading') }}</div>
                 <div class="left-messages-spacer" aria-hidden="true" />
               </template>
               <template
                 v-else-if="displayLines.length === 0 && messages.length > 0 && !showDiagnosticMessages"
               >
-                <p class="muted filter-hint">
-                  本会话消息已按规则隐藏（含全部 <strong>system</strong> 行、审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。
-                </p>
+                <!-- eslint-disable-next-line vue/no-v-html -->
+                <p class="muted filter-hint" v-html="t('shell.messagesFiltered')" />
                 <div class="left-messages-spacer" aria-hidden="true" />
               </template>
               <template v-else-if="!historyLoading && displayLines.length > 0">
@@ -460,10 +460,10 @@ async function pickLocalFileForPreview(): Promise<void> {
                 v-else-if="!historyLoading && messages.length === 0"
                 class="left-msg-list-wrap left-msg-list-wrap--placeholder"
               >
-                <p class="muted">暂无消息</p>
+                <p class="muted">{{ t('shell.noMessages') }}</p>
               </div>
               <template v-else-if="!historyLoading">
-                <p class="muted filter-hint">暂无可显示消息。</p>
+                <p class="muted filter-hint">{{ t('shell.noVisibleMessages') }}</p>
                 <div class="left-messages-spacer" aria-hidden="true" />
               </template>
             </div>
@@ -476,11 +476,11 @@ async function pickLocalFileForPreview(): Promise<void> {
           v-if="isPreviewPaneOpen"
           ref="previewPaneRef"
           class="right"
-          aria-label="文件预览"
+          :aria-label="t('shell.previewPaneLabel')"
         >
           <div class="panel-title preview-panel-head">
-            <span>文件预览</span>
-            <button type="button" class="preview-close-btn" title="关闭预览" @click="filePreview.clear()">&#x2715;</button>
+            <span>{{ t('shell.previewTitle') }}</span>
+            <button type="button" class="preview-close-btn" :title="t('shell.previewClose')" @click="filePreview.clear()">&#x2715;</button>
           </div>
           <div class="preview-wrap">
             <PreviewPane />
