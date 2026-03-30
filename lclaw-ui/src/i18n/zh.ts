@@ -547,6 +547,14 @@ export default {
     deadlineExceeded: "请求超时。",
   },
 
+  // ─── Markdown 渲染 markdown-render（echarts-json 围栏） ─
+  markdownRender: {
+    echartsJsonInvalid: "JSON 无效：{msg}",
+    echartsSchemaFailed: "图表配置未通过校验：{detail}",
+    echartsPayloadTooLarge: "图表数据过大",
+    chartAriaLabel: "图表",
+  },
+
   // ─── 首次引导 FirstRunWizard ─────────────────────────
   wizard: {
     title: "欢迎使用",

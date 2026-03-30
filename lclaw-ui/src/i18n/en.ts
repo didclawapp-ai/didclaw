@@ -547,6 +547,14 @@ export default {
     deadlineExceeded: "Request timed out.",
   },
 
+  // ─── Markdown render (echarts-json fence) ─────────────
+  markdownRender: {
+    echartsJsonInvalid: "Invalid JSON: {msg}",
+    echartsSchemaFailed: "Chart options failed validation: {detail}",
+    echartsPayloadTooLarge: "Chart data is too large",
+    chartAriaLabel: "Chart",
+  },
+
   // ─── First run wizard ─────────────────────────────────
   wizard: {
     title: "Welcome",

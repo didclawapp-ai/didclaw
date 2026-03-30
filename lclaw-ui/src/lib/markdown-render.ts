@@ -1,4 +1,5 @@
 import DOMPurify from "dompurify";
+import { i18n } from "@/i18n";
 import { echartsJsonSchema } from "@/lib/echarts-option-schema";
 import { isLinkHrefAllowed } from "@/lib/url-allowlist";
 import hljs from "highlight.js/lib/core";
@@ -85,18 +86,22 @@ const fenceRule: RenderRule = (tokens, idx, options) => {
       parsedJson = JSON.parse(raw);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml(`JSON 无效：${msg}`)}</pre>\n`;
+      const line = i18n.global.t("markdownRender.echartsJsonInvalid", { msg });
+      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml(line)}</pre>\n`;
     }
     const zr = echartsJsonSchema.safeParse(parsedJson);
     if (!zr.success) {
       const detail = zr.error.issues.map((i) => i.message).join("; ");
-      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml(`图表配置未通过校验：${detail}`)}</pre>\n`;
+      const line = i18n.global.t("markdownRender.echartsSchemaFailed", { detail });
+      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml(line)}</pre>\n`;
     }
     const payload = utf8ToBase64(JSON.stringify(zr.data));
     if (payload.length > 180_000) {
-      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml("图表数据过大")}</pre>\n`;
+      const line = i18n.global.t("markdownRender.echartsPayloadTooLarge");
+      return `<pre class="didclaw-chart-error">${md.utils.escapeHtml(line)}</pre>\n`;
     }
-    return `<div class="didclaw-chart" data-didclaw-chart="${payload}" role="img" aria-label="图表"></div>\n`;
+    const aria = md.utils.escapeHtml(i18n.global.t("markdownRender.chartAriaLabel"));
+    return `<div class="didclaw-chart" data-didclaw-chart="${payload}" role="img" aria-label="${aria}"></div>\n`;
   }
 
   const highlighted =
@@ -153,7 +158,7 @@ if (!g.__didclawDomPurifyHooks) {
       }
     }
   });
-  // 在 DOMPurify 净化完属性后直接操作 DOM 节点，避免二次 innerHTML 解析带来的 mXSS 风险
+  // Mutate DOM after sanitize to avoid a second innerHTML parse (mXSS risk)
   DOMPurify.addHook("afterSanitizeAttributes", (node) => {
     if (String(node.nodeName).toLowerCase() === "a") {
       const href = node.getAttribute("href");
@@ -166,9 +171,8 @@ if (!g.__didclawDomPurifyHooks) {
 }
 
 /**
- * Markdown → HTML，经 DOMPurify 白名单消毒（禁用原始 HTML 注入）。
- * 外部链接的 target/_blank/rel 通过 afterSanitizeAttributes hook 在净化阶段内完成，
- * 无需二次 innerHTML 解析。
+ * Markdown → HTML, sanitized with a DOMPurify tag allowlist (raw HTML from source disabled).
+ * External links get target/_blank/rel via afterSanitizeAttributes during sanitize (no second parse).
  */
 export function renderMarkdownToSafeHtml(source: string): string {
   const raw = md.render(source);
