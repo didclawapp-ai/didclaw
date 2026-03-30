@@ -575,6 +575,21 @@ export default {
     baseUrlCurrent: "Current address",
   },
 
+  // ─── Primary model guards (openclaw-model-guards) ─────
+  openClawModel: {
+    glmImagePrimaryIncompatible:
+      "glm-image is Zhipu's image-generation model; the official API is POST /images/generations (one JSON response with image URLs). " +
+      "It does not support streaming Chat Completions (SSE) used in chat. If set as the primary model, the gateway still uses the chat streaming API and Zhipu returns 400 (SSE not supported for this model). " +
+      "Use glm-5, glm-4.7, or other chat models as primary; use images/generations, the SDK, or tools/plugins for image generation.",
+  },
+
+  // ─── Session display (session-display) ───────────────
+  sessionDisplay: {
+    newChat: "New chat",
+    endedSuffix: " (closed)",
+    noActiveTime: "No recent activity",
+  },
+
   // ─── First run wizard ─────────────────────────────────
   wizard: {
     title: "Welcome",

@@ -1,5 +1,6 @@
 import { sessionsListResponseSchema } from "@/features/gateway/schemas";
 import { describeGatewayError } from "@/lib/gateway-errors";
+import { sessionEndedSuffix, stripSessionEndedSuffix } from "@/lib/session-display";
 import { formatZodIssues } from "@/lib/zod-format";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
@@ -27,10 +28,10 @@ const DEFAULT_MAIN_SESSION_KEY = "agent:main:main";
 
 function ghostRowForKey(prevSnap: SessionRow[], key: string): SessionRow {
   const prev = prevSnap.find((s) => s.key === key);
-  const raw = (prev?.label ?? key).replace(/（已结束）\s*$/u, "").trim() || key;
+  const raw = stripSessionEndedSuffix(prev?.label ?? key).trim() || key;
   return {
     key,
-    label: `${raw}（已结束）`,
+    label: `${raw}${sessionEndedSuffix()}`,
     lastActiveAt: prev?.lastActiveAt,
     model: prev?.model,
     localOnly: true,

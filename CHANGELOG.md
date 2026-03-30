@@ -8,6 +8,7 @@
 
 ### 优化
 
+- **i18n 补全（openclaw-model-guards / session-display）**：主模型 glm-image 不兼容说明改为 `openClawModel.glmImagePrimaryIncompatible`；会话展示「新对话」「已结束」后缀与「无活跃时间」、历史时间 `toLocaleString` 随应用语言切换；导出 `sessionEndedSuffix` / `stripSessionEndedSuffix` / `labelHasEndedSuffix`，`session` store 关闭会话时的 ghost 行标签与上述后缀一致并兼容旧版中文后缀。
 - **i18n 补全（open-external / openclaw-config-hint / openclaw-ai-config）**：桌面端打开外链失败默认文案、保存模型配置后的提示（`getOpenClawAfterWriteHint` 替代常量）、读取 AI 快照失败及模型选择器/Provider 视图兜底文案（别名、当前默认、检测说明、Base URL 标签）均接入 vue-i18n，新增 `openExternal.*`、`openClawConfig.*`、`openClawAi.*`；`chat` store 的 `flashOpenClawConfigHint` 无参时使用当前语言提示。
 - **i18n 补全（markdown-render）**：`echarts-json` 代码围栏的错误提示与图表容器 `aria-label` 改为 `i18n.global.t()`，新增 `markdownRender.*` 中英文 key；相关 JSDoc/注释改为英文。
 - **i18n 补全（gateway-errors）**：常见 JSON-RPC 错误码说明与「提示 + 原始 detail」拼接改为 vue-i18n，新增 `gatewayErr.*`（含 `withDetail` 与各码文案）；`describeGatewayError` 随当前语言切换。

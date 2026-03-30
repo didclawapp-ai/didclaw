@@ -575,6 +575,21 @@ export default {
     baseUrlCurrent: "当前地址",
   },
 
+  // ─── 主模型兼容性 openclaw-model-guards ──────────────
+  openClawModel: {
+    glmImagePrimaryIncompatible:
+      "glm-image 是智谱「图像生成」模型，官方接口为 POST /images/generations（一次 JSON，返回图片 URL），" +
+      "不支持对话里的流式 Chat Completions（SSE）。把主模型设成 glm-image 时，网关仍会按对话流式调用，智谱会报 400「当前模型不支持 SSE 调用方式」。" +
+      "请改用 glm-5、glm-4.7 等对话模型作为主模型；生图请用官方 images/generations、SDK 或后续工具/插件集成。",
+  },
+
+  // ─── 会话展示 session-display ───────────────────────
+  sessionDisplay: {
+    newChat: "新对话",
+    endedSuffix: "（已结束）",
+    noActiveTime: "无活跃时间",
+  },
+
   // ─── 首次引导 FirstRunWizard ─────────────────────────
   wizard: {
     title: "欢迎使用",
