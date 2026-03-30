@@ -14,6 +14,13 @@
 
 - **在线升级检测不生效**：`desktop-api.ts` 的 `tauriApi()` 遗漏了 `checkDidClawUpdate` 和 `installDidClawUpdate` 两个新命令的注册，导致 `api?.checkDidClawUpdate` 始终为 `undefined`，检查静默失败。同步修复 ToolSidebar「检查更新」按钮逻辑：原先无论有无更新都在 2.5 秒后显示「已是最新版」；改为通过 `didclaw-check-app-update-result` 自定义事件等待 `DidClawUpdatePrompt` 回传检测结果，有更新时对话框弹出、按钮不显示「已是最新版」，无更新或超时（8s）才显示。
 
+## [0.6.1] - 2026-03-30
+
+### 修复
+
+- **任务栏常驻**：修复托盘图标 `menu_on_left_click` 废弃 API 警告，改用 `show_menu_on_left_click`。
+- **在线升级**：修复 `desktop-api.ts` 漏注册 `checkDidClawUpdate` / `installDidClawUpdate` 导致检测静默失败；修复 ToolSidebar「检查更新」按钮无论有无更新都显示「已是最新版」的逻辑错误。
+
 ## [0.6.0] - 2026-03-30
 
 ### 新增
