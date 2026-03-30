@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **修复企业微信保存后无反应的问题**：`WeComPanel` 写入配置后既未重启 Gateway（导致 WeCom WebSocket 不启动），也未调用 `onSuccess()`（导致卡片状态不刷新、对话框不关闭）。现在保存成功后先调 `restartGatewayAndReconnect` 再调 `onSuccess()`，整个流程与 WhatsApp/微信 一致。
+
 - **移除向导预安装列表中的 Gmail**：`@openclaw/gmail` 不存在，Gmail 与 OpenClaw 的集成需要 Google Cloud Pub/Sub + OAuth + 公网 webhook，无法做成一键安装插件，移出向导避免安装失败。默认勾选改为 WhatsApp + 微信。
 
 - **修复插件安装后 Gateway 重启导致持续断开的问题**：企业微信等插件安装后 Gateway 会自重启，WebSocket 以 1012 "service restart" 关闭，UI 之前将其当作永久错误显示"已断开"。现在识别 1012 代码，进入 `connecting` 状态并在 3 秒后自动重连，等待 Gateway 重启完成后恢复连接。
