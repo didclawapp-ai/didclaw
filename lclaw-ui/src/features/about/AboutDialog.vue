@@ -42,14 +42,15 @@ const techStack = [
     <Transition name="about-fade">
       <div v-if="open" class="about-backdrop" @click.self="open = false">
         <div class="about-dialog" role="dialog" :aria-label="t('about.title')">
-
           <!-- close -->
           <button
             type="button"
             class="about-close"
             :aria-label="t('about.close')"
             @click="open = false"
-          >✕</button>
+          >
+            ✕
+          </button>
 
           <!-- hero -->
           <div class="about-hero">

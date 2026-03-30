@@ -1779,459 +1779,459 @@ const selectedOpenclawPlugin = computed(() => {
             </div>
 
             <div class="skills-main-scroll">
-            <!-- ClawHub -->
-            <div v-show="subTab === 'browse'" class="skills-body skills-body--market" role="tabpanel">
-              <div class="skills-search-row">
-                <div class="skills-search-wrap">
-                  <span class="skills-search-icon" aria-hidden="true">🔍</span>
-                  <input
-                    v-model="searchQuery"
-                    type="search"
-                    class="skills-search-input"
-                    :placeholder="t('skills.searchMarketPlaceholder')"
-                    @input="onMarketSearchInput"
-                    @keydown.enter="onSearchSubmit"
-                  >
-                </div>
-                <div class="skills-view-toggle" role="group" :aria-label="t('skills.resultLayout')">
-                  <button
-                    type="button"
-                    class="skills-view-btn"
-                    :class="{ active: hubResultsView === 'cards' }"
-                    :title="t('skills.viewCards')"
-                    @click="hubResultsView = 'cards'"
-                  >
-                    ⊞
-                  </button>
-                  <button
-                    type="button"
-                    class="skills-view-btn"
-                    :class="{ active: hubResultsView === 'list' }"
-                    :title="t('skills.viewList')"
-                    @click="hubResultsView = 'list'"
-                  >
-                    ☰
-                  </button>
-                </div>
-              </div>
-              <div class="skills-tags-row" :aria-label="t('skills.quickTagsAria')">
-                <button
-                  type="button"
-                  class="skills-tag-pill"
-                  :class="{ 'skills-tag-pill--active': activeQuickTag === 'all' }"
-                  :disabled="searchLoading"
-                  @click="onClearMarketSearch"
-                >
-                  {{ t("skills.tagAll") }}
-                </button>
-                <button
-                  v-for="item in CLAWHUB_QUICK_SEARCH_ITEMS"
-                  :key="item.query"
-                  type="button"
-                  class="skills-tag-pill"
-                  :class="{ 'skills-tag-pill--active': activeQuickTag === item.label }"
-                  :disabled="searchLoading"
-                  @click="onQuickSearch(item.query, item.label)"
-                >
-                  {{ item.label }}
-                </button>
-              </div>
-              <p v-if="searchError" class="err small">{{ searchError }}</p>
-
-              <div ref="hubResultsRegionEl" class="skills-market-results" aria-live="polite">
-                <p v-if="searchLoading" class="muted small skills-market-status">{{ t("skills.searching") }}</p>
-                <p v-else-if="!searchHits.length" class="muted small skills-market-empty">
-                  {{ t("skills.marketEmptyHint") }}
-                </p>
-                <template v-else>
-                  <div v-if="hubResultsView === 'cards'" class="skills-card-grid">
-                    <article
-                      v-for="h in searchHits"
-                      :key="`${h.family}:${h.slug}`"
-                      class="skills-market-card"
-                      :class="{
-                        'skills-market-card--active':
-                          hubSlug === h.slug &&
-                          hubDetailKind === (h.family === 'code-plugin' || h.family === 'bundle-plugin' ? 'package' : 'skill'),
-                      }"
-                      :data-catalog-hit-key="catalogHitKey(h)"
-                      role="button"
-                      tabindex="0"
-                      @click="() => void onMarketCardClick(h)"
-                      @keydown.enter.prevent="() => void onMarketCardClick(h)"
-                    >
-                      <div class="skills-market-card-top">
-                        <div class="skills-market-card-icon" aria-hidden="true">
-                          {{ h.family === "code-plugin" || h.family === "bundle-plugin" ? "📦" : "🔧" }}
-                        </div>
-                        <span
-                          class="skills-market-badge"
-                          :class="{
-                            'skills-market-badge--plugin': h.family === 'code-plugin' || h.family === 'bundle-plugin',
-                          }"
-                        >{{ familyLabel(h.family) }}</span>
-                      </div>
-                      <div class="skills-market-card-name">{{ h.displayName?.trim() || h.slug }}</div>
-                      <p class="skills-market-card-desc">{{ truncateSummary(h.summary, 120) }}</p>
-                      <div class="skills-market-card-meta">
-                        <code class="skills-market-card-slug">{{ h.slug }}</code>
-                        <span v-if="h.version" class="dot" aria-hidden="true" />
-                        <span v-if="h.version">{{ h.version }}</span>
-                      </div>
-                    </article>
-                  </div>
-                  <ul v-else class="hub-result-list" role="list">
-                    <li
-                      v-for="h in searchHits"
-                      :key="`${h.family}:${h.slug}`"
-                      class="hub-list-row"
-                      :data-catalog-hit-key="catalogHitKey(h)"
-                    >
-                      <div class="hub-list-text">
-                        <div class="hub-list-title-row">
-                          <span class="hub-list-name">{{ h.displayName?.trim() || h.slug }}</span>
-                          <span class="hub-list-family">{{ familyLabel(h.family) }}</span>
-                          <code class="hub-list-slug">{{ h.slug }}</code>
-                        </div>
-                        <p class="hub-list-summary">{{ truncateSummary(h.summary, 280) }}</p>
-                      </div>
-                      <div class="hub-list-actions">
-                        <button
-                          type="button"
-                          class="lc-btn lc-btn-sm lc-btn-ghost"
-                          :disabled="installButtonDisabledForHit(h)"
-                          @click="installFromSearchHit(h)"
-                        >
-                          {{ installBusy && installingSlug === h.slug ? t("skills.installing") : t("skills.install") }}
-                        </button>
-                        <button
-                          type="button"
-                          class="lc-btn lc-btn-ghost lc-btn-sm"
-                          @click="() => void onMarketCardClick(h)"
-                        >
-                          {{ t("skills.detail") }}
-                        </button>
-                      </div>
-                    </li>
-                  </ul>
-                  <div v-if="canLoadMoreSearchHits" class="hub-load-more">
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-sm"
-                      :disabled="searchLoading"
-                      @click="loadMoreSearchHits"
-                    >
-                      {{ searchLoading ? t("common.loading") : t("skills.loadMore") }}
-                    </button>
-                  </div>
-                </template>
-              </div>
-            </div>
-
-            <!-- OpenClaw -->
-            <div v-show="subTab === 'openclaw'" class="skills-body" role="tabpanel">
-              <p v-if="!isTauri()" class="muted small">桌面版才可读取本机 OpenClaw 的 skills / plugins 发现结果。</p>
-              <template v-else>
-                <div class="skills-search-row openclaw-toolbar">
+              <!-- ClawHub -->
+              <div v-show="subTab === 'browse'" class="skills-body skills-body--market" role="tabpanel">
+                <div class="skills-search-row">
                   <div class="skills-search-wrap">
                     <span class="skills-search-icon" aria-hidden="true">🔍</span>
                     <input
-                      v-model="openclawFilter"
+                      v-model="searchQuery"
                       type="search"
                       class="skills-search-input"
-                      :placeholder="t('skills.filterOpenclawPlaceholder')"
+                      :placeholder="t('skills.searchMarketPlaceholder')"
+                      @input="onMarketSearchInput"
+                      @keydown.enter="onSearchSubmit"
                     >
                   </div>
+                  <div class="skills-view-toggle" role="group" :aria-label="t('skills.resultLayout')">
+                    <button
+                      type="button"
+                      class="skills-view-btn"
+                      :class="{ active: hubResultsView === 'cards' }"
+                      :title="t('skills.viewCards')"
+                      @click="hubResultsView = 'cards'"
+                    >
+                      ⊞
+                    </button>
+                    <button
+                      type="button"
+                      class="skills-view-btn"
+                      :class="{ active: hubResultsView === 'list' }"
+                      :title="t('skills.viewList')"
+                      @click="hubResultsView = 'list'"
+                    >
+                      ☰
+                    </button>
+                  </div>
+                </div>
+                <div class="skills-tags-row" :aria-label="t('skills.quickTagsAria')">
                   <button
                     type="button"
-                    class="lc-btn lc-btn-ghost lc-btn-sm"
-                    :disabled="openclawLoading"
-                    @click="loadOpenClawCatalog(true)"
+                    class="skills-tag-pill"
+                    :class="{ 'skills-tag-pill--active': activeQuickTag === 'all' }"
+                    :disabled="searchLoading"
+                    @click="onClearMarketSearch"
                   >
-                    {{ openclawLoading ? t("skills.scanning") : t("common.refresh") }}
+                    {{ t("skills.tagAll") }}
+                  </button>
+                  <button
+                    v-for="item in CLAWHUB_QUICK_SEARCH_ITEMS"
+                    :key="item.query"
+                    type="button"
+                    class="skills-tag-pill"
+                    :class="{ 'skills-tag-pill--active': activeQuickTag === item.label }"
+                    :disabled="searchLoading"
+                    @click="onQuickSearch(item.query, item.label)"
+                  >
+                    {{ item.label }}
                   </button>
                 </div>
-                <div class="openclaw-filter-bar" role="group" aria-label="OpenClaw 筛选">
-                  <button
-                    type="button"
-                    class="openclaw-filter-chip"
-                    :class="{ active: openclawCatalogFilter === 'all' }"
-                    @click="openclawCatalogFilter = 'all'"
-                  >
-                    全部 {{ searchedOpenclawSkills.length }}
-                  </button>
-                  <button
-                    type="button"
-                    class="openclaw-filter-chip"
-                    :class="{ active: openclawCatalogFilter === 'ready' }"
-                    @click="openclawCatalogFilter = 'ready'"
-                  >
-                    可用 {{ readyOpenclawSkillCount }}
-                  </button>
-                  <button
-                    type="button"
-                    class="openclaw-filter-chip"
-                    :class="{ active: openclawCatalogFilter === 'needsSetup' }"
-                    @click="openclawCatalogFilter = 'needsSetup'"
-                  >
-                    需配置 {{ needsSetupOpenclawSkillCount }}
-                  </button>
-                  <button
-                    type="button"
-                    class="openclaw-filter-chip"
-                    :class="{ active: openclawCatalogFilter === 'disabled' }"
-                    @click="openclawCatalogFilter = 'disabled'"
-                  >
-                    已禁用 {{ disabledOpenclawSkillCount }}
-                  </button>
-                  <button
-                    type="button"
-                    class="openclaw-filter-chip"
-                    :class="{ active: openclawCatalogFilter === 'plugins' }"
-                    @click="openclawCatalogFilter = 'plugins'"
-                  >
-                    插件 {{ searchedOpenclawPlugins.length }}
-                  </button>
+                <p v-if="searchError" class="err small">{{ searchError }}</p>
+
+                <div ref="hubResultsRegionEl" class="skills-market-results" aria-live="polite">
+                  <p v-if="searchLoading" class="muted small skills-market-status">{{ t("skills.searching") }}</p>
+                  <p v-else-if="!searchHits.length" class="muted small skills-market-empty">
+                    {{ t("skills.marketEmptyHint") }}
+                  </p>
+                  <template v-else>
+                    <div v-if="hubResultsView === 'cards'" class="skills-card-grid">
+                      <article
+                        v-for="h in searchHits"
+                        :key="`${h.family}:${h.slug}`"
+                        class="skills-market-card"
+                        :class="{
+                          'skills-market-card--active':
+                            hubSlug === h.slug &&
+                            hubDetailKind === (h.family === 'code-plugin' || h.family === 'bundle-plugin' ? 'package' : 'skill'),
+                        }"
+                        :data-catalog-hit-key="catalogHitKey(h)"
+                        role="button"
+                        tabindex="0"
+                        @click="() => void onMarketCardClick(h)"
+                        @keydown.enter.prevent="() => void onMarketCardClick(h)"
+                      >
+                        <div class="skills-market-card-top">
+                          <div class="skills-market-card-icon" aria-hidden="true">
+                            {{ h.family === "code-plugin" || h.family === "bundle-plugin" ? "📦" : "🔧" }}
+                          </div>
+                          <span
+                            class="skills-market-badge"
+                            :class="{
+                              'skills-market-badge--plugin': h.family === 'code-plugin' || h.family === 'bundle-plugin',
+                            }"
+                          >{{ familyLabel(h.family) }}</span>
+                        </div>
+                        <div class="skills-market-card-name">{{ h.displayName?.trim() || h.slug }}</div>
+                        <p class="skills-market-card-desc">{{ truncateSummary(h.summary, 120) }}</p>
+                        <div class="skills-market-card-meta">
+                          <code class="skills-market-card-slug">{{ h.slug }}</code>
+                          <span v-if="h.version" class="dot" aria-hidden="true" />
+                          <span v-if="h.version">{{ h.version }}</span>
+                        </div>
+                      </article>
+                    </div>
+                    <ul v-else class="hub-result-list" role="list">
+                      <li
+                        v-for="h in searchHits"
+                        :key="`${h.family}:${h.slug}`"
+                        class="hub-list-row"
+                        :data-catalog-hit-key="catalogHitKey(h)"
+                      >
+                        <div class="hub-list-text">
+                          <div class="hub-list-title-row">
+                            <span class="hub-list-name">{{ h.displayName?.trim() || h.slug }}</span>
+                            <span class="hub-list-family">{{ familyLabel(h.family) }}</span>
+                            <code class="hub-list-slug">{{ h.slug }}</code>
+                          </div>
+                          <p class="hub-list-summary">{{ truncateSummary(h.summary, 280) }}</p>
+                        </div>
+                        <div class="hub-list-actions">
+                          <button
+                            type="button"
+                            class="lc-btn lc-btn-sm lc-btn-ghost"
+                            :disabled="installButtonDisabledForHit(h)"
+                            @click="installFromSearchHit(h)"
+                          >
+                            {{ installBusy && installingSlug === h.slug ? t("skills.installing") : t("skills.install") }}
+                          </button>
+                          <button
+                            type="button"
+                            class="lc-btn lc-btn-ghost lc-btn-sm"
+                            @click="() => void onMarketCardClick(h)"
+                          >
+                            {{ t("skills.detail") }}
+                          </button>
+                        </div>
+                      </li>
+                    </ul>
+                    <div v-if="canLoadMoreSearchHits" class="hub-load-more">
+                      <button
+                        type="button"
+                        class="lc-btn lc-btn-ghost lc-btn-sm"
+                        :disabled="searchLoading"
+                        @click="loadMoreSearchHits"
+                      >
+                        {{ searchLoading ? t("common.loading") : t("skills.loadMore") }}
+                      </button>
+                    </div>
+                  </template>
                 </div>
-                <p v-if="openclawWorkspaceDir || openclawManagedSkillsDir" class="muted small openclaw-paths">
-                  <span v-if="openclawWorkspaceDir">workspace：<code>{{ openclawWorkspaceDir }}</code></span>
-                  <span v-if="openclawManagedSkillsDir">managed skills：<code>{{ openclawManagedSkillsDir }}</code></span>
-                </p>
-                <p v-if="openclawError" class="err small">{{ openclawError }}</p>
-                <p v-else-if="openclawLoading" class="muted small">正在从本机 OpenClaw 扫描 skills / plugins，这一步可能需要几十秒。</p>
-                <template v-else>
-                  <section v-if="!showPluginsCatalog" class="openclaw-section">
-                    <p v-if="!displayedOpenclawSkills.length" class="muted small">没有匹配当前筛选条件的技能。</p>
-                    <div class="skills-installed-list">
-                      <button
-                        v-for="skill in displayedOpenclawSkills"
-                        :key="`skill:${skill.name}`"
-                        type="button"
-                        class="skills-installed-item"
-                        :class="{ 'skills-installed-item--active': selectedOpenclawSkill?.name === skill.name }"
-                        @click="toggleOpenclawSkillSelection(skill.name)"
-                      >
-                        <span class="skills-installed-icon" aria-hidden="true">{{ skill.emoji || "🔧" }}</span>
-                        <div class="skills-installed-info">
-                          <div class="skills-installed-name">{{ skill.name }}</div>
-                          <div class="skills-installed-sub">{{ skillSourceLabel(skill) }} · {{ skillStatusLabel(skill) }}</div>
-                        </div>
-                        <span
-                          class="skills-installed-dot"
-                          :class="{
-                            'skills-installed-dot--green': !skill.disabled && skill.eligible,
-                            'skills-installed-dot--yellow': !skill.disabled && !skill.eligible,
-                          }"
-                        />
-                      </button>
-                    </div>
-                  </section>
-
-                  <section v-else class="openclaw-section">
-                    <p v-if="!searchedOpenclawPlugins.length" class="muted small">没有匹配当前筛选条件的插件。</p>
-                    <div class="skills-installed-list">
-                      <button
-                        v-for="plugin in searchedOpenclawPlugins"
-                        :key="`plugin:${plugin.id}`"
-                        type="button"
-                        class="skills-installed-item"
-                        :class="{ 'skills-installed-item--active': selectedOpenclawPlugin?.id === plugin.id }"
-                        @click="() => void toggleOpenclawPluginSelection(plugin.id)"
-                      >
-                        <span class="skills-installed-icon" aria-hidden="true">📦</span>
-                        <div class="skills-installed-info">
-                          <div class="skills-installed-name">{{ plugin.name?.trim() || plugin.id }}</div>
-                          <div class="skills-installed-sub">{{ pluginOriginLabel(plugin) }} · {{ pluginStatusLabel(plugin) }}</div>
-                        </div>
-                        <span
-                          class="skills-installed-dot"
-                          :class="{ 'skills-installed-dot--green': plugin.enabled }"
-                        />
-                      </button>
-                    </div>
-                  </section>
-                </template>
-              </template>
-            </div>
-
-            <!-- 共享目录 -->
-            <div v-show="subTab === 'installed'" class="skills-body skills-body--local-lib" role="tabpanel">
-              <div class="row-actions">
-                <button
-                  type="button"
-                  class="lc-btn lc-btn-ghost lc-btn-sm"
-                  :disabled="installedLoading || !isTauri()"
-                  @click="loadInstalled"
-                >
-                  {{ installedLoading ? t("skills.refreshingInstalled") : t("common.refresh") }}
-                </button>
               </div>
-              <p v-if="installedError" class="err small">{{ installedError }}</p>
-              <p v-if="!isTauri()" class="muted small">{{ t("skills.desktopOnlySharedDir") }}</p>
-              <template v-else>
-                <p class="muted small">{{ t("skills.localLibraryHint") }}</p>
-                <div v-if="installedRows.length" class="skills-card-grid skills-card-grid--local">
-                  <button
-                    v-for="row in installedRows"
-                    :key="row.slug"
-                    type="button"
-                    class="skills-local-card"
-                    :class="{ 'skills-local-card--active': selectedLocalRowSlug === row.slug }"
-                    @click="toggleLocalRowSelection(row.slug)"
-                  >
-                    <span class="skills-local-card-icon" aria-hidden="true">📂</span>
-                    <span class="skills-local-card-name"><code>{{ row.slug }}</code></span>
-                    <span class="skills-local-card-meta">{{ row.source }} · {{ row.installedVersion ?? "—" }}</span>
-                  </button>
-                </div>
-                <div v-else-if="!installedLoading" class="skills-empty-local">
-                  <span class="skills-empty-local-icon" aria-hidden="true">📂</span>
-                  <p class="muted">{{ t("skills.sharedDirEmpty") }}</p>
-                  <p v-if="openclawManagedSkillsDir" class="muted small">{{ t("skills.hintDropSkillsDir", { path: openclawManagedSkillsDir }) }}</p>
-                </div>
-              </template>
-            </div>
 
-            <!-- 本机安装 -->
-            <div v-show="subTab === 'local'" class="skills-body skills-body--import" role="tabpanel">
-              <p v-if="!isTauri()" class="muted small">{{ t("skills.desktopZipFolder") }}</p>
-              <template v-else>
-                <div class="skills-import-root-block">
-                  <label class="skills-field-label">{{ t("skills.importTargetDir") }}</label>
-                  <input
-                    v-model="installRoot"
-                    type="text"
-                    class="skills-root-input"
-                    spellcheck="false"
-                    @blur="onInstallRootBlur"
-                  >
-                  <p class="muted small skills-import-root-note">{{ t("skills.importRootNote") }}</p>
-                </div>
-                <div
-                  class="skills-drop-zone"
-                  :class="{ 'skills-drop-zone--active': importDropActive }"
-                  @dragover="onImportDragOver"
-                  @dragleave="onImportDragLeave"
-                  @drop="onImportDrop"
-                >
-                  <span class="skills-drop-icon" aria-hidden="true">📦</span>
-                  <p class="skills-drop-text">{{ t("skills.dropZipTitle") }}</p>
+              <!-- OpenClaw -->
+              <div v-show="subTab === 'openclaw'" class="skills-body" role="tabpanel">
+                <p v-if="!isTauri()" class="muted small">桌面版才可读取本机 OpenClaw 的 skills / plugins 发现结果。</p>
+                <template v-else>
+                  <div class="skills-search-row openclaw-toolbar">
+                    <div class="skills-search-wrap">
+                      <span class="skills-search-icon" aria-hidden="true">🔍</span>
+                      <input
+                        v-model="openclawFilter"
+                        type="search"
+                        class="skills-search-input"
+                        :placeholder="t('skills.filterOpenclawPlaceholder')"
+                      >
+                    </div>
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-sm"
+                      :disabled="openclawLoading"
+                      @click="loadOpenClawCatalog(true)"
+                    >
+                      {{ openclawLoading ? t("skills.scanning") : t("common.refresh") }}
+                    </button>
+                  </div>
+                  <div class="openclaw-filter-bar" role="group" aria-label="OpenClaw 筛选">
+                    <button
+                      type="button"
+                      class="openclaw-filter-chip"
+                      :class="{ active: openclawCatalogFilter === 'all' }"
+                      @click="openclawCatalogFilter = 'all'"
+                    >
+                      全部 {{ searchedOpenclawSkills.length }}
+                    </button>
+                    <button
+                      type="button"
+                      class="openclaw-filter-chip"
+                      :class="{ active: openclawCatalogFilter === 'ready' }"
+                      @click="openclawCatalogFilter = 'ready'"
+                    >
+                      可用 {{ readyOpenclawSkillCount }}
+                    </button>
+                    <button
+                      type="button"
+                      class="openclaw-filter-chip"
+                      :class="{ active: openclawCatalogFilter === 'needsSetup' }"
+                      @click="openclawCatalogFilter = 'needsSetup'"
+                    >
+                      需配置 {{ needsSetupOpenclawSkillCount }}
+                    </button>
+                    <button
+                      type="button"
+                      class="openclaw-filter-chip"
+                      :class="{ active: openclawCatalogFilter === 'disabled' }"
+                      @click="openclawCatalogFilter = 'disabled'"
+                    >
+                      已禁用 {{ disabledOpenclawSkillCount }}
+                    </button>
+                    <button
+                      type="button"
+                      class="openclaw-filter-chip"
+                      :class="{ active: openclawCatalogFilter === 'plugins' }"
+                      @click="openclawCatalogFilter = 'plugins'"
+                    >
+                      插件 {{ searchedOpenclawPlugins.length }}
+                    </button>
+                  </div>
+                  <p v-if="openclawWorkspaceDir || openclawManagedSkillsDir" class="muted small openclaw-paths">
+                    <span v-if="openclawWorkspaceDir">workspace：<code>{{ openclawWorkspaceDir }}</code></span>
+                    <span v-if="openclawManagedSkillsDir">managed skills：<code>{{ openclawManagedSkillsDir }}</code></span>
+                  </p>
+                  <p v-if="openclawError" class="err small">{{ openclawError }}</p>
+                  <p v-else-if="openclawLoading" class="muted small">正在从本机 OpenClaw 扫描 skills / plugins，这一步可能需要几十秒。</p>
+                  <template v-else>
+                    <section v-if="!showPluginsCatalog" class="openclaw-section">
+                      <p v-if="!displayedOpenclawSkills.length" class="muted small">没有匹配当前筛选条件的技能。</p>
+                      <div class="skills-installed-list">
+                        <button
+                          v-for="skill in displayedOpenclawSkills"
+                          :key="`skill:${skill.name}`"
+                          type="button"
+                          class="skills-installed-item"
+                          :class="{ 'skills-installed-item--active': selectedOpenclawSkill?.name === skill.name }"
+                          @click="toggleOpenclawSkillSelection(skill.name)"
+                        >
+                          <span class="skills-installed-icon" aria-hidden="true">{{ skill.emoji || "🔧" }}</span>
+                          <div class="skills-installed-info">
+                            <div class="skills-installed-name">{{ skill.name }}</div>
+                            <div class="skills-installed-sub">{{ skillSourceLabel(skill) }} · {{ skillStatusLabel(skill) }}</div>
+                          </div>
+                          <span
+                            class="skills-installed-dot"
+                            :class="{
+                              'skills-installed-dot--green': !skill.disabled && skill.eligible,
+                              'skills-installed-dot--yellow': !skill.disabled && !skill.eligible,
+                            }"
+                          />
+                        </button>
+                      </div>
+                    </section>
+
+                    <section v-else class="openclaw-section">
+                      <p v-if="!searchedOpenclawPlugins.length" class="muted small">没有匹配当前筛选条件的插件。</p>
+                      <div class="skills-installed-list">
+                        <button
+                          v-for="plugin in searchedOpenclawPlugins"
+                          :key="`plugin:${plugin.id}`"
+                          type="button"
+                          class="skills-installed-item"
+                          :class="{ 'skills-installed-item--active': selectedOpenclawPlugin?.id === plugin.id }"
+                          @click="() => void toggleOpenclawPluginSelection(plugin.id)"
+                        >
+                          <span class="skills-installed-icon" aria-hidden="true">📦</span>
+                          <div class="skills-installed-info">
+                            <div class="skills-installed-name">{{ plugin.name?.trim() || plugin.id }}</div>
+                            <div class="skills-installed-sub">{{ pluginOriginLabel(plugin) }} · {{ pluginStatusLabel(plugin) }}</div>
+                          </div>
+                          <span
+                            class="skills-installed-dot"
+                            :class="{ 'skills-installed-dot--green': plugin.enabled }"
+                          />
+                        </button>
+                      </div>
+                    </section>
+                  </template>
+                </template>
+              </div>
+
+              <!-- 共享目录 -->
+              <div v-show="subTab === 'installed'" class="skills-body skills-body--local-lib" role="tabpanel">
+                <div class="row-actions">
                   <button
                     type="button"
                     class="lc-btn lc-btn-ghost lc-btn-sm"
-                    :disabled="localBusy"
-                    @click="onPickZipInstall"
+                    :disabled="installedLoading || !isTauri()"
+                    @click="loadInstalled"
                   >
-                    {{ localBusy ? t("common.processing") : t("skills.pickZipInstall") }}
+                    {{ installedLoading ? t("skills.refreshingInstalled") : t("common.refresh") }}
                   </button>
                 </div>
-                <div class="local-plugin-card">
-                  <p class="muted small local-plugin-title">ClawHub 凭据（可选）</p>
-                  <label class="local-slug">
-                    <span class="muted small">Token（可留空；留空时走匿名访问或本机 `clawhub login`）</span>
-                    <div class="local-secret-row">
+                <p v-if="installedError" class="err small">{{ installedError }}</p>
+                <p v-if="!isTauri()" class="muted small">{{ t("skills.desktopOnlySharedDir") }}</p>
+                <template v-else>
+                  <p class="muted small">{{ t("skills.localLibraryHint") }}</p>
+                  <div v-if="installedRows.length" class="skills-card-grid skills-card-grid--local">
+                    <button
+                      v-for="row in installedRows"
+                      :key="row.slug"
+                      type="button"
+                      class="skills-local-card"
+                      :class="{ 'skills-local-card--active': selectedLocalRowSlug === row.slug }"
+                      @click="toggleLocalRowSelection(row.slug)"
+                    >
+                      <span class="skills-local-card-icon" aria-hidden="true">📂</span>
+                      <span class="skills-local-card-name"><code>{{ row.slug }}</code></span>
+                      <span class="skills-local-card-meta">{{ row.source }} · {{ row.installedVersion ?? "—" }}</span>
+                    </button>
+                  </div>
+                  <div v-else-if="!installedLoading" class="skills-empty-local">
+                    <span class="skills-empty-local-icon" aria-hidden="true">📂</span>
+                    <p class="muted">{{ t("skills.sharedDirEmpty") }}</p>
+                    <p v-if="openclawManagedSkillsDir" class="muted small">{{ t("skills.hintDropSkillsDir", { path: openclawManagedSkillsDir }) }}</p>
+                  </div>
+                </template>
+              </div>
+
+              <!-- 本机安装 -->
+              <div v-show="subTab === 'local'" class="skills-body skills-body--import" role="tabpanel">
+                <p v-if="!isTauri()" class="muted small">{{ t("skills.desktopZipFolder") }}</p>
+                <template v-else>
+                  <div class="skills-import-root-block">
+                    <label class="skills-field-label">{{ t("skills.importTargetDir") }}</label>
+                    <input
+                      v-model="installRoot"
+                      type="text"
+                      class="skills-root-input"
+                      spellcheck="false"
+                      @blur="onInstallRootBlur"
+                    >
+                    <p class="muted small skills-import-root-note">{{ t("skills.importRootNote") }}</p>
+                  </div>
+                  <div
+                    class="skills-drop-zone"
+                    :class="{ 'skills-drop-zone--active': importDropActive }"
+                    @dragover="onImportDragOver"
+                    @dragleave="onImportDragLeave"
+                    @drop="onImportDrop"
+                  >
+                    <span class="skills-drop-icon" aria-hidden="true">📦</span>
+                    <p class="skills-drop-text">{{ t("skills.dropZipTitle") }}</p>
+                    <button
+                      type="button"
+                      class="lc-btn lc-btn-ghost lc-btn-sm"
+                      :disabled="localBusy"
+                      @click="onPickZipInstall"
+                    >
+                      {{ localBusy ? t("common.processing") : t("skills.pickZipInstall") }}
+                    </button>
+                  </div>
+                  <div class="local-plugin-card">
+                    <p class="muted small local-plugin-title">ClawHub 凭据（可选）</p>
+                    <label class="local-slug">
+                      <span class="muted small">Token（可留空；留空时走匿名访问或本机 `clawhub login`）</span>
+                      <div class="local-secret-row">
+                        <input
+                          v-model="clawhubToken"
+                          :type="showClawhubToken ? 'text' : 'password'"
+                          class="skills-root-input"
+                          spellcheck="false"
+                          autocomplete="off"
+                          placeholder="clh_..."
+                        >
+                        <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="showClawhubToken = !showClawhubToken">
+                          {{ showClawhubToken ? "隐藏" : "显示" }}
+                        </button>
+                      </div>
+                    </label>
+                    <label class="local-slug">
+                      <span class="muted small">Registry（可选）</span>
                       <input
-                        v-model="clawhubToken"
-                        :type="showClawhubToken ? 'text' : 'password'"
+                        v-model="clawhubRegistry"
+                        type="text"
                         class="skills-root-input"
                         spellcheck="false"
-                        autocomplete="off"
-                        placeholder="clh_..."
+                        placeholder="https://clawhub.ai"
                       >
-                      <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="showClawhubToken = !showClawhubToken">
-                        {{ showClawhubToken ? "隐藏" : "显示" }}
+                    </label>
+                    <div class="local-actions">
+                      <button type="button" class="lc-btn lc-btn-sm" @click="saveClawhubAuth">
+                        保存凭据
+                      </button>
+                      <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="clearClawhubAuth">
+                        清除凭据
                       </button>
                     </div>
-                  </label>
-                  <label class="local-slug">
-                    <span class="muted small">Registry（可选）</span>
-                    <input
-                      v-model="clawhubRegistry"
-                      type="text"
-                      class="skills-root-input"
-                      spellcheck="false"
-                      placeholder="https://clawhub.ai"
-                    >
-                  </label>
-                  <div class="local-actions">
-                    <button type="button" class="lc-btn lc-btn-sm" @click="saveClawhubAuth">
-                      保存凭据
-                    </button>
-                    <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="clearClawhubAuth">
-                      清除凭据
-                    </button>
+                    <p class="muted small">
+                      会保存在本机 DidClaw SQLite 中，供桌面端匿名 HTTP 请求和 `openclaw skills/plugins` CLI 调用复用。
+                    </p>
                   </div>
-                  <p class="muted small">
-                    会保存在本机 DidClaw SQLite 中，供桌面端匿名 HTTP 请求和 `openclaw skills/plugins` CLI 调用复用。
-                  </p>
-                </div>
-                <label class="local-slug">
-                  <span class="muted small">目录名（slug，可选；不填则用文件名/文件夹名）</span>
-                  <input v-model="localSlug" type="text" class="skills-root-input" spellcheck="false">
-                </label>
-                <div class="local-actions">
-                  <button
-                    type="button"
-                    class="lc-btn lc-btn-ghost lc-btn-sm"
-                    :disabled="localBusy || localPluginBusy"
-                    @click="onPickZipInstall"
-                  >
-                    {{ localBusy ? "处理中…" : "选择 ZIP 安装" }}
-                  </button>
-                  <button
-                    type="button"
-                    class="lc-btn lc-btn-ghost lc-btn-sm"
-                    :disabled="localBusy || localPluginBusy"
-                    @click="onPickFolderInstall"
-                  >
-                    {{ localBusy ? "处理中…" : "选择文件夹安装" }}
-                  </button>
-                </div>
-                <div class="local-plugin-card">
-                  <p class="muted small local-plugin-title">本机插件安装（OpenClaw CLI）</p>
                   <label class="local-slug">
-                    <span class="muted small">插件目录/归档路径（支持文件夹、`.tgz`、`.zip` 等）</span>
-                    <input
-                      v-model="localPluginSpec"
-                      type="text"
-                      class="skills-root-input"
-                      spellcheck="false"
-                      placeholder="C:\path\to\my-plugin 或 C:\path\to\my-plugin.tgz"
-                    >
+                    <span class="muted small">目录名（slug，可选；不填则用文件名/文件夹名）</span>
+                    <input v-model="localSlug" type="text" class="skills-root-input" spellcheck="false">
                   </label>
                   <div class="local-actions">
                     <button
                       type="button"
                       class="lc-btn lc-btn-ghost lc-btn-sm"
                       :disabled="localBusy || localPluginBusy"
-                      @click="onPickPluginFolder"
+                      @click="onPickZipInstall"
                     >
-                      {{ localPluginBusy ? "处理中…" : "选择插件目录" }}
+                      {{ localBusy ? "处理中…" : "选择 ZIP 安装" }}
                     </button>
                     <button
                       type="button"
                       class="lc-btn lc-btn-ghost lc-btn-sm"
                       :disabled="localBusy || localPluginBusy"
-                      @click="onPickPluginPackage"
+                      @click="onPickFolderInstall"
                     >
-                      {{ localPluginBusy ? "处理中…" : "选择插件包" }}
-                    </button>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-sm"
-                      :disabled="localBusy || localPluginBusy"
-                      @click="onInstallLocalPlugin"
-                    >
-                      {{ localPluginBusy ? "安装中…" : "安装本机插件" }}
+                      {{ localBusy ? "处理中…" : "选择文件夹安装" }}
                     </button>
                   </div>
-                  <p class="muted small">
-                    会调用 <code>openclaw plugins install &lt;path&gt;</code>；安装完成后通常需要重启 Gateway 才会加载。
-                  </p>
-                </div>
-                <p v-if="localMessage" class="small" :class="localMessageKind === 'error' ? 'err' : localMessageKind === 'success' ? 'ok' : 'muted'">{{ localMessage }}</p>
-              </template>
-            </div>
+                  <div class="local-plugin-card">
+                    <p class="muted small local-plugin-title">本机插件安装（OpenClaw CLI）</p>
+                    <label class="local-slug">
+                      <span class="muted small">插件目录/归档路径（支持文件夹、`.tgz`、`.zip` 等）</span>
+                      <input
+                        v-model="localPluginSpec"
+                        type="text"
+                        class="skills-root-input"
+                        spellcheck="false"
+                        placeholder="C:\path\to\my-plugin 或 C:\path\to\my-plugin.tgz"
+                      >
+                    </label>
+                    <div class="local-actions">
+                      <button
+                        type="button"
+                        class="lc-btn lc-btn-ghost lc-btn-sm"
+                        :disabled="localBusy || localPluginBusy"
+                        @click="onPickPluginFolder"
+                      >
+                        {{ localPluginBusy ? "处理中…" : "选择插件目录" }}
+                      </button>
+                      <button
+                        type="button"
+                        class="lc-btn lc-btn-ghost lc-btn-sm"
+                        :disabled="localBusy || localPluginBusy"
+                        @click="onPickPluginPackage"
+                      >
+                        {{ localPluginBusy ? "处理中…" : "选择插件包" }}
+                      </button>
+                      <button
+                        type="button"
+                        class="lc-btn lc-btn-sm"
+                        :disabled="localBusy || localPluginBusy"
+                        @click="onInstallLocalPlugin"
+                      >
+                        {{ localPluginBusy ? "安装中…" : "安装本机插件" }}
+                      </button>
+                    </div>
+                    <p class="muted small">
+                      会调用 <code>openclaw plugins install &lt;path&gt;</code>；安装完成后通常需要重启 Gateway 才会加载。
+                    </p>
+                  </div>
+                  <p v-if="localMessage" class="small" :class="localMessageKind === 'error' ? 'err' : localMessageKind === 'success' ? 'ok' : 'muted'">{{ localMessage }}</p>
+                </template>
+              </div>
             </div>
           </div>
         </div>
@@ -2581,7 +2581,6 @@ const selectedOpenclawPlugin = computed(() => {
             </template>
           </div>
         </div>
-
       </div>
     </div>
   </Teleport>
