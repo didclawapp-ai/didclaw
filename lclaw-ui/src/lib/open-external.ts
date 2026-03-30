@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { getDidClawDesktopApi, isDidClawDesktop } from "@/lib/desktop-api";
 
 export function isExternalHttpUrl(url: string): boolean {
@@ -13,7 +14,7 @@ export async function openExternalUrl(url: string): Promise<boolean> {
   if (isDidClawDesktop() && api?.openExternalUrl) {
     const result = await api.openExternalUrl(trimmed);
     if (!result.ok) {
-      throw new Error(result.error || "打开外链失败");
+      throw new Error(result.error || i18n.global.t("openExternal.errOpenFailed"));
     }
     return true;
   }

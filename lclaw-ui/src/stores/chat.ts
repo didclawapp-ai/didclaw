@@ -10,7 +10,7 @@ import {
 } from "@/lib/chat-messages";
 import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
-import { OPENCLAW_AFTER_WRITE_HINT } from "@/lib/openclaw-config-hint";
+import { getOpenClawAfterWriteHint } from "@/lib/openclaw-config-hint";
 import { buildModelPickerRows, readOpenClawAiSnapshot } from "@/lib/openclaw-ai-config";
 import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
@@ -180,8 +180,8 @@ export const useChatStore = defineStore("chat", () => {
 
   const agentBusy = computed(() => sending.value || runId.value != null);
 
-  function flashOpenClawConfigHint(message: string = OPENCLAW_AFTER_WRITE_HINT): void {
-    openClawConfigHint.value = message;
+  function flashOpenClawConfigHint(message?: string): void {
+    openClawConfigHint.value = message ?? getOpenClawAfterWriteHint();
     if (openClawConfigHintTimer != null) {
       clearTimeout(openClawConfigHintTimer);
     }

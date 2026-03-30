@@ -555,6 +555,26 @@ export default {
     chartAriaLabel: "Chart",
   },
 
+  // ─── Open external links (open-external) ──────────────
+  openExternal: {
+    errOpenFailed: "Failed to open link",
+  },
+
+  // ─── OpenClaw config hint (openclaw-config-hint) ─────
+  openClawConfig: {
+    afterWriteHint:
+      "Saved locally. Changes usually apply immediately. If chat still misbehaves, quit and reopen the app, or restart the gateway from the terminal where OpenClaw is installed (follow your tutorial).",
+  },
+
+  // ─── OpenClaw AI config (openclaw-ai-config) ──────────
+  openClawAi: {
+    readSnapshotFailed: "Failed to read OpenClaw AI configuration",
+    modelPickerAlias: "{ref} ({alias})",
+    modelPickerCurrentDefault: "{model} (current default)",
+    detectedFromConfig: "Detected from OpenClaw configuration",
+    baseUrlCurrent: "Current address",
+  },
+
   // ─── First run wizard ─────────────────────────────────
   wizard: {
     title: "Welcome",

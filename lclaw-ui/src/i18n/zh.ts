@@ -555,6 +555,26 @@ export default {
     chartAriaLabel: "图表",
   },
 
+  // ─── 打开外链 open-external ──────────────────────────
+  openExternal: {
+    errOpenFailed: "打开外链失败",
+  },
+
+  // ─── OpenClaw 配置提示 openclaw-config-hint ───────────
+  openClawConfig: {
+    afterWriteHint:
+      "已保存到本机。一般会马上生效；若对话仍异常，可先关掉再打开本软件，或在安装 OpenClaw 的终端里执行「网关重启」（以您看的教程为准）。",
+  },
+
+  // ─── OpenClaw AI 配置 openclaw-ai-config ───────────────
+  openClawAi: {
+    readSnapshotFailed: "读取 OpenClaw AI 配置失败",
+    modelPickerAlias: "{ref}（{alias}）",
+    modelPickerCurrentDefault: "{model}（当前默认）",
+    detectedFromConfig: "已从 OpenClaw 配置中检测到",
+    baseUrlCurrent: "当前地址",
+  },
+
   // ─── 首次引导 FirstRunWizard ─────────────────────────
   wizard: {
     title: "欢迎使用",

@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { getDidClawDesktopApi, isDidClawDesktop } from "@/lib/electron-bridge";
 import { findCatalogEntry, PROVIDER_CATALOG, type ProviderCatalogEntry } from "@/lib/provider-catalog";
 
@@ -201,7 +202,7 @@ export async function readOpenClawAiSnapshot(): Promise<OpenClawAiSnapshot> {
   }
   const result = await api.readOpenClawAiSnapshot();
   if (!result.ok) {
-    throw new Error(result.error || "读取 OpenClaw AI 配置失败");
+    throw new Error(result.error || i18n.global.t("openClawAi.readSnapshotFailed"));
   }
   return normalizeOpenClawAiSnapshot(result);
 }
@@ -225,13 +226,16 @@ export function buildModelPickerRows(snapshot: OpenClawAiSnapshot): Array<{ valu
       const alias = snapshot.models[ref]?.alias;
       return {
         value: ref,
-        label: typeof alias === "string" && alias.trim() ? `${ref}（${alias.trim()}）` : ref,
+        label:
+          typeof alias === "string" && alias.trim()
+            ? i18n.global.t("openClawAi.modelPickerAlias", { ref, alias: alias.trim() })
+            : ref,
       };
     });
   if (snapshot.primaryModel && !rows.some((row) => row.value === snapshot.primaryModel)) {
     rows.push({
       value: snapshot.primaryModel,
-      label: `${snapshot.primaryModel}（当前默认）`,
+      label: i18n.global.t("openClawAi.modelPickerCurrentDefault", { model: snapshot.primaryModel }),
     });
   }
   rows.sort((a, b) => a.value.localeCompare(b.value));
@@ -304,14 +308,14 @@ function buildProviderView(
   return {
     id: providerId,
     displayName: catalog?.name || friendlyDetectedProviderName(providerId) || providerId,
-    description: catalog?.description || "已从 OpenClaw 配置中检测到",
+    description: catalog?.description || i18n.global.t("openClawAi.detectedFromConfig"),
     icon: catalog?.icon || "AI",
     color: catalog?.color || "#64748b",
     docsUrl: catalog?.docsUrl,
     catalog,
     source: catalog ? "recommended" : "detected",
     baseUrl,
-    baseUrlLabel: catalog?.baseUrlLabel || "当前地址",
+    baseUrlLabel: catalog?.baseUrlLabel || i18n.global.t("openClawAi.baseUrlCurrent"),
     baseUrlAlt: catalog?.baseUrlAlt,
     baseUrlAltLabel: catalog?.baseUrlAltLabel,
     apiKeyRequired: catalog?.apiKeyRequired ?? providerId !== "ollama",
