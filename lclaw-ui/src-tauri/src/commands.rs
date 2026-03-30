@@ -776,3 +776,13 @@ pub fn get_prevent_sleep_enabled() -> bool {
 pub fn set_prevent_sleep_enabled(enabled: bool) -> Result<(), String> {
     crate::general_settings::set_prevent_sleep(enabled)
 }
+
+#[tauri::command]
+pub fn get_global_shortcut_key(app: tauri::AppHandle) -> String {
+    crate::global_shortcut::get_shortcut_key(&app)
+}
+
+#[tauri::command]
+pub fn set_global_shortcut_key(app: tauri::AppHandle, key: String) -> Result<(), String> {
+    crate::global_shortcut::set_shortcut_key(&app, key)
+}

@@ -16,6 +16,13 @@ const preventSleepBusy = ref(false);
 const autostartError = ref<string | null>(null);
 const preventSleepError = ref<string | null>(null);
 
+const shortcutKey = ref("");
+const shortcutInput = ref("");
+const shortcutBusy = ref(false);
+const shortcutError = ref<string | null>(null);
+const shortcutSuccess = ref(false);
+let shortcutSuccessTimer: number | null = null;
+
 async function loadSettings(): Promise<void> {
   try {
     autostartEnabled.value = (await api?.getAutostartEnabled?.()) ?? false;
@@ -27,6 +34,37 @@ async function loadSettings(): Promise<void> {
   } catch {
     preventSleepEnabled.value = false;
   }
+  try {
+    shortcutKey.value = (await api?.getGlobalShortcutKey?.()) ?? "Ctrl+Shift+D";
+    shortcutInput.value = shortcutKey.value;
+  } catch {
+    shortcutKey.value = "Ctrl+Shift+D";
+    shortcutInput.value = "Ctrl+Shift+D";
+  }
+}
+
+async function applyShortcut(): Promise<void> {
+  if (shortcutBusy.value) return;
+  shortcutError.value = null;
+  shortcutBusy.value = true;
+  try {
+    await api?.setGlobalShortcutKey?.(shortcutInput.value.trim());
+    shortcutKey.value = shortcutInput.value.trim();
+    shortcutSuccess.value = true;
+    if (shortcutSuccessTimer !== null) clearTimeout(shortcutSuccessTimer);
+    shortcutSuccessTimer = window.setTimeout(() => {
+      shortcutSuccess.value = false;
+      shortcutSuccessTimer = null;
+    }, 2000);
+  } catch (e) {
+    shortcutError.value = String(e);
+  } finally {
+    shortcutBusy.value = false;
+  }
+}
+
+function resetShortcut(): void {
+  shortcutInput.value = "Ctrl+Shift+D";
 }
 
 async function toggleAutostart(): Promise<void> {
@@ -127,6 +165,42 @@ function onKeydown(e: KeyboardEvent): void {
             </button>
           </div>
           <p v-if="preventSleepError" class="gs-err small">{{ preventSleepError }}</p>
+        </div>
+
+        <!-- Global Shortcut -->
+        <div class="gs-card">
+          <div class="gs-card-text" style="margin-bottom: 10px;">
+            <div class="gs-card-label">{{ t('generalSettings.globalShortcutLabel') }}</div>
+            <div class="gs-card-desc muted">{{ t('generalSettings.globalShortcutDesc') }}</div>
+          </div>
+          <div class="gs-shortcut-row">
+            <input
+              v-model="shortcutInput"
+              type="text"
+              class="gs-shortcut-input"
+              :placeholder="t('generalSettings.globalShortcutPlaceholder')"
+              :disabled="shortcutBusy"
+              @keydown.enter="applyShortcut"
+            />
+            <button
+              type="button"
+              class="gs-shortcut-btn"
+              :class="{ 'gs-shortcut-btn--success': shortcutSuccess }"
+              :disabled="shortcutBusy || shortcutInput.trim() === shortcutKey"
+              @click="applyShortcut"
+            >
+              {{ shortcutBusy ? t('generalSettings.globalShortcutApplying') : shortcutSuccess ? '✓' : t('generalSettings.globalShortcutApply') }}
+            </button>
+            <button
+              type="button"
+              class="gs-shortcut-btn gs-shortcut-btn--reset"
+              :disabled="shortcutBusy"
+              @click="resetShortcut"
+            >
+              {{ t('generalSettings.globalShortcutReset') }}
+            </button>
+          </div>
+          <p v-if="shortcutError" class="gs-err small">{{ shortcutError }}</p>
         </div>
 
       </div>
@@ -251,5 +325,61 @@ function onKeydown(e: KeyboardEvent): void {
 }
 .gs-toggle--on .gs-toggle-thumb {
   transform: translateX(20px);
+}
+
+/* Shortcut row */
+.gs-shortcut-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.gs-shortcut-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--lc-border);
+  border-radius: 6px;
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  font-size: 13px;
+  font-family: ui-monospace, monospace;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.gs-shortcut-input:focus {
+  border-color: var(--lc-accent);
+}
+.gs-shortcut-input:disabled {
+  opacity: 0.5;
+}
+.gs-shortcut-btn {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--lc-border);
+  border-radius: 6px;
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.gs-shortcut-btn:hover:not(:disabled) {
+  background: var(--lc-accent, #2563eb);
+  color: #fff;
+  border-color: transparent;
+}
+.gs-shortcut-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.gs-shortcut-btn--success {
+  background: rgba(5, 150, 105, 0.12);
+  border-color: rgba(5, 150, 105, 0.3);
+  color: #059669;
+}
+.gs-shortcut-btn--reset {
+  color: var(--lc-text-muted);
 }
 </style>

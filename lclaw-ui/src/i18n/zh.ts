@@ -650,6 +650,12 @@ export default {
     autostartDesc: "开机后 DidClaw 自动在后台就绪，无需手动启动。",
     preventSleepLabel: "防止电脑休眠",
     preventSleepDesc: "开启后，电脑不会因无操作而进入休眠，适合 AI 长任务运行期间使用。",
+    globalShortcutLabel: "全局快捷键唤起",
+    globalShortcutDesc: "在任意窗口下呼出 DidClaw 主界面，默认 Ctrl+Shift+D。",
+    globalShortcutPlaceholder: "例：Ctrl+Shift+D",
+    globalShortcutApply: "应用",
+    globalShortcutReset: "恢复默认",
+    globalShortcutApplying: "应用中…",
   },
   usageStats: {
     title: "用量统计",

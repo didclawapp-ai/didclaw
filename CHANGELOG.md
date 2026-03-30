@@ -12,6 +12,7 @@
 
 ### 新增
 
+- **全局快捷键唤起**：通用设置新增「全局快捷键」输入框，默认 `Ctrl+Shift+D`，在任意窗口下可召唤 DidClaw 主界面；支持自定义修改并即时生效（基于 `tauri-plugin-global-shortcut`，Rust 侧注册，无需前端权限）。
 - **用量统计对话框**：侧边栏「功能」组新增「用量统计」入口（柱状图图标），展示当前 Gateway 活跃会话的 token 累计用量；顶部汇总卡片显示活跃会话数、累计输入/输出/合计 token 数，下方明细表格按最后活跃时间排序，支持一键刷新。
 - **开机自启**：通用设置新增「开机自动启动」开关，启用后 DidClaw 随系统登录自动在后台就绪（Windows 注册表 / macOS LaunchAgent，基于 `tauri-plugin-autostart`）。
 - **防休眠**：通用设置新增「防止电脑休眠」开关，启用后阻止系统因无操作进入休眠，适合 AI 长任务运行期间使用（Windows `SetThreadExecutionState`，macOS 预留）。

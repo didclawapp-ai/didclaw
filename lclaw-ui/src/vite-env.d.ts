@@ -142,6 +142,10 @@ interface DidClawElectronApi {
   getPreventSleepEnabled?(): Promise<boolean>;
   /** 防休眠：设置启用/禁用 */
   setPreventSleepEnabled?(enabled: boolean): Promise<void>;
+  /** 全局快捷键：读取当前按键字符串（默认 Ctrl+Shift+D） */
+  getGlobalShortcutKey?(): Promise<string>;
+  /** 全局快捷键：设置并重新注册（传空字符串则清除） */
+  setGlobalShortcutKey?(key: string): Promise<void>;
   /** 检查 DidClaw 自身是否有新版本（从 VITE_DIDCLAW_UPDATE_ENDPOINT 端点拉取清单） */
   checkDidClawUpdate?(payload: { endpoint?: string }): Promise<
     | {

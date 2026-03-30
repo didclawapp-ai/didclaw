@@ -650,6 +650,12 @@ export default {
     autostartDesc: "DidClaw starts automatically in the background when you log in.",
     preventSleepLabel: "Prevent Sleep",
     preventSleepDesc: "Keep the computer awake during long AI tasks so they are not interrupted.",
+    globalShortcutLabel: "Global Hotkey",
+    globalShortcutDesc: "Summon DidClaw from any window. Default: Ctrl+Shift+D.",
+    globalShortcutPlaceholder: "e.g. Ctrl+Shift+D",
+    globalShortcutApply: "Apply",
+    globalShortcutReset: "Reset Default",
+    globalShortcutApplying: "Applying…",
   },
   usageStats: {
     title: "Usage Stats",

@@ -1,5 +1,6 @@
 mod commands;
 mod general_settings;
+mod global_shortcut;
 mod didclaw_db;
 mod didclaw_update;
 mod tray_icon;
@@ -95,6 +96,15 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
         ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        crate::tray_icon::show_main_window(app);
+                    }
+                })
+                .build(),
+        )
         .manage(std::sync::Arc::new(tokio::sync::Mutex::new(
             gateway_tunnel::GatewayTunnelSlot::default(),
         )))
@@ -148,6 +158,8 @@ pub fn run() {
             if let Err(e) = tray_icon::setup_tray(app) {
                 launch_log::line(&format!("tray: 创建系统托盘图标失败（可忽略）: {e}"));
             }
+
+            global_shortcut::setup_global_shortcut(app.handle());
 
             launch_log::line("setup: 成功，进入事件循环");
             Ok(())
@@ -229,6 +241,8 @@ pub fn run() {
             commands::set_autostart_enabled,
             commands::get_prevent_sleep_enabled,
             commands::set_prevent_sleep_enabled,
+            commands::get_global_shortcut_key,
+            commands::set_global_shortcut_key,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

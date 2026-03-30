@@ -86,6 +86,8 @@ function tauriApi(): DidClawElectronApi {
     setAutostartEnabled: (enabled) => invoke("set_autostart_enabled", { enabled }),
     getPreventSleepEnabled: () => invoke<boolean>("get_prevent_sleep_enabled"),
     setPreventSleepEnabled: (enabled) => invoke("set_prevent_sleep_enabled", { enabled }),
+    getGlobalShortcutKey: () => invoke<string>("get_global_shortcut_key"),
+    setGlobalShortcutKey: (key) => invoke("set_global_shortcut_key", { key }),
     checkDidClawUpdate: (payload) =>
       invoke("check_didclaw_update", { endpoint: payload?.endpoint ?? null }),
     installDidClawUpdate: (payload) =>

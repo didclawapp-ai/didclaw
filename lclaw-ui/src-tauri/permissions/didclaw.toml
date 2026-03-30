@@ -72,4 +72,6 @@ commands.allow = [
   "set_autostart_enabled",
   "get_prevent_sleep_enabled",
   "set_prevent_sleep_enabled",
+  "get_global_shortcut_key",
+  "set_global_shortcut_key",
 ]
