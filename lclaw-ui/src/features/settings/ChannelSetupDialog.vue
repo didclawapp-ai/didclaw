@@ -65,12 +65,23 @@ async function refreshChannelStatuses(): Promise<void> {
     // Build set of UI channel ids that are active in the Gateway.
     // Each ChannelDef may declare a gatewayChannelId that differs from its UI id
     // (e.g. WeChat UI id = "wechat" but Gateway key = "openclaw-weixin").
-    // A channel counts as "connected" when connected OR linked is true.
+    //
+    // Different channel plugins use different field names to signal "ready":
+    //   WhatsApp  → connected, linked
+    //   WeChat    → configured   (buildChannelSummary only exposes this field)
+    //   generic   → running
+    // So we check all known positive-status fields with OR logic.
     const active = new Set<string>();
     for (const ch of allChannels.value) {
       const key = ch.gatewayChannelId ?? ch.id;
-      const entry = chans[key];
-      if (entry && (entry.connected === true || entry.linked === true)) {
+      const entry = chans[key] as Record<string, unknown> | undefined;
+      if (
+        entry &&
+        (entry["connected"] === true ||
+          entry["linked"] === true ||
+          entry["configured"] === true ||
+          entry["running"] === true)
+      ) {
         active.add(ch.id);
       }
     }
