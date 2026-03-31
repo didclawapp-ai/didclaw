@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 新增
+
+- **自实现 MiniMax / OpenAI Codex OAuth 流程**：彻底弃用 `openclaw onboard --auth-choice` 子进程调用（该命令为交互式终端工具，在无 TTY 的 Tauri 子进程中无法正常执行 OAuth 流程）。新实现在 Rust 后端完全自主处理：MiniMax 采用 RFC 8628 Device Authorization Grant（轮询 token，`open::that` 打开浏览器），OpenAI Codex 采用 PKCE + axum 本地回调服务器（端口 1455），OAuth token 直接写入 `~/.openclaw/agents/*/agent/auth-profiles.json`，并同步更新 `openclaw.json` provider 配置与默认模型。MiniMax 卡片拆分为「国际」和「国内（CN）」两张，分别对应 `api.minimax.io` 和 `api.minimaxi.com`。
+
 ### 修复
 
 - **引导向导网关启动时机**：openclaw 安装完成后跳转到渠道/模型步骤时，现在立即调用 `scheduleDeferredGatewayConnect` 使网关后台连接；之前需等到向导完全结束才连接，导致 OAuth 步骤到来时网关尚未就绪。

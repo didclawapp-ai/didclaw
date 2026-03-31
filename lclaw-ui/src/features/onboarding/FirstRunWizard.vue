@@ -484,7 +484,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
 
 // ── OAuth provider onboard ────────────────────────────────────────────────────
 
-type OAuthProvider = "minimax-portal" | "openai-codex" | "google";
+type OAuthProvider = "minimax-portal" | "minimax-portal-cn" | "openai-codex" | "google";
 type OAuthStatus = "idle" | "waiting" | "success" | "failed";
 
 const oauthStatus = ref<OAuthStatus>("idle");
@@ -492,9 +492,13 @@ const oauthActiveProvider = ref<OAuthProvider | null>(null);
 const oauthError = ref<string | null>(null);
 const oauthDebugLog = ref<string>("");
 
+function appendOAuthLog(step: string): void {
+  oauthDebugLog.value += `[${step}]\n`;
+}
+
 async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   const api = getDidClawDesktopApi();
-  if (!api?.runOpenclawOnboard) {
+  if (!api?.runMinimaxOauth && !api?.runOpenaiCodexOauth) {
     modelError.value = t("settings.desktopOnly");
     return;
   }
@@ -504,31 +508,15 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   oauthDebugLog.value = "";
   modelError.value = null;
 
-  // Ensure the Gateway process is running before OAuth.
-  // Do NOT call scheduleDeferredGatewayConnect here — that would trigger an
-  // extra WS reconnect cycle on top of the process start, causing two visible
-  // "restart" flashes in the UI.
-  if (gw.status !== "connected" && api.ensureOpenClawGateway) {
-    try {
-      await api.ensureOpenClawGateway({ wsUrl: "ws://127.0.0.1:18789" });
-      // Give the gateway enough time to fully initialize before running onboard.
-      await new Promise<void>((resolve) => setTimeout(resolve, 2500));
-    } catch {
-      // Non-fatal: proceed anyway, the CLI may still succeed.
-    }
-  }
-
-  // Listen for streamed CLI output so we can display progress & debug info.
-  let unlistenOnboard: (() => void) | undefined;
+  // Listen for real-time OAuth progress events from the Rust backend.
+  let unlistenProgress: (() => void) | undefined;
   if (isTauri()) {
     try {
-      unlistenOnboard = await listen<{ stream?: string; line?: string }>(
-        "didclaw-onboard-log",
+      unlistenProgress = await listen<{ step?: string; userCode?: string; verificationUri?: string }>(
+        "didclaw-oauth-progress",
         (ev) => {
-          const line = ev.payload?.line;
-          if (typeof line === "string" && line.length > 0) {
-            oauthDebugLog.value += `[${ev.payload?.stream ?? "info"}] ${line}\n`;
-          }
+          const step = ev.payload?.step;
+          if (step) appendOAuthLog(step);
         },
       );
     } catch {
@@ -537,12 +525,24 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   }
 
   try {
-    const r = await api.runOpenclawOnboard({ authChoice: provider });
-    // Append final CLI log (covers non-streaming / fallback path).
-    if ("log" in r && typeof r.log === "string" && r.log.trim().length > 0) {
-      oauthDebugLog.value += r.log;
+    let r: { ok: boolean; error?: string } | undefined;
+
+    if (provider === "minimax-portal" || provider === "minimax-portal-cn") {
+      const region = provider === "minimax-portal-cn" ? "cn" : "global";
+      if (!api.runMinimaxOauth) {
+        throw new Error(t("settings.desktopOnly"));
+      }
+      r = await api.runMinimaxOauth({ region });
+    } else if (provider === "openai-codex") {
+      if (!api.runOpenaiCodexOauth) {
+        throw new Error(t("settings.desktopOnly"));
+      }
+      r = await api.runOpenaiCodexOauth();
+    } else {
+      throw new Error(`Unsupported OAuth provider: ${provider}`);
     }
-    if (r.ok) {
+
+    if (r?.ok) {
       oauthStatus.value = "success";
       await chat.refreshOpenClawModelPicker();
       chat.flashOpenClawConfigHint();
@@ -554,13 +554,13 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
       }, 1200);
     } else {
       oauthStatus.value = "failed";
-      oauthError.value = "error" in r ? (r.error ?? null) : null;
+      oauthError.value = r?.error ?? null;
     }
   } catch (e) {
     oauthStatus.value = "failed";
     oauthError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    unlistenOnboard?.();
+    unlistenProgress?.();
   }
 }
 
@@ -763,10 +763,11 @@ onUnmounted(() => {
               <!-- OAuth section -->
               <p class="model-section-label">{{ t('wizard.tagOAuth') }} · {{ t('wizard.oauthDesc') }}</p>
               <div class="model-cards model-cards-oauth">
+                <!-- MiniMax Global -->
                 <button
                   type="button"
                   class="model-card model-card-oauth"
-                  :disabled="modelBusy"
+                  :disabled="modelBusy || oauthStatus !== 'idle'"
                   @click="() => void startOAuthOnboard('minimax-portal')"
                 >
                   <div class="model-card-main">
@@ -775,28 +776,30 @@ onUnmounted(() => {
                     <p class="model-card-desc">{{ t('wizard.oauthMinimaxDesc') }}</p>
                   </div>
                 </button>
+                <!-- MiniMax CN -->
                 <button
                   type="button"
                   class="model-card model-card-oauth"
-                  :disabled="modelBusy"
+                  :disabled="modelBusy || oauthStatus !== 'idle'"
+                  @click="() => void startOAuthOnboard('minimax-portal-cn')"
+                >
+                  <div class="model-card-main">
+                    <span class="model-card-tag model-card-tag-oauth">{{ t('wizard.tagOAuth') }}</span>
+                    <strong class="model-card-head">{{ t('wizard.oauthMinimaxCn') }}</strong>
+                    <p class="model-card-desc">{{ t('wizard.oauthMinimaxCnDesc') }}</p>
+                  </div>
+                </button>
+                <!-- OpenAI Codex -->
+                <button
+                  type="button"
+                  class="model-card model-card-oauth"
+                  :disabled="modelBusy || oauthStatus !== 'idle'"
                   @click="() => void startOAuthOnboard('openai-codex')"
                 >
                   <div class="model-card-main">
                     <span class="model-card-tag model-card-tag-oauth">{{ t('wizard.tagOAuth') }}</span>
                     <strong class="model-card-head">{{ t('wizard.oauthOpenai') }}</strong>
                     <p class="model-card-desc">{{ t('wizard.oauthOpenaiDesc') }}</p>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  class="model-card model-card-oauth"
-                  :disabled="modelBusy"
-                  @click="() => void startOAuthOnboard('google')"
-                >
-                  <div class="model-card-main">
-                    <span class="model-card-tag model-card-tag-oauth">{{ t('wizard.tagOAuth') }}</span>
-                    <strong class="model-card-head">{{ t('wizard.oauthGoogle') }}</strong>
-                    <p class="model-card-desc">{{ t('wizard.oauthGoogleDesc') }}</p>
                   </div>
                 </button>
               </div>

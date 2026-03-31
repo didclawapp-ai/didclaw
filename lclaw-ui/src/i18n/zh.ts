@@ -743,8 +743,10 @@ export default {
     // OAuth provider cards
     tagOAuth: "一键授权",
     oauthDesc: "浏览器登录，无需手动填写 API Key",
-    oauthMinimax: "MiniMax",
-    oauthMinimaxDesc: "国内用户推荐 · 支持 Global / CN",
+    oauthMinimax: "MiniMax（国际）",
+    oauthMinimaxDesc: "api.minimax.io · 国际用户",
+    oauthMinimaxCn: "MiniMax（国内）",
+    oauthMinimaxCnDesc: "api.minimaxi.com · 中国大陆用户",
     oauthOpenai: "OpenAI Codex",
     oauthOpenaiDesc: "需要 ChatGPT Plus / Codex 订阅",
     oauthGoogle: "Google Gemini",

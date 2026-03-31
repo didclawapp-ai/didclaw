@@ -7,6 +7,8 @@ commands.allow = [
   "run_ensure_openclaw_windows_install",
   "run_openclaw_doctor",
   "run_openclaw_onboard",
+  "run_minimax_oauth",
+  "run_openai_codex_oauth",
   "preview_open_local",
   "preview_libre_office_status",
   "preview_open_libre_office_download_page",

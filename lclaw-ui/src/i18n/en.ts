@@ -743,8 +743,10 @@ export default {
     // OAuth provider cards
     tagOAuth: "One-click OAuth",
     oauthDesc: "Sign in via browser — no API key needed",
-    oauthMinimax: "MiniMax",
-    oauthMinimaxDesc: "Recommended for CN users · Global / CN endpoints",
+    oauthMinimax: "MiniMax (Global)",
+    oauthMinimaxDesc: "api.minimax.io · International users",
+    oauthMinimaxCn: "MiniMax (China)",
+    oauthMinimaxCnDesc: "api.minimaxi.com · Mainland China users",
     oauthOpenai: "OpenAI Codex",
     oauthOpenaiDesc: "Requires ChatGPT Plus / Codex subscription",
     oauthGoogle: "Google Gemini",

@@ -19,6 +19,7 @@ mod openclaw_gateway;
 mod openclaw_gateway_origins;
 mod openclaw_version_check;
 mod openclaw_model_config;
+mod oauth_providers;
 mod openclaw_providers;
 mod openclaw_skill_config;
 mod paths;
@@ -229,6 +230,8 @@ pub fn run() {
             commands::read_workspace_identity,
             commands::run_openclaw_doctor,
             commands::run_openclaw_onboard,
+            commands::run_minimax_oauth,
+            commands::run_openai_codex_oauth,
             commands::estimate_openclaw_backup_size,
             commands::backup_openclaw_config,
             commands::restore_openclaw_config,

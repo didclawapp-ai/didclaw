@@ -835,3 +835,16 @@ pub fn get_global_shortcut_key(app: tauri::AppHandle) -> String {
 pub fn set_global_shortcut_key(app: tauri::AppHandle, key: String) -> Result<(), String> {
     crate::global_shortcut::set_shortcut_key(&app, key)
 }
+
+#[tauri::command]
+pub async fn run_minimax_oauth(
+    app: tauri::AppHandle,
+    region: String,
+) -> Result<Value, String> {
+    crate::oauth_providers::run_minimax_oauth(app, region).await
+}
+
+#[tauri::command]
+pub async fn run_openai_codex_oauth(app: tauri::AppHandle) -> Result<Value, String> {
+    crate::oauth_providers::run_openai_codex_oauth(app).await
+}

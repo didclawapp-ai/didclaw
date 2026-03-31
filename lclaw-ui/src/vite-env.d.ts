@@ -236,6 +236,23 @@ interface DidClawElectronApi {
     { ok: true; exitCode: number; log: string }
     | { ok: false; exitCode: number; log?: string; error?: string }
   >;
+  /**
+   * MiniMax Device Authorization Flow (RFC 8628).
+   * Opens the browser for user approval, polls token, writes auth-profiles.json.
+   * region: "cn" | "global"
+   */
+  runMinimaxOauth?(payload: { region: string }): Promise<
+    { ok: true; provider: string; region: string }
+    | { ok: false; error: string }
+  >;
+  /**
+   * OpenAI Codex PKCE flow with local callback server on :1455.
+   * Requires ChatGPT Plus / Codex subscription.
+   */
+  runOpenaiCodexOauth?(): Promise<
+    { ok: true; provider: string }
+    | { ok: false; error: string }
+  >;
   /** 执行 `openclaw doctor [--repair] --non-interactive`，返回原始输出供前端解析 */
   runOpenclawDoctor?(payload: {
     repair?: boolean;

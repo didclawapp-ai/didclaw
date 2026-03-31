@@ -61,6 +61,10 @@ function tauriApi(): DidClawElectronApi {
       invoke("write_open_claw_providers_patch", { payload }),
     runOpenclawOnboard: (payload) =>
       invoke("run_openclaw_onboard", { authChoice: payload.authChoice }),
+    runMinimaxOauth: (payload) =>
+      invoke("run_minimax_oauth", { region: payload.region }),
+    runOpenaiCodexOauth: () =>
+      invoke("run_openai_codex_oauth"),
     runOpenclawDoctor: (payload) =>
       invoke("run_openclaw_doctor", {
         repair: payload.repair ?? false,

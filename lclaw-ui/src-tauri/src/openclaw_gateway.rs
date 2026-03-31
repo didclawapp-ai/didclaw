@@ -2079,7 +2079,6 @@ pub async fn run_openclaw_onboard_oauth_impl(
     app: tauri::AppHandle,
     auth_choice: String,
 ) -> Result<serde_json::Value, String> {
-    use std::sync::{Arc, Mutex};
     use tauri::Emitter;
 
     let choice = auth_choice.trim().to_ascii_lowercase();
@@ -2112,27 +2111,18 @@ pub async fn run_openclaw_onboard_oauth_impl(
         }
     };
 
-    // Resolve the actual command to run (same logic as run_open_claw_cli_captured but async).
-    let args: Vec<String> = vec![
-        "onboard".into(),
-        "--auth-choice".into(),
-        choice.clone(),
-    ];
-    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-
-    // Spawn via the same helper path resolution.
     let out = tokio::task::spawn_blocking({
         let exe = exe.clone();
         let app2 = app.clone();
         let choice2 = choice.clone();
         move || {
-            // Use streaming version: build child process manually so we can emit line events.
-            // We reuse run_open_claw_cli_captured for simplicity (captures all output then returns).
-            // For OAuth the process runs until browser flow completes — this may take a while.
             let _ = app2.emit(
                 ONBOARD_LOG_EVENT,
                 json!({"stream": "info", "line": format!("Starting OAuth: openclaw onboard --auth-choice {choice2}")}),
             );
+            // Build args inside the closure so lifetimes are all 'static relative to the closure.
+            let args: Vec<String> = vec!["onboard".into(), "--auth-choice".into(), choice2];
+            let args_ref: Vec<&str> = args.iter().map(String::as_str).collect();
             run_open_claw_cli_captured(&exe, &args_ref, &[])
         }
     })

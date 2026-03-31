@@ -104,6 +104,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
@@ -115,6 +116,7 @@ dependencies = [
  "tower-http 0.5.2",
  "ureq",
  "url",
+ "uuid",
  "zip",
 ]
 
