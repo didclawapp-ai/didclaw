@@ -497,6 +497,20 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   oauthActiveProvider.value = provider;
   oauthError.value = null;
   modelError.value = null;
+
+  // Ensure the Gateway is running before OAuth — the CLI needs it to write config.
+  if (gw.status !== "connected" && api.ensureOpenClawGateway) {
+    try {
+      const gwUrl = "ws://127.0.0.1:18789";
+      await api.ensureOpenClawGateway({ wsUrl: gwUrl });
+      scheduleDeferredGatewayConnect(gw);
+      // Give the gateway a moment to start before running onboard.
+      await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+    } catch {
+      // Non-fatal: proceed anyway, the CLI may still succeed.
+    }
+  }
+
   try {
     const r = await api.runOpenclawOnboard({ authChoice: provider });
     if (r.ok) {
