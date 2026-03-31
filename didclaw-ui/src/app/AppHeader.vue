@@ -3,8 +3,10 @@ import { i18n, type LocaleCode } from "@/i18n";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useThemeStore } from "@/stores/theme";
+import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { storeToRefs } from "pinia";
-import { computed, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -16,6 +18,73 @@ const { status, lastError, url } = storeToRefs(gw);
 const inlineError = ref<string | null>(null);
 let errorTimer: number | null = null;
 
+// ── Auto-hide ────────────────────────────────────────────────────────────────
+const TRIGGER_Y = 8;
+const HIDE_DELAY = 1500;
+const headerVisible = ref(true);
+let hideTimer: number | null = null;
+
+function showHeader(): void {
+  if (hideTimer !== null) { clearTimeout(hideTimer); hideTimer = null; }
+  headerVisible.value = true;
+}
+
+function scheduleHide(): void {
+  if (inlineError.value !== null || lastError.value !== null) return;
+  if (hideTimer !== null) return;
+  hideTimer = window.setTimeout(() => {
+    headerVisible.value = false;
+    hideTimer = null;
+  }, HIDE_DELAY);
+}
+
+function onDocMouseMove(e: MouseEvent): void {
+  if (e.clientY <= TRIGGER_Y) showHeader();
+}
+
+watch([inlineError, lastError], ([err, gwErr]) => {
+  if (err !== null || gwErr !== null) showHeader();
+});
+
+// ── Window controls (Tauri only) ──────────────────────────────────────────────
+const isDesktop = isTauri();
+const isMaximized = ref(false);
+let unlistenResize: (() => void) | null = null;
+
+async function syncMaximized(): Promise<void> {
+  isMaximized.value = await getCurrentWindow().isMaximized();
+}
+
+async function minimizeWindow(): Promise<void> {
+  await getCurrentWindow().minimize();
+}
+
+async function toggleMaximize(): Promise<void> {
+  await getCurrentWindow().toggleMaximize();
+  await syncMaximized();
+}
+
+async function closeWindow(): Promise<void> {
+  await getCurrentWindow().close();
+}
+
+// ── Lifecycle ─────────────────────────────────────────────────────────────────
+onMounted(async () => {
+  document.addEventListener("mousemove", onDocMouseMove);
+  scheduleHide();
+  if (isDesktop) {
+    await syncMaximized();
+    unlistenResize = await getCurrentWindow().onResized(() => void syncMaximized());
+  }
+});
+
+onUnmounted(() => {
+  document.removeEventListener("mousemove", onDocMouseMove);
+  if (hideTimer !== null) clearTimeout(hideTimer);
+  unlistenResize?.();
+});
+
+// ── Connection state ──────────────────────────────────────────────────────────
 const connSwitchOn = computed(
   () => status.value === "connected" || status.value === "connecting",
 );
@@ -90,8 +159,13 @@ defineExpose({ showInlineError });
 </script>
 
 <template>
-  <header class="top">
-    <div class="top-row">
+  <header
+    class="top"
+    :class="{ 'top--visible': headerVisible }"
+    @mouseenter="showHeader"
+    @mouseleave="scheduleHide"
+  >
+    <div class="top-row" data-tauri-drag-region>
       <div class="left-group">
         <div class="brand">
           <img src="/icon-32.png" class="brand-glyph" alt="DidClaw" aria-hidden="true">
@@ -150,6 +224,49 @@ defineExpose({ showInlineError });
           </button>
         </div>
       </div>
+
+      <!-- Window controls: only in Tauri desktop mode -->
+      <div v-if="isDesktop" class="win-controls" @mousedown.stop>
+        <button
+          type="button"
+          class="win-btn"
+          title="最小化"
+          aria-label="最小化"
+          @click="minimizeWindow"
+        >
+          <svg viewBox="0 0 24 24" class="win-btn-svg" aria-hidden="true">
+            <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="win-btn"
+          :title="isMaximized ? '还原' : '最大化'"
+          :aria-label="isMaximized ? '还原' : '最大化'"
+          @click="toggleMaximize"
+        >
+          <!-- restore icon -->
+          <svg v-if="isMaximized" viewBox="0 0 24 24" class="win-btn-svg" aria-hidden="true">
+            <rect x="8" y="4" width="11" height="11" rx="1" stroke="currentColor" stroke-width="1.5" fill="none" />
+            <path d="M4 8v11a1 1 0 0 0 1 1h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" />
+          </svg>
+          <!-- maximize icon -->
+          <svg v-else viewBox="0 0 24 24" class="win-btn-svg" aria-hidden="true">
+            <rect x="4" y="4" width="16" height="16" rx="1" stroke="currentColor" stroke-width="1.5" fill="none" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="win-btn win-btn--close"
+          title="关闭"
+          aria-label="关闭"
+          @click="closeWindow"
+        >
+          <svg viewBox="0 0 24 24" class="win-btn-svg" aria-hidden="true">
+            <path d="M6 6 18 18M6 18 18 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <transition name="err-fade">
@@ -164,14 +281,21 @@ defineExpose({ showInlineError });
 
 <style scoped>
 .top {
-  flex: 0 0 auto;
-  padding: 0 var(--lc-spacing-md) 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  padding: 0 0 0 var(--lc-spacing-md);
   border-bottom: 1px solid var(--lc-border);
   background: var(--lc-surface-top);
   backdrop-filter: blur(12px);
   box-shadow: var(--lc-shadow-sm);
-  position: relative;
-  z-index: 100;
+  transform: translateY(-100%);
+  transition: transform 0.2s ease;
+}
+.top--visible {
+  transform: translateY(0);
 }
 .top::after {
   content: "";
@@ -372,6 +496,42 @@ defineExpose({ showInlineError });
 .conn-switch--on .conn-switch-thumb {
   transform: translateX(14px);
   background: var(--lc-success);
+}
+
+/* Window controls */
+.win-controls {
+  display: flex;
+  align-items: stretch;
+  height: 42px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--lc-text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  -webkit-app-region: no-drag;
+}
+.win-btn:hover {
+  background: rgba(128, 128, 128, 0.15);
+  color: var(--lc-text);
+}
+.win-btn--close:hover {
+  background: #dc2626;
+  color: #fff;
+}
+.win-btn-svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 /* Inline error */

@@ -664,7 +664,6 @@ async function pickLocalFileForPreview(): Promise<void> {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding-top: 8px;
 }
 .main {
   flex: 1;
