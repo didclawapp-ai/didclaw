@@ -59,16 +59,27 @@ Complete the journey from installation to first AI conversation entirely through
 
 Send instructions to AI through WeChat, WeCom, WhatsApp, Telegram, Feishu, Discord, Slack, Microsoft Teams, LINE, Google Chat, and more. Each channel runs independently and can be paired with a dedicated AI agent.
 
-### Multi-Format File Preview
+### Multi-Format File Preview — Our Killer Feature
 
-A built-in preview panel lets you inspect AI-generated files without leaving the app:
+AI generates files. You need to see them *right there*, without switching apps.  
+DidClaw embeds a full-featured preview panel that handles virtually every format you'll encounter:
 
-- **Images**: PNG / JPEG / GIF / WebP / SVG
-- **Documents**: PDF (inline rendering)
-- **Rich Text**: Markdown (live rendering)
-- **Code**: Syntax highlighting for 60+ languages
-- **Office**: DOCX / XLSX / PPTX (local LibreOffice or Office Online)
-- **Plain Text**: TXT / LOG / CSV
+| Category | Formats |
+|----------|---------|
+| Images | PNG · JPEG · GIF · WebP · SVG |
+| Documents | PDF (inline rendering) |
+| Rich Text | Markdown (live rendering with syntax highlight) |
+| Code | 60+ languages with syntax highlighting |
+| Office | DOCX · XLSX · PPTX (via LibreOffice or Office Online) |
+| Plain Text | TXT · LOG · CSV |
+
+<div align="center">
+  <img src=".github/assets/screenshot-preview.png" alt="File preview panel" width="860" />
+  <br/><br/>
+  <sub><i>AI sends back a file — you see it instantly, right inside the chat.</i></sub>
+</div>
+
+<br/>
 
 ### Execution Approval (Human-in-the-Loop)
 

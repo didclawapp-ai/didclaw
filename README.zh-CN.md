@@ -59,16 +59,27 @@
 
 支持通过微信、企业微信、WhatsApp、Telegram、飞书、Discord、Slack、Microsoft Teams、LINE、Google Chat 等渠道向 AI 发送指令。每个渠道独立运行，可针对不同任务配置专属 AI 智能体。
 
-### 多文件格式预览
+### 多文件格式预览 — 我们的杀手锏
 
-内置文件预览面板，直接在应用内查看 AI 产出的各类文件：
+AI 生成文件，你需要的是**立刻看到它**，而不是切换应用。  
+DidClaw 内置全功能文件预览面板，覆盖几乎所有你会遇到的格式：
 
-- **图片**：PNG / JPEG / GIF / WebP / SVG
-- **文档**：PDF（内嵌渲染）
-- **富文本**：Markdown（实时渲染）
-- **代码**：语法高亮，支持 60+ 编程语言
-- **Office**：DOCX / XLSX / PPTX（LibreOffice 本地预览 / Office Online 在线预览）
-- **纯文本**：TXT / LOG / CSV
+| 类型 | 格式 |
+|------|------|
+| 图片 | PNG · JPEG · GIF · WebP · SVG |
+| 文档 | PDF（内嵌渲染） |
+| 富文本 | Markdown（实时渲染 + 语法高亮） |
+| 代码 | 语法高亮，支持 60+ 编程语言 |
+| Office | DOCX · XLSX · PPTX（LibreOffice 本地 / Office Online） |
+| 纯文本 | TXT · LOG · CSV |
+
+<div align="center">
+  <img src=".github/assets/screenshot-preview.png" alt="文件预览面板" width="860" />
+  <br/><br/>
+  <sub><i>AI 回传文件，你在对话框里就能立刻看到，无需切换任何应用。</i></sub>
+</div>
+
+<br/>
 
 ### 执行审批（人工确认）
 
