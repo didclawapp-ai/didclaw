@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **单元测试基础设施**：引入 Vitest（`pnpm test` / `test:watch` / `test:coverage`），所有测试放在 `lclaw-ui/test/` 目录。初始覆盖 6 个 `lib/` 纯函数模块（113 个用例）：`preview-kind`、`chat-history-sort`、`is-safe-preview-url`、`url-allowlist`、`extract-chat-links`、`zod-format`。
+
 - **品牌图标（DidClaw Logo）**：由 AI 辅助生成龙虾拟态 D 字母图标，替换全套 Tauri 应用图标（`icon.png`、`icon.ico`、`icon.icns`、所有 Windows/iOS/Android 尺寸），ICO 文件采用 RGBA PNG-in-ICO 格式确保四角透明。
 - **顶栏品牌图标**：`AppHeader` 中将旧的红色菱形占位图替换为新品牌 Logo（`/icon-32.png`）。
 - **关于页面重设计**：重新布局 `AboutDialog`，使用实际 Logo 图片替换旧 favicon，新增「联系」卡片（网站 didclawapp.com、邮件 didclawapp@gmail.com），整合外链按钮（GitHub / 官网 / 文档）并附图标，视觉层次更清晰。
