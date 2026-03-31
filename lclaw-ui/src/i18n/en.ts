@@ -506,6 +506,12 @@ export default {
     copyright: "Copyright",
     close: "Close",
     docs: "Docs",
+    supportTitle: "Troubleshooting",
+    supportDesc: "If you run into connection or setup issues, use these tools and share the copied support info with the developer.",
+    runDiagnostics: "Run diagnostics",
+    copySupportInfo: "Copy support info",
+    website: "Website",
+    email: "Email",
   },
 
   // ─── Skills manager ───────────────────────────────────

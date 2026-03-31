@@ -6,6 +6,13 @@
 
 ## [未发布]
 
+### 新增
+
+- **品牌图标（DidClaw Logo）**：由 AI 辅助生成龙虾拟态 D 字母图标，替换全套 Tauri 应用图标（`icon.png`、`icon.ico`、`icon.icns`、所有 Windows/iOS/Android 尺寸），ICO 文件采用 RGBA PNG-in-ICO 格式确保四角透明。
+- **顶栏品牌图标**：`AppHeader` 中将旧的红色菱形占位图替换为新品牌 Logo（`/icon-32.png`）。
+- **关于页面重设计**：重新布局 `AboutDialog`，使用实际 Logo 图片替换旧 favicon，新增「联系」卡片（网站 didclawapp.com、邮件 didclawapp@gmail.com），整合外链按钮（GitHub / 官网 / 文档）并附图标，视觉层次更清晰。
+- **Logo 设计参考稿**：`docs/didclaw-logo-concepts.html` 包含 5 个 SVG 方案备查。
+
 ### 修复
 
 - **MiniMax OAuth 轮询超时立即退出**：原来使用 `expired_in`（Unix 时间戳，秒）减去当前时间毫秒来计算剩余时长，导致 `saturating_sub` 归零，轮询循环在用户授权前就已超时退出。改为固定 10 分钟超时窗口。

@@ -298,16 +298,6 @@ function onRedoFirstRunWizard(): void {
           </button>
         </li>
         <li>
-          <button type="button" class="ts-item" @click="doctorDialogOpen = true">
-            <span class="ts-icon" aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="1.5,8 4,8 5.5,4.5 8,11.5 10,8 14.5,8" />
-              </svg>
-            </span>
-            <span class="ts-label">{{ t('header.doctorBtn') }}</span>
-          </button>
-        </li>
-        <li>
           <button type="button" class="ts-item" @click="backupDialogOpen = true">
             <span class="ts-icon" aria-hidden="true">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -331,21 +321,6 @@ function onRedoFirstRunWizard(): void {
           </button>
         </li>
       </template>
-
-      <!-- Diagnostics copy (always visible) -->
-      <li v-if="!isDidClawElectron()" class="ts-group-label">{{ t('header.groupSystem') }}</li>
-      <li>
-        <button type="button" class="ts-item" :class="{ 'ts-item--success': copiedDiag }" @click="copyDiagnostics">
-          <span class="ts-icon" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="5" y="3" width="8" height="10" rx="1.5" />
-              <path d="M3 5.5v7A1.5 1.5 0 0 0 4.5 14H10" />
-              <path d="M7 7h4M7 9.5h4" />
-            </svg>
-          </span>
-          <span class="ts-label">{{ copiedDiag ? t('header.copyDiagDone') : t('header.copyDiag') }}</span>
-        </button>
-      </li>
 
       <!-- General Settings (desktop only) -->
       <li v-if="isDidClawElectron()">
@@ -416,7 +391,11 @@ function onRedoFirstRunWizard(): void {
   <GatewayLocalDialog v-model="showGatewayLocal" />
   <CronJobsDialog v-model="cronDialogOpen" />
   <SkillsManagerDialog v-model="skillsDialogOpen" />
-  <AboutDialog v-model="aboutDialogOpen" />
+  <AboutDialog
+    v-model="aboutDialogOpen"
+    @open-diagnostics="doctorDialogOpen = true"
+    @copy-support-info="() => void copyDiagnostics()"
+  />
   <DoctorDialog v-model="doctorDialogOpen" />
   <BackupRestoreDialog v-model="backupDialogOpen" />
   <ChannelSetupDialog v-model="channelDialogOpen" />

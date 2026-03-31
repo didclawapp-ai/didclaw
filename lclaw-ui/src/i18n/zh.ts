@@ -506,6 +506,12 @@ export default {
     copyright: "版权",
     close: "关闭",
     docs: "文档",
+    supportTitle: "问题排查",
+    supportDesc: "遇到连接或配置问题时，可在这里运行诊断或复制支持信息，再发给开发者协助排查。",
+    runDiagnostics: "运行诊断",
+    copySupportInfo: "复制支持信息",
+    website: "官网",
+    email: "邮件",
   },
 
   // ─── 技能管理 SkillsManagerDialog ───────────────────

@@ -94,7 +94,7 @@ defineExpose({ showInlineError });
     <div class="top-row">
       <div class="left-group">
         <div class="brand">
-          <span class="brand-glyph" aria-hidden="true" />
+          <img src="/icon-32.png" class="brand-glyph" alt="DidClaw" aria-hidden="true" />
           <h1 class="brand-title">
             <span class="brand-d">D</span><span class="brand-mid">idCl</span><span class="brand-tail">aw</span>
           </h1>
@@ -206,13 +206,10 @@ defineExpose({ showInlineError });
 }
 .brand-glyph {
   display: block;
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  background: #dc2626;
-  box-shadow: 0 1px 5px rgba(220, 38, 38, 0.4);
-  transform: rotate(45deg);
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
+  object-fit: contain;
 }
 .brand-title {
   margin: 0;
