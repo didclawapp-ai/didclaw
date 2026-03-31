@@ -228,6 +228,7 @@ pub fn run() {
             commands::skills_pick_folder,
             commands::read_workspace_identity,
             commands::run_openclaw_doctor,
+            commands::run_openclaw_onboard,
             commands::estimate_openclaw_backup_size,
             commands::backup_openclaw_config,
             commands::restore_openclaw_config,

@@ -739,6 +739,23 @@ export default {
     channelsSkip:       "Skip for now",
     channelsDone:       "Continue",
     channelsDoneDesc:   "Plugins installed. Open Channel Settings at any time to complete QR linking.",
+
+    // OAuth provider cards
+    tagOAuth: "One-click OAuth",
+    oauthDesc: "Sign in via browser — no API key needed",
+    oauthMinimax: "MiniMax",
+    oauthMinimaxDesc: "Recommended for CN users · Global / CN endpoints",
+    oauthOpenai: "OpenAI Codex",
+    oauthOpenaiDesc: "Requires ChatGPT Plus / Codex subscription",
+    oauthGoogle: "Google Gemini",
+    oauthGoogleDesc: "Requires a Google account",
+
+    // OAuth waiting / result states
+    oauthWaiting: "Waiting for browser authorization…",
+    oauthSuccess: "Authorization successful — AI is ready!",
+    oauthFailed: "Authorization failed. Please retry or use an API key instead.",
+    oauthCancelBtn: "Cancel",
+    oauthRetryBtn: "Retry",
   },
 
   // ─── Update prompt ────────────────────────────────────

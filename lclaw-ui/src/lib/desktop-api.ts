@@ -59,6 +59,8 @@ function tauriApi(): DidClawElectronApi {
     readWorkspaceIdentity: () => invoke("read_workspace_identity"),
     writeOpenClawProvidersPatch: (payload) =>
       invoke("write_open_claw_providers_patch", { payload }),
+    runOpenclawOnboard: (payload) =>
+      invoke("run_openclaw_onboard", { authChoice: payload.authChoice }),
     runOpenclawDoctor: (payload) =>
       invoke("run_openclaw_doctor", {
         repair: payload.repair ?? false,

@@ -799,6 +799,14 @@ pub async fn start_channel_qr_flow(
 }
 
 #[tauri::command]
+pub async fn run_openclaw_onboard(
+    app: tauri::AppHandle,
+    auth_choice: String,
+) -> Result<Value, String> {
+    crate::openclaw_gateway::run_openclaw_onboard_oauth_impl(app, auth_choice).await
+}
+
+#[tauri::command]
 pub fn get_autostart_enabled(app: tauri::AppHandle) -> Result<bool, String> {
     crate::general_settings::get_autostart(&app)
 }

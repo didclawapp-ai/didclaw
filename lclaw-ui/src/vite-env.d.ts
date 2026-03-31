@@ -227,6 +227,15 @@ interface DidClawElectronApi {
     { ok: true; aiName?: string | null; userName?: string | null }
     | { ok: false; error: string }
   >;
+  /**
+   * Run `openclaw onboard --auth-choice <authChoice>`.
+   * Opens a browser for OAuth; resolves when the CLI process exits.
+   * Allowed values: "minimax-portal" | "openai-codex" | "google"
+   */
+  runOpenclawOnboard?(payload: { authChoice: string }): Promise<
+    { ok: true; exitCode: number; log: string }
+    | { ok: false; exitCode: number; log?: string; error?: string }
+  >;
   /** 执行 `openclaw doctor [--repair] --non-interactive`，返回原始输出供前端解析 */
   runOpenclawDoctor?(payload: {
     repair?: boolean;

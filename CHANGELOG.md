@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 新增
+
+- **引导向导 OAuth 支持**：在首次运行向导的「配置模型」步骤中，新增三个一键浏览器授权卡片（MiniMax · OpenAI Codex · Google Gemini），调用 `openclaw onboard --auth-choice` 完成 OAuth 授权后自动写入配置、跳过手动填写 API Key 的门槛。同时新增 Rust Tauri 命令 `run_openclaw_onboard`、前端 `runOpenclawOnboard` API 及授权等待/成功/失败状态 UI。
+
 ### 修复
 
 - **AI 配置弹窗缩放问题**：移除之前基于 `transform: scale()` 的整体缩放方案，该方案在默认 570px 窗口下导致弹窗内所有文字缩小至约 58%。改为弹窗自身固定合理尺寸（普通面板 `min(540px, 100vw-24px)`，AI 宽面板 `min(720px, 100vw-24px)`），卡片网格使用 `repeat(auto-fill, minmax(120px, 1fr))` 自适应列数（宽度足够时展示 4 列，默认窗口展示 3 列），文字大小始终正常。

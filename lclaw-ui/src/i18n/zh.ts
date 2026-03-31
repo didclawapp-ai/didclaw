@@ -739,6 +739,23 @@ export default {
     channelsSkip:       "跳过",
     channelsDone:       "继续",
     channelsDoneDesc:   "插件安装完成。随时打开「渠道设置」完成扫码绑定。",
+
+    // OAuth provider cards
+    tagOAuth: "一键授权",
+    oauthDesc: "浏览器登录，无需手动填写 API Key",
+    oauthMinimax: "MiniMax",
+    oauthMinimaxDesc: "国内用户推荐 · 支持 Global / CN",
+    oauthOpenai: "OpenAI Codex",
+    oauthOpenaiDesc: "需要 ChatGPT Plus / Codex 订阅",
+    oauthGoogle: "Google Gemini",
+    oauthGoogleDesc: "需要 Google 账号",
+
+    // OAuth waiting / result states
+    oauthWaiting: "浏览器授权中，请在浏览器里完成登录…",
+    oauthSuccess: "授权成功，AI 已就绪！",
+    oauthFailed: "授权失败，请重试或改用 API 密钥",
+    oauthCancelBtn: "取消",
+    oauthRetryBtn: "重试",
   },
 
   // ─── 更新提示 OpenClawUpdatePrompt ───────────────────

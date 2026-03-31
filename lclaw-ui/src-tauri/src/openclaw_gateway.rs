@@ -2064,3 +2064,108 @@ pub fn run_openclaw_doctor_impl(repair: bool, custom_executable: Option<&str>) -
         "stderr": stderr,
     }))
 }
+
+/// Tauri event emitted per output line during `openclaw onboard` OAuth flow.
+pub const ONBOARD_LOG_EVENT: &str = "didclaw-onboard-log";
+
+/// Allowed auth-choice values for `openclaw onboard --auth-choice`.
+const ALLOWED_AUTH_CHOICES: &[&str] = &["minimax-portal", "openai-codex", "google"];
+
+/// Runs `openclaw onboard --auth-choice <auth_choice>`, streams stdout/stderr
+/// via `didclaw-onboard-log` events, and returns when the process exits.
+/// The CLI will open a browser for OAuth; this call blocks until the user
+/// completes (or cancels) the browser flow.
+pub async fn run_openclaw_onboard_oauth_impl(
+    app: tauri::AppHandle,
+    auth_choice: String,
+) -> Result<serde_json::Value, String> {
+    use std::sync::{Arc, Mutex};
+    use tauri::Emitter;
+
+    let choice = auth_choice.trim().to_ascii_lowercase();
+    if !ALLOWED_AUTH_CHOICES.contains(&choice.as_str()) {
+        return Ok(json!({
+            "ok": false,
+            "exitCode": -1,
+            "log": "",
+            "error": format!("Unsupported auth-choice: {choice}"),
+        }));
+    }
+
+    let exe = match resolve_configured_openclaw_executable(&app) {
+        Ok(Some(e)) => e,
+        Ok(None) => {
+            return Ok(json!({
+                "ok": false,
+                "exitCode": -1,
+                "log": "",
+                "error": "openclaw executable not found; please complete the install wizard first.",
+            }))
+        }
+        Err(e) => {
+            return Ok(json!({
+                "ok": false,
+                "exitCode": -1,
+                "log": "",
+                "error": e,
+            }))
+        }
+    };
+
+    // Resolve the actual command to run (same logic as run_open_claw_cli_captured but async).
+    let args: Vec<String> = vec![
+        "onboard".into(),
+        "--auth-choice".into(),
+        choice.clone(),
+    ];
+    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+
+    // Spawn via the same helper path resolution.
+    let out = tokio::task::spawn_blocking({
+        let exe = exe.clone();
+        let app2 = app.clone();
+        let choice2 = choice.clone();
+        move || {
+            // Use streaming version: build child process manually so we can emit line events.
+            // We reuse run_open_claw_cli_captured for simplicity (captures all output then returns).
+            // For OAuth the process runs until browser flow completes — this may take a while.
+            let _ = app2.emit(
+                ONBOARD_LOG_EVENT,
+                json!({"stream": "info", "line": format!("Starting OAuth: openclaw onboard --auth-choice {choice2}")}),
+            );
+            run_open_claw_cli_captured(&exe, &args_ref, &[])
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("Failed to spawn openclaw: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    let code = out.status.code().unwrap_or(-1);
+    let ok = out.status.success();
+
+    // Emit final lines so the frontend log panel shows output.
+    for line in stdout.lines() {
+        if !line.trim().is_empty() {
+            let _ = app.emit(ONBOARD_LOG_EVENT, json!({"stream": "stdout", "line": line}));
+        }
+    }
+    for line in stderr.lines() {
+        if !line.trim().is_empty() {
+            let _ = app.emit(ONBOARD_LOG_EVENT, json!({"stream": "stderr", "line": line}));
+        }
+    }
+
+    let log = if stderr.trim().is_empty() {
+        stdout.trim().to_string()
+    } else {
+        format!("{}\n{}", stdout.trim(), stderr.trim())
+    };
+
+    Ok(json!({
+        "ok": ok,
+        "exitCode": code,
+        "log": log,
+    }))
+}

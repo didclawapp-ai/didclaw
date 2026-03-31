@@ -478,6 +478,53 @@ async function runEnsureInstallAndInit(): Promise<void> {
   }
 }
 
+// ── OAuth provider onboard ────────────────────────────────────────────────────
+
+type OAuthProvider = "minimax-portal" | "openai-codex" | "google";
+type OAuthStatus = "idle" | "waiting" | "success" | "failed";
+
+const oauthStatus = ref<OAuthStatus>("idle");
+const oauthActiveProvider = ref<OAuthProvider | null>(null);
+const oauthError = ref<string | null>(null);
+
+async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
+  const api = getDidClawDesktopApi();
+  if (!api?.runOpenclawOnboard) {
+    modelError.value = t("settings.desktopOnly");
+    return;
+  }
+  oauthStatus.value = "waiting";
+  oauthActiveProvider.value = provider;
+  oauthError.value = null;
+  modelError.value = null;
+  try {
+    const r = await api.runOpenclawOnboard({ authChoice: provider });
+    if (r.ok) {
+      oauthStatus.value = "success";
+      await chat.refreshOpenClawModelPicker();
+      chat.flashOpenClawConfigHint();
+      afterOpenClawModelConfigSaved();
+      gw.disconnect();
+      scheduleDeferredGatewayConnect(gw);
+      setTimeout(() => {
+        visible.value = false;
+      }, 1200);
+    } else {
+      oauthStatus.value = "failed";
+      oauthError.value = "error" in r ? (r.error ?? null) : null;
+    }
+  } catch (e) {
+    oauthStatus.value = "failed";
+    oauthError.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
+function resetOAuth(): void {
+  oauthStatus.value = "idle";
+  oauthActiveProvider.value = null;
+  oauthError.value = null;
+}
+
 /** 一键写入本机 Ollama（OpenAI 兼容接口 + 默认 qwen2.5:7b） */
 async function applyOllamaQuickSetup(): Promise<void> {
   const api = getDidClawDesktopApi();
@@ -648,63 +695,136 @@ onUnmounted(() => {
           <div v-if="loading" class="first-run-muted">{{ t('wizard.loadingModel') }}</div>
           <p v-else-if="loadError" class="first-run-err">{{ loadError }}</p>
           <template v-else>
-            <p class="first-run-lead first-run-lead-model">{{ t('wizard.modelLead') }}</p>
-            <div class="model-cards">
-              <button
-                type="button"
-                class="model-card model-card-local"
-                :disabled="modelBusy"
-                @click="() => void applyOllamaQuickSetup()"
-              >
-                <span class="model-card-num" aria-hidden="true">1</span>
-                <div class="model-card-main">
-                  <span class="model-card-tag">{{ t('wizard.tagLocalAi') }}</span>
-                  <strong class="model-card-head">Ollama</strong>
-                  <p class="model-card-desc">
-                    <code>127.0.0.1:11434</code>
-                    <span class="model-card-desc-sep">·</span>
-                    <code>qwen2.5:7b</code>
-                  </p>
+            <!-- OAuth waiting state overlay -->
+            <template v-if="oauthStatus === 'waiting'">
+              <div class="oauth-waiting">
+                <span class="oauth-waiting-spinner" aria-hidden="true" />
+                <p class="oauth-waiting-text">{{ t('wizard.oauthWaiting') }}</p>
+              </div>
+            </template>
+            <!-- OAuth success state -->
+            <template v-else-if="oauthStatus === 'success'">
+              <div class="oauth-result oauth-result--ok">
+                <span class="oauth-result-icon" aria-hidden="true">✓</span>
+                <p class="oauth-result-text">{{ t('wizard.oauthSuccess') }}</p>
+              </div>
+            </template>
+            <!-- Normal card selection -->
+            <template v-else>
+              <p class="first-run-lead first-run-lead-model">{{ t('wizard.modelLead') }}</p>
+
+              <!-- OAuth section -->
+              <p class="model-section-label">{{ t('wizard.tagOAuth') }} · {{ t('wizard.oauthDesc') }}</p>
+              <div class="model-cards model-cards-oauth">
+                <button
+                  type="button"
+                  class="model-card model-card-oauth"
+                  :disabled="modelBusy"
+                  @click="() => void startOAuthOnboard('minimax-portal')"
+                >
+                  <div class="model-card-main">
+                    <span class="model-card-tag model-card-tag-oauth">{{ t('wizard.tagOAuth') }}</span>
+                    <strong class="model-card-head">{{ t('wizard.oauthMinimax') }}</strong>
+                    <p class="model-card-desc">{{ t('wizard.oauthMinimaxDesc') }}</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="model-card model-card-oauth"
+                  :disabled="modelBusy"
+                  @click="() => void startOAuthOnboard('openai-codex')"
+                >
+                  <div class="model-card-main">
+                    <span class="model-card-tag model-card-tag-oauth">{{ t('wizard.tagOAuth') }}</span>
+                    <strong class="model-card-head">{{ t('wizard.oauthOpenai') }}</strong>
+                    <p class="model-card-desc">{{ t('wizard.oauthOpenaiDesc') }}</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="model-card model-card-oauth"
+                  :disabled="modelBusy"
+                  @click="() => void startOAuthOnboard('google')"
+                >
+                  <div class="model-card-main">
+                    <span class="model-card-tag model-card-tag-oauth">{{ t('wizard.tagOAuth') }}</span>
+                    <strong class="model-card-head">{{ t('wizard.oauthGoogle') }}</strong>
+                    <p class="model-card-desc">{{ t('wizard.oauthGoogleDesc') }}</p>
+                  </div>
+                </button>
+              </div>
+
+              <!-- OAuth failed state (inline) -->
+              <div v-if="oauthStatus === 'failed'" class="oauth-result oauth-result--err">
+                <span class="oauth-result-icon" aria-hidden="true">✕</span>
+                <div>
+                  <p class="oauth-result-text">{{ t('wizard.oauthFailed') }}</p>
+                  <p v-if="oauthError" class="oauth-result-detail">{{ oauthError }}</p>
                 </div>
-              </button>
-              <button
-                type="button"
-                class="model-card model-card-cloud"
-                :disabled="modelBusy"
-                @click="onModelCloudPath"
-              >
-                <span class="model-card-num" aria-hidden="true">2</span>
-                <div class="model-card-main">
-                  <span class="model-card-tag">{{ t('wizard.tagCloudAi') }}</span>
-                  <strong class="model-card-head">{{ t('wizard.cloudApiKey') }}</strong>
-                  <p class="model-card-desc">{{ t('wizard.cloudDesc') }}</p>
-                </div>
-              </button>
-              <button
-                type="button"
-                class="model-card model-card-later"
-                :disabled="modelBusy"
-                @click="onModelSkipLater"
-              >
-                <span class="model-card-num model-card-num-muted" aria-hidden="true">3</span>
-                <div class="model-card-main">
-                  <span class="model-card-tag model-card-tag-muted">{{ t('wizard.tagLater') }}</span>
-                  <strong class="model-card-head">{{ t('wizard.skipModel') }}</strong>
-                  <p class="model-card-desc">{{ t('wizard.laterDesc') }}</p>
-                </div>
-              </button>
-            </div>
-            <p v-if="modelError" class="first-run-err">{{ modelError }}</p>
-            <div class="first-run-actions first-run-model-actions">
-              <button
-                type="button"
-                class="lc-btn lc-btn-ghost"
-                :disabled="loading || modelBusy"
-                @click="() => void refreshStatus()"
-              >
-                {{ t('wizard.recheckBtn') }}
-              </button>
-            </div>
+                <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="resetOAuth">
+                  {{ t('wizard.oauthRetryBtn') }}
+                </button>
+              </div>
+
+              <!-- Other options -->
+              <div class="model-cards model-cards-other">
+                <button
+                  type="button"
+                  class="model-card model-card-local"
+                  :disabled="modelBusy"
+                  @click="() => void applyOllamaQuickSetup()"
+                >
+                  <span class="model-card-num" aria-hidden="true">1</span>
+                  <div class="model-card-main">
+                    <span class="model-card-tag">{{ t('wizard.tagLocalAi') }}</span>
+                    <strong class="model-card-head">Ollama</strong>
+                    <p class="model-card-desc">
+                      <code>127.0.0.1:11434</code>
+                      <span class="model-card-desc-sep">·</span>
+                      <code>qwen2.5:7b</code>
+                    </p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="model-card model-card-cloud"
+                  :disabled="modelBusy"
+                  @click="onModelCloudPath"
+                >
+                  <span class="model-card-num" aria-hidden="true">2</span>
+                  <div class="model-card-main">
+                    <span class="model-card-tag">{{ t('wizard.tagCloudAi') }}</span>
+                    <strong class="model-card-head">{{ t('wizard.cloudApiKey') }}</strong>
+                    <p class="model-card-desc">{{ t('wizard.cloudDesc') }}</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="model-card model-card-later"
+                  :disabled="modelBusy"
+                  @click="onModelSkipLater"
+                >
+                  <span class="model-card-num model-card-num-muted" aria-hidden="true">3</span>
+                  <div class="model-card-main">
+                    <span class="model-card-tag model-card-tag-muted">{{ t('wizard.tagLater') }}</span>
+                    <strong class="model-card-head">{{ t('wizard.skipModel') }}</strong>
+                    <p class="model-card-desc">{{ t('wizard.laterDesc') }}</p>
+                  </div>
+                </button>
+              </div>
+
+              <p v-if="modelError" class="first-run-err">{{ modelError }}</p>
+              <div class="first-run-actions first-run-model-actions">
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-ghost"
+                  :disabled="loading || modelBusy"
+                  @click="() => void refreshStatus()"
+                >
+                  {{ t('wizard.recheckBtn') }}
+                </button>
+              </div>
+            </template>
           </template>
         </template>
 
@@ -1105,6 +1225,96 @@ onUnmounted(() => {
 }
 .first-run-model-actions {
   margin-top: 2px;
+}
+.model-section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lc-text-muted, #8b9cb0);
+  margin: 4px 0 8px;
+}
+.model-cards-oauth {
+  margin-bottom: 8px;
+}
+.model-cards-other {
+  margin-top: 12px;
+}
+.model-card-oauth {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: linear-gradient(
+    145deg,
+    rgba(167, 139, 250, 0.08) 0%,
+    var(--lc-bg-raised, #232d3a) 55%
+  );
+}
+.model-card-oauth:hover:not(:disabled) {
+  border-color: #a78bfa;
+  box-shadow: 0 6px 22px rgba(167, 139, 250, 0.16);
+}
+.model-card-tag-oauth {
+  color: #a78bfa;
+}
+/* OAuth waiting / result states */
+.oauth-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 40px 20px;
+  text-align: center;
+}
+.oauth-waiting-spinner {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(167, 139, 250, 0.25);
+  border-top-color: #a78bfa;
+  border-radius: 50%;
+  animation: oauth-spin 0.9s linear infinite;
+}
+@keyframes oauth-spin {
+  to { transform: rotate(360deg); }
+}
+.oauth-waiting-text {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--lc-text-muted, #8b9cb0);
+}
+.oauth-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  margin: 8px 0 12px;
+}
+.oauth-result--ok {
+  background: rgba(45, 212, 191, 0.1);
+  border: 1px solid rgba(45, 212, 191, 0.35);
+}
+.oauth-result--err {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  flex-wrap: wrap;
+}
+.oauth-result-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.oauth-result--ok .oauth-result-icon { color: #2dd4bf; }
+.oauth-result--err .oauth-result-icon { color: #f87171; }
+.oauth-result-text {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  flex: 1;
+}
+.oauth-result-detail {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--lc-text-muted, #8b9cb0);
+  word-break: break-all;
 }
 
 /* ── Channel pre-install cards ── */
