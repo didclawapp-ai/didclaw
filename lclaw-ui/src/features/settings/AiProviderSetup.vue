@@ -187,7 +187,17 @@ function currentPrimaryLabel(): string {
     return currentPrimary.value;
   }
   const modelId = currentPrimary.value.slice(provider.id.length + 1);
-  return `${provider.icon} ${provider.displayName} · ${modelId}`;
+  return `${provider.displayName} · ${modelId}`;
+}
+
+function focusPrimaryProvider(): void {
+  if (!currentPrimary.value) {
+    return;
+  }
+  const provider = allProviders.value.find((item) => currentPrimary.value.startsWith(`${item.id}/`));
+  if (provider) {
+    expandCard(provider);
+  }
 }
 
 function activeBaseUrl(view: OpenClawAiProviderView): string {
@@ -269,15 +279,6 @@ function expandedProviderModels(): string[] {
 
 function expandedProviderDefaultModel(): string {
   return expandedProvider.value?.defaultModel || t('aiProvider.notSet');
-}
-
-function providerModelsSummary(view: OpenClawAiProviderView): string {
-  if (!view.models.length) {
-    return t('aiProvider.noModels');
-  }
-  return view.modelsSource === "configured"
-    ? t('aiProvider.configuredModels', { n: view.models.length })
-    : t('aiProvider.recommendedModels', { n: view.models.length });
 }
 
 async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) {
@@ -521,7 +522,17 @@ async function removeImageGen() {
 <template>
   <div class="aips">
     <!-- Primary model banner -->
-    <div class="aips-banner" :class="{ 'aips-banner--set': currentPrimary }">
+    <div
+      class="aips-banner"
+      :class="{
+        'aips-banner--set': currentPrimary,
+        'aips-banner--interactive': currentPrimary,
+      }"
+      :role="currentPrimary ? 'button' : undefined"
+      :tabindex="currentPrimary ? 0 : undefined"
+      @click="focusPrimaryProvider"
+      @keydown.enter.prevent="focusPrimaryProvider"
+    >
       <span class="aips-banner-label">{{ t('aiProvider.primaryLabel') }}</span>
       <span class="aips-banner-sep" aria-hidden="true" />
       <span class="aips-banner-value">{{ currentPrimaryLabel() }}</span>
@@ -615,7 +626,10 @@ async function removeImageGen() {
     </div>
 
     <!-- Provider grid (scrollable) -->
-    <div class="aips-grid-wrap">
+    <div
+      class="aips-grid-wrap"
+      :class="{ 'aips-grid-wrap--panel-open': expandedProvider !== null || expandedImgId !== null }"
+    >
       <!-- Empty state -->
       <div v-if="filteredProviders.length === 0 && !IMAGE_GEN_CATALOG.length" class="aips-empty">
         <span class="aips-empty-icon" aria-hidden="true">&#128269;</span>
@@ -635,7 +649,9 @@ async function removeImageGen() {
           @click="expandCard(provider)"
         >
           <div class="aips-pcard-top">
-            <span class="aips-pcard-icon" aria-hidden="true">{{ provider.icon }}</span>
+            <div class="aips-pcard-name">{{ provider.displayName }}</div>
+          </div>
+          <div class="aips-pcard-footer">
             <span
               class="aips-pcard-badge"
               :class="{
@@ -653,13 +669,6 @@ async function removeImageGen() {
               }}
             </span>
           </div>
-          <div class="aips-pcard-name">{{ provider.displayName }}</div>
-          <p class="aips-pcard-desc">{{ provider.description }}</p>
-          <div class="aips-pcard-meta">
-            <span>{{ providerModelsSummary(provider) }}</span>
-            <span v-if="provider.baseUrl" class="aips-pcard-dot" aria-hidden="true" />
-            <span v-if="provider.baseUrl" class="aips-pcard-url">{{ provider.baseUrl }}</span>
-          </div>
         </div>
       </div>
 
@@ -676,18 +685,15 @@ async function removeImageGen() {
               @click="toggleImgCard(imgEntry)"
             >
               <div class="aips-pcard-top">
-                <span class="aips-pcard-icon" aria-hidden="true">{{ imgEntry.icon }}</span>
+                <div class="aips-pcard-name">{{ imgEntry.name }}</div>
+              </div>
+              <div class="aips-pcard-footer">
                 <span
                   class="aips-pcard-badge"
                   :class="aiSnapshot.imageGenerationModel === imgEntry.modelRef ? 'aips-pcard-badge--ok' : 'aips-pcard-badge--pending'"
                 >
                   {{ aiSnapshot.imageGenerationModel === imgEntry.modelRef ? t('aiProvider.on') : t('aiProvider.off') }}
                 </span>
-              </div>
-              <div class="aips-pcard-name">{{ imgEntry.name }}</div>
-              <p class="aips-pcard-desc">{{ imgEntry.description }}</p>
-              <div class="aips-pcard-meta">
-                <code class="aips-pcard-model-id">{{ imgEntry.modelLabel }}</code>
               </div>
             </div>
           </div>
@@ -707,13 +713,10 @@ async function removeImageGen() {
               @click="expandCard(provider)"
             >
               <div class="aips-pcard-top">
-                <span class="aips-pcard-icon" aria-hidden="true">{{ provider.icon }}</span>
-                <span class="aips-pcard-badge aips-pcard-badge--free">{{ t('aiProvider.detectedBadge') }}</span>
+                <div class="aips-pcard-name">{{ provider.displayName }}</div>
               </div>
-              <div class="aips-pcard-name">{{ provider.displayName }}</div>
-              <p class="aips-pcard-desc">{{ provider.description }}</p>
-              <div class="aips-pcard-meta">
-                <span>{{ providerModelsSummary(provider) }}</span>
+              <div class="aips-pcard-footer">
+                <span class="aips-pcard-badge aips-pcard-badge--free">{{ t('aiProvider.detectedBadge') }}</span>
               </div>
             </div>
           </div>
@@ -730,7 +733,6 @@ async function removeImageGen() {
         <!-- Provider config panel -->
         <template v-if="expandedProvider && expandedImgId === null">
           <div class="aips-bottom-head">
-            <span class="aips-bottom-icon" aria-hidden="true">{{ expandedProvider.icon }}</span>
             <div class="aips-bottom-info">
               <div class="aips-bottom-name">{{ expandedProvider.displayName }}</div>
               <div class="aips-bottom-url">{{ editingBaseUrl || expandedProvider.baseUrl }}</div>
@@ -743,7 +745,7 @@ async function removeImageGen() {
                 rel="noopener noreferrer"
                 class="aips-bottom-docs"
               >{{ t('aiProvider.docs') }}</a>
-              <button type="button" class="aips-bottom-close" @click="expandedId = null">x</button>
+              <button type="button" class="aips-bottom-close" @click="expandedId = null">×</button>
             </div>
           </div>
 
@@ -871,13 +873,12 @@ async function removeImageGen() {
           <template v-for="imgEntry in IMAGE_GEN_CATALOG" :key="imgEntry.id">
             <template v-if="expandedImgId === imgEntry.id">
               <div class="aips-bottom-head">
-                <span class="aips-bottom-icon" aria-hidden="true">{{ imgEntry.icon }}</span>
                 <div class="aips-bottom-info">
                   <div class="aips-bottom-name">{{ imgEntry.name }}</div>
                   <code class="aips-bottom-url">{{ imgEntry.modelLabel }}</code>
                 </div>
                 <div class="aips-bottom-head-actions">
-                  <button type="button" class="aips-bottom-close" @click="toggleImgCard(imgEntry)">x</button>
+                  <button type="button" class="aips-bottom-close" @click="toggleImgCard(imgEntry)">×</button>
                 </div>
               </div>
               <div class="aips-bottom-fields">
@@ -927,8 +928,9 @@ async function removeImageGen() {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  height: 480px;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -942,6 +944,17 @@ async function removeImageGen() {
   border: 1px solid var(--lc-border);
   font-size: 12px;
   flex-shrink: 0;
+}
+.aips-banner--interactive {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.12s;
+}
+.aips-banner--interactive:hover {
+  border-color: color-mix(in srgb, var(--lc-accent) 45%, transparent);
+}
+.aips-banner--interactive:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--lc-accent) 28%, transparent);
+  outline-offset: 2px;
 }
 .aips-banner--set {
   border-color: color-mix(in srgb, var(--lc-accent) 35%, transparent);
@@ -1159,21 +1172,26 @@ async function removeImageGen() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
+  padding-right: 4px;
   scrollbar-width: thin;
   scrollbar-color: var(--lc-border) transparent;
+}
+.aips-grid-wrap--panel-open {
+  padding-bottom: 300px;
 }
 .aips-grid-wrap::-webkit-scrollbar { width: 4px; }
 .aips-grid-wrap::-webkit-scrollbar-thumb { background: var(--lc-border); border-radius: 2px; }
 
 .aips-providers-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 8px;
   align-content: start;
 }
 .aips-img-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 8px;
 }
 
@@ -1181,24 +1199,28 @@ async function removeImageGen() {
   background: var(--lc-bg-raised);
   border: 1px solid var(--lc-border);
   border-radius: var(--lc-radius-sm, 10px);
-  padding: 12px;
+  padding: 12px 14px;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, transform 0.12s, box-shadow 0.12s;
   display: flex;
   flex-direction: column;
   gap: 4px;
   user-select: none;
-  min-height: 100px;
+  min-height: 104px;
+  aspect-ratio: 1 / 0.82;
   min-width: 0;
   overflow: hidden;
 }
 .aips-pcard:hover {
   border-color: var(--lc-border-strong, var(--lc-accent));
   background: var(--lc-bg-elevated);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
 }
 .aips-pcard--active {
   border-color: var(--lc-accent);
   background: color-mix(in srgb, var(--lc-accent) 6%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--lc-accent) 18%, transparent);
 }
 .aips-pcard--primary {
   border-color: color-mix(in srgb, var(--lc-accent) 40%, transparent);
@@ -1207,11 +1229,18 @@ async function removeImageGen() {
 .aips-pcard-top {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 4px;
+  justify-content: flex-start;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
 }
-.aips-pcard-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.aips-pcard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: auto;
+  min-height: 24px;
+}
 .aips-pcard-badge {
   font-size: 10px;
   padding: 2px 7px;
@@ -1241,50 +1270,16 @@ async function removeImageGen() {
 
 .aips-pcard-name {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lc-text);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.aips-pcard-desc {
-  font-size: 11px;
-  color: var(--lc-text-muted);
-  line-height: 1.4;
-  margin: 0;
-  overflow: hidden;
   display: -webkit-box;
+  flex: 1;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
-}
-.aips-pcard-meta {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  color: var(--lc-text-dim, var(--lc-text-muted));
-  margin-top: 2px;
-  overflow: hidden;
-}
-.aips-pcard-dot {
-  width: 3px; height: 3px;
-  background: var(--lc-border);
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.aips-pcard-url {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--lc-mono);
-  font-size: 10px;
-  flex: 1;
-}
-.aips-pcard-model-id {
-  font-family: var(--lc-mono);
-  font-size: 10px;
-  color: var(--lc-text-muted);
+  white-space: normal;
 }
 
 .aips-empty {
@@ -1316,16 +1311,17 @@ async function removeImageGen() {
 .aips-bottom {
   position: absolute;
   bottom: 0; left: 0; right: 0;
-  background: var(--lc-bg-raised);
-  border-top: 1px solid var(--lc-border);
-  border-radius: 0 0 var(--lc-radius-sm, 10px) var(--lc-radius-sm, 10px);
+  background: var(--lc-surface, var(--lc-bg-raised));
+  border-top: 1px solid color-mix(in srgb, var(--lc-border) 65%, transparent);
+  border-radius: 14px 14px 0 0;
   transform: translateY(100%);
   transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  max-height: 290px;
+  max-height: 320px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 -18px 40px rgba(15, 23, 42, 0.14);
   z-index: 2;
+  overflow: hidden;
 }
 .aips-bottom--open { transform: translateY(0); }
 
@@ -1342,12 +1338,11 @@ async function removeImageGen() {
 .aips-bottom-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--lc-border);
   flex-shrink: 0;
 }
-.aips-bottom-icon { font-size: 22px; flex-shrink: 0; }
 .aips-bottom-info { flex: 1; min-width: 0; }
 .aips-bottom-name {
   font-size: 14px;
@@ -1376,17 +1371,21 @@ async function removeImageGen() {
 }
 .aips-bottom-docs:hover { text-decoration: underline; }
 .aips-bottom-close {
-  width: 26px; height: 26px;
-  border: none;
+  width: 28px; height: 28px;
+  border: 1px solid var(--lc-border);
   background: var(--lc-bg-elevated);
   color: var(--lc-text-muted);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.aips-bottom-close:hover { background: var(--lc-bg-hover, var(--lc-bg-elevated)); color: var(--lc-text); }
+.aips-bottom-close:hover {
+  background: var(--lc-bg-hover, var(--lc-bg-elevated));
+  border-color: var(--lc-border-strong, var(--lc-border));
+  color: var(--lc-text);
+}
 
 .aips-bottom-fields {
   display: grid;

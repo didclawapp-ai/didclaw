@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 修复
+
+- **AI 配置弹窗缩放问题**：移除之前基于 `transform: scale()` 的整体缩放方案，该方案在默认 570px 窗口下导致弹窗内所有文字缩小至约 58%。改为弹窗自身固定合理尺寸（普通面板 `min(540px, 100vw-24px)`，AI 宽面板 `min(720px, 100vw-24px)`），卡片网格使用 `repeat(auto-fill, minmax(120px, 1fr))` 自适应列数（宽度足够时展示 4 列，默认窗口展示 3 列），文字大小始终正常。
+
 ### 新增
 
 - **AI 配置面板二次修正**：修复 provider 卡片网格实际渲染为 2 列的问题（将 `repeat(3, 1fr)` 改为 `repeat(3, minmax(0, 1fr))` 并给卡片加 `min-width: 0; overflow: hidden`，防止内容撑开隐式最小宽）；卡片补充 `min-height: 100px`；Primary banner 右侧补充"切换 ›"文字；备用模型行的添加按钮改为文字链样式，与 Demo 一致。

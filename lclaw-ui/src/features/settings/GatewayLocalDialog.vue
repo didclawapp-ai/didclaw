@@ -101,6 +101,7 @@ const open = computed({
   set: (v: boolean) => emit("update:modelValue", v),
 });
 
+
 async function loadGatewayForm(): Promise<void> {
   saveError.value = null;
   wsUrl.value = gatewayUrlFromEnv();
@@ -610,397 +611,412 @@ async function onRestoreModel(): Promise<void> {
         role="dialog"
         aria-labelledby="local-settings-title"
       >
-        <h2 id="local-settings-title">{{ t('settings.title') }}</h2>
-        <p class="dialog-lead muted small">
-          {{ t('settings.lead') }}
-        </p>
-
-        <div class="tabs" role="tablist">
+        <div class="panel-header">
+          <div class="panel-header-copy">
+            <h2 id="local-settings-title">{{ t('settings.title') }}</h2>
+          </div>
           <button
             type="button"
-            role="tab"
-            class="tab"
-            :class="{ active: tab === 'gateway' }"
-            :aria-selected="tab === 'gateway'"
-            @click="tab = 'gateway'"
+            class="panel-close"
+            :aria-label="t('common.close')"
+            @click="open = false"
           >
-            {{ t('settings.tabGateway') }}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            class="tab"
-            :class="{ active: tab === 'ai' }"
-            :aria-selected="tab === 'ai'"
-            @click="tab = 'ai'"
-          >
-            {{ t('settings.tabAi') }}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            class="tab tab--advanced"
-            :class="{ active: tab === 'providers' || tab === 'model' }"
-            :aria-selected="tab === 'providers' || tab === 'model'"
-            :title="t('settings.tabAdvancedTitle')"
-            @click="tab = tab === 'providers' ? 'model' : 'providers'"
-          >
-            {{ t('settings.tabAdvanced') }}
+            ×
           </button>
         </div>
 
-        <!-- AI config panel -->
-        <div v-if="tab === 'ai'" class="tab-panel">
-          <AiProviderSetup :open="open && tab === 'ai'" />
-        </div>
-
-        <div v-show="tab === 'gateway'" class="tab-panel">
-          <label class="field">
-            <span class="field-label-row">
-              {{ t('settings.wsUrlLabel') }}
-              <span class="help-tip" :title="t('settings.wsUrlTip')" tabindex="0" role="note">?</span>
-            </span>
-            <input v-model="wsUrl" type="text" autocomplete="off" :placeholder="t('settings.wsUrlPlaceholder')">
-          </label>
-          <label class="field">
-            <span class="field-label-row">
-              {{ t('settings.tokenLabel') }}
-              <span class="help-tip" :title="t('settings.tokenTip')" tabindex="0" role="note">?</span>
-            </span>
-            <input v-model="token" type="password" autocomplete="off" :placeholder="t('settings.tokenPlaceholder')">
-          </label>
-          <label class="field">
-            <span>{{ t('settings.passwordLabel') }}</span>
-            <input v-model="password" type="password" autocomplete="off" :placeholder="t('settings.passwordPlaceholder')">
-          </label>
-
-          <div class="gateway-checkbox-group">
-            <label class="field field--checkbox-row">
-              <input v-model="autoStartOpenClaw" type="checkbox">
-              <span>{{ t('settings.autoStartLabel') }}</span>
-            </label>
-            <p class="hint small muted gateway-auto-hint">{{ t('settings.autoStartHint') }}</p>
-            <label class="field field--checkbox-row">
-              <input v-model="stopManagedGatewayOnQuit" type="checkbox">
-              <span>{{ t('settings.stopOnQuitLabel') }}</span>
-            </label>
-          </div>
-
-          <details class="gateway-advanced">
-            <summary class="gateway-advanced-summary muted small">{{ t('settings.gatewayAdvanced') }}</summary>
-            <label class="field" style="margin-top:10px">
-              <span class="field-label-row">
-                {{ t('settings.executableLabel') }}
-                <span class="help-tip" :title="t('settings.executableTip')" tabindex="0" role="note">?</span>
-              </span>
-              <input
-                v-model="openclawExecutable"
-                type="text"
-                autocomplete="off"
-                :placeholder="t('settings.executablePlaceholder')"
-              >
-            </label>
-          </details>
-
-          <p v-if="saveError" class="err">{{ saveError }}</p>
-          <div class="actions">
-            <button type="button" class="ghost" @click="open = false">{{ t('common.close') }}</button>
-            <button type="button" :disabled="saving" @click="onSaveGateway">
-              {{ saving ? t('common.saving') : t('settings.saveAndReconnect') }}
-            </button>
-          </div>
-        </div>
-
-        <div v-show="tab === 'model'" class="tab-panel">
-          <p class="help-intro muted small">
-            {{ t('settings.modelHelp') }}
-            <span
-              class="help-tip"
-              :title="t('settings.modelHelpTip')"
-              tabindex="0"
-              role="note"
-            >?</span>
-          </p>
-          <div class="preset-dropdown-row">
-            <label class="field preset-field">
-              <span class="field-label-row">
-                {{ t('settings.presetCn') }}
-                <span
-                  class="help-tip"
-                  :title="t('settings.presetCnTip')"
-                  tabindex="0"
-                  role="note"
-                >?</span>
-              </span>
-              <select :aria-label="t('settings.presetCnAriaLabel')" @change="onModelPresetSelect('cn', $event)">
-                <option value="">{{ t('settings.presetSelectPrompt') }}</option>
-                <option
-                  v-for="(p, i) in primaryModelQuickPicksCn"
-                  :key="p.ref"
-                  :value="String(i)"
-                >
-                  {{ p.label }}
-                </option>
-              </select>
-            </label>
-            <label class="field preset-field">
-              <span class="field-label-row">
-                {{ t('settings.presetIntl') }}
-                <span
-                  class="help-tip"
-                  :title="t('settings.presetIntlTip')"
-                  tabindex="0"
-                  role="note"
-                >?</span>
-              </span>
-              <select :aria-label="t('settings.presetIntlAriaLabel')" @change="onModelPresetSelect('intl', $event)">
-                <option value="">{{ t('settings.presetSelectPrompt') }}</option>
-                <option
-                  v-for="(p, i) in primaryModelQuickPicksIntl"
-                  :key="p.ref"
-                  :value="String(i)"
-                >
-                  {{ p.label }}
-                </option>
-              </select>
-            </label>
-          </div>
-          <label class="field">
-            <span class="field-label-row">
-              {{ t('settings.primaryModelLabel') }}
-              <span
-                class="help-tip"
-                :title="t('settings.primaryModelTip')"
-                tabindex="0"
-                role="note"
-              >?</span>
-            </span>
-            <input
-              v-model="primaryModel"
-              type="text"
-              autocomplete="off"
-              :placeholder="t('settings.primaryModelPlaceholder')"
+        <div class="panel-shell">
+          <div class="settings-sidebar" role="tablist" aria-orientation="vertical">
+            <button
+              type="button"
+              role="tab"
+              class="sidebar-tab"
+              :class="{ active: tab === 'gateway' }"
+              :aria-selected="tab === 'gateway'"
+              @click="tab = 'gateway'"
             >
-          </label>
-
-          <p class="subhead field-label-row">
-            {{ t('settings.aliasTitle') }}
-            <span
-              class="help-tip"
-              :title="t('settings.aliasTip')"
-              tabindex="0"
-              role="note"
-            >?</span>
-          </p>
-          <div class="alias-toolbar">
-            <button type="button" class="add-model-btn" @click="addAliasRow">{{ t('settings.addAliasRow') }}</button>
+              {{ t('settings.tabGateway') }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="sidebar-tab"
+              :class="{ active: tab === 'ai' }"
+              :aria-selected="tab === 'ai'"
+              @click="tab = 'ai'"
+            >
+              {{ t('settings.tabAi') }}
+              <span class="sidebar-tab-dot" aria-hidden="true" />
+            </button>
+            <div class="settings-sidebar-divider" aria-hidden="true" />
+            <button
+              type="button"
+              role="tab"
+              class="sidebar-tab sidebar-tab--advanced"
+              :class="{ active: tab === 'providers' || tab === 'model' }"
+              :aria-selected="tab === 'providers' || tab === 'model'"
+              :title="t('settings.tabAdvancedTitle')"
+              @click="tab = tab === 'providers' ? 'model' : 'providers'"
+            >
+              {{ t('settings.tabAdvanced') }}
+            </button>
           </div>
-          <div class="alias-list">
-            <div v-for="(row, i) in aliasRows" :key="i" class="alias-row">
-              <input
-                v-model="row.ref"
-                type="text"
-                :placeholder="t('settings.aliasRefPlaceholder')"
-                class="mono"
-              >
-              <input v-model="row.alias" type="text" :placeholder="t('settings.aliasNamePlaceholder')">
-              <button type="button" class="ghost sm" @click="removeAliasRow(i)">{{ t('settings.removeAliasRow') }}</button>
+
+          <div class="panel-body">
+            <!-- AI config panel -->
+            <div v-if="tab === 'ai'" class="tab-panel tab-panel--ai">
+              <AiProviderSetup :open="open && tab === 'ai'" />
             </div>
-          </div>
 
-          <p v-if="modelError" class="err">{{ modelError }}</p>
-          <p v-if="modelToast" class="toast">{{ modelToast }}</p>
+            <div v-show="tab === 'gateway'" class="tab-panel tab-panel--scroll">
+              <label class="field">
+                <span class="field-label-row">
+                  {{ t('settings.wsUrlLabel') }}
+                  <span class="help-tip" :title="t('settings.wsUrlTip')" tabindex="0" role="note">?</span>
+                </span>
+                <input v-model="wsUrl" type="text" autocomplete="off" :placeholder="t('settings.wsUrlPlaceholder')">
+              </label>
+              <label class="field">
+                <span class="field-label-row">
+                  {{ t('settings.tokenLabel') }}
+                  <span class="help-tip" :title="t('settings.tokenTip')" tabindex="0" role="note">?</span>
+                </span>
+                <input v-model="token" type="password" autocomplete="off" :placeholder="t('settings.tokenPlaceholder')">
+              </label>
+              <label class="field">
+                <span>{{ t('settings.passwordLabel') }}</span>
+                <input v-model="password" type="password" autocomplete="off" :placeholder="t('settings.passwordPlaceholder')">
+              </label>
 
-          <div class="actions wrap">
-            <button type="button" class="ghost" :disabled="modelBusy" @click="onRestoreModel">
-              {{ t('settings.restoreModel') }}
-            </button>
-            <button type="button" :disabled="modelBusy" @click="onSaveModel">
-              {{ modelBusy ? t('common.processing') : t('common.save') }}
-            </button>
-          </div>
-        </div>
+              <div class="gateway-checkbox-group">
+                <label class="field field--checkbox-row">
+                  <input v-model="autoStartOpenClaw" type="checkbox">
+                  <span>{{ t('settings.autoStartLabel') }}</span>
+                </label>
+                <p class="hint small muted gateway-auto-hint">{{ t('settings.autoStartHint') }}</p>
+                <label class="field field--checkbox-row">
+                  <input v-model="stopManagedGatewayOnQuit" type="checkbox">
+                  <span>{{ t('settings.stopOnQuitLabel') }}</span>
+                </label>
+              </div>
 
-        <div v-show="tab === 'providers'" class="tab-panel providers-tab">
-          <p class="help-intro muted small">
-            {{ t('settings.providerHelp') }}
-            <span
-              class="help-tip"
-              :title="t('settings.providerHelpTip')"
-              tabindex="0"
-              role="note"
-            >?</span>
-          </p>
-          <div class="preset-dropdown-row">
-            <label class="field preset-field">
-              <span class="field-label-row">
-                {{ t('settings.presetCnProvider') }}
-                <span
-                  class="help-tip"
-                  :title="t('settings.presetCnProviderTip')"
-                  tabindex="0"
-                  role="note"
-                >?</span>
-              </span>
-              <select :aria-label="t('settings.presetCnProviderAriaLabel')" @change="onProviderPresetSelect('cn', $event)">
-                <option value="">{{ t('settings.presetSelectPrompt') }}</option>
-                <option
-                  v-for="(preset, i) in providerPresetsCn"
-                  :key="preset.label"
-                  :value="String(i)"
-                >
-                  {{ preset.label }}
-                </option>
-              </select>
-            </label>
-            <label class="field preset-field">
-              <span class="field-label-row">
-                {{ t('settings.presetIntlProvider') }}
-                <span
-                  class="help-tip"
-                  :title="t('settings.presetIntlProviderTip')"
-                  tabindex="0"
-                  role="note"
-                >?</span>
-              </span>
-              <select :aria-label="t('settings.presetIntlProviderAriaLabel')" @change="onProviderPresetSelect('intl', $event)">
-                <option value="">{{ t('settings.presetSelectPrompt') }}</option>
-                <option
-                  v-for="(preset, i) in providerPresetsIntl"
-                  :key="preset.label"
-                  :value="String(i)"
-                >
-                  {{ preset.label }}
-                </option>
-              </select>
-            </label>
-          </div>
-          <div class="providers-split">
-            <aside class="providers-list-col">
-              <div class="providers-list-head">
-                <span class="subhead tight">{{ t('settings.providersAdded') }}</span>
-                <button type="button" class="ghost sm" :disabled="provBusy" @click="startNewProvider">
-                  {{ t('settings.newProvider') }}
+              <details class="gateway-advanced">
+                <summary class="gateway-advanced-summary muted small">{{ t('settings.gatewayAdvanced') }}</summary>
+                <label class="field" style="margin-top:10px">
+                  <span class="field-label-row">
+                    {{ t('settings.executableLabel') }}
+                    <span class="help-tip" :title="t('settings.executableTip')" tabindex="0" role="note">?</span>
+                  </span>
+                  <input
+                    v-model="openclawExecutable"
+                    type="text"
+                    autocomplete="off"
+                    :placeholder="t('settings.executablePlaceholder')"
+                  >
+                </label>
+              </details>
+
+              <p v-if="saveError" class="err">{{ saveError }}</p>
+              <div class="actions">
+                <button type="button" class="ghost" @click="open = false">{{ t('common.close') }}</button>
+                <button type="button" :disabled="saving" @click="onSaveGateway">
+                  {{ saving ? t('common.saving') : t('settings.saveAndReconnect') }}
                 </button>
               </div>
-              <ul class="providers-key-list">
-                <li v-for="key in providerKeyList" :key="key">
-                  <button
-                    type="button"
-                    class="prov-key-btn"
-                    :class="{ active: !creatingNewProvider && selectedProviderKey === key }"
-                    @click="onSelectProviderKey(key)"
-                  >
-                    {{ key }}
-                  </button>
-                </li>
-              </ul>
-              <p v-if="providerKeyList.length === 0" class="hint small muted">{{ t('settings.noProviders') }}</p>
-            </aside>
+            </div>
 
-            <div class="providers-editor">
-              <template v-if="creatingNewProvider">
-                <label class="field">
+            <div v-show="tab === 'model'" class="tab-panel tab-panel--scroll">
+              <p class="help-intro muted small">
+                {{ t('settings.modelHelp') }}
+                <span
+                  class="help-tip"
+                  :title="t('settings.modelHelpTip')"
+                  tabindex="0"
+                  role="note"
+                >?</span>
+              </p>
+              <div class="preset-dropdown-row">
+                <label class="field preset-field">
                   <span class="field-label-row">
-                    {{ t('settings.providerCodeLabel') }}
+                    {{ t('settings.presetCn') }}
                     <span
                       class="help-tip"
-                      :title="t('settings.providerCodeTip')"
+                      :title="t('settings.presetCnTip')"
                       tabindex="0"
                       role="note"
                     >?</span>
                   </span>
-                  <input
-                    v-model="newProviderKeyDraft"
-                    type="text"
-                    autocomplete="off"
-                    :placeholder="t('settings.providerCodePlaceholder')"
-                    class="mono"
-                  >
-                </label>
-              </template>
-              <template v-else-if="selectedProviderKey">
-                <p class="subhead tight">{{ t('settings.editingProvider', { key: selectedProviderKey }) }}</p>
-              </template>
-              <template v-else>
-                <p class="hint small">{{ t('settings.selectOrNew') }}</p>
-              </template>
-
-              <template v-if="creatingNewProvider || selectedProviderKey">
-                <label class="field">
-                  <span class="field-label-row">
-                    {{ t('settings.baseUrlLabel') }}
-                    <span
-                      class="help-tip"
-                      :title="t('settings.baseUrlTip')"
-                      tabindex="0"
-                      role="note"
-                    >?</span>
-                  </span>
-                  <input
-                    v-model="pvBaseUrl"
-                    type="text"
-                    autocomplete="off"
-                    placeholder="https://…"
-                  >
-                </label>
-                <label class="field api-key-field">
-                  <span class="field-label-row">
-                    {{ t('settings.apiKeyLabel') }}
-                    <span
-                      class="help-tip"
-                      :title="isEditingOllamaProvider ? t('settings.apiKeyTipOllama') : t('settings.apiKeyTip')"
-                      tabindex="0"
-                      role="note"
-                    >?</span>
-                  </span>
-                  <div class="api-key-row">
-                    <input
-                      v-model="pvApiKey"
-                      :type="showPvApiKey ? 'text' : 'password'"
-                      autocomplete="off"
-                      :placeholder="isEditingOllamaProvider ? t('settings.apiKeyPlaceholderOllama') : t('settings.apiKeyPlaceholder')"
+                  <select :aria-label="t('settings.presetCnAriaLabel')" @change="onModelPresetSelect('cn', $event)">
+                    <option value="">{{ t('settings.presetSelectPrompt') }}</option>
+                    <option
+                      v-for="(p, i) in primaryModelQuickPicksCn"
+                      :key="p.ref"
+                      :value="String(i)"
                     >
-                    <button type="button" class="ghost sm" @click="showPvApiKey = !showPvApiKey">
-                      {{ showPvApiKey ? t('common.hide') : t('common.show') }}
-                    </button>
-                  </div>
+                      {{ p.label }}
+                    </option>
+                  </select>
                 </label>
-
-                <p class="subhead tight field-label-row">
-                  {{ t('settings.modelIdsLabel') }}
+                <label class="field preset-field">
+                  <span class="field-label-row">
+                    {{ t('settings.presetIntl') }}
+                    <span
+                      class="help-tip"
+                      :title="t('settings.presetIntlTip')"
+                      tabindex="0"
+                      role="note"
+                    >?</span>
+                  </span>
+                  <select :aria-label="t('settings.presetIntlAriaLabel')" @change="onModelPresetSelect('intl', $event)">
+                    <option value="">{{ t('settings.presetSelectPrompt') }}</option>
+                    <option
+                      v-for="(p, i) in primaryModelQuickPicksIntl"
+                      :key="p.ref"
+                      :value="String(i)"
+                    >
+                      {{ p.label }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+              <label class="field">
+                <span class="field-label-row">
+                  {{ t('settings.primaryModelLabel') }}
                   <span
                     class="help-tip"
-                    :title="t('settings.modelIdsTip')"
+                    :title="t('settings.primaryModelTip')"
                     tabindex="0"
                     role="note"
                   >?</span>
-                </p>
-                <div class="pv-models">
-                  <div v-for="(row, i) in pvModelRows" :key="i" class="pv-model-row">
-                    <input v-model="row.id" type="text" class="mono" :placeholder="t('settings.modelIdPlaceholder')">
-                    <button type="button" class="ghost sm" @click="removePvModelRow(i)">{{ t('settings.removeModelRow') }}</button>
-                  </div>
-                </div>
-                <button type="button" class="ghost add-row-inline" @click="addPvModelRow">{{ t('settings.addModelRow') }}</button>
+                </span>
+                <input
+                  v-model="primaryModel"
+                  type="text"
+                  autocomplete="off"
+                  :placeholder="t('settings.primaryModelPlaceholder')"
+                >
+              </label>
 
-                <p v-if="provError" class="err">{{ provError }}</p>
-                <p v-if="provToast" class="toast">{{ provToast }}</p>
-
-                <div class="actions wrap">
-                  <button
-                    type="button"
-                    class="ghost danger"
-                    :disabled="provBusy || creatingNewProvider || !selectedProviderKey"
-                    @click="onDeleteProvider"
+              <p class="subhead field-label-row">
+                {{ t('settings.aliasTitle') }}
+                <span
+                  class="help-tip"
+                  :title="t('settings.aliasTip')"
+                  tabindex="0"
+                  role="note"
+                >?</span>
+              </p>
+              <div class="alias-toolbar">
+                <button type="button" class="add-model-btn" @click="addAliasRow">{{ t('settings.addAliasRow') }}</button>
+              </div>
+              <div class="alias-list">
+                <div v-for="(row, i) in aliasRows" :key="i" class="alias-row">
+                  <input
+                    v-model="row.ref"
+                    type="text"
+                    :placeholder="t('settings.aliasRefPlaceholder')"
+                    class="mono"
                   >
-                    {{ t('settings.deleteProvider') }}
-                  </button>
-                  <button type="button" :disabled="provBusy" @click="onSaveProvider">
-                    {{ provBusy ? t('common.saving') : t('common.save') }}
-                  </button>
+                  <input v-model="row.alias" type="text" :placeholder="t('settings.aliasNamePlaceholder')">
+                  <button type="button" class="ghost sm" @click="removeAliasRow(i)">{{ t('settings.removeAliasRow') }}</button>
                 </div>
-              </template>
+              </div>
+
+              <p v-if="modelError" class="err">{{ modelError }}</p>
+              <p v-if="modelToast" class="toast">{{ modelToast }}</p>
+
+              <div class="actions wrap">
+                <button type="button" class="ghost" :disabled="modelBusy" @click="onRestoreModel">
+                  {{ t('settings.restoreModel') }}
+                </button>
+                <button type="button" :disabled="modelBusy" @click="onSaveModel">
+                  {{ modelBusy ? t('common.processing') : t('common.save') }}
+                </button>
+              </div>
+            </div>
+
+            <div v-show="tab === 'providers'" class="tab-panel tab-panel--scroll providers-tab">
+              <p class="help-intro muted small">
+                {{ t('settings.providerHelp') }}
+                <span
+                  class="help-tip"
+                  :title="t('settings.providerHelpTip')"
+                  tabindex="0"
+                  role="note"
+                >?</span>
+              </p>
+              <div class="preset-dropdown-row">
+                <label class="field preset-field">
+                  <span class="field-label-row">
+                    {{ t('settings.presetCnProvider') }}
+                    <span
+                      class="help-tip"
+                      :title="t('settings.presetCnProviderTip')"
+                      tabindex="0"
+                      role="note"
+                    >?</span>
+                  </span>
+                  <select :aria-label="t('settings.presetCnProviderAriaLabel')" @change="onProviderPresetSelect('cn', $event)">
+                    <option value="">{{ t('settings.presetSelectPrompt') }}</option>
+                    <option
+                      v-for="(preset, i) in providerPresetsCn"
+                      :key="preset.label"
+                      :value="String(i)"
+                    >
+                      {{ preset.label }}
+                    </option>
+                  </select>
+                </label>
+                <label class="field preset-field">
+                  <span class="field-label-row">
+                    {{ t('settings.presetIntlProvider') }}
+                    <span
+                      class="help-tip"
+                      :title="t('settings.presetIntlProviderTip')"
+                      tabindex="0"
+                      role="note"
+                    >?</span>
+                  </span>
+                  <select :aria-label="t('settings.presetIntlProviderAriaLabel')" @change="onProviderPresetSelect('intl', $event)">
+                    <option value="">{{ t('settings.presetSelectPrompt') }}</option>
+                    <option
+                      v-for="(preset, i) in providerPresetsIntl"
+                      :key="preset.label"
+                      :value="String(i)"
+                    >
+                      {{ preset.label }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+              <div class="providers-split">
+                <aside class="providers-list-col">
+                  <div class="providers-list-head">
+                    <span class="subhead tight">{{ t('settings.providersAdded') }}</span>
+                    <button type="button" class="ghost sm" :disabled="provBusy" @click="startNewProvider">
+                      {{ t('settings.newProvider') }}
+                    </button>
+                  </div>
+                  <ul class="providers-key-list">
+                    <li v-for="key in providerKeyList" :key="key">
+                      <button
+                        type="button"
+                        class="prov-key-btn"
+                        :class="{ active: !creatingNewProvider && selectedProviderKey === key }"
+                        @click="onSelectProviderKey(key)"
+                      >
+                        {{ key }}
+                      </button>
+                    </li>
+                  </ul>
+                  <p v-if="providerKeyList.length === 0" class="hint small muted">{{ t('settings.noProviders') }}</p>
+                </aside>
+
+                <div class="providers-editor">
+                  <template v-if="creatingNewProvider">
+                    <label class="field">
+                      <span class="field-label-row">
+                        {{ t('settings.providerCodeLabel') }}
+                        <span
+                          class="help-tip"
+                          :title="t('settings.providerCodeTip')"
+                          tabindex="0"
+                          role="note"
+                        >?</span>
+                      </span>
+                      <input
+                        v-model="newProviderKeyDraft"
+                        type="text"
+                        autocomplete="off"
+                        :placeholder="t('settings.providerCodePlaceholder')"
+                        class="mono"
+                      >
+                    </label>
+                  </template>
+                  <template v-else-if="selectedProviderKey">
+                    <p class="subhead tight">{{ t('settings.editingProvider', { key: selectedProviderKey }) }}</p>
+                  </template>
+                  <template v-else>
+                    <p class="hint small">{{ t('settings.selectOrNew') }}</p>
+                  </template>
+
+                  <template v-if="creatingNewProvider || selectedProviderKey">
+                    <label class="field">
+                      <span class="field-label-row">
+                        {{ t('settings.baseUrlLabel') }}
+                        <span
+                          class="help-tip"
+                          :title="t('settings.baseUrlTip')"
+                          tabindex="0"
+                          role="note"
+                        >?</span>
+                      </span>
+                      <input
+                        v-model="pvBaseUrl"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="https://…"
+                      >
+                    </label>
+                    <label class="field api-key-field">
+                      <span class="field-label-row">
+                        {{ t('settings.apiKeyLabel') }}
+                        <span
+                          class="help-tip"
+                          :title="isEditingOllamaProvider ? t('settings.apiKeyTipOllama') : t('settings.apiKeyTip')"
+                          tabindex="0"
+                          role="note"
+                        >?</span>
+                      </span>
+                      <div class="api-key-row">
+                        <input
+                          v-model="pvApiKey"
+                          :type="showPvApiKey ? 'text' : 'password'"
+                          autocomplete="off"
+                          :placeholder="isEditingOllamaProvider ? t('settings.apiKeyPlaceholderOllama') : t('settings.apiKeyPlaceholder')"
+                        >
+                        <button type="button" class="ghost sm" @click="showPvApiKey = !showPvApiKey">
+                          {{ showPvApiKey ? t('common.hide') : t('common.show') }}
+                        </button>
+                      </div>
+                    </label>
+
+                    <p class="subhead tight field-label-row">
+                      {{ t('settings.modelIdsLabel') }}
+                      <span
+                        class="help-tip"
+                        :title="t('settings.modelIdsTip')"
+                        tabindex="0"
+                        role="note"
+                      >?</span>
+                    </p>
+                    <div class="pv-models">
+                      <div v-for="(row, i) in pvModelRows" :key="i" class="pv-model-row">
+                        <input v-model="row.id" type="text" class="mono" :placeholder="t('settings.modelIdPlaceholder')">
+                        <button type="button" class="ghost sm" @click="removePvModelRow(i)">{{ t('settings.removeModelRow') }}</button>
+                      </div>
+                    </div>
+                    <button type="button" class="ghost add-row-inline" @click="addPvModelRow">{{ t('settings.addModelRow') }}</button>
+
+                    <p v-if="provError" class="err">{{ provError }}</p>
+                    <p v-if="provToast" class="toast">{{ provToast }}</p>
+
+                    <div class="actions wrap">
+                      <button
+                        type="button"
+                        class="ghost danger"
+                        :disabled="provBusy || creatingNewProvider || !selectedProviderKey"
+                        @click="onDeleteProvider"
+                      >
+                        {{ t('settings.deleteProvider') }}
+                      </button>
+                      <button type="button" :disabled="provBusy" @click="onSaveProvider">
+                        {{ provBusy ? t('common.saving') : t('common.save') }}
+                      </button>
+                    </div>
+                  </template>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1025,21 +1041,50 @@ async function onRestoreModel(): Promise<void> {
 .panel {
   position: relative;
   z-index: 1;
-  width: min(520px, 100%);
-  max-height: 90vh;
-  overflow: auto;
-  background: var(--lc-bg-raised);
+  width: min(540px, calc(100vw - 24px));
+  height: min(640px, calc(100vh - 24px));
+  overflow: hidden;
+  background: var(--lc-surface, var(--lc-bg-raised));
   border: 1px solid var(--lc-border);
-  border-radius: var(--lc-radius);
-  padding: 22px 22px 20px;
-  box-shadow: var(--lc-shadow-md);
+  border-radius: var(--lc-radius-lg, 16px);
+  padding: 22px 22px 18px;
+  box-shadow: 0 24px 72px rgba(15, 23, 42, 0.18);
   color: var(--lc-text);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 .panel--wide {
-  width: min(760px, 100%);
+  width: min(720px, calc(100vw - 24px));
+}
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.panel-header-copy {
+  min-width: 0;
+}
+.panel-close {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--lc-text-muted);
+  font-size: 18px;
+  line-height: 1;
+}
+.panel-close:hover {
+  background: var(--lc-bg-elevated);
+  border-color: var(--lc-border);
+  color: var(--lc-text);
 }
 .dialog-lead {
-  margin: 0 0 14px;
+  margin: 6px 0 0;
   line-height: 1.45;
 }
 .help-intro {
@@ -1078,7 +1123,7 @@ async function onRestoreModel(): Promise<void> {
   gap: 12px;
   margin-bottom: 14px;
 }
-@media (max-width: 560px) {
+@media (max-width: 420px) {
   .preset-dropdown-row {
     grid-template-columns: 1fr;
   }
@@ -1107,7 +1152,7 @@ async function onRestoreModel(): Promise<void> {
   align-items: start;
   margin-bottom: 12px;
 }
-@media (max-width: 640px) {
+@media (max-width: 420px) {
   .providers-split {
     grid-template-columns: 1fr;
   }
@@ -1205,7 +1250,7 @@ button.danger:hover:not(:disabled) {
   opacity: 0.85;
 }
 h2 {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1214,42 +1259,123 @@ h2 {
   background-clip: text;
   color: transparent;
 }
-.tabs {
+.panel-shell {
   display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-  padding: 4px;
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-bg-elevated);
-  border: 1px solid var(--lc-border);
-}
-.tab {
   flex: 1;
-  cursor: pointer;
+  min-height: 0;
+  gap: 14px;
+}
+.settings-sidebar {
+  width: 140px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0;
+}
+.settings-sidebar-divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--lc-border);
+}
+.sidebar-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
   border: none;
+  border-radius: 10px;
   background: transparent;
   color: var(--lc-text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  font-family: inherit;
-  padding: 8px 10px;
-  border-radius: calc(var(--lc-radius-sm) - 2px);
-}
-.tab.active {
-  color: var(--lc-text);
-  background: var(--lc-bg-raised);
-  box-shadow: var(--lc-shadow-sm);
-}
-.tab--advanced {
-  flex: 0 0 auto;
-  opacity: 0.6;
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.05em;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.tab--advanced:hover, .tab--advanced.active { opacity: 1; }
+.sidebar-tab:hover {
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text);
+}
+.sidebar-tab.active {
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--lc-accent);
+}
+.sidebar-tab--advanced {
+  opacity: 0.76;
+}
+.sidebar-tab--advanced.active,
+.sidebar-tab--advanced:hover {
+  opacity: 1;
+}
+.sidebar-tab-dot {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: #22c55e;
+  flex-shrink: 0;
+}
 .tab-panel {
-  min-height: 120px;
+  min-height: 0;
+  height: 100%;
   position: relative;
+}
+.panel-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding-left: 14px;
+  border-left: 1px solid var(--lc-border);
+}
+.tab-panel--ai {
+  overflow: hidden;
+}
+.tab-panel--scroll {
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lc-border) transparent;
+}
+.tab-panel--scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.tab-panel--scroll::-webkit-scrollbar-thumb {
+  background: var(--lc-border);
+  border-radius: 999px;
+}
+@media (max-width: 420px) {
+  .panel-shell {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .settings-sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .settings-sidebar-divider {
+    width: 1px;
+    height: 24px;
+    margin: 0 4px;
+  }
+  .sidebar-tab {
+    width: auto;
+    white-space: nowrap;
+  }
+  .panel-body {
+    padding-left: 0;
+    padding-top: 10px;
+    border-left: none;
+    border-top: 1px solid var(--lc-border);
+  }
 }
 .hint {
   margin: 0 0 14px;
