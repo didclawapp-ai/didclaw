@@ -14,6 +14,10 @@ didclaw-ui/.env
 didclaw-ui/.env.development
 didclaw-ui/.env.production
 
+# docs 目录：排除 AI 会话记忆文件与开发期 UI 原型
+docs/SESSION-CONTEXT.md
+docs/*.html
+
 # 日志与缓存
 *.log
 .npm-cache/

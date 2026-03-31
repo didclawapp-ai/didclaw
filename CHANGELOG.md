@@ -9,6 +9,7 @@
 ### 新增
 
 - **Cursor 规则与 Skill 纳入版本控制**：将 `.cursor/rules/`（项目总则、客户端约定、安全规范）和 `.cursor/skills/didclaw-workspace/SKILL.md` 加入 Git 追踪，团队协作者可共享同一套 AI 编码约束。更新 `.gitignore`，改为仅排除个人本机 Cursor 设置（`mcp.json`、`settings.json`、`chat/`、`composer/`），而非整个 `.cursor/` 目录。
+- **清理 docs/ 非文档文件**：从版本控制中移除 `docs/SESSION-CONTEXT.md`（AI 会话记忆，含本机路径）和 `docs/*.html`（开发期 UI 原型预览），更新 `.gitignore` 使其持续排除。本地文件保留不删除。
 
 - **移除调试面板**：删除文件预览侧栏底部「TOOLS / EVENTS (NON-CHAT)」调试区块（`PreviewPane`），不应暴露给最终用户。
 
