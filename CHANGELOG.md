@@ -6,6 +6,12 @@
 
 ## [未发布]
 
+### 修复
+
+- **MiniMax OAuth 轮询超时立即退出**：原来使用 `expired_in`（Unix 时间戳，秒）减去当前时间毫秒来计算剩余时长，导致 `saturating_sub` 归零，轮询循环在用户授权前就已超时退出。改为固定 10 分钟超时窗口。
+- **MiniMax OAuth 轮询因 HTTP 4xx 中止**：`ureq` 对非 2xx 响应直接返回 `Err`，而 Device Flow 服务端通常以 HTTP 4xx 携带 `authorization_pending` 正文。改为同时读取 2xx 和 4xx 的响应体，并兼容 MiniMax 自定义 `status` 字段与标准 RFC 8628 `error` 字段两种格式。
+- **MiniMax OAuth 配置写入不完整**：成功授权后写入 openclaw.json 的 provider key 错误（`minimax` → `minimax-portal`），缺少 `apiKeyEnv: "minimax-oauth"` 和 `authHeader: true`（Gateway 依赖这两个字段通过 OAuth 凭据鉴权），缺少 plugin 注册（`minimax-portal-auth`），且未使用 token 中的 per-account `resource_url`。现在通过新增 `patch_openclaw_json_for_minimax` 函数一次性原子写入所有必要字段，逻辑对齐 ClawX 的 `setOpenClawDefaultModelWithOverride`。
+
 ### 新增
 
 - **自实现 MiniMax / OpenAI Codex OAuth 流程**：彻底弃用 `openclaw onboard --auth-choice` 子进程调用（该命令为交互式终端工具，在无 TTY 的 Tauri 子进程中无法正常执行 OAuth 流程）。新实现在 Rust 后端完全自主处理：MiniMax 采用 RFC 8628 Device Authorization Grant（轮询 token，`open::that` 打开浏览器），OpenAI Codex 采用 PKCE + axum 本地回调服务器（端口 1455），OAuth token 直接写入 `~/.openclaw/agents/*/agent/auth-profiles.json`，并同步更新 `openclaw.json` provider 配置与默认模型。MiniMax 卡片拆分为「国际」和「国内（CN）」两张，分别对应 `api.minimax.io` 和 `api.minimaxi.com`。

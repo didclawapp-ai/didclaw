@@ -168,20 +168,11 @@ fn minimax_base_url(region: &str) -> &'static str {
     }
 }
 
-/// Returns the recommended OpenClaw provider base URL after OAuth.
-fn minimax_provider_base_url(region: &str) -> &'static str {
-    if region == "cn" {
-        "https://api.minimaxi.com/anthropic"
-    } else {
-        "https://api.minimax.io/anthropic"
-    }
-}
 
 #[derive(Debug)]
 struct MinimaxCodeResponse {
     user_code: String,
     verification_uri: String,
-    expired_in: i64,
     interval_ms: u64,
 }
 
@@ -214,7 +205,6 @@ fn minimax_request_code(base_url: &str, challenge: &str, state: &str) -> Result<
         .as_str()
         .ok_or("MiniMax OAuth: missing verification_uri")?
         .to_string();
-    let expired_in = payload["expired_in"].as_i64().unwrap_or(0);
     let interval_s = payload["interval"].as_u64().unwrap_or(2);
     let resp_state = payload["state"].as_str().unwrap_or("").to_string();
 
@@ -225,7 +215,6 @@ fn minimax_request_code(base_url: &str, challenge: &str, state: &str) -> Result<
     Ok(MinimaxCodeResponse {
         user_code,
         verification_uri,
-        expired_in,
         interval_ms: interval_s.max(2) * 1000,
     })
 }
@@ -242,28 +231,59 @@ fn minimax_poll_token(
         ("code_verifier", verifier),
     ]);
     let url = format!("{base_url}/oauth/token");
-    let resp = ureq::post(&url)
+
+    // ureq returns Err for non-2xx. Device Flow servers often return
+    // 4xx with a JSON body carrying "status":"pending" or an error code,
+    // so we read the body from both 2xx and 4xx paths.
+    let payload: Value = match ureq::post(&url)
         .set("Content-Type", "application/x-www-form-urlencoded")
         .set("Accept", "application/json")
         .send_string(&body)
-        .map_err(|e| format!("MiniMax token poll failed: {e}"))?;
+    {
+        Ok(resp) => resp
+            .into_json()
+            .map_err(|e| format!("MiniMax token poll parse failed: {e}"))?,
+        Err(ureq::Error::Status(_code, resp)) => resp
+            .into_json()
+            .map_err(|e| format!("MiniMax token poll error parse failed: {e}"))?,
+        Err(e) => return Err(format!("MiniMax token poll network error: {e}")),
+    };
 
-    let payload: Value = resp
-        .into_json()
-        .map_err(|e| format!("MiniMax token poll response parse failed: {e}"))?;
-
-    let status = payload["status"].as_str().unwrap_or("error");
-    match status {
-        "success" => Ok(Some(payload)),
-        "pending" => Ok(None),
-        _ => {
-            let msg = payload["base_resp"]["status_msg"]
-                .as_str()
-                .unwrap_or("unknown error")
-                .to_string();
-            Err(msg)
-        }
+    // Handle MiniMax custom status field ("success" / "pending").
+    if let Some(status) = payload["status"].as_str() {
+        return match status {
+            "success" => Ok(Some(payload)),
+            "pending" => Ok(None),
+            _ => {
+                let msg = payload["base_resp"]["status_msg"]
+                    .as_str()
+                    .unwrap_or(status)
+                    .to_string();
+                Err(msg)
+            }
+        };
     }
+
+    // Handle RFC 8628 standard error field (authorization_pending, slow_down, etc.).
+    if let Some(err) = payload["error"].as_str() {
+        return match err {
+            "authorization_pending" | "slow_down" => Ok(None),
+            _ => {
+                let desc = payload["error_description"]
+                    .as_str()
+                    .unwrap_or(err)
+                    .to_string();
+                Err(desc)
+            }
+        };
+    }
+
+    // If neither field is present but we have an access_token, treat as success.
+    if payload["access_token"].is_string() {
+        return Ok(Some(payload));
+    }
+
+    Err("MiniMax token poll returned unrecognised response".to_string())
 }
 
 /// Full MiniMax Device Flow. Emits OAUTH_PROGRESS_EVENT for UI updates.
@@ -300,13 +320,9 @@ pub async fn run_minimax_oauth(app: tauri::AppHandle, region: String) -> Result<
     }));
 
     // Poll until approved or expired.
-    let expire_at = std::time::Instant::now()
-        + Duration::from_millis((code_resp.expired_in as u64).saturating_sub(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
-        ).min(10 * 60 * 1000)); // cap at 10 min from now
+    // Use a fixed 10-minute window — avoids ambiguity over whether
+    // expired_in is a Unix timestamp (s or ms) or a duration.
+    let expire_at = std::time::Instant::now() + Duration::from_secs(600);
 
     let interval = Duration::from_millis(code_resp.interval_ms);
     let user_code = code_resp.user_code.clone();
@@ -336,37 +352,15 @@ pub async fn run_minimax_oauth(app: tauri::AppHandle, region: String) -> Result<
             let access = token["access_token"].as_str().unwrap_or("").to_string();
             let refresh = token["refresh_token"].as_str().unwrap_or("").to_string();
             let expires = token["expired_in"].as_i64().unwrap_or(0);
+            // MiniMax returns a per-account resource_url as the base API endpoint.
             let resource_url = token["resource_url"].as_str().map(|s| s.to_string());
 
-            // Write to auth-profiles.json.
-            let mut extra: Map<String, Value> = Map::new();
-            if let Some(ru) = &resource_url {
-                extra.insert("resourceUrl".into(), Value::String(ru.clone()));
-            }
-            save_oauth_token(
-                "minimax-portal",
-                &access,
-                &refresh,
-                expires,
-                if extra.is_empty() { None } else { Some(&extra) },
-            )?;
+            // 1. Write OAuth token to auth-profiles.json.
+            save_oauth_token("minimax-portal", &access, &refresh, expires, None)?;
 
-            // Write provider config to openclaw.json.
-            let provider_base_url = minimax_provider_base_url(region);
-            let patch = json!({
-                "patch": {
-                    "minimax": {
-                        "baseUrl": provider_base_url,
-                        "api": "anthropic-messages"
-                    }
-                }
-            });
-            crate::openclaw_providers::write_open_claw_providers_patch(patch);
-
-            // Set default model.
-            crate::openclaw_model_config::write_open_claw_model_config(json!({
-                "primary": "minimax/MiniMax-M2.5"
-            }));
+            // 2. Patch openclaw.json: provider config + plugin + default model.
+            //    Mirrors ClawX's setOpenClawDefaultModelWithOverride for MiniMax.
+            patch_openclaw_json_for_minimax(region, resource_url.as_deref())?;
 
             let _ = app.emit(OAUTH_PROGRESS_EVENT, json!({
                 "provider": "minimax-portal",
@@ -380,6 +374,137 @@ pub async fn run_minimax_oauth(app: tauri::AppHandle, region: String) -> Result<
             }));
         }
     }
+}
+
+/// Writes all MiniMax-specific entries into openclaw.json after a successful OAuth:
+///   models.providers["minimax-portal"]  – baseUrl / api / apiKeyEnv / authHeader / modelIds
+///   plugins.allow                       – ensure "minimax-portal-auth" is listed
+///   plugins.entries["minimax-portal-auth"] – { enabled: true }
+///   agents.defaults.model               – set primary model
+///
+/// Mirrors ClawX's setOpenClawDefaultModelWithOverride + plugin enablement logic.
+fn patch_openclaw_json_for_minimax(region: &str, resource_url: Option<&str>) -> Result<(), String> {
+    let config_path = crate::openclaw_common::openclaw_config_path()
+        .map_err(|e| format!("openclaw.json path: {e}"))?;
+
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    let mut root: Value = match fs::read_to_string(&config_path) {
+        Ok(raw) => serde_json::from_str(&raw).unwrap_or(json!({})),
+        Err(e) if crate::openclaw_common::is_enoent(&e) => json!({}),
+        Err(e) => return Err(format!("read openclaw.json: {e}")),
+    };
+    if !root.is_object() {
+        root = json!({});
+    }
+    let root_map = root.as_object_mut().unwrap();
+
+    // ── Resolve base URL ──────────────────────────────────────────────────────
+    // Prefer per-account resource_url from the token (MiniMax returns this).
+    // Ensure it ends with /anthropic (Anthropic-compatible adapter path).
+    let default_base = if region == "cn" {
+        "https://api.minimaxi.com/anthropic"
+    } else {
+        "https://api.minimax.io/anthropic"
+    };
+    let base_url = resource_url
+        .filter(|s| !s.is_empty())
+        .map(|u| {
+            let u = if !u.starts_with("http://") && !u.starts_with("https://") {
+                format!("https://{u}")
+            } else {
+                u.to_string()
+            };
+            // Strip trailing /v1 or /anthropic, then re-append /anthropic.
+            let trimmed = u
+                .trim_end_matches('/')
+                .trim_end_matches("/anthropic")
+                .trim_end_matches("/v1");
+            format!("{trimmed}/anthropic")
+        })
+        .unwrap_or_else(|| default_base.to_string());
+
+    // ── models.providers["minimax-portal"] ───────────────────────────────────
+    {
+        let models = root_map
+            .entry("models")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or("models is not an object")?;
+        let providers = models
+            .entry("providers")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or("models.providers is not an object")?;
+
+        providers.insert(
+            "minimax-portal".to_string(),
+            json!({
+                "baseUrl": base_url,
+                "api": "anthropic-messages",
+                // Tells Gateway to resolve credentials from auth-profiles.json.
+                "apiKeyEnv": "minimax-oauth",
+                // Use Authorization: Bearer instead of x-api-key.
+                "authHeader": true,
+                "modelIds": ["MiniMax-M2.5", "MiniMax-Text-01"]
+            }),
+        );
+    }
+
+    // ── plugins: allow + entries ──────────────────────────────────────────────
+    {
+        let plugins = root_map
+            .entry("plugins")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or("plugins is not an object")?;
+
+        // plugins.allow
+        let allow = plugins
+            .entry("allow")
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+            .ok_or("plugins.allow is not an array")?;
+        let plugin_id = "minimax-portal-auth";
+        if !allow.iter().any(|v| v.as_str() == Some(plugin_id)) {
+            allow.push(Value::String(plugin_id.to_string()));
+        }
+
+        // plugins.entries["minimax-portal-auth"]
+        let entries = plugins
+            .entry("entries")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or("plugins.entries is not an object")?;
+        entries.insert(plugin_id.to_string(), json!({ "enabled": true }));
+    }
+
+    // ── agents.defaults.model ─────────────────────────────────────────────────
+    {
+        let agents = root_map
+            .entry("agents")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or("agents is not an object")?;
+        let defaults = agents
+            .entry("defaults")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or("agents.defaults is not an object")?;
+        defaults.insert(
+            "model".to_string(),
+            json!({
+                "primary": "minimax-portal/MiniMax-M2.5",
+                "fallbacks": []
+            }),
+        );
+    }
+
+    let out = serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?;
+    fs::write(&config_path, format!("{out}\n")).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ── OpenAI Codex PKCE + Local Callback Flow ───────────────────────────────────
