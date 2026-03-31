@@ -131,7 +131,7 @@ gateway:
 - **共享目录** 页单独扫描 `%USERPROFILE%\.openclaw\skills`（可编辑并记忆），用于展示和管理 ZIP / 文件夹手动导入的共享 skills；它不等同于 OpenClaw workspace 技能。  
 - **本机安装** 页支持从 ZIP 或文件夹导入到共享 `skills` 目录。  
 - **网页模式**（`dev:web`）可浏览/搜索 ClawHub；OpenClaw CLI、共享目录写入与插件安装需 **Tauri 桌面版**。  
-- 实现索引：`lclaw-ui/src/features/skills/SkillsManagerDialog.vue`、`lclaw-ui/src/lib/clawhub-api.ts`、`lclaw-ui/src/lib/skills-invoke.ts`、`lclaw-ui/src-tauri/src/skills.rs`、`lclaw-ui/src-tauri/src/openclaw_gateway.rs`；方案见 **`docs/didclaw-skills-功能实施方案.md`**。
+- 实现索引：`didclaw-ui/src/features/skills/SkillsManagerDialog.vue`、`didclaw-ui/src/lib/clawhub-api.ts`、`didclaw-ui/src/lib/skills-invoke.ts`、`didclaw-ui/src-tauri/src/skills.rs`、`didclaw-ui/src-tauri/src/openclaw_gateway.rs`；方案见 **`docs/didclaw-skills-功能实施方案.md`**。
 
 ---
 

@@ -51,7 +51,7 @@
 | `cron` | didclaw **节流** `chat.history(silent)`（同上，与官方仅刷新 Cron 页不同） | 官方：`host.tab === "cron"` 时 `loadCron` |
 | 其他 | `toolTimeline` 合并展示；调试日志见 DEV `console.debug` | 略 |
 
-**推送排障日志**：`lclaw-ui/src/lib/gateway-debug-log.ts`。控制台过滤 **`[didclaw][gateway-push]`**；生产包执行 `localStorage.setItem("didclaw_debug_gateway","1")` 后刷新可打开（`"0"` 在开发构建下可关闭）。
+**推送排障日志**：`didclaw-ui/src/lib/gateway-debug-log.ts`。控制台过滤 **`[didclaw][gateway-push]`**；生产包执行 `localStorage.setItem("didclaw_debug_gateway","1")` 后刷新可打开（`"0"` 在开发构建下可关闭）。
 
 **说明**：若某网关版本对 `webchat` 模式未开放 `cron.*`，界面会显示 RPC 错误；桌面壳使用 `ui` 模式时通常与官方 Control UI 能力更接近。详见官方 [定时任务](https://docs.openclaw.ai/zh-CN/automation/cron-jobs）。
 

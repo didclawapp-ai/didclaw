@@ -8,7 +8,7 @@
 
 - **产品名**：DidClaw（对外品牌名，不叫 LCLAW UI）
 - **仓库根**：`f:\LCLAW`
-- **客户端代码**：`f:\LCLAW\lclaw-ui\`（Tauri 2 + Vue 3 + TypeScript + Pinia）
+- **客户端代码**：`f:\LCLAW\didclaw-ui\`（Tauri 2 + Vue 3 + TypeScript + Pinia）
 - **OpenClaw 底层**：`f:\LCLAW\openclaw-src\`（只读，不修改）
 - **当前版本**：`0.3.2`
 - **技术栈**：Tauri 2（Rust）、Vue 3、Pinia、TypeScript、Vite、pnpm
@@ -48,22 +48,22 @@ OpenClaw 是底层 AI 网关（self-hosted），DidClaw 是其图形客户端。
 
 | 文件 | 说明 |
 |------|------|
-| `lclaw-ui/src/app/AppShell.vue` | 主布局（左侧会话列表、中间聊天、右侧预览）|
-| `lclaw-ui/src/app/AppHeader.vue` | 顶部菜单栏 |
-| `lclaw-ui/src/stores/chat.ts` | 聊天 Pinia store（消息、历史、定时同步）|
-| `lclaw-ui/src/stores/gateway.ts` | WebSocket 连接和事件处理 |
-| `lclaw-ui/src/stores/localSettings.ts` | 本地设置 store，控制各弹窗 |
-| `lclaw-ui/src/lib/desktop-api.ts` | Tauri IPC 调用封装 |
-| `lclaw-ui/src/vite-env.d.ts` | IPC 命令类型声明 |
-| `lclaw-ui/src/lib/provider-catalog.ts` | AI 服务商预置数据（11 家）|
-| `lclaw-ui/src/features/settings/GatewayLocalDialog.vue` | 设置对话框主体 |
-| `lclaw-ui/src/features/settings/AiProviderSetup.vue` | AI 配置卡片 UI |
-| `lclaw-ui/src/features/cron/CronJobsDialog.vue` | 定时任务 UI |
-| `lclaw-ui/src/features/preview/PreviewPane.vue` | 文件预览组件 |
-| `lclaw-ui/src-tauri/src/commands.rs` | Tauri 命令注册 |
-| `lclaw-ui/src-tauri/src/lib.rs` | 模块注册 + 命令 handler 注册 |
-| `lclaw-ui/src-tauri/src/openclaw_common.rs` | 公共路径工具（`openclaw_dir()` 等）|
-| `lclaw-ui/src-tauri/src/workspace_identity.rs` | 读取 IDENTITY.md/USER.md |
+| `didclaw-ui/src/app/AppShell.vue` | 主布局（左侧会话列表、中间聊天、右侧预览）|
+| `didclaw-ui/src/app/AppHeader.vue` | 顶部菜单栏 |
+| `didclaw-ui/src/stores/chat.ts` | 聊天 Pinia store（消息、历史、定时同步）|
+| `didclaw-ui/src/stores/gateway.ts` | WebSocket 连接和事件处理 |
+| `didclaw-ui/src/stores/localSettings.ts` | 本地设置 store，控制各弹窗 |
+| `didclaw-ui/src/lib/desktop-api.ts` | Tauri IPC 调用封装 |
+| `didclaw-ui/src/vite-env.d.ts` | IPC 命令类型声明 |
+| `didclaw-ui/src/lib/provider-catalog.ts` | AI 服务商预置数据（11 家）|
+| `didclaw-ui/src/features/settings/GatewayLocalDialog.vue` | 设置对话框主体 |
+| `didclaw-ui/src/features/settings/AiProviderSetup.vue` | AI 配置卡片 UI |
+| `didclaw-ui/src/features/cron/CronJobsDialog.vue` | 定时任务 UI |
+| `didclaw-ui/src/features/preview/PreviewPane.vue` | 文件预览组件 |
+| `didclaw-ui/src-tauri/src/commands.rs` | Tauri 命令注册 |
+| `didclaw-ui/src-tauri/src/lib.rs` | 模块注册 + 命令 handler 注册 |
+| `didclaw-ui/src-tauri/src/openclaw_common.rs` | 公共路径工具（`openclaw_dir()` 等）|
+| `didclaw-ui/src-tauri/src/workspace_identity.rs` | 读取 IDENTITY.md/USER.md |
 | `scripts/ensure-openclaw-windows.ps1` | Windows 安装脚本（已全英文）|
 | `docs/didclaw-roadmap-0x.md` | **下一步功能路线图**（必读）|
 | `CHANGELOG.md` | 每次提交必须更新 |
@@ -74,7 +74,7 @@ OpenClaw 是底层 AI 网关（self-hosted），DidClaw 是其图形客户端。
 
 1. **每次 git commit 必须同步更新 `CHANGELOG.md`**（根目录），记录在 `## [未发布]` 下
 2. **最小改动原则**：只改当前任务需要的文件
-3. **先 typecheck 再提交**：`cd lclaw-ui && pnpm run typecheck`
+3. **先 typecheck 再提交**：`cd didclaw-ui && pnpm run typecheck`
 4. **命名规范**：npm 包名 `didclaw`，环境变量前缀 `DIDCLAW_*`
 5. **版本号三处同步**：`package.json` + `tauri.conf.json` + `Cargo.toml`
 6. **Shell 环境**：Windows PowerShell，不用 `tail`/`head`，用 `Select-Object -Last N`
@@ -108,7 +108,7 @@ OpenClaw 是底层 AI 网关（self-hosted），DidClaw 是其图形客户端。
 
 **技术方案**：
 - 安装 `vue-i18n v9`（`pnpm add vue-i18n`）
-- 语言文件：`lclaw-ui/src/i18n/zh.ts` + `lclaw-ui/src/i18n/en.ts`
+- 语言文件：`didclaw-ui/src/i18n/zh.ts` + `didclaw-ui/src/i18n/en.ts`
 - `localSettings` store 增加 `locale: 'zh' | 'en'` 字段
 - 设置界面加语言切换
 

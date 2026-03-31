@@ -2,19 +2,14 @@
 /openclaw-src/
 
 # 官网（独立部署，不纳入主仓库）
-lclaw-ui/website/
+didclaw-ui/website/
 
-# 客户端构建与依赖（目录名可为 lclaw-ui 或 didclaw，按本地实际）
-lclaw-ui/node_modules/
-lclaw-ui/dist/
-lclaw-ui/.env
-lclaw-ui/.env.development
-lclaw-ui/.env.production
-didclaw/node_modules/
-didclaw/dist/
-didclaw/.env
-didclaw/.env.development
-didclaw/.env.production
+# 客户端构建与依赖
+didclaw-ui/node_modules/
+didclaw-ui/dist/
+didclaw-ui/.env
+didclaw-ui/.env.development
+didclaw-ui/.env.production
 
 # 日志与缓存
 *.log
@@ -24,6 +19,7 @@ didclaw/.env.production
 .cursor/
 .idea/
 .vscode/
+.VSCodeCounter/
 *.suo
 
 # 系统文件

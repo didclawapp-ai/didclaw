@@ -12,7 +12,7 @@
 
 **技术方案**
 - 引入 `vue-i18n v9`（与 Vue 3 + Pinia 无缝集成）
-- 语言文件放在 `lclaw-ui/src/i18n/` 下，按语言分文件：`zh.ts` / `en.ts`
+- 语言文件放在 `didclaw-ui/src/i18n/` 下，按语言分文件：`zh.ts` / `en.ts`
 - 在 `localSettings` store 中增加 `locale` 字段，持久化到 localStorage
 - 设置界面加语言切换选项
 

@@ -25,13 +25,13 @@
 
 ### 2.1 工具栏入口（`ToolSidebar.vue`）
 
-- 实际实现已迁到 `lclaw-ui/src/app/ToolSidebar.vue`，作为侧边栏工具入口之一。
+- 实际实现已迁到 `didclaw-ui/src/app/ToolSidebar.vue`，作为侧边栏工具入口之一。
 - 技能对话框与其他设置/诊断弹窗一并在侧边栏组件内挂载，不再占用旧 `AppHeader` 品牌行。
 - 交互保持一致：按钮打开对话框，Esc / 遮罩可关闭。
 
 ### 2.2 技能弹窗（新建组件）
 
-实际路径：`lclaw-ui/src/features/skills/SkillsManagerDialog.vue`。
+实际路径：`didclaw-ui/src/features/skills/SkillsManagerDialog.vue`。
 
 - **打开方式**：`v-model` 布尔值，由 `ToolSidebar` 内 `ref` 控制；仅在需要时挂载并 `Teleport` 至 `body`。
 - **布局（建议分栏或 Tab）**：
@@ -56,7 +56,7 @@
 
 | 项 | 说明 |
 |----|------|
-| Registry 客户端 | 已存在 `lclaw-ui/src/lib/clawhub-api.ts`，桌面端优先经 Tauri/Rust 代理 |
+| Registry 客户端 | 已存在 `didclaw-ui/src/lib/clawhub-api.ts`，桌面端优先经 Tauri/Rust 代理 |
 | 配置 | 可选 `VITE_CLAWHUB_REGISTRY` 覆盖默认 `https://clawhub.ai` |
 | 状态 | 可用小型 `useSkillsDialogOpen()` 或仅在 `AppHeader` 用 `ref`，无需全局 Pinia（除非多入口打开） |
 
