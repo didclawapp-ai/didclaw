@@ -1,3 +1,5 @@
+<div align="center">
+
 # DidClaw
 
 **面向普通用户的 OpenClaw AI 桌面助手**
@@ -7,6 +9,8 @@
 [![平台](https://img.shields.io/badge/平台-Windows-blue)](https://github.com/LCLAW/didclaw)
 [![许可证](https://img.shields.io/badge/许可证-AGPL--3.0-green)](LICENSE)
 [![技术栈](https://img.shields.io/badge/Tauri-2.x-orange)](https://tauri.app)
+
+</div>
 
 ---
 
