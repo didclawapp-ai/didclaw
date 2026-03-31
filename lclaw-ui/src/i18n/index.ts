@@ -5,14 +5,28 @@ import en from "./en";
 
 export type LocaleCode = "zh" | "en";
 
-/** 从 localStorage 读取保存的语言，默认中文 */
+function normalizeLocaleTag(raw: string | null | undefined): LocaleCode {
+  const tag = (raw ?? "").trim().toLowerCase();
+  return tag.startsWith("zh") ? "zh" : "en";
+}
+
+/** Prefer manual choice; otherwise follow the system language. */
 function detectLocale(): LocaleCode {
   const saved = localStorage.getItem("didclaw-locale");
-  if (saved === "en" || saved === "zh") return saved;
-  // 跟随系统语言
-  const lang = navigator.language ?? "";
-  if (lang.startsWith("zh")) return "zh";
-  return "en";
+  if (saved === "en" || saved === "zh") {
+    return saved;
+  }
+  const langs = Array.isArray(navigator.languages) ? navigator.languages : [];
+  for (const lang of langs) {
+    if (typeof lang === "string" && lang.trim()) {
+      return normalizeLocaleTag(lang);
+    }
+  }
+  return normalizeLocaleTag(navigator.language);
+}
+
+function applyDocumentLanguage(locale: LocaleCode): void {
+  document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
 }
 
 export const i18n = createI18n({
@@ -36,12 +50,13 @@ async function syncLocaleToTauriShell(locale: LocaleCode): Promise<void> {
 export function setLocale(locale: LocaleCode): void {
   (i18n.global.locale as { value: LocaleCode }).value = locale;
   localStorage.setItem("didclaw-locale", locale);
-  document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+  applyDocumentLanguage(locale);
   void syncLocaleToTauriShell(locale);
 }
 
 /** Call after `app.use(i18n)` so tray/native dialogs match saved locale. */
 export async function syncTauriLocaleAfterI18nReady(): Promise<void> {
   const loc = (i18n.global.locale as { value: LocaleCode }).value;
+  applyDocumentLanguage(loc);
   await syncLocaleToTauriShell(loc);
 }

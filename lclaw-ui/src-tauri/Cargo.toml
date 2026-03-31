@@ -40,3 +40,4 @@ zip = { version = "2.2", default-features = false, features = ["deflate"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
+sys-locale = "0.3.2"

@@ -41,6 +41,8 @@ import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayA
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -136,6 +138,7 @@ const showOpenClawModelSelect = computed(
 );
 
 const showOnboardingResumeBanner = ref(false);
+let unlistenTrayAction: UnlistenFn | undefined;
 
 function onDeferredBannerOpenSettings(): void {
   localSettings.open("providers");
@@ -194,6 +197,26 @@ function onSnoozeOnboardingResume(): void {
 
 function onFirstRunStatusChanged(): void {
   void refreshOnboardingResumeBanner();
+}
+
+function triggerManualUpdateCheck(): void {
+  window.dispatchEvent(new CustomEvent("didclaw-check-app-update"));
+}
+
+function handleTrayAction(action: string): void {
+  switch (action) {
+    case "new_chat":
+      newChat();
+      break;
+    case "open_settings":
+      localSettings.open("gateway");
+      break;
+    case "check_update":
+      triggerManualUpdateCheck();
+      break;
+    default:
+      break;
+  }
 }
 
 function cycleSession(direction: 1 | -1): void {
@@ -258,6 +281,15 @@ onMounted(() => {
     void chat.refreshOpenClawModelPicker();
     void refreshOnboardingResumeBanner();
     window.addEventListener("didclaw-first-run-status-changed", onFirstRunStatusChanged);
+    if (isTauri()) {
+      void listen<string>("didclaw-tray-action", (event) => {
+        if (typeof event.payload === "string" && event.payload.length > 0) {
+          handleTrayAction(event.payload);
+        }
+      }).then((fn) => {
+        unlistenTrayAction = fn;
+      });
+    }
   }
   void nextTick(() => {
     void (async () => {
@@ -294,6 +326,7 @@ onUnmounted(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
   document.removeEventListener("click", onGlobalDocumentClick, true);
   window.removeEventListener("didclaw-first-run-status-changed", onFirstRunStatusChanged);
+  unlistenTrayAction?.();
 });
 
 watch(

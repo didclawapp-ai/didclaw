@@ -18,7 +18,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 const WIZARD_DOC = "https://docs.openclaw.ai/start/wizard";
-const OLLAMA_DEFAULT_PRIMARY = "ollama/qwen2.5:7b";
 
 const { t } = useI18n();
 
@@ -496,7 +495,7 @@ async function runEnsureInstallAndInit(): Promise<void> {
 
 // ── OAuth provider onboard ────────────────────────────────────────────────────
 
-type OAuthProvider = "minimax-portal" | "minimax-portal-cn" | "openai-codex" | "google";
+type OAuthProvider = "minimax-portal" | "minimax-portal-cn";
 type OAuthStatus = "idle" | "waiting" | "success" | "failed";
 
 const oauthStatus = ref<OAuthStatus>("idle");
@@ -512,7 +511,7 @@ function appendOAuthLog(step: string): void {
 
 async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   const api = getDidClawDesktopApi();
-  if (!api?.runMinimaxOauth && !api?.runOpenaiCodexOauth) {
+  if (!api?.runMinimaxOauth) {
     modelError.value = t("settings.desktopOnly");
     return;
   }
@@ -555,11 +554,6 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
         throw new Error(t("settings.desktopOnly"));
       }
       r = await api.runMinimaxOauth({ region });
-    } else if (provider === "openai-codex") {
-      if (!api.runOpenaiCodexOauth) {
-        throw new Error(t("settings.desktopOnly"));
-      }
-      r = await api.runOpenaiCodexOauth();
     } else {
       throw new Error(`Unsupported OAuth provider: ${provider}`);
     }
@@ -609,51 +603,6 @@ function openOAuthLoginPage(): void {
   const url = oauthVerificationUri.value.trim();
   if (!url) return;
   void openExternalUrl(url);
-}
-
-/** 一键写入本机 Ollama（OpenAI 兼容接口 + 默认 qwen2.5:7b） */
-async function applyOllamaQuickSetup(): Promise<void> {
-  const api = getDidClawDesktopApi();
-  modelError.value = null;
-  if (!api?.writeOpenClawProvidersPatch || !api?.writeOpenClawModelConfig) {
-    modelError.value = t("settings.desktopOnly");
-    return;
-  }
-  modelBusy.value = true;
-  try {
-    const pr = await api.writeOpenClawProvidersPatch({
-      patch: {
-        ollama: {
-          baseUrl: "http://127.0.0.1:11434/v1",
-          apiKey: "",
-          models: { "qwen2.5:7b": {} },
-          api: "openai-completions",
-        },
-      },
-    });
-    if (!pr.ok) {
-      modelError.value = pr.error;
-      return;
-    }
-    const mr = await api.writeOpenClawModelConfig({
-      model: { primary: OLLAMA_DEFAULT_PRIMARY },
-      models: {},
-    });
-    if (!mr.ok) {
-      modelError.value = mr.error;
-      return;
-    }
-    await chat.refreshOpenClawModelPicker();
-    chat.flashOpenClawConfigHint();
-    afterOpenClawModelConfigSaved();
-    visible.value = false;
-    gw.disconnect();
-    scheduleDeferredGatewayConnect(gw);
-  } catch (e) {
-    modelError.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    modelBusy.value = false;
-  }
 }
 
 function onModelCloudPath(): void {
@@ -851,19 +800,6 @@ onUnmounted(() => {
                     <p class="model-card-desc">{{ t('wizard.oauthMinimaxCnDesc') }}</p>
                   </div>
                 </button>
-                <!-- OpenAI Codex -->
-                <button
-                  type="button"
-                  class="model-card model-card-oauth"
-                  :disabled="modelBusy || oauthStatus !== 'idle'"
-                  @click="() => void startOAuthOnboard('openai-codex')"
-                >
-                  <div class="model-card-main">
-                    <span class="model-card-tag model-card-tag-oauth">{{ t('wizard.tagOAuth') }}</span>
-                    <strong class="model-card-head">{{ t('wizard.oauthOpenai') }}</strong>
-                    <p class="model-card-desc">{{ t('wizard.oauthOpenaiDesc') }}</p>
-                  </div>
-                </button>
               </div>
 
               <!-- OAuth failed state (inline) -->
@@ -883,28 +819,11 @@ onUnmounted(() => {
               <div class="model-cards model-cards-other">
                 <button
                   type="button"
-                  class="model-card model-card-local"
-                  :disabled="modelBusy"
-                  @click="() => void applyOllamaQuickSetup()"
-                >
-                  <span class="model-card-num" aria-hidden="true">1</span>
-                  <div class="model-card-main">
-                    <span class="model-card-tag">{{ t('wizard.tagLocalAi') }}</span>
-                    <strong class="model-card-head">Ollama</strong>
-                    <p class="model-card-desc">
-                      <code>127.0.0.1:11434</code>
-                      <span class="model-card-desc-sep">·</span>
-                      <code>qwen2.5:7b</code>
-                    </p>
-                  </div>
-                </button>
-                <button
-                  type="button"
                   class="model-card model-card-cloud"
                   :disabled="modelBusy"
                   @click="onModelCloudPath"
                 >
-                  <span class="model-card-num" aria-hidden="true">2</span>
+                  <span class="model-card-num" aria-hidden="true">1</span>
                   <div class="model-card-main">
                     <span class="model-card-tag">{{ t('wizard.tagCloudAi') }}</span>
                     <strong class="model-card-head">{{ t('wizard.cloudApiKey') }}</strong>
@@ -917,7 +836,7 @@ onUnmounted(() => {
                   :disabled="modelBusy"
                   @click="onModelSkipLater"
                 >
-                  <span class="model-card-num model-card-num-muted" aria-hidden="true">3</span>
+                  <span class="model-card-num model-card-num-muted" aria-hidden="true">2</span>
                   <div class="model-card-main">
                     <span class="model-card-tag model-card-tag-muted">{{ t('wizard.tagLater') }}</span>
                     <strong class="model-card-head">{{ t('wizard.skipModel') }}</strong>

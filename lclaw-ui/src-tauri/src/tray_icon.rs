@@ -3,13 +3,13 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    App, AppHandle, Manager,
+    App, AppHandle, Emitter, Manager,
 };
 
 pub const TRAY_ID: &str = "didclaw-tray";
 
 /// Show and focus the main window.
-pub fn show_main_window(app: &tauri::AppHandle) {
+pub fn show_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
@@ -17,20 +17,58 @@ pub fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-fn tray_strings() -> (&'static str, &'static str) {
+fn tray_strings() -> (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+) {
     if crate::app_locale::is_en() {
-        ("Show DidClaw", "Quit DidClaw")
+        (
+            "Show DidClaw",
+            "New Chat",
+            "Open Settings",
+            "Check for Updates",
+            "Quit DidClaw",
+        )
     } else {
-        ("显示 DidClaw", "退出 DidClaw")
+        (
+            "显示 DidClaw",
+            "新建对话",
+            "打开设置",
+            "检查更新",
+            "退出 DidClaw",
+        )
     }
 }
 
 fn build_tray_menu<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, Box<dyn std::error::Error>> {
-    let (show_t, quit_t) = tray_strings();
+    let (show_t, new_chat_t, settings_t, update_t, quit_t) = tray_strings();
     let show_item = MenuItem::with_id(app, "show", show_t, true, None::<&str>)?;
+    let new_chat_item = MenuItem::with_id(app, "new_chat", new_chat_t, true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "open_settings", settings_t, true, None::<&str>)?;
+    let update_item = MenuItem::with_id(app, "check_update", update_t, true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit", quit_t, true, None::<&str>)?;
-    Ok(Menu::with_items(app, &[&show_item, &sep, &quit_item])?)
+    Ok(Menu::with_items(
+        app,
+        &[
+            &show_item,
+            &new_chat_item,
+            &settings_item,
+            &update_item,
+            &sep,
+            &quit_item,
+        ],
+    )?)
+}
+
+fn emit_tray_action<R: tauri::Runtime>(app: &AppHandle<R>, action: &str) {
+    show_main_window(app);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.emit("didclaw-tray-action", action.to_string());
+    }
 }
 
 /// Recreate tray menu labels after locale change (best-effort).
@@ -65,6 +103,9 @@ pub fn setup_tray(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
+            "new_chat" => emit_tray_action(app, "new_chat"),
+            "open_settings" => emit_tray_action(app, "open_settings"),
+            "check_update" => emit_tray_action(app, "check_update"),
             "quit" => {
                 crate::launch_log::line("tray: user chose quit");
                 app.exit(0);
