@@ -280,11 +280,17 @@ const dialogAriaLabel = computed(() => {
   return t("wizard.ariaInstall");
 });
 
+function notifyFirstRunStatusChanged(): void {
+  window.dispatchEvent(new Event("didclaw-first-run-status-changed"));
+}
+
 async function refreshStatus(): Promise<void> {
   const api = getDidClawDesktopApi();
   if (!api?.getOpenClawSetupStatus) {
+    phase.value = "env";
     loading.value = false;
-    visible.value = false;
+    loadError.value = t("wizard.statusUnavailable");
+    visible.value = true;
     return;
   }
   loading.value = true;
@@ -350,9 +356,15 @@ async function refreshStatus(): Promise<void> {
     visible.value = true;
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
-    visible.value = false;
+    if (openclawDirExists.value || configState.value !== "missing" || cliOk.value) {
+      phase.value = channelsStepDone.value ? "model" : "channels";
+    } else {
+      phase.value = "env";
+    }
+    visible.value = true;
   } finally {
     loading.value = false;
+    notifyFirstRunStatusChanged();
   }
 }
 
@@ -491,6 +503,8 @@ const oauthStatus = ref<OAuthStatus>("idle");
 const oauthActiveProvider = ref<OAuthProvider | null>(null);
 const oauthError = ref<string | null>(null);
 const oauthDebugLog = ref<string>("");
+const oauthUserCode = ref("");
+const oauthVerificationUri = ref("");
 
 function appendOAuthLog(step: string): void {
   oauthDebugLog.value += `[${step}]\n`;
@@ -506,6 +520,8 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   oauthActiveProvider.value = provider;
   oauthError.value = null;
   oauthDebugLog.value = "";
+  oauthUserCode.value = "";
+  oauthVerificationUri.value = "";
   modelError.value = null;
 
   // Listen for real-time OAuth progress events from the Rust backend.
@@ -517,6 +533,12 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
         (ev) => {
           const step = ev.payload?.step;
           if (step) appendOAuthLog(step);
+          if (typeof ev.payload?.userCode === "string" && ev.payload.userCode.trim()) {
+            oauthUserCode.value = ev.payload.userCode;
+          }
+          if (typeof ev.payload?.verificationUri === "string" && ev.payload.verificationUri.trim()) {
+            oauthVerificationUri.value = ev.payload.verificationUri;
+          }
         },
       );
     } catch {
@@ -569,6 +591,24 @@ function resetOAuth(): void {
   oauthActiveProvider.value = null;
   oauthError.value = null;
   oauthDebugLog.value = "";
+  oauthUserCode.value = "";
+  oauthVerificationUri.value = "";
+}
+
+async function copyOAuthCode(): Promise<void> {
+  const code = oauthUserCode.value.trim();
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+  } catch {
+    // Keep the wizard usable even if clipboard access is unavailable.
+  }
+}
+
+function openOAuthLoginPage(): void {
+  const url = oauthVerificationUri.value.trim();
+  if (!url) return;
+  void openExternalUrl(url);
 }
 
 /** 一键写入本机 Ollama（OpenAI 兼容接口 + 默认 qwen2.5:7b） */
@@ -746,6 +786,28 @@ onUnmounted(() => {
               <div class="oauth-waiting">
                 <span class="oauth-waiting-spinner" aria-hidden="true" />
                 <p class="oauth-waiting-text">{{ t('wizard.oauthWaiting') }}</p>
+                <div v-if="oauthUserCode || oauthVerificationUri" class="oauth-device-panel">
+                  <p class="oauth-device-title">{{ t('wizard.oauthApproveLogin') }}</p>
+                  <ol class="oauth-device-steps">
+                    <li>{{ t('wizard.oauthStep1') }}</li>
+                    <li>{{ t('wizard.oauthStep2') }}</li>
+                    <li>{{ t('wizard.oauthStep3') }}</li>
+                  </ol>
+                  <div v-if="oauthUserCode" class="oauth-device-code-row">
+                    <code class="oauth-device-code">{{ oauthUserCode }}</code>
+                    <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="() => void copyOAuthCode()">
+                      {{ t('wizard.oauthCopyCodeBtn') }}
+                    </button>
+                  </div>
+                  <button
+                    v-if="oauthVerificationUri"
+                    type="button"
+                    class="lc-btn lc-btn-primary lc-btn-sm oauth-device-open-btn"
+                    @click="openOAuthLoginPage"
+                  >
+                    {{ t('wizard.oauthOpenLoginPage') }}
+                  </button>
+                </div>
                 <pre v-if="oauthDebugLog" class="oauth-debug-log">{{ oauthDebugLog }}</pre>
               </div>
             </template>
@@ -1331,6 +1393,51 @@ onUnmounted(() => {
   margin: 0;
   font-size: 0.88rem;
   color: var(--lc-text-muted, #8b9cb0);
+}
+.oauth-device-panel {
+  width: min(100%, 360px);
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  text-align: left;
+}
+.oauth-device-title {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--lc-text, #e8eef4);
+}
+.oauth-device-steps {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  color: var(--lc-text-muted, #8b9cb0);
+}
+.oauth-device-steps li + li {
+  margin-top: 4px;
+}
+.oauth-device-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.oauth-device-code {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--lc-text, #e8eef4);
+  text-align: center;
+  word-break: break-all;
+}
+.oauth-device-open-btn {
+  width: 100%;
 }
 .oauth-result {
   display: flex;

@@ -412,6 +412,9 @@ export default {
     deferredModelBannerBtn: "立即设置",
     deferredModelOpenSettings: "打开本机设置",
     deferredModelDone: "已完成配置",
+    onboardingIncompleteBanner: "首次引导尚未完成，继续完成后才能稳定使用 AI 对话。是否继续引导？",
+    onboardingResume: "继续引导",
+    onboardingRemindLater: "稍后提醒",
     openExternalFailed: "打开外链失败，请稍后重试。",
     sessionsLoading: "加载中…",
     historyLoading: "加载历史…",
@@ -668,6 +671,7 @@ export default {
     modelLead: "不配置模型将无法连接AI进行对话，请选择本地或者云端AI进行配置",
     loadingEnv: "正在检测环境…",
     loadingModel: "正在检测…",
+    statusUnavailable: "当前无法读取首次引导状态，请重试；若持续失败，请重新打开应用。",
 
     stepEnv: "检测安装环境",
     stepNode: "Node.js",
@@ -754,6 +758,12 @@ export default {
 
     // OAuth waiting / result states
     oauthWaiting: "浏览器授权中，请在浏览器里完成登录…",
+    oauthApproveLogin: "确认登录",
+    oauthStep1: "复制下方的授权码。",
+    oauthStep2: "在浏览器中打开登录页面。",
+    oauthStep3: "如果页面提示输入授权码，请粘贴后批准访问。",
+    oauthCopyCodeBtn: "复制授权码",
+    oauthOpenLoginPage: "打开登录页面",
     oauthSuccess: "授权成功，AI 已就绪！",
     oauthFailed: "授权失败，请重试或改用 API 密钥",
     oauthCancelBtn: "取消",

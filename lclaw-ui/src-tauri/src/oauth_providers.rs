@@ -205,7 +205,11 @@ fn minimax_request_code(base_url: &str, challenge: &str, state: &str) -> Result<
         .as_str()
         .ok_or("MiniMax OAuth: missing verification_uri")?
         .to_string();
-    let interval_s = payload["interval"].as_u64().unwrap_or(2);
+    // MiniMax currently returns interval in milliseconds, not seconds.
+    let interval_ms = payload["interval"]
+        .as_u64()
+        .filter(|v| *v > 0)
+        .unwrap_or(2000);
     let resp_state = payload["state"].as_str().unwrap_or("").to_string();
 
     if resp_state != state {
@@ -215,7 +219,7 @@ fn minimax_request_code(base_url: &str, challenge: &str, state: &str) -> Result<
     Ok(MinimaxCodeResponse {
         user_code,
         verification_uri,
-        interval_ms: interval_s.max(2) * 1000,
+        interval_ms,
     })
 }
 
@@ -377,12 +381,11 @@ pub async fn run_minimax_oauth(app: tauri::AppHandle, region: String) -> Result<
 }
 
 /// Writes all MiniMax-specific entries into openclaw.json after a successful OAuth:
-///   models.providers["minimax-portal"]  – baseUrl / api / apiKeyEnv / authHeader / modelIds
-///   plugins.allow                       – ensure "minimax-portal-auth" is listed
-///   plugins.entries["minimax-portal-auth"] – { enabled: true }
+///   models.providers["minimax-portal"]  – baseUrl / api / apiKey / authHeader / models[]
 ///   agents.defaults.model               – set primary model
 ///
-/// Mirrors ClawX's setOpenClawDefaultModelWithOverride + plugin enablement logic.
+/// Mirrors ClawX's model/provider sync, but keeps compatibility with the
+/// OpenClaw schema currently bundled in DidClaw.
 fn patch_openclaw_json_for_minimax(region: &str, resource_url: Option<&str>) -> Result<(), String> {
     let config_path = crate::openclaw_common::openclaw_config_path()
         .map_err(|e| format!("openclaw.json path: {e}"))?;
@@ -444,41 +447,31 @@ fn patch_openclaw_json_for_minimax(region: &str, resource_url: Option<&str>) -> 
             json!({
                 "baseUrl": base_url,
                 "api": "anthropic-messages",
-                // Tells Gateway to resolve credentials from auth-profiles.json.
-                "apiKeyEnv": "minimax-oauth",
+                // Old OpenClaw schema expects apiKey + models[].
+                // The "minimax-oauth" marker tells Gateway to resolve
+                // real OAuth credentials from auth-profiles.json.
+                "apiKey": "minimax-oauth",
                 // Use Authorization: Bearer instead of x-api-key.
                 "authHeader": true,
-                "modelIds": ["MiniMax-M2.5", "MiniMax-Text-01"]
+                "models": [
+                    { "id": "MiniMax-M2.7", "name": "MiniMax-M2.7" },
+                    { "id": "MiniMax-M2.7-highspeed", "name": "MiniMax-M2.7-highspeed" }
+                ]
             }),
         );
     }
 
-    // ── plugins: allow + entries ──────────────────────────────────────────────
+    // ── plugins: remove stale MiniMax auth plugin entries ─────────────────────
     {
-        let plugins = root_map
-            .entry("plugins")
-            .or_insert_with(|| json!({}))
-            .as_object_mut()
-            .ok_or("plugins is not an object")?;
-
-        // plugins.allow
-        let allow = plugins
-            .entry("allow")
-            .or_insert_with(|| json!([]))
-            .as_array_mut()
-            .ok_or("plugins.allow is not an array")?;
         let plugin_id = "minimax-portal-auth";
-        if !allow.iter().any(|v| v.as_str() == Some(plugin_id)) {
-            allow.push(Value::String(plugin_id.to_string()));
+        if let Some(plugins) = root_map.get_mut("plugins").and_then(|v| v.as_object_mut()) {
+            if let Some(allow) = plugins.get_mut("allow").and_then(|v| v.as_array_mut()) {
+                allow.retain(|v| v.as_str() != Some(plugin_id));
+            }
+            if let Some(entries) = plugins.get_mut("entries").and_then(|v| v.as_object_mut()) {
+                entries.remove(plugin_id);
+            }
         }
-
-        // plugins.entries["minimax-portal-auth"]
-        let entries = plugins
-            .entry("entries")
-            .or_insert_with(|| json!({}))
-            .as_object_mut()
-            .ok_or("plugins.entries is not an object")?;
-        entries.insert(plugin_id.to_string(), json!({ "enabled": true }));
     }
 
     // ── agents.defaults.model ─────────────────────────────────────────────────
@@ -496,7 +489,7 @@ fn patch_openclaw_json_for_minimax(region: &str, resource_url: Option<&str>) -> 
         defaults.insert(
             "model".to_string(),
             json!({
-                "primary": "minimax-portal/MiniMax-M2.5",
+                "primary": "minimax-portal/MiniMax-M2.7",
                 "fallbacks": []
             }),
         );

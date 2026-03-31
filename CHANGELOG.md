@@ -11,6 +11,9 @@
 - **MiniMax OAuth 轮询超时立即退出**：原来使用 `expired_in`（Unix 时间戳，秒）减去当前时间毫秒来计算剩余时长，导致 `saturating_sub` 归零，轮询循环在用户授权前就已超时退出。改为固定 10 分钟超时窗口。
 - **MiniMax OAuth 轮询因 HTTP 4xx 中止**：`ureq` 对非 2xx 响应直接返回 `Err`，而 Device Flow 服务端通常以 HTTP 4xx 携带 `authorization_pending` 正文。改为同时读取 2xx 和 4xx 的响应体，并兼容 MiniMax 自定义 `status` 字段与标准 RFC 8628 `error` 字段两种格式。
 - **MiniMax OAuth 配置写入不完整**：成功授权后写入 openclaw.json 的 provider key 错误（`minimax` → `minimax-portal`），缺少 `apiKeyEnv: "minimax-oauth"` 和 `authHeader: true`（Gateway 依赖这两个字段通过 OAuth 凭据鉴权），缺少 plugin 注册（`minimax-portal-auth`），且未使用 token 中的 per-account `resource_url`。现在通过新增 `patch_openclaw_json_for_minimax` 函数一次性原子写入所有必要字段，逻辑对齐 ClawX 的 `setOpenClawDefaultModelWithOverride`。
+- **MiniMax OAuth 设备码与配置兼容性**：MiniMax 返回的轮询 `interval` 实际为毫秒，旧逻辑按秒再次乘以 1000，导致授权后长时间没有回调；同时 DidClaw 现在在向导中展示授权码与登录页入口，授权成功后写入兼容当前 OpenClaw 的 `apiKey + models[]` provider 结构，并清理旧的 `minimax-portal-auth` 插件残留，避免配置校验失败。
+- **MiniMax Portal 切回主模型后无响应**：当用户从其他 provider 切回 MiniMax Portal 时，界面可能保留到不受当前套餐支持的 `MiniMax-M2.7-highspeed`。现在优先回落到 `MiniMax-M2.7`，避免切回后请求直接失败或表现为“没有反应”。
+- **首次引导偶发静默跳过**：首次引导状态检测失败时，向导之前会被直接隐藏并落入主界面。现在改为保留错误态向导；若用户已经进入主界面但模型步骤仍未完成，也会显示“继续引导 / 稍后提醒”的兜底横幅，避免未完成引导却误以为可以直接使用。
 
 ### 新增
 

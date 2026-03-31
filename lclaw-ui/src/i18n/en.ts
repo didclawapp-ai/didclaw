@@ -412,6 +412,9 @@ export default {
     deferredModelBannerBtn: "Configure now",
     deferredModelOpenSettings: "Open Settings",
     deferredModelDone: "Done",
+    onboardingIncompleteBanner: "First-run setup is not complete yet. Continue the wizard to finish AI setup?",
+    onboardingResume: "Continue setup",
+    onboardingRemindLater: "Remind me later",
     openExternalFailed: "Failed to open external link. Please try again.",
     sessionsLoading: "Loading…",
     historyLoading: "Loading history…",
@@ -668,6 +671,7 @@ export default {
     modelLead: "Without a model configured you won't be able to chat with AI. Choose a local or cloud AI to configure.",
     loadingEnv: "Checking environment…",
     loadingModel: "Checking…",
+    statusUnavailable: "Cannot read first-run setup status right now. Please retry, or reopen the app if the problem persists.",
 
     stepEnv: "Check environment",
     stepNode: "Node.js",
@@ -754,6 +758,12 @@ export default {
 
     // OAuth waiting / result states
     oauthWaiting: "Waiting for browser authorization…",
+    oauthApproveLogin: "Approve Login",
+    oauthStep1: "Copy the authorization code below.",
+    oauthStep2: "Open the login page in your browser.",
+    oauthStep3: "If prompted, paste the code to approve access.",
+    oauthCopyCodeBtn: "Copy code",
+    oauthOpenLoginPage: "Open login page",
     oauthSuccess: "Authorization successful — AI is ready!",
     oauthFailed: "Authorization failed. Please retry or use an API key instead.",
     oauthCancelBtn: "Cancel",

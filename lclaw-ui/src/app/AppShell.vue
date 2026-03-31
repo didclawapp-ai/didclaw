@@ -30,14 +30,17 @@ import { useSessionStore } from "@/stores/session";
 import { scheduleDeferredGatewayConnect } from "@/composables/deferredGatewayConnect";
 import {
   isFirstRunModelStepComplete,
+  markFirstRunModelStepComplete,
+  readModelWizardSnoozeExpired,
   showDeferredModelBanner,
+  snoozeModelWizard24h,
   syncDeferredModelBannerFromStorage,
   setModelConfigDeferred,
 } from "@/composables/modelConfigDeferred";
 import { restartGatewayAfterControlUiMerge } from "@/composables/restartGatewayAfterControlUiMerge";
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { storeToRefs } from "pinia";
-import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -132,6 +135,8 @@ const showOpenClawModelSelect = computed(
     (openClawModelPickerRows.value.length > 0 || Boolean(openClawPrimaryModel.value?.trim())),
 );
 
+const showOnboardingResumeBanner = ref(false);
+
 function onDeferredBannerOpenSettings(): void {
   localSettings.open("providers");
 }
@@ -139,6 +144,56 @@ function onDeferredBannerOpenSettings(): void {
 function onDeferredBannerDismiss(): void {
   setModelConfigDeferred(false);
   syncDeferredModelBannerFromStorage();
+}
+
+async function refreshOnboardingResumeBanner(): Promise<void> {
+  if (!isDidClawElectron() || showDeferredModelBanner.value || !readModelWizardSnoozeExpired()) {
+    showOnboardingResumeBanner.value = false;
+    return;
+  }
+  const api = getDidClawDesktopApi();
+  if (!api?.getOpenClawSetupStatus) {
+    showOnboardingResumeBanner.value = !isFirstRunModelStepComplete();
+    return;
+  }
+  try {
+    const s = await api.getOpenClawSetupStatus();
+    const envReady = s.openclawDirExists && s.openclawConfigState !== "missing";
+    if (!envReady) {
+      showOnboardingResumeBanner.value = false;
+      return;
+    }
+    let modelReady = isFirstRunModelStepComplete();
+    if (!modelReady && api.readOpenClawModelConfig) {
+      try {
+        const mc = await api.readOpenClawModelConfig();
+        const primary = mc.ok ? mc.model?.primary : null;
+        if (typeof primary === "string" && primary.trim().length > 0) {
+          markFirstRunModelStepComplete();
+          modelReady = true;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    showOnboardingResumeBanner.value = !modelReady;
+  } catch {
+    showOnboardingResumeBanner.value = !isFirstRunModelStepComplete();
+  }
+}
+
+function onResumeOnboarding(): void {
+  showOnboardingResumeBanner.value = false;
+  window.dispatchEvent(new Event("didclaw-first-run-recheck"));
+}
+
+function onSnoozeOnboardingResume(): void {
+  showOnboardingResumeBanner.value = false;
+  snoozeModelWizard24h();
+}
+
+function onFirstRunStatusChanged(): void {
+  void refreshOnboardingResumeBanner();
 }
 
 function cycleSession(direction: 1 | -1): void {
@@ -201,6 +256,8 @@ onMounted(() => {
   if (isDidClawElectron()) {
     syncDeferredModelBannerFromStorage();
     void chat.refreshOpenClawModelPicker();
+    void refreshOnboardingResumeBanner();
+    window.addEventListener("didclaw-first-run-status-changed", onFirstRunStatusChanged);
   }
   void nextTick(() => {
     void (async () => {
@@ -236,6 +293,20 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
   document.removeEventListener("click", onGlobalDocumentClick, true);
+  window.removeEventListener("didclaw-first-run-status-changed", onFirstRunStatusChanged);
+});
+
+watch(
+  () => localSettings.visible,
+  (now, prev) => {
+    if (prev === true && now === false) {
+      void refreshOnboardingResumeBanner();
+    }
+  },
+);
+
+watch(showDeferredModelBanner, () => {
+  void refreshOnboardingResumeBanner();
 });
 
 const displayLines = computed(() => {
@@ -336,6 +407,31 @@ async function pickLocalFileForPreview(): Promise<void> {
     <DidClawUpdatePrompt />
     <ExecApprovalDialog />
     <AppHeader />
+    <div
+      v-if="isDidClawElectron() && showOnboardingResumeBanner"
+      class="lc-deferred-model-banner"
+      role="status"
+    >
+      <span class="lc-deferred-model-banner__text">
+        {{ t('shell.onboardingIncompleteBanner') }}
+      </span>
+      <div class="lc-deferred-model-banner__actions">
+        <button
+          type="button"
+          class="lc-btn lc-btn-primary lc-btn-xs"
+          @click="onResumeOnboarding"
+        >
+          {{ t('shell.onboardingResume') }}
+        </button>
+        <button
+          type="button"
+          class="lc-btn lc-btn-ghost lc-btn-xs"
+          @click="onSnoozeOnboardingResume"
+        >
+          {{ t('shell.onboardingRemindLater') }}
+        </button>
+      </div>
+    </div>
     <div
       v-if="isDidClawElectron() && showDeferredModelBanner"
       class="lc-deferred-model-banner"

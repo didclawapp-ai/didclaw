@@ -260,6 +260,12 @@ function expandCard(view: OpenClawAiProviderView) {
 }
 
 function preferredPrimaryRef(view: OpenClawAiProviderView, modelIds: string[]): string {
+  // MiniMax portal token plans may not include the highspeed tier.
+  // Prefer the standard M2.7 model when switching this provider back to primary.
+  if ((view.id === "minimax-portal" || view.id === "minimax-portal-cn") && modelIds.includes("MiniMax-M2.7")) {
+    return `${view.id}/MiniMax-M2.7`;
+  }
+
   const current = currentPrimary.value;
   if (current.startsWith(`${view.id}/`)) {
     const currentModel = current.slice(view.id.length + 1);
