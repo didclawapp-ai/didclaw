@@ -10,6 +10,7 @@
 
 - **单元测试基础设施**：引入 Vitest（`pnpm test` / `test:watch` / `test:coverage`），所有测试放在 `didclaw-ui/test/` 目录。初始覆盖 6 个 `lib/` 纯函数模块（113 个用例）：`preview-kind`、`chat-history-sort`、`is-safe-preview-url`、`url-allowlist`、`extract-chat-links`、`zod-format`。
 - **客户端目录重命名**：`lclaw-ui/` 已重命名为 `didclaw-ui/`；`.gitignore`、`README.md`、`docs/` 相关引用同步更新；`.VSCodeCounter/` 加入 `.gitignore`。
+- **README 全面重写**：参考 ClawX 风格重新编写仓库介绍，增加架构图、功能特性、多渠道列表、多文件预览说明、开发命令表；许可证改为 AGPL-3.0，底部添加商务联系方式。
 
 - **品牌图标（DidClaw Logo）**：由 AI 辅助生成龙虾拟态 D 字母图标，替换全套 Tauri 应用图标（`icon.png`、`icon.ico`、`icon.icns`、所有 Windows/iOS/Android 尺寸），ICO 文件采用 RGBA PNG-in-ICO 格式确保四角透明。
 - **顶栏品牌图标**：`AppHeader` 中将旧的红色菱形占位图替换为新品牌 Logo（`/icon-32.png`）。
