@@ -38,11 +38,6 @@ const techStack = [
   { name: "Vite",        href: "https://vitejs.dev" },
 ];
 
-const links = [
-  { label: "GitHub",         icon: "github",  href: "https://github.com/OpenClaw-AI/didclaw" },
-  { label: "didclawapp.com", icon: "web",     href: "https://didclawapp.com" },
-  { label: t("about.docs"),  icon: "docs",    href: "https://docs.openclaw.ai" },
-];
 </script>
 
 <template>
