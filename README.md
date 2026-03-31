@@ -202,7 +202,7 @@ pnpm dist:win         # 打包 Windows 安装包
 
 ## 关于本项目
 
-**项目代码与文档完全由 [Claude Sonnet](https://www.anthropic.com/claude) 编写，产品方向由人类维护者决策。**
+**项目代码与文档由 [Claude Sonnet](https://www.anthropic.com/claude) 辅助编写，产品方向由维护者决策。**
 
 我们鼓励贡献者同样借助 AI 工具参与——写代码、提 Issue、改文档都欢迎。  
 重要的是你的判断，而不是你打字的速度。
