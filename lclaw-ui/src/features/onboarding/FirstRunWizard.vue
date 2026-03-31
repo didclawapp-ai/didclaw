@@ -314,6 +314,10 @@ async function refreshStatus(): Promise<void> {
       return;
     }
 
+    // openclaw is installed: start connecting the gateway in the background
+    // so it's ready by the time the user reaches the model config step.
+    scheduleDeferredGatewayConnect(gw);
+
     if (isFirstRunModelStepComplete()) {
       visible.value = false;
       scheduleDeferredGatewayConnect(gw);
@@ -498,14 +502,15 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   oauthError.value = null;
   modelError.value = null;
 
-  // Ensure the Gateway is running before OAuth — the CLI needs it to write config.
+  // Ensure the Gateway process is running before OAuth.
+  // Do NOT call scheduleDeferredGatewayConnect here — that would trigger an
+  // extra WS reconnect cycle on top of the process start, causing two visible
+  // "restart" flashes in the UI.
   if (gw.status !== "connected" && api.ensureOpenClawGateway) {
     try {
-      const gwUrl = "ws://127.0.0.1:18789";
-      await api.ensureOpenClawGateway({ wsUrl: gwUrl });
-      scheduleDeferredGatewayConnect(gw);
-      // Give the gateway a moment to start before running onboard.
-      await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+      await api.ensureOpenClawGateway({ wsUrl: "ws://127.0.0.1:18789" });
+      // Give the gateway enough time to fully initialize before running onboard.
+      await new Promise<void>((resolve) => setTimeout(resolve, 2500));
     } catch {
       // Non-fatal: proceed anyway, the CLI may still succeed.
     }

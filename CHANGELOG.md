@@ -6,6 +6,13 @@
 
 ## [未发布]
 
+### 修复
+
+- **引导向导网关启动时机**：openclaw 安装完成后跳转到渠道/模型步骤时，现在立即调用 `scheduleDeferredGatewayConnect` 使网关后台连接；之前需等到向导完全结束才连接，导致 OAuth 步骤到来时网关尚未就绪。
+- **OAuth 授权双重重连闪烁**：`startOAuthOnboard` 中 `ensureOpenClawGateway` 与 `scheduleDeferredGatewayConnect` 同时调用会造成两次 UI 重连动画；已移除多余的 `scheduleDeferredGatewayConnect` 调用，并将网关启动后等待时间从 1.5 s 延长至 2.5 s，确保 `openclaw onboard --auth-choice` 在网关就绪后再执行（修复浏览器授权窗口未弹出的问题）。
+
+- **OAuth ACL 权限缺失**：`run_openclaw_onboard` 命令未加入 `permissions/didclaw.toml` 的 ACL 白名单，导致点击 OAuth 卡片报 `not allowed by ACL` 错误；已补充。向导进入 OAuth 流程前，若网关尚未连接会自动先启动网关（调用 `ensureOpenClawGateway` + 等待 1.5 s），再执行授权命令。
+
 ### 新增
 
 - **引导向导 OAuth 支持**：在首次运行向导的「配置模型」步骤中，新增三个一键浏览器授权卡片（MiniMax · OpenAI Codex · Google Gemini），调用 `openclaw onboard --auth-choice` 完成 OAuth 授权后自动写入配置、跳过手动填写 API Key 的门槛。同时新增 Rust Tauri 命令 `run_openclaw_onboard`、前端 `runOpenclawOnboard` API 及授权等待/成功/失败状态 UI。
