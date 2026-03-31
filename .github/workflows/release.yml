@@ -17,8 +17,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Gate: lint + typecheck + tests must pass before any build starts
+  check:
+    name: Lint · Typecheck · Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: didclaw-ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: didclaw-ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: didclaw-ui
+        run: pnpm lint
+
+      - name: Typecheck
+        working-directory: didclaw-ui
+        run: pnpm typecheck
+
+      - name: Unit tests
+        working-directory: didclaw-ui
+        run: pnpm test
+
   build-windows:
     name: Windows (exe + msi)
+    needs: check
     runs-on: windows-latest
     permissions:
       contents: write
