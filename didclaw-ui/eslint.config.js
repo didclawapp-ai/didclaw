@@ -10,6 +10,8 @@ export default tseslint.config(
       "dist",
       "dist-electron",
       "release",
+      "coverage",
+      "website",
       "node_modules",
       "src-tauri/target",
       "src-tauri/gen",

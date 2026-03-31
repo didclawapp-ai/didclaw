@@ -94,7 +94,7 @@ defineExpose({ showInlineError });
     <div class="top-row">
       <div class="left-group">
         <div class="brand">
-          <img src="/icon-32.png" class="brand-glyph" alt="DidClaw" aria-hidden="true" />
+          <img src="/icon-32.png" class="brand-glyph" alt="DidClaw" aria-hidden="true">
           <h1 class="brand-title">
             <span class="brand-d">D</span><span class="brand-mid">idCl</span><span class="brand-tail">aw</span>
           </h1>

@@ -45,26 +45,26 @@ const techStack = [
     <Transition name="about-fade">
       <div v-if="open" class="about-backdrop" @click.self="open = false">
         <div class="about-dialog" role="dialog" :aria-label="t('about.title')">
-
           <!-- close -->
           <button
             type="button"
             class="about-close"
             :aria-label="t('about.close')"
             @click="open = false"
-          >✕</button>
+          >
+            ✕
+          </button>
 
           <!-- ── hero ── -->
           <div class="about-hero">
             <div class="about-hero-logo-wrap">
-              <img src="/icon-128.png" class="about-hero-logo" alt="DidClaw" />
+              <img src="/icon-128.png" class="about-hero-logo" alt="DidClaw">
             </div>
             <h1 class="about-hero-name">DidClaw</h1>
             <p class="about-hero-tagline">{{ t('about.desc') }}</p>
           </div>
 
           <div class="about-body">
-
             <!-- ── versions ── -->
             <div class="about-card">
               <div class="about-row">
@@ -115,7 +115,7 @@ const techStack = [
                 class="about-link-btn"
               >
                 <svg viewBox="0 0 24 24" class="about-link-icon" aria-hidden="true" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.09.68-.22.68-.48v-1.7C6.73 19.91 6.14 18 6.14 18c-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0 1 12 6.8c.85 0 1.71.11 2.51.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10.01 10.01 0 0 0 22 12c0-5.52-4.48-10-10-10z"/>
+                  <path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.09.68-.22.68-.48v-1.7C6.73 19.91 6.14 18 6.14 18c-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0 1 12 6.8c.85 0 1.71.11 2.51.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10.01 10.01 0 0 0 22 12c0-5.52-4.48-10-10-10z" />
                 </svg>
                 GitHub
               </a>
@@ -125,7 +125,7 @@ const techStack = [
                 class="about-link-btn"
               >
                 <svg viewBox="0 0 24 24" class="about-link-icon" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
                 didclawapp.com
               </a>
@@ -135,7 +135,7 @@ const techStack = [
                 class="about-link-btn"
               >
                 <svg viewBox="0 0 24 24" class="about-link-icon" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
                 </svg>
                 {{ t('about.docs') }}
               </a>
@@ -154,12 +154,10 @@ const techStack = [
                 </button>
               </div>
             </div>
-
           </div><!-- /body -->
 
           <!-- ── footer ── -->
           <p class="about-footer">© {{ currentYear }} DidClaw · Open source, built with ❤️</p>
-
         </div>
       </div>
     </Transition>
