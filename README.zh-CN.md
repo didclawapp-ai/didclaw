@@ -22,6 +22,12 @@
 
 无论是通过微信指挥 AI 完成任务、自动预览多种格式文件、还是设置定时 AI 调度任务，DidClaw 都为你提供所需的界面与工具。所有数据与配置保存在本机，不经过任何云服务。
 
+<div align="center">
+
+![DidClaw 主界面](didclaw-ui/website/picture/main.png)
+
+</div>
+
 ---
 
 ## 为什么选择 DidClaw
