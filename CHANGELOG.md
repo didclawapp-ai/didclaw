@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **Cursor 规则与 Skill 纳入版本控制**：将 `.cursor/rules/`（项目总则、客户端约定、安全规范）和 `.cursor/skills/didclaw-workspace/SKILL.md` 加入 Git 追踪，团队协作者可共享同一套 AI 编码约束。更新 `.gitignore`，改为仅排除个人本机 Cursor 设置（`mcp.json`、`settings.json`、`chat/`、`composer/`），而非整个 `.cursor/` 目录。
+
 - **移除调试面板**：删除文件预览侧栏底部「TOOLS / EVENTS (NON-CHAT)」调试区块（`PreviewPane`），不应暴露给最终用户。
 
 - **自动隐藏顶部标题栏**：关闭原生 Windows 装饰（`decorations: false`），`AppHeader` 改为 `position: fixed` 浮层；默认隐藏，鼠标移至窗口顶部 8 px 感应带时滑出，离开后 1.5 s 自动收起；有连接错误时强制常驻。顶栏右侧新增最小化 / 最大化（含还原图标）/ 关闭三个窗口控制按钮，关闭按钮悬停变红；整个标题行配置 `data-tauri-drag-region`，保留拖动窗口能力。
