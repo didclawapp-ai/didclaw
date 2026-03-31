@@ -7,6 +7,8 @@ didclaw-ui/website/
 # 客户端构建、依赖与测试产物
 didclaw-ui/node_modules/
 didclaw-ui/dist/
+didclaw-ui/dist-electron/
+didclaw-ui/release/
 didclaw-ui/coverage/
 didclaw-ui/.env
 didclaw-ui/.env.development
