@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 ### Added
 
 - **README internationalization**: Rewrote `README.md` in English as the primary file for international contributors; preserved the full Chinese version as `README.zh-CN.md` with mutual language links at the top of each file.
+- **Add main interface screenshot to README**: Added `screenshot-main.png` under `.github/assets/` and embedded it in both `README.md` and `README.zh-CN.md` for an immediate visual impression of the app.
 - **Cursor rules and workspace skill added to version control**: Added `.cursor/rules/` (project conventions, client rules, security guidelines) and `.cursor/skills/didclaw-workspace/SKILL.md` so all collaborators share the same AI coding constraints. Updated `.gitignore` to exclude only personal Cursor settings (`mcp.json`, `settings.json`, `chat/`, `composer/`) rather than the entire `.cursor/` directory.
 - **Clean up non-documentation files from docs/**: Removed `docs/SESSION-CONTEXT.md` (AI session memory containing local machine paths) and `docs/*.html` (development UI prototypes) from version control; updated `.gitignore` to permanently exclude them. Local files are preserved.
 

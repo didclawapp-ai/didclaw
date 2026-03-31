@@ -24,7 +24,7 @@
 
 <div align="center">
 
-![DidClaw 主界面](didclaw-ui/website/picture/main.png)
+![DidClaw 主界面](.github/assets/screenshot-main.png)
 
 </div>
 
