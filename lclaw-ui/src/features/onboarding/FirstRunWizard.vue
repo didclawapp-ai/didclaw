@@ -490,6 +490,7 @@ type OAuthStatus = "idle" | "waiting" | "success" | "failed";
 const oauthStatus = ref<OAuthStatus>("idle");
 const oauthActiveProvider = ref<OAuthProvider | null>(null);
 const oauthError = ref<string | null>(null);
+const oauthDebugLog = ref<string>("");
 
 async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   const api = getDidClawDesktopApi();
@@ -500,6 +501,7 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   oauthStatus.value = "waiting";
   oauthActiveProvider.value = provider;
   oauthError.value = null;
+  oauthDebugLog.value = "";
   modelError.value = null;
 
   // Ensure the Gateway process is running before OAuth.
@@ -516,8 +518,30 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
     }
   }
 
+  // Listen for streamed CLI output so we can display progress & debug info.
+  let unlistenOnboard: (() => void) | undefined;
+  if (isTauri()) {
+    try {
+      unlistenOnboard = await listen<{ stream?: string; line?: string }>(
+        "didclaw-onboard-log",
+        (ev) => {
+          const line = ev.payload?.line;
+          if (typeof line === "string" && line.length > 0) {
+            oauthDebugLog.value += `[${ev.payload?.stream ?? "info"}] ${line}\n`;
+          }
+        },
+      );
+    } catch {
+      // Non-fatal.
+    }
+  }
+
   try {
     const r = await api.runOpenclawOnboard({ authChoice: provider });
+    // Append final CLI log (covers non-streaming / fallback path).
+    if ("log" in r && typeof r.log === "string" && r.log.trim().length > 0) {
+      oauthDebugLog.value += r.log;
+    }
     if (r.ok) {
       oauthStatus.value = "success";
       await chat.refreshOpenClawModelPicker();
@@ -535,6 +559,8 @@ async function startOAuthOnboard(provider: OAuthProvider): Promise<void> {
   } catch (e) {
     oauthStatus.value = "failed";
     oauthError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    unlistenOnboard?.();
   }
 }
 
@@ -542,6 +568,7 @@ function resetOAuth(): void {
   oauthStatus.value = "idle";
   oauthActiveProvider.value = null;
   oauthError.value = null;
+  oauthDebugLog.value = "";
 }
 
 /** 一键写入本机 Ollama（OpenAI 兼容接口 + 默认 qwen2.5:7b） */
@@ -719,6 +746,7 @@ onUnmounted(() => {
               <div class="oauth-waiting">
                 <span class="oauth-waiting-spinner" aria-hidden="true" />
                 <p class="oauth-waiting-text">{{ t('wizard.oauthWaiting') }}</p>
+                <pre v-if="oauthDebugLog" class="oauth-debug-log">{{ oauthDebugLog }}</pre>
               </div>
             </template>
             <!-- OAuth success state -->
@@ -776,9 +804,10 @@ onUnmounted(() => {
               <!-- OAuth failed state (inline) -->
               <div v-if="oauthStatus === 'failed'" class="oauth-result oauth-result--err">
                 <span class="oauth-result-icon" aria-hidden="true">✕</span>
-                <div>
+                <div class="oauth-result-body">
                   <p class="oauth-result-text">{{ t('wizard.oauthFailed') }}</p>
                   <p v-if="oauthError" class="oauth-result-detail">{{ oauthError }}</p>
+                  <pre v-if="oauthDebugLog" class="oauth-debug-log">{{ oauthDebugLog }}</pre>
                 </div>
                 <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="resetOAuth">
                   {{ t('wizard.oauthRetryBtn') }}
@@ -1328,6 +1357,24 @@ onUnmounted(() => {
   font-size: 0.88rem;
   font-weight: 500;
   flex: 1;
+}
+.oauth-result-body {
+  flex: 1;
+  min-width: 0;
+}
+.oauth-debug-log {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
+  color: var(--lc-text-secondary, #888);
+  width: 100%;
 }
 .oauth-result-detail {
   margin: 4px 0 0;
