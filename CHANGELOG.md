@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Added
 
+- **Fix CI lint failures**: Added Node.js globals (`Buffer`, `process`) to ESLint config for the `scripts/` directory; renamed unused `i` argument to `_i` in `make-ico.mjs`; removed extra blank line in `PreviewPane.vue` template.
 - **CI/CD workflows**: Added `.github/workflows/release.yml` to build and publish Windows installers (NSIS `.exe` + `.msi`) automatically when a `v*` tag is pushed; also supports manual trigger (`workflow_dispatch`) for build verification without publishing. Added `.github/workflows/ci.yml` to run lint, typecheck, and unit tests on every push to `main` and on pull requests.
 
 - **README internationalization**: Rewrote `README.md` in English as the primary file for international contributors; preserved the full Chinese version as `README.zh-CN.md` with mutual language links at the top of each file.

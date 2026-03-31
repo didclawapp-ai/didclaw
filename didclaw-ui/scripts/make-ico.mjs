@@ -33,7 +33,7 @@ function buildPngInIco(pngBuffers) {
   header.writeUInt16LE(1, 2);  // type: 1 = ICO
   header.writeUInt16LE(n, 4);  // image count
 
-  const dirs = pngBuffers.map((buf, i) => {
+  const dirs = pngBuffers.map((buf, _i) => {
     // PNG IHDR: bytes 16-23 are width (4) + height (4)
     const w = buf.readUInt32BE(16);
     const h = buf.readUInt32BE(20);

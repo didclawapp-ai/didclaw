@@ -32,6 +32,15 @@ export default tseslint.config(
       },
     },
   },
+  // Node.js scripts — allow Buffer, process, etc.
+  {
+    files: ["scripts/**/*.mjs", "scripts/**/*.js", "scripts/**/*.cjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
   {
     languageOptions: {
       globals: {

@@ -251,7 +251,6 @@ async function onSaveEmbeddedImage(): Promise<void> {
         <button type="button" @click="openExternal">{{ t('preview.openExternal') }}</button>
       </div>
     </div>
-
   </div>
 </template>
 
