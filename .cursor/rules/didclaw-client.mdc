@@ -1,0 +1,31 @@
+---
+description: lclaw-ui 客户端 — Vue 3、Tauri 2、脚本与目录约定
+globs: lclaw-ui/**/*
+alwaysApply: false
+---
+
+# DidClaw 客户端（lclaw-ui）
+
+## 技术栈
+
+- **前端**：Vue 3 + TypeScript + Vite + Pinia；遵循现有 ESLint / `vue-tsc` 配置。
+- **桌面**：Tauri 2；Rust 在 `src-tauri/`，窗口与打包配置在 `tauri.conf.json`，权限在 `permissions/`。
+
+## 常用命令（在 `lclaw-ui/` 下）
+
+- Web：`pnpm dev` / `pnpm run build`
+- 桌面开发：`pnpm dev:tauri`（会拉起 `dev:web`）
+- 桌面打包：`pnpm run build:tauri` 或 `pnpm run dist:win`
+- 检查：`pnpm run lint`、`pnpm run typecheck`
+
+## 实现约定
+
+- **Tauri 命令与权限**：新增 IPC 或系统能力时，同步 `capabilities`/权限 TOML，避免「本地能跑、打包无权限」。
+- **环境变量**：使用项目已有前缀（如 `DIDCLAW_*` / `VITE_*`），在 `.env.example` 或 README 中补充说明，勿把真实密钥写入仓库。
+- **安全与类型**：细则见 **`didclaw-security.mdc`**（Tauri 最小权限、IPC 校验、CSP、XSS、TS 严格模式与 Zod 边界等）。
+- **UI**：与现有顶栏、间距、字体与配色保持一致；大改视觉需有明确需求或设计依据。
+- **每个代码文件的代码尽量不要超过700行
+
+## 发布相关（备忘）
+
+- 应用图标：`src-tauri/icons/` 与 `bundle.icon` 配置；标题栏/任务栏图标与 exe 资源一致，发布前再统一替换为正式品牌图即可。

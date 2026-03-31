@@ -18,8 +18,11 @@ didclaw-ui/.env.production
 *.log
 .npm-cache/
 
-# 编辑器与本地
-.cursor/
+# 编辑器与本地（只排除个人/本机设置，rules 和 skills 入库）
+.cursor/mcp.json
+.cursor/settings.json
+.cursor/chat/
+.cursor/composer/
 .idea/
 .vscode/
 .VSCodeCounter/

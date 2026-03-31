@@ -1,0 +1,35 @@
+---
+description: DidClaw 安全与类型 — Tauri 权限、IPC、供应链与 TypeScript 边界
+globs: lclaw-ui/**/*
+alwaysApply: false
+---
+
+# 安全与类型（lclaw-ui）
+
+## Tauri 2：权限与攻击面
+
+- **最小权限**：新增能力时，在 `src-tauri/capabilities/` 与 `permissions/` 中**显式声明**所需 scope；禁止在未评审的情况下扩大 `remote.urls`、插件权限或 IPC 暴露面。
+- **`invoke-all`**：属高权限集合；**新命令**应配套精确 `allow-*`，并在里程碑发布前计划**收紧**为按命令列举（与可审计性一致）。
+- **IPC 载荷**：Rust 侧对 `invoke` 参数做**类型与范围校验**（必填字段、长度上限、枚举合法值）；勿假定前端可信。错误信息对用户可模糊，日志可详细（勿打印密钥）。
+- **路径与命令**：由用户或网络输入拼出的路径、URL、命令行，**必须经过校验与白名单**后再用于读写、打开或执行；禁止把任意字符串交给 `std::process` 或等价 API。
+- **远程加载**：`capabilities` 里 `remote` 仅保留**开发期**必需源（如本地 Vite）；发布构建须以 **打包资源** 为主，避免把生产窗口指向不可信 `http(s)` 源。
+- **CSP**：`tauri.conf.json` 中 `csp` 当前若为宽松/空，**发布前**应收紧为允许脚本与连接的最小集合（含 `connect-src` 与网关地址策略）。
+- **密钥与配置**：敏感凭据只放在 **Rust 侧或系统环境变量**，经 `VITE_*` 打进前端的只能是**可公开**配置；`.env*` 与密钥禁止入库（见总则「Git 与保密」）。
+
+## 前端：内容与 XSS
+
+- 渲染用户或模型产生的 **HTML** 时，沿用 **DOMPurify**（或等价）与既定管道；新增 `v-html`、富文本组件须安全评审。
+- 打开外部链接、下载文件，使用项目已有 **Tauri / 浏览器 API** 封装，避免 `window.open` 随意跳转未校验 URL。
+
+## TypeScript：类型安全
+
+- 保持 `tsconfig.app.json` 中 **`strict`** 及现有 `noUnusedLocals` / `noUnusedParameters` 等；合并前 **`pnpm run typecheck`** 须通过。
+- **禁止默认放宽**：不新增无理由的 `any`；必要时用 `unknown` 再收窄。避免散落的 `@ts-expect-error` / `@ts-ignore`；若无法避免，须**单行注释说明原因与工单/后续项**。
+- **边界校验**：HTTP、WebSocket、Tauri `invoke` 返回的 JSON 在 **信任边界**处用 **Zod**（或项目既定方案）解析，勿长期以 `as SomeType` 断言未验证数据。
+- **导出 API**：模块对外导出的函数/类型，优先写**显式返回类型**，避免推断泄漏实现细节或意外加宽。
+- **`!` 非空断言**：仅用于已证明安全的场景；优先用早期 return、可选链或类型收窄。
+
+## 依赖与供应链
+
+- 新增 npm / crate 前评估维护状态与用途；升级**主版本**或安全补丁时，在 `CHANGELOG.md` 记一笔。
+- 勿引入不必要的 **eval**、动态 `Function`、`innerHTML` 拼接不可信字符串。
