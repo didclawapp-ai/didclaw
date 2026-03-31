@@ -1,6 +1,9 @@
 # OpenClaw 上游克隆体积大且可独立更新；若需纳入仓库，删除本行
 /openclaw-src/
 
+# 官网（独立部署，不纳入主仓库）
+lclaw-ui/website/
+
 # 客户端构建与依赖（目录名可为 lclaw-ui 或 didclaw，按本地实际）
 lclaw-ui/node_modules/
 lclaw-ui/dist/
