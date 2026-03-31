@@ -2,6 +2,12 @@
   "app": {
     "security": {
       "capabilities": ["default", "dev"]
-    }
+    },
+    "windows": [
+      {
+        "label": "main",
+        "devtools": true
+      }
+    ]
   }
 }

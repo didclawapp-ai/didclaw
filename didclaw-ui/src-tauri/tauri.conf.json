@@ -21,7 +21,7 @@
         "height": 920,
         "resizable": true,
         "fullscreen": false,
-        "devtools": true
+        "devtools": false
       }
     ],
     "security": {

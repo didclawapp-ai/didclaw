@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Added
 
+- **Disable devtools in production builds**: Set `"devtools": false` in `tauri.conf.json`; re-enabled via `tauri.dev.conf.json` overlay so local development (`pnpm dev:tauri`) is unaffected.
 - **Fix CI lint failures**: Added Node.js globals (`Buffer`, `process`) to ESLint config for the `scripts/` directory; renamed unused `i` argument to `_i` in `make-ico.mjs`; removed extra blank line in `PreviewPane.vue` template.
 - **CI/CD workflows**: Added `.github/workflows/release.yml` to build and publish Windows installers (NSIS `.exe` + `.msi`) automatically when a `v*` tag is pushed; also supports manual trigger (`workflow_dispatch`) for build verification without publishing. Added `.github/workflows/ci.yml` to run lint, typecheck, and unit tests on every push to `main` and on pull requests.
 
