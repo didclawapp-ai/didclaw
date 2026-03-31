@@ -1,15 +1,27 @@
 # Changelog
 
-本文件记录 DidClaw / LCLAW 仓库面向协作者与用户的可见变更。**每次提交请同步追加条目**（见 `.cursor/rules/didclaw-project.mdc`）。
+All notable changes to DidClaw are documented here. **Every commit must include a changelog entry** (see `.cursor/rules/didclaw-project.mdc`).
 
-格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/）。**版本号规则**（SemVer、`package.json` / `tauri.conf.json` / `Cargo.toml` 同步、标签 `v*`）见 `.cursor/rules/didclaw-project.mdc` 中的「版本号与发版」。
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For versioning rules (SemVer, three-file sync, git tags) see `didclaw-project.mdc`.
 
-## [未发布]
+> **Language note**: Entries from this point forward are written in English. Earlier entries (below) are in Chinese.
 
-### 新增
+## [Unreleased]
 
-- **Cursor 规则与 Skill 纳入版本控制**：将 `.cursor/rules/`（项目总则、客户端约定、安全规范）和 `.cursor/skills/didclaw-workspace/SKILL.md` 加入 Git 追踪，团队协作者可共享同一套 AI 编码约束。更新 `.gitignore`，改为仅排除个人本机 Cursor 设置（`mcp.json`、`settings.json`、`chat/`、`composer/`），而非整个 `.cursor/` 目录。
-- **清理 docs/ 非文档文件**：从版本控制中移除 `docs/SESSION-CONTEXT.md`（AI 会话记忆，含本机路径）和 `docs/*.html`（开发期 UI 原型预览），更新 `.gitignore` 使其持续排除。本地文件保留不删除。
+### Added
+
+- **README internationalization**: Rewrote `README.md` in English as the primary file for international contributors; preserved the full Chinese version as `README.zh-CN.md` with mutual language links at the top of each file.
+- **Cursor rules and workspace skill added to version control**: Added `.cursor/rules/` (project conventions, client rules, security guidelines) and `.cursor/skills/didclaw-workspace/SKILL.md` so all collaborators share the same AI coding constraints. Updated `.gitignore` to exclude only personal Cursor settings (`mcp.json`, `settings.json`, `chat/`, `composer/`) rather than the entire `.cursor/` directory.
+- **Clean up non-documentation files from docs/**: Removed `docs/SESSION-CONTEXT.md` (AI session memory containing local machine paths) and `docs/*.html` (development UI prototypes) from version control; updated `.gitignore` to permanently exclude them. Local files are preserved.
+
+---
+
+<!-- ============================================================ -->
+<!-- 以下条目为历史记录，使用中文                                    -->
+<!-- History entries below are in Chinese                         -->
+<!-- ============================================================ -->
+
+## [未发布 — 历史条目]
 
 - **移除调试面板**：删除文件预览侧栏底部「TOOLS / EVENTS (NON-CHAT)」调试区块（`PreviewPane`），不应暴露给最终用户。
 

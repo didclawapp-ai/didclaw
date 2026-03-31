@@ -24,11 +24,11 @@ alwaysApply: true
 - **修订号（PATCH）**：向后兼容的缺陷修复与不影响契约的小改进。
 - **0.y.z 阶段**：整合与公测期；在 **1.0.0** 之前仍可能有较大调整，应在 `CHANGELOG.md` 写清影响；同类破坏性变更优先用抬升 **MINOR** 表达（0.x 下 MAJOR 常为未来保留）。
 - **单一事实来源（须三方一致）**：任何**正式发布或刻意改版本号**的提交中，须在同一提交内同步修改：
-  - `lclaw-ui/package.json` → `version`
-  - `lclaw-ui/src-tauri/tauri.conf.json` → `version`
-  - `lclaw-ui/src-tauri/Cargo.toml` → `[package].version`
+  - `didclaw-ui/package.json` → `version`
+  - `didclaw-ui/src-tauri/tauri.conf.json` → `version`
+  - `didclaw-ui/src-tauri/Cargo.toml` → `[package].version`
 - **Git 标签**：对外发布时在对应提交打 **`v{version}`**（例：`v0.3.0`），与上述字符串完全一致。
-- **与 CHANGELOG 的衔接**：发版时将 `## [未发布]` 的累计内容改为 `## [x.y.z] - YYYY-MM-DD`，再在文首保留空的 `## [未发布]`；日常提交仅在 `[未发布]` 下追加条目（见「Git 与保密」）。
+- **与 CHANGELOG 的衔接**：发版时将 `## [Unreleased]` 的累计内容改为 `## [x.y.z] - YYYY-MM-DD`，再在文首保留空的 `## [Unreleased]`；日常提交仅在 `[Unreleased]` 下追加条目（见「Git 与保密」）。
 
 ## 整合期开发纪律
 
@@ -39,8 +39,8 @@ alwaysApply: true
 
 ## Git 与保密
 
-- 提交信息用**完整、可读的句子**（中文或英文统一即可），说明「改了什么、为什么」。
-- **Change log**：每次 `git 提交`须同步更新仓库根目录 **`CHANGELOG.md`**（与代码改动在同一提交中）。每条记录用一两句话说明**对用户或集成方可见的影响**（新增、修复、变更、废弃等）；内部-only 重构也需简短注明范围。格式沿用文件内现有章节（建议 [Keep a Changelog](https://keepachangelog.com/)：`[未发布]` / 版本号 + 日期）。**若本提交 bump 了版本号**，须同时完成「版本号与发版」中的三处同步与（若发版）Git 标签约定。**例外**：仅调整空白、错字且无行为影响的提交，可只在提交说明中写明，不改 `CHANGELOG.md`。
+- 提交信息用**完整、可读的句子**（统一用**英文**，与 CHANGELOG 保持一致），说明「改了什么、为什么」。
+- **Change log**：每次 `git 提交`须同步更新仓库根目录 **`CHANGELOG.md`**（与代码改动在同一提交中）。条目**统一用英文**写作（历史中文条目保留，不需回译）。每条记录用一两句话说明**对用户或集成方可见的影响**（新增、修复、变更、废弃等）；内部-only 重构也需简短注明范围。格式沿用文件内现有章节（`[Unreleased]` / 版本号 + 日期，参考 [Keep a Changelog](https://keepachangelog.com/)）。**若本提交 bump 了版本号**，须同时完成「版本号与发版」中的三处同步与（若发版）Git 标签约定。**例外**：仅调整空白、错字且无行为影响的提交，可只在提交说明中写明，不改 `CHANGELOG.md`。
 - 大功能拆成**小步提交**或独立 PR，便于评审与回滚；若同一任务多次提交，可在最后一次提交里合并整理 `CHANGELOG` 条目，避免重复条目。
 - 禁止提交：密钥、token、本机绝对路径、仅个人适用的配置。
 
