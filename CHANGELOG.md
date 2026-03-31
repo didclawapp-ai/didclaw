@@ -8,6 +8,8 @@
 
 ### 新增
 
+- **移除调试面板**：删除文件预览侧栏底部「TOOLS / EVENTS (NON-CHAT)」调试区块（`PreviewPane`），不应暴露给最终用户。
+
 - **自动隐藏顶部标题栏**：关闭原生 Windows 装饰（`decorations: false`），`AppHeader` 改为 `position: fixed` 浮层；默认隐藏，鼠标移至窗口顶部 8 px 感应带时滑出，离开后 1.5 s 自动收起；有连接错误时强制常驻。顶栏右侧新增最小化 / 最大化（含还原图标）/ 关闭三个窗口控制按钮，关闭按钮悬停变红；整个标题行配置 `data-tauri-drag-region`，保留拖动窗口能力。
 
 - **单元测试基础设施**：引入 Vitest（`pnpm test` / `test:watch` / `test:coverage`），所有测试放在 `didclaw-ui/test/` 目录。初始覆盖 6 个 `lib/` 纯函数模块（113 个用例）：`preview-kind`、`chat-history-sort`、`is-safe-preview-url`、`url-allowlist`、`extract-chat-links`、`zod-format`。
