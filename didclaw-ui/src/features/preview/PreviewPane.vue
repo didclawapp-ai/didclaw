@@ -6,7 +6,6 @@ import { hljsLanguageFromUrl, isHttpsUrl, officeOnlineEmbedUrl } from "@/lib/pre
 import { renderCodePreviewHtml } from "@/lib/render-code-preview";
 import { renderMarkdownPreviewToHtml } from "@/lib/render-markdown-preview";
 import { useFilePreviewStore } from "@/stores/filePreview";
-import { useToolTimelineStore } from "@/stores/toolTimeline";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -53,9 +52,6 @@ const codePreviewHtml = computed(() => {
   const lang = hljsLanguageFromUrl(tgt.url);
   return renderCodePreviewHtml(body, lang);
 });
-
-const toolTimeline = useToolTimelineStore();
-const { entries: toolEntries } = storeToRefs(toolTimeline);
 
 const officeEmbed = computed(() => {
   const tgt = target.value;
@@ -256,17 +252,6 @@ async function onSaveEmbeddedImage(): Promise<void> {
       </div>
     </div>
 
-    <div class="timeline">
-      <div class="timeline-title">{{ t('preview.timelineTitle') }}</div>
-      <ul v-if="toolEntries.length" class="timeline-list">
-        <li v-for="e in toolEntries" :key="e.id" class="timeline-item">
-          <span class="ev">{{ e.event }}</span>
-          <span v-if="e.count > 1" class="cnt">×{{ e.count }}</span>
-          <div class="sum">{{ e.summary || "—" }}</div>
-        </li>
-      </ul>
-      <p v-else class="muted tiny" v-html="t('preview.timelineEmpty')" />
-    </div>
   </div>
 </template>
 
@@ -457,51 +442,6 @@ button.ghost:hover {
   border-color: var(--lc-border-strong);
   color: var(--lc-text);
   box-shadow: none;
-}
-.timeline {
-  flex-shrink: 0;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--lc-border);
-  max-height: 180px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.timeline-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--lc-text-dim);
-  margin-bottom: 8px;
-}
-.timeline-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow: auto;
-  font-size: 12px;
-}
-.timeline-item {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--lc-border);
-}
-.ev {
-  font-family: var(--lc-mono);
-  color: var(--lc-accent);
-  font-size: 11px;
-}
-.cnt {
-  margin-left: 6px;
-  color: var(--lc-text-dim);
-  font-size: 11px;
-}
-.sum {
-  margin-top: 4px;
-  color: var(--lc-text-muted);
-  word-break: break-word;
-  white-space: pre-wrap;
 }
 .tiny {
   font-size: 12px;
