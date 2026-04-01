@@ -1,4 +1,4 @@
-export type PreviewKind = "pdf" | "image" | "office" | "markdown" | "text" | "code" | "other";
+export type PreviewKind = "pdf" | "image" | "office" | "markdown" | "text" | "code" | "html" | "other";
 
 /** 扩展名（小写）→ highlight.js 语言；未列出时预览端使用 highlightAuto */
 const CODE_EXT_TO_HLJS: Record<string, string> = {
@@ -36,8 +36,6 @@ const CODE_EXT_TO_HLJS: Record<string, string> = {
   psm1: "powershell",
   sql: "sql",
   vue: "xml",
-  html: "xml",
-  htm: "xml",
   xml: "xml",
   css: "css",
   scss: "scss",
@@ -140,6 +138,9 @@ export function previewKindFromUrl(url: string): PreviewKind {
   }
   if (/\.(md|markdown|mdown|mkd)$/i.test(lower)) {
     return "markdown";
+  }
+  if (/\.html?$/i.test(lower)) {
+    return "html";
   }
   if (/\.(txt|text|log|csv)$/i.test(lower)) {
     return "text";

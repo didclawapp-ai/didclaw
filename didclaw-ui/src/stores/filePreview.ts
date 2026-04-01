@@ -308,7 +308,7 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
     if (u.startsWith("blob:") && kind === "other") {
       kind = previewKindFromUrl(`https://preview.local/${encodeURIComponent(short)}`);
     }
-    if (kind === "markdown" || kind === "text" || kind === "code") {
+    if (kind === "markdown" || kind === "text" || kind === "code" || kind === "html") {
       target.value = { url: u, label: short, kind };
       previewTextLoading.value = true;
       previewTextError.value = null;

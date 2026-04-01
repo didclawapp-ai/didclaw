@@ -53,6 +53,14 @@ const codePreviewHtml = computed(() => {
   return renderCodePreviewHtml(body, lang);
 });
 
+const htmlSrcdoc = computed(() => {
+  const body = previewTextBody.value;
+  if (!body || target.value?.kind !== "html") {
+    return "";
+  }
+  return body;
+});
+
 const officeEmbed = computed(() => {
   const tgt = target.value;
   if (!tgt || tgt.kind !== "office") {
@@ -166,7 +174,7 @@ async function onSaveEmbeddedImage(): Promise<void> {
       <div
         v-else-if="
           target &&
-            (target.kind === 'markdown' || target.kind === 'text' || target.kind === 'code') &&
+            (target.kind === 'markdown' || target.kind === 'text' || target.kind === 'code' || target.kind === 'html') &&
             previewTextError
         "
         class="card state-card err"
@@ -226,6 +234,13 @@ async function onSaveEmbeddedImage(): Promise<void> {
         :src="target.url"
         :alt="target.label"
       >
+      <iframe
+        v-else-if="target?.kind === 'html' && htmlSrcdoc"
+        class="fill-frame"
+        title="HTML Preview"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+        :srcdoc="htmlSrcdoc"
+      />
       <iframe
         v-else-if="target && target.kind === 'pdf'"
         class="fill-frame"
