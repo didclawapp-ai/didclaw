@@ -1,8 +1,7 @@
 # OpenClaw 上游克隆体积大且可独立更新；若需纳入仓库，删除本行
 /openclaw-src/
 
-# 官网（独立部署，不纳入主仓库）
-didclaw-ui/website/
+# 官网（已纳入主仓库，随产品一起发版）
 
 # 客户端构建、依赖与测试产物
 didclaw-ui/node_modules/
