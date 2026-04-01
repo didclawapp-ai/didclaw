@@ -59,6 +59,17 @@ function looksLikeAlreadyInstalled(result: {
   );
 }
 
+function looksLikeDangerousCodeBlocked(result: {
+  ok: boolean;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
+}): boolean {
+  return /dangerous code patterns detected|installation blocked.*dangerous/i.test(
+    [result.error, result.stdout, result.stderr].filter(Boolean).join("\n"),
+  );
+}
+
 const { lines, start, cleanup, reset: resetStreaming, pushLine } = useStreamingInstall({
   channelId: "wechat",
 
@@ -160,6 +171,14 @@ async function ensurePluginInstalled(): Promise<boolean> {
     if (looksLikeAlreadyInstalled(result)) {
       pushLine("检测到微信插件已存在，跳过重复安装，继续启动扫码登录…");
       return true;
+    }
+    if (looksLikeDangerousCodeBlocked(result)) {
+      pushLine("⚠ 微信插件被 OpenClaw 3.31+ 安全扫描拦截（误报）");
+      pushLine("原因：官方微信插件使用 child_process 启动微信 CLI，属正常用法，安全扫描器将其误判为危险代码。");
+      pushLine("请等待腾讯官方更新插件版本，或在终端执行以下命令临时跳过安全检查：");
+      pushLine("  openclaw plugins install @tencent-weixin/openclaw-weixin --dangerously-force-unsafe-install");
+      pushLine("执行完成后，请重新点击「开始绑定微信」按钮。");
+      return false;
     }
     showToast(`自动安装微信插件失败：${result.error}`, true);
     return false;

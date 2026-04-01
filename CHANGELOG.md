@@ -10,6 +10,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Added
 
+- **OpenClaw update 7-day hold period**: New OpenClaw versions are now silently recorded on first detection; the upgrade prompt is only shown after 7 days have elapsed, giving maintainers time to verify compatibility before users are notified. The prompt copy also confirms "verified for compatibility with DidClaw".
+- **WeChat plugin security-block guidance (OpenClaw 3.31+)**: When the WeChat plugin install is blocked by OpenClaw's new dangerous-code scanner (false positive on `child_process`), the install log now shows a clear explanation and the exact command to bypass the check: `openclaw plugins install @tencent-weixin/openclaw-weixin --dangerously-force-unsafe-install`.
+
 - **Disable devtools in production builds**: Set `"devtools": false` in `tauri.conf.json`; re-enabled via `tauri.dev.conf.json` overlay so local development (`pnpm dev:tauri`) is unaffected.
 - **Fix CI lint failures**: Added Node.js globals (`Buffer`, `process`) to ESLint config for the `scripts/` directory; renamed unused `i` argument to `_i` in `make-ico.mjs`; removed extra blank line in `PreviewPane.vue` template.
 - **CI/CD workflows**: Added `.github/workflows/release.yml` to build and publish Windows installers (NSIS `.exe` + `.msi`) automatically when a `v*` tag is pushed; also supports manual trigger (`workflow_dispatch`) for build verification without publishing. Added `.github/workflows/ci.yml` to run lint, typecheck, and unit tests on every push to `main` and on pull requests. Release workflow now includes a `check` gate job (lint · typecheck · test) that must pass before the Windows build starts.

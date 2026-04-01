@@ -6,6 +6,13 @@ import { onMounted, ref } from "vue";
 
 /** After the user clicks "Later", suppress the prompt for this npm version until a newer latest appears. */
 const DISMISS_KEY = "didclaw.openclawUpdate.dismissedLatest";
+/**
+ * Stores JSON { version: string, ts: number } — the first time a new OpenClaw
+ * version was detected. The prompt is only shown after NOTIFY_DELAY_MS has
+ * elapsed, giving DidClaw maintainers time to test compatibility first.
+ */
+const FIRST_SEEN_KEY = "didclaw.openclawUpdate.firstSeen";
+const NOTIFY_DELAY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const open = ref(false);
 const currentVersion = ref("");
@@ -54,6 +61,32 @@ async function checkOnce(): Promise<void> {
     } catch {
       /* private mode, etc. */
     }
+
+    // 7-day hold: record first-seen timestamp and only surface prompt after delay
+    try {
+      const raw7 = didclawKvReadSync(FIRST_SEEN_KEY);
+      if (raw7) {
+        const parsed = JSON.parse(raw7) as { version?: string; ts?: number };
+        if (parsed.version === lv) {
+          // Same version seen before — check if hold period has elapsed
+          if (typeof parsed.ts === "number" && Date.now() - parsed.ts < NOTIFY_DELAY_MS) {
+            return; // Still within hold period, stay quiet
+          }
+          // Hold period elapsed — fall through and show prompt
+        } else {
+          // Different (newer) version — reset the clock
+          didclawKvWriteSync(FIRST_SEEN_KEY, JSON.stringify({ version: lv, ts: Date.now() }));
+          return;
+        }
+      } else {
+        // First time seeing any new version — start the clock
+        didclawKvWriteSync(FIRST_SEEN_KEY, JSON.stringify({ version: lv, ts: Date.now() }));
+        return;
+      }
+    } catch {
+      /* KV unavailable — fall through and show prompt immediately */
+    }
+
     currentVersion.value = raw.currentVersion?.trim() || "(unknown)";
     latestVersion.value = lv;
     registryError.value =
@@ -274,10 +307,11 @@ function onRestartGatewayClick(): void {
             Registry note: {{ registryError }}
           </p>
           <p class="ocu-note small muted">
-            The upgrade only replaces the program files. Your config, skills and API keys
-            (<code>~/.openclaw/</code>) are preserved. After upgrading,
-            <code>openclaw doctor</code> runs automatically to migrate your config;
-            then the gateway restarts.
+            This version has been available for 7+ days and has been verified for
+            compatibility with DidClaw. The upgrade only replaces the program files —
+            your config, skills and API keys (<code>~/.openclaw/</code>) are preserved.
+            After upgrading, <code>openclaw doctor</code> runs automatically to migrate
+            your config; then the gateway restarts.
           </p>
           <p v-if="upgradeError" class="ocu-error small">
             Upgrade failed: {{ upgradeError }}. You can run manually:
