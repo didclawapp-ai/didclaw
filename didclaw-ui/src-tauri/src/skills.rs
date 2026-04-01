@@ -25,15 +25,15 @@ fn home_openclaw_workspace_skills_legacy() -> Result<PathBuf, String> {
         .join("skills"))
 }
 
-/// 默认安装根：优先 `~/.openclaw/workspace/skills`；若该路径不存在但
-/// `~/.openclaw/skills` 已存在，则兼容回退，避免旧用户升级后丢失技能。
+/// 默认安装根：始终优先 `~/.openclaw/workspace/skills`；
+/// 仅当该路径尚不存在 **且** `~/.openclaw/skills` 已有内容时，才兼容回退到后者。
 pub fn default_install_root() -> Result<String, String> {
     let workspace = home_openclaw_workspace_skills_legacy()?;
     let shared = home_openclaw_shared_skills()?;
-    let p = if workspace.is_dir() || !shared.is_dir() {
-        workspace
-    } else {
+    let p = if !workspace.is_dir() && shared.is_dir() {
         shared
+    } else {
+        workspace
     };
     Ok(p.to_string_lossy().to_string())
 }
