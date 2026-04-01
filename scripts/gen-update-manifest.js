@@ -51,9 +51,9 @@ if (has("--help") || has("-h")) {
 // ── Version ───────────────────────────────────────────────────────────────────
 let version = get("--version");
 if (!version) {
-  const pkgPath = path.resolve(__dirname, "../lclaw-ui/package.json");
+  const pkgPath = path.resolve(__dirname, "../didclaw-ui/package.json");
   if (!fs.existsSync(pkgPath)) {
-    die("Cannot find lclaw-ui/package.json. Use --version to specify manually.");
+    die("Cannot find didclaw-ui/package.json. Use --version to specify manually.");
   }
   version = JSON.parse(fs.readFileSync(pkgPath, "utf8")).version;
   if (!version) die("No version field in lclaw-ui/package.json.");

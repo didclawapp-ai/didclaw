@@ -9,7 +9,7 @@
     "dev:tauri": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "build": "vue-tsc -b && vite build",
     "build:tauri": "pnpm run build && tauri build --config src-tauri/tauri.build.conf.json",
-    "dist:win": "pnpm run build && tauri build --config src-tauri/tauri.build.conf.json",
+    "dist:win": "pnpm run build && tauri build --config src-tauri/tauri.build.conf.json && node scripts/post-dist-win.mjs",
     "dist:win:tauri": "pnpm run dist:win",
     "preview": "vite preview",
     "lint": "eslint .",

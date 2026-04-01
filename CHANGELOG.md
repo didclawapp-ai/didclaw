@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+### Added
+
+- **Auto-generate update manifest on `pnpm dist:win`**: `scripts/post-dist-win.mjs` now runs automatically after the Windows build, writing `dist/didclaw-update.json` with the version, date, and GitHub Releases download URLs for `.exe` and `.msi`.
+
 ### Fixed
 
 - **Pasted images not visible to AI**: On desktop, pasted/dropped images are now saved to `~/.openclaw/workspace/.attachments/` and sent to the gateway as a file path instead of inline base64. The gateway reads the file directly, which resolves the issue where the AI could not see the attached image.
