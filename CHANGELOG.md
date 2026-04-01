@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+---
+
+## [0.8.2] - 2026-04-01
+
 ### Added
 
 - **OpenClaw update 7-day hold period**: New OpenClaw versions are now silently recorded on first detection; the upgrade prompt is only shown after 7 days have elapsed, giving maintainers time to verify compatibility before users are notified. The prompt copy also confirms "verified for compatibility with DidClaw".
