@@ -1,6 +1,10 @@
 import type { GatewayEventFrame } from "@/features/gateway/gateway-types";
 import { chatEventPayloadSchema, chatHistoryResponseSchema } from "@/features/gateway/schemas";
-import { buildImageAttachmentPayload, type GatewayChatAttachmentPayload } from "@/lib/chat-attachment-encode";
+import {
+  buildImageAttachmentPayload,
+  NotChatImageAttachmentError,
+  type GatewayChatAttachmentPayload,
+} from "@/lib/chat-attachment-encode";
 import {
   CHAT_OPTIMISTIC_KEY,
   type GatewayChatMessage,
@@ -461,18 +465,19 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     const attachmentsPayload: GatewayChatAttachmentPayload[] = [];
-    try {
-      for (const p of sendQueue) {
-        if (p.file.type.startsWith("image/")) {
-          attachmentsPayload.push(await buildImageAttachmentPayload(p.file));
+    const nonImages: PendingComposerFile[] = [];
+    for (const p of sendQueue) {
+      try {
+        attachmentsPayload.push(await buildImageAttachmentPayload(p.file));
+      } catch (e) {
+        if (e instanceof NotChatImageAttachmentError) {
+          nonImages.push(p);
+        } else {
+          lastError.value = e instanceof Error ? e.message : String(e);
+          return;
         }
       }
-    } catch (e) {
-      lastError.value = e instanceof Error ? e.message : String(e);
-      return;
     }
-
-    const nonImages = sendQueue.filter((p) => !p.file.type.startsWith("image/"));
     let message = text;
     if (nonImages.length > 0) {
       const lines = nonImages

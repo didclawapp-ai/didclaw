@@ -1,4 +1,5 @@
 import { i18n } from "@/i18n";
+import { sniffImageMimeFromHeader } from "@/lib/chat-image-sniff";
 
 /** Aligned with gateway `parseMessageWithAttachments` default limit (~5 MB decoded) */
 export const MAX_CHAT_IMAGE_ATTACHMENT_BYTES = 4_500_000;
@@ -9,6 +10,36 @@ export type GatewayChatAttachmentPayload = {
   fileName: string;
   content: string;
 };
+
+/** Thrown when a file is not a supported image (e.g. PDF picked as “maybe image”). */
+export class NotChatImageAttachmentError extends Error {
+  override readonly name = "NotChatImageAttachmentError";
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export async function ensureImageFileMimeType(file: File): Promise<File> {
+  if (file.type.startsWith("image/")) {
+    return file;
+  }
+  if (file.size < 6) {
+    throw new NotChatImageAttachmentError(
+      `${file.name || "image"}: ${i18n.global.t("chatAttach.onlyImages")}`,
+    );
+  }
+  const header = await file.slice(0, 16).arrayBuffer();
+  const mime = sniffImageMimeFromHeader(header);
+  if (!mime) {
+    throw new NotChatImageAttachmentError(
+      `${file.name || "image"}: ${i18n.global.t("chatAttach.onlyImages")}`,
+    );
+  }
+  return new File([file], file.name || "image", {
+    type: mime,
+    lastModified: file.lastModified,
+  });
+}
 
 /** Extracts the bare base64 segment from a DataURL or raw base64 string (strips `data:...;base64,` prefix) */
 export function readFileAsBase64Content(file: File): Promise<string> {
@@ -31,17 +62,15 @@ export function readFileAsBase64Content(file: File): Promise<string> {
 export async function buildImageAttachmentPayload(
   file: File,
 ): Promise<GatewayChatAttachmentPayload> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error(`${file.name}: ${i18n.global.t("chatAttach.onlyImages")}`);
+  const f = await ensureImageFileMimeType(file);
+  if (f.size > MAX_CHAT_IMAGE_ATTACHMENT_BYTES) {
+    throw new Error(`${f.name}: ${i18n.global.t("chatAttach.tooLarge")}`);
   }
-  if (file.size > MAX_CHAT_IMAGE_ATTACHMENT_BYTES) {
-    throw new Error(`${file.name}: ${i18n.global.t("chatAttach.tooLarge")}`);
-  }
-  const content = await readFileAsBase64Content(file);
+  const content = await readFileAsBase64Content(f);
   return {
     type: "image",
-    mimeType: file.type || "image/png",
-    fileName: file.name || "image",
+    mimeType: f.type || "image/png",
+    fileName: f.name || "image",
     content,
   };
 }

@@ -12,7 +12,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 - **App icon updated**: Replaced all icon assets with the new DidClaw lobster-D logo (transparent corners, all sizes regenerated: ICO, PNG, Square logos).
 
+- **Icon regeneration script**: Added `pnpm run icons` (`scripts/regen-icons.mjs`), which letterboxes `src-tauri/icons/didclaw-logo.png` onto a transparent 1024×1024 canvas (required by `tauri icon`) and regenerates `icon.icns`, `icon.ico`, PNGs, iOS, Android mipmaps, and Windows Appx tile PNGs. `pnpm run make-ico` now forwards to the same pipeline. The script verifies that ICO/ICNS/PNGs were actually rewritten and prints their mtimes (replace the logo, then run `pnpm run icons` again—Explorer times stay old until you do).
+
+- **Icon repo cleanup**: Dropped legacy `source_clean.png` / `source_transparent.png` and the stray Gemini-generated PNG; committed `didclaw-logo.png` as the single canonical source for `pnpm run icons`.
+
 ### Fixed
+
+- **Ctrl+V pasted screenshots not reaching the model**: Clipboard images from WebView2 / Windows often have an empty `File.type` or appear only on `clipboardData.files`. The composer now collects those cases, and `chat.send` builds image attachments using magic-byte sniffing so PNG/JPEG/GIF/WebP are still encoded with a correct `mimeType` for the gateway.
 
 - **Local `file://` HTML preview**: Tauri `preview_open_local` no longer treats `.html` / `.htm` as plain text; the desktop API returns `displayKind: "html"` and the preview store maps legacy `text` + `.html` URLs to iframe render so the right pane shows the page instead of a TEXT source view.
 

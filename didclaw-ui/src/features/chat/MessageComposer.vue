@@ -116,25 +116,72 @@ function onComposerEnter(ev: KeyboardEvent): void {
   void chat.sendMessage();
 }
 
+/** Clipboard image sources vary by OS / WebView2; type is often empty for screenshots. */
+function collectClipboardImageFiles(cd: DataTransfer | null): File[] {
+  if (!cd) {
+    return [];
+  }
+  const out: File[] = [];
+  const seen = new Set<string>();
+  const track = (f: File | null): void => {
+    if (!f || f.size <= 0) {
+      return;
+    }
+    const key = `${f.size}:${f.lastModified}:${f.name || ""}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    out.push(f);
+  };
+
+  const items = cd.items;
+  if (items?.length) {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it) {
+        continue;
+      }
+      if (it.type.startsWith("image/")) {
+        track(it.getAsFile());
+        continue;
+      }
+      if (it.kind === "file") {
+        const f = it.getAsFile();
+        if (
+          f &&
+          (f.type.startsWith("image/") ||
+            f.type === "" ||
+            f.type === "application/octet-stream")
+        ) {
+          track(f);
+        }
+      }
+    }
+  }
+
+  if (out.length === 0 && cd.files?.length) {
+    for (let i = 0; i < cd.files.length; i++) {
+      const f = cd.files[i];
+      if (
+        f &&
+        (f.type.startsWith("image/") ||
+          f.type === "" ||
+          f.type === "application/octet-stream")
+      ) {
+        track(f);
+      }
+    }
+  }
+
+  return out;
+}
+
 function onPaste(ev: ClipboardEvent): void {
   if (sending.value || status.value !== "connected") {
     return;
   }
-  const items = ev.clipboardData?.items;
-  if (!items?.length) {
-    return;
-  }
-  const files: File[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    if (!it || it.kind !== "file") {
-      continue;
-    }
-    const f = it.getAsFile();
-    if (f && f.type.startsWith("image/")) {
-      files.push(f);
-    }
-  }
+  const files = collectClipboardImageFiles(ev.clipboardData);
   if (files.length === 0) {
     return;
   }
