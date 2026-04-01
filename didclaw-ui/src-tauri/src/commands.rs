@@ -848,3 +848,40 @@ pub async fn run_minimax_oauth(
 pub async fn run_openai_codex_oauth(app: tauri::AppHandle) -> Result<Value, String> {
     crate::oauth_providers::run_openai_codex_oauth(app).await
 }
+
+/// Save a pasted/dropped image to ~/.openclaw/workspace/.attachments/ and return the absolute path.
+/// The returned path can be forwarded to the gateway as a file-path attachment.
+#[tauri::command]
+pub fn save_chat_attachment(base64_data: String, file_name: String) -> Result<Value, String> {
+    use base64::Engine;
+
+    let attachments_dir = crate::openclaw_common::openclaw_dir()?
+        .join("workspace")
+        .join(".attachments");
+
+    fs::create_dir_all(&attachments_dir)
+        .map_err(|e| format!("Failed to create attachments dir: {e}"))?;
+
+    let ext = std::path::Path::new(file_name.trim())
+        .extension()
+        .and_then(|e| e.to_str())
+        .filter(|e| !e.is_empty())
+        .unwrap_or("png");
+
+    let uid = uuid::Uuid::new_v4().to_string();
+    let out_name = format!("paste-{}.{}", &uid[..8], ext);
+    let out_path = attachments_dir.join(&out_name);
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_data.trim())
+        .map_err(|e| format!("Invalid base64: {e}"))?;
+
+    fs::write(&out_path, &bytes).map_err(|e| format!("Failed to write attachment: {e}"))?;
+
+    let path_str = out_path
+        .to_str()
+        .ok_or_else(|| "Path contains non-UTF8 characters".to_string())?
+        .to_string();
+
+    Ok(json!({ "ok": true, "path": path_str }))
+}

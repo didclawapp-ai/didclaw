@@ -1,4 +1,5 @@
 import { i18n } from "@/i18n";
+import { getDidClawDesktopApi } from "@/lib/electron-bridge";
 import { sniffImageMimeFromHeader } from "@/lib/chat-image-sniff";
 
 /** Aligned with gateway `parseMessageWithAttachments` default limit (~5 MB decoded) */
@@ -9,6 +10,8 @@ export type GatewayChatAttachmentPayload = {
   mimeType: string;
   fileName: string;
   content: string;
+  /** Desktop: absolute path to the saved file; gateway reads by path when present */
+  filePath?: string;
 };
 
 /** Thrown when a file is not a supported image (e.g. PDF picked as “maybe image”). */
@@ -66,6 +69,24 @@ export async function buildImageAttachmentPayload(
   if (f.size > MAX_CHAT_IMAGE_ATTACHMENT_BYTES) {
     throw new Error(`${f.name}: ${i18n.global.t("chatAttach.tooLarge")}`);
   }
+
+  // Desktop: save to ~/.openclaw/workspace/.attachments/ and use file path
+  const api = getDidClawDesktopApi();
+  if (api?.saveChatAttachment) {
+    const content = await readFileAsBase64Content(f);
+    const res = await api.saveChatAttachment(content, f.name || "image.png");
+    if (res.ok) {
+      return {
+        type: "image",
+        mimeType: f.type || "image/png",
+        fileName: f.name || "image",
+        filePath: res.path,
+        content: "",
+      };
+    }
+  }
+
+  // Fallback: inline base64
   const content = await readFileAsBase64Content(f);
   return {
     type: "image",

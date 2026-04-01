@@ -250,6 +250,7 @@ pub fn run() {
             commands::get_global_shortcut_key,
             commands::set_global_shortcut_key,
             commands::didclaw_set_app_locale,
+            commands::save_chat_attachment,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

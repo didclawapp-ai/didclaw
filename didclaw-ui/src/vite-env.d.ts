@@ -307,6 +307,11 @@ interface DidClawElectronApi {
     gatewayUrl: string,
     flowId: string,
   ): Promise<{ ok: boolean; exitCode?: number; error?: string }>;
+  /** 将粘贴/拖拽图片保存到 ~/.openclaw/workspace/.attachments/，返回绝对路径供 gateway 读取 */
+  saveChatAttachment?(
+    base64Data: string,
+    fileName: string,
+  ): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
 }
 
 interface Window {

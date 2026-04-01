@@ -87,6 +87,8 @@ function tauriApi(): DidClawElectronApi {
       }),
     startChannelQrFlow: (channel: string, gatewayUrl: string, flowId: string) =>
       invoke("start_channel_qr_flow", { channel, gatewayUrl, flowId }),
+    saveChatAttachment: (base64Data, fileName) =>
+      invoke("save_chat_attachment", { base64Data, fileName }),
     quitApp: () => invoke("quit_app"),
     getAutostartEnabled: () => invoke<boolean>("get_autostart_enabled"),
     setAutostartEnabled: (enabled) => invoke("set_autostart_enabled", { enabled }),

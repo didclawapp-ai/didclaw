@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+### Fixed
+
+- **Pasted images not visible to AI**: On desktop, pasted/dropped images are now saved to `~/.openclaw/workspace/.attachments/` and sent to the gateway as a file path instead of inline base64. The gateway reads the file directly, which resolves the issue where the AI could not see the attached image.
+
 ### Changed
 
 - **App icon updated**: Replaced all icon assets with the new DidClaw lobster-D logo (transparent corners, all sizes regenerated: ICO, PNG, Square logos).
