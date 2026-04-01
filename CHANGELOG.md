@@ -14,7 +14,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 - **Product Hunt screenshots**: Added `didclaw-ui/producthunt/` with three PNGs (main interface, file preview, dashboard) for launch and marketing use.
 
-- **Auto-generate update manifest on `pnpm dist:win`**: `scripts/post-dist-win.mjs` now runs automatically after the Windows build, writing `dist/didclaw-update.json` with the version, date, and GitHub Releases download URLs for `.exe` and `.msi`.
+- **Auto-generate update manifest on `pnpm dist:win`**: `scripts/post-dist-win.mjs` now runs automatically after the Windows build, writing `dist/didclaw-update.json` with the version, date, and `didclawapp.com/download` URLs for `.exe` and `.msi`.
 
 ### Changed
 
