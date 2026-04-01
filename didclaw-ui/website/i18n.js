@@ -43,7 +43,7 @@ const I18N = {
 
     "everyone.eyebrow":       "面向普通用户",
     "everyone.title":         "不需要懂 AI，也能轻松上手",
-    "everyone.sub":           "DidClaw 的每个设计决策都以"普通用户能用起来"为第一优先级。",
+    "everyone.sub":           "DidClaw 的每个设计决策都以「普通用户能用起来」为第一优先级。",
     "everyone.wizard.title":  "引导式安装向导",
     "everyone.wizard.desc":   "首次启动自动进入安装向导：自动检测环境、下载组件、配置 AI 模型、绑定消息渠道——全程图形化引导，无需命令行。",
     "everyone.wizard.s1":     "① 检测环境",
