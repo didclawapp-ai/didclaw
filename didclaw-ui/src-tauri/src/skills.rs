@@ -1,6 +1,6 @@
 //! OpenClaw 本机技能目录：列表、zip 解压安装、目录复制、删除。
-//! 2026-03-24 起默认推荐共享技能目录 `~/.openclaw/skills`；若用户此前已使用旧的
-//! `~/.openclaw/workspace/skills`，则保留兼容回退，避免升级后看不到既有技能。
+//! 默认安装目录为 `~/.openclaw/workspace/skills`；若该路径不存在但 `~/.openclaw/skills`
+//! 已存在，则兼容回退到后者，避免旧用户升级后看不到既有技能。
 
 use base64::Engine;
 use serde_json::{json, Value};
@@ -25,14 +25,15 @@ fn home_openclaw_workspace_skills_legacy() -> Result<PathBuf, String> {
         .join("skills"))
 }
 
-/// 默认安装根：优先 `~/.openclaw/skills`，若仅旧目录存在则兼容回退到旧路径。
+/// 默认安装根：优先 `~/.openclaw/workspace/skills`；若该路径不存在但
+/// `~/.openclaw/skills` 已存在，则兼容回退，避免旧用户升级后丢失技能。
 pub fn default_install_root() -> Result<String, String> {
+    let workspace = home_openclaw_workspace_skills_legacy()?;
     let shared = home_openclaw_shared_skills()?;
-    let legacy = home_openclaw_workspace_skills_legacy()?;
-    let p = if shared.is_dir() || !legacy.is_dir() {
-        shared
+    let p = if workspace.is_dir() || !shared.is_dir() {
+        workspace
     } else {
-        legacy
+        shared
     };
     Ok(p.to_string_lossy().to_string())
 }

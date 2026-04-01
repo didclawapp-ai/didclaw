@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+### Changed
+
+- **Simplify Manual Import tab to a two-row install UI**: Replaced the previous multi-section layout with two compact rows — "安装技能" (ZIP/folder, whole row is a drag-drop target) and "安装插件" (picks a package file and installs via CLI immediately, no separate "安装" button needed). Install directory, slug, and ClawHub credentials are collapsed into an "高级选项" `<details>` section so they don't clutter the main view. Added `onPickAndInstallPlugin` which combines file-picking and CLI install into a single action.
+- **Change default skill install directory to `~/.openclaw/workspace/skills`**: Reverts the preferred path back to the workspace-scoped location; `~/.openclaw/skills` is now the compatibility fallback (used only when it already exists and `workspace/skills` does not).
+- **Improve Manual Import tab UX in Skills Manager**: Reordered layout so the drag-drop zone, slug field, and install buttons are grouped together at the top as the primary action. ClawHub credentials are now collapsed by default in a `<details>` disclosure widget (labeled "ClawHub 凭据 · 可选") so they no longer interrupt the main install flow. Removed a duplicate "选择 ZIP 安装" button that previously appeared inside the drop zone. Field labels for slug and credential inputs now use a bolder weight for easier scanning.
+
 ## [0.8.4] - 2026-04-01
 
 ### Changed

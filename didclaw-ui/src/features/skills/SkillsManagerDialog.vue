@@ -1487,6 +1487,50 @@ async function onInstallLocalPlugin(): Promise<void> {
   }
 }
 
+/** Pick a plugin package file and immediately install it via CLI (silent). */
+async function onPickAndInstallPlugin(): Promise<void> {
+  localMessage.value = null;
+  if (!isDidClawDesktop()) {
+    localMessage.value = "安装本机插件需要桌面版。";
+    localMessageKind.value = "info";
+    return;
+  }
+  const api = getDidClawDesktopApi();
+  const picked = await api?.openclawPluginsPickPackageFile?.();
+  if (!picked) {
+    return;
+  }
+  if (!api?.openclawPluginsInstall) {
+    localMessage.value = `当前桌面壳不支持插件安装，请在终端执行：openclaw plugins install ${picked}`;
+    localMessageKind.value = "info";
+    return;
+  }
+  localPluginBusy.value = true;
+  try {
+    const auth = currentClawhubAuth();
+    const r = await api.openclawPluginsInstall({
+      packageSpec: picked,
+      clawhubToken: auth.token,
+      clawhubRegistry: auth.registry,
+    });
+    if (r && typeof r === "object" && "ok" in r && r.ok === true) {
+      localMessage.value = "插件安装完成。若 Gateway 已在运行，通常需要重启后才会加载新插件。";
+      localMessageKind.value = "success";
+      return;
+    }
+    localMessage.value =
+      r && typeof r === "object" && "error" in r && typeof r.error === "string"
+        ? truncateInstallFeedback(r.error)
+        : "插件安装失败。";
+    localMessageKind.value = "error";
+  } catch (e) {
+    localMessage.value = formatClawhubErr(e);
+    localMessageKind.value = "error";
+  } finally {
+    localPluginBusy.value = false;
+  }
+}
+
 function onInstallRootBlur(): void {
   const t = installRoot.value.trim();
   if (t) {
@@ -2096,140 +2140,125 @@ const selectedOpenclawPlugin = computed(() => {
               <div v-show="subTab === 'local'" class="skills-body skills-body--import" role="tabpanel">
                 <p v-if="!isTauri()" class="muted small">{{ t("skills.desktopZipFolder") }}</p>
                 <template v-else>
-                  <div class="skills-import-root-block">
-                    <label class="skills-field-label">{{ t("skills.importTargetDir") }}</label>
-                    <input
-                      v-model="installRoot"
-                      type="text"
-                      class="skills-root-input"
-                      spellcheck="false"
-                      @blur="onInstallRootBlur"
+                  <!-- Two-row install UI -->
+                  <div class="local-install-rows">
+                    <!-- Skill install row (whole row is drop target) -->
+                    <div
+                      class="local-install-row"
+                      :class="{ 'local-install-row--drop': importDropActive }"
+                      @dragover="onImportDragOver"
+                      @dragleave="onImportDragLeave"
+                      @drop="onImportDrop"
                     >
-                    <p class="muted small skills-import-root-note">{{ t("skills.importRootNote") }}</p>
-                  </div>
-                  <div
-                    class="skills-drop-zone"
-                    :class="{ 'skills-drop-zone--active': importDropActive }"
-                    @dragover="onImportDragOver"
-                    @dragleave="onImportDragLeave"
-                    @drop="onImportDrop"
-                  >
-                    <span class="skills-drop-icon" aria-hidden="true">📦</span>
-                    <p class="skills-drop-text">{{ t("skills.dropZipTitle") }}</p>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-sm"
-                      :disabled="localBusy"
-                      @click="onPickZipInstall"
-                    >
-                      {{ localBusy ? t("common.processing") : t("skills.pickZipInstall") }}
-                    </button>
-                  </div>
-                  <div class="local-plugin-card">
-                    <p class="muted small local-plugin-title">ClawHub 凭据（可选）</p>
-                    <label class="local-slug">
-                      <span class="muted small">Token（可留空；留空时走匿名访问或本机 `clawhub login`）</span>
-                      <div class="local-secret-row">
-                        <input
-                          v-model="clawhubToken"
-                          :type="showClawhubToken ? 'text' : 'password'"
-                          class="skills-root-input"
-                          spellcheck="false"
-                          autocomplete="off"
-                          placeholder="clh_..."
+                      <div class="local-install-row-info">
+                        <span class="local-install-row-title">安装技能</span>
+                        <span class="muted small">ZIP 文件或文件夹，可直接拖入此区域</span>
+                      </div>
+                      <div class="local-install-row-actions">
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-sm"
+                          :disabled="localBusy || localPluginBusy"
+                          @click="onPickZipInstall"
                         >
-                        <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="showClawhubToken = !showClawhubToken">
-                          {{ showClawhubToken ? "隐藏" : "显示" }}
+                          {{ localBusy ? "处理中…" : "选择文件" }}
+                        </button>
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-ghost lc-btn-sm local-install-folder-btn"
+                          :disabled="localBusy || localPluginBusy"
+                          :title="localBusy ? '处理中…' : '选择文件夹安装'"
+                          @click="onPickFolderInstall"
+                        >
+                          📁
                         </button>
                       </div>
-                    </label>
-                    <label class="local-slug">
-                      <span class="muted small">Registry（可选）</span>
-                      <input
-                        v-model="clawhubRegistry"
-                        type="text"
-                        class="skills-root-input"
-                        spellcheck="false"
-                        placeholder="https://clawhub.ai"
-                      >
-                    </label>
-                    <div class="local-actions">
-                      <button type="button" class="lc-btn lc-btn-sm" @click="saveClawhubAuth">
-                        保存凭据
-                      </button>
-                      <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="clearClawhubAuth">
-                        清除凭据
-                      </button>
                     </div>
-                    <p class="muted small">
-                      会保存在本机 DidClaw SQLite 中，供桌面端匿名 HTTP 请求和 `openclaw skills/plugins` CLI 调用复用。
-                    </p>
-                  </div>
-                  <label class="local-slug">
-                    <span class="muted small">目录名（slug，可选；不填则用文件名/文件夹名）</span>
-                    <input v-model="localSlug" type="text" class="skills-root-input" spellcheck="false">
-                  </label>
-                  <div class="local-actions">
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-sm"
-                      :disabled="localBusy || localPluginBusy"
-                      @click="onPickZipInstall"
-                    >
-                      {{ localBusy ? "处理中…" : "选择 ZIP 安装" }}
-                    </button>
-                    <button
-                      type="button"
-                      class="lc-btn lc-btn-ghost lc-btn-sm"
-                      :disabled="localBusy || localPluginBusy"
-                      @click="onPickFolderInstall"
-                    >
-                      {{ localBusy ? "处理中…" : "选择文件夹安装" }}
-                    </button>
-                  </div>
-                  <div class="local-plugin-card">
-                    <p class="muted small local-plugin-title">本机插件安装（OpenClaw CLI）</p>
-                    <label class="local-slug">
-                      <span class="muted small">插件目录/归档路径（支持文件夹、`.tgz`、`.zip` 等）</span>
-                      <input
-                        v-model="localPluginSpec"
-                        type="text"
-                        class="skills-root-input"
-                        spellcheck="false"
-                        placeholder="C:\path\to\my-plugin 或 C:\path\to\my-plugin.tgz"
-                      >
-                    </label>
-                    <div class="local-actions">
-                      <button
-                        type="button"
-                        class="lc-btn lc-btn-ghost lc-btn-sm"
-                        :disabled="localBusy || localPluginBusy"
-                        @click="onPickPluginFolder"
-                      >
-                        {{ localPluginBusy ? "处理中…" : "选择插件目录" }}
-                      </button>
-                      <button
-                        type="button"
-                        class="lc-btn lc-btn-ghost lc-btn-sm"
-                        :disabled="localBusy || localPluginBusy"
-                        @click="onPickPluginPackage"
-                      >
-                        {{ localPluginBusy ? "处理中…" : "选择插件包" }}
-                      </button>
-                      <button
-                        type="button"
-                        class="lc-btn lc-btn-sm"
-                        :disabled="localBusy || localPluginBusy"
-                        @click="onInstallLocalPlugin"
-                      >
-                        {{ localPluginBusy ? "安装中…" : "安装本机插件" }}
-                      </button>
+                    <!-- Plugin install row -->
+                    <div class="local-install-row">
+                      <div class="local-install-row-info">
+                        <span class="local-install-row-title">安装插件</span>
+                        <span class="muted small">.tgz / .zip，通过 CLI 静默安装</span>
+                      </div>
+                      <div class="local-install-row-actions">
+                        <button
+                          type="button"
+                          class="lc-btn lc-btn-sm"
+                          :disabled="localBusy || localPluginBusy"
+                          @click="onPickAndInstallPlugin"
+                        >
+                          {{ localPluginBusy ? "安装中…" : "选择文件" }}
+                        </button>
+                      </div>
                     </div>
-                    <p class="muted small">
-                      会调用 <code>openclaw plugins install &lt;path&gt;</code>；安装完成后通常需要重启 Gateway 才会加载。
-                    </p>
                   </div>
-                  <p v-if="localMessage" class="small" :class="localMessageKind === 'error' ? 'err' : localMessageKind === 'success' ? 'ok' : 'muted'">{{ localMessage }}</p>
+
+                  <!-- Status message -->
+                  <p
+                    v-if="localMessage"
+                    class="small local-install-msg"
+                    :class="localMessageKind === 'error' ? 'err' : localMessageKind === 'success' ? 'ok' : 'muted'"
+                  >
+                    {{ localMessage }}
+                  </p>
+
+                  <!-- Advanced options (collapsible) -->
+                  <details class="local-plugin-card local-credentials-details">
+                    <summary class="local-credentials-summary">
+                      <span>高级选项</span>
+                      <span class="muted small">安装目录 · 技能名 · ClawHub 凭据</span>
+                    </summary>
+                    <div class="local-credentials-body">
+                      <div class="skills-import-root-block">
+                        <label class="local-slug-label" style="display:block;margin-bottom:6px">{{ t("skills.importTargetDir") }}</label>
+                        <input
+                          v-model="installRoot"
+                          type="text"
+                          class="skills-root-input"
+                          spellcheck="false"
+                          @blur="onInstallRootBlur"
+                        >
+                        <p class="muted small skills-import-root-note">{{ t("skills.importRootNote") }}</p>
+                      </div>
+                      <label class="local-slug">
+                        <span class="local-slug-label">目录名（slug）<span class="muted" style="font-weight:400;margin-left:6px">可选；不填则用文件名</span></span>
+                        <input v-model="localSlug" type="text" class="skills-root-input" spellcheck="false" placeholder="my-skill-name">
+                      </label>
+                      <label class="local-slug">
+                        <span class="local-slug-label">ClawHub Token<span class="muted" style="font-weight:400;margin-left:6px">可选</span></span>
+                        <div class="local-secret-row">
+                          <input
+                            v-model="clawhubToken"
+                            :type="showClawhubToken ? 'text' : 'password'"
+                            class="skills-root-input"
+                            spellcheck="false"
+                            autocomplete="off"
+                            placeholder="clh_..."
+                          >
+                          <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="showClawhubToken = !showClawhubToken">
+                            {{ showClawhubToken ? "隐藏" : "显示" }}
+                          </button>
+                        </div>
+                      </label>
+                      <label class="local-slug">
+                        <span class="local-slug-label">Registry<span class="muted" style="font-weight:400;margin-left:6px">可选</span></span>
+                        <input
+                          v-model="clawhubRegistry"
+                          type="text"
+                          class="skills-root-input"
+                          spellcheck="false"
+                          placeholder="https://clawhub.ai"
+                        >
+                      </label>
+                      <div class="local-actions">
+                        <button type="button" class="lc-btn lc-btn-sm" @click="saveClawhubAuth">保存凭据</button>
+                        <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="clearClawhubAuth">清除凭据</button>
+                      </div>
+                      <p class="muted small" style="margin-top:8px">
+                        凭据保存在本机 DidClaw SQLite 中，供匿名 HTTP 请求和 <code>openclaw</code> CLI 复用。
+                      </p>
+                    </div>
+                  </details>
                 </template>
               </div>
             </div>
@@ -3779,13 +3808,25 @@ const selectedOpenclawPlugin = computed(() => {
 .local-slug {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 12px;
+}
+.local-slug-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lc-text);
+}
+.local-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lc-text);
+  margin: 0 0 8px;
 }
 .local-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 16px;
 }
 .local-secret-row {
   display: flex;
@@ -3802,6 +3843,89 @@ const selectedOpenclawPlugin = computed(() => {
 }
 .local-plugin-title {
   margin: 0 0 10px;
+}
+.local-install-rows {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--lc-border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.local-install-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--lc-bg-raised);
+}
+.local-install-row + .local-install-row {
+  border-top: 1px solid var(--lc-border);
+}
+.local-install-row--drop {
+  background: var(--lc-accent-soft);
+  outline: 2px solid var(--lc-accent);
+  outline-offset: -2px;
+}
+.local-install-row-info {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.local-install-row-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lc-text);
+}
+.local-install-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.local-install-folder-btn {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.local-install-msg {
+  margin-bottom: 12px;
+}
+.local-credentials-details {
+  cursor: default;
+}
+.local-credentials-details > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lc-text);
+  padding: 2px 0;
+}
+.local-credentials-details > summary::-webkit-details-marker {
+  display: none;
+}
+.local-credentials-details > summary::before {
+  content: "▶";
+  font-size: 9px;
+  color: var(--lc-text-muted);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.local-credentials-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+.local-credentials-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.local-credentials-body {
+  padding-top: 12px;
 }
 .btn-danger {
   color: var(--lc-error) !important;
