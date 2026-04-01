@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import appIcon32 from "@/assets/app-icon-32.png";
 import { i18n, type LocaleCode } from "@/i18n";
 import { useGatewayStore } from "@/stores/gateway";
 import { useLocalSettingsStore } from "@/stores/localSettings";
@@ -168,7 +169,7 @@ defineExpose({ showInlineError });
     <div class="top-row" data-tauri-drag-region>
       <div class="left-group">
         <div class="brand">
-          <img src="/icon-32.png" class="brand-glyph" alt="DidClaw" aria-hidden="true">
+          <img :src="appIcon32" class="brand-glyph" alt="DidClaw" aria-hidden="true">
           <h1 class="brand-title">
             <span class="brand-d">D</span><span class="brand-mid">idCl</span><span class="brand-tail">aw</span>
           </h1>

@@ -9,7 +9,7 @@
  */
 import { execSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { copyFile, unlink } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -21,6 +21,8 @@ const sharp = require("sharp");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const ICONS = path.join(ROOT, "src-tauri", "icons");
+const WEB_ASSETS = path.join(ROOT, "src", "assets");
+const PUBLIC_DIR = path.join(ROOT, "public");
 /** Canonical marketing / source asset (may be non-square). */
 const SRC = path.join(ICONS, "didclaw-logo.png");
 const BG = { r: 0, g: 0, b: 0, alpha: 0 };
@@ -90,6 +92,16 @@ function logMtimes(label, paths) {
   }
 
   assertFreshOutputs(runStarted);
+
+  await copyFile(path.join(ICONS, "32x32.png"), path.join(WEB_ASSETS, "app-icon-32.png"));
+  await copyFile(path.join(ICONS, "128x128.png"), path.join(WEB_ASSETS, "app-icon-128.png"));
+  console.log("  OK src/assets/app-icon-32.png, app-icon-128.png (for Vite bundle)");
+
+  // public/icon-32.png is copied verbatim to dist/; must match Tauri 32×32 (opaque edges).
+  // An older rounded-only PNG had transparent corners → white fringe in Explorer on white BG.
+  await copyFile(path.join(ICONS, "32x32.png"), path.join(PUBLIC_DIR, "icon-32.png"));
+  console.log("  OK public/icon-32.png");
+
   console.log("\nDone. Outputs under:", ICONS);
   logMtimes("Key bundle files:", [
     "didclaw-logo.png",

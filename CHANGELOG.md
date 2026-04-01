@@ -18,6 +18,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Fixed
 
+- **`public/icon-32.png` white margin in Explorer / dist**: The file had transparent pixels outside the rounded logo; on a white background that reads as a white border. It now stays in sync with `src-tauri/icons/32x32.png` via `pnpm run icons` (full-bleed opaque edges, same as in-app assets).
+
+- **Production build (`vite build`) failed on `/icon-128.png`**: Missing `public/` PNGs and Rolldown resolving root-absolute `<img src>` as a module. In-app logos now import `src/assets/app-icon-32.png` / `app-icon-128.png`; `pnpm run icons` copies the matching Tauri sizes into those paths.
+
 - **Ctrl+V pasted screenshots not reaching the model**: Clipboard images from WebView2 / Windows often have an empty `File.type` or appear only on `clipboardData.files`. The composer now collects those cases, and `chat.send` builds image attachments using magic-byte sniffing so PNG/JPEG/GIF/WebP are still encoded with a correct `mimeType` for the gateway.
 
 - **Local `file://` HTML preview**: Tauri `preview_open_local` no longer treats `.html` / `.htm` as plain text; the desktop API returns `displayKind: "html"` and the preview store maps legacy `text` + `.html` URLs to iframe render so the right pane shows the page instead of a TEXT source view.

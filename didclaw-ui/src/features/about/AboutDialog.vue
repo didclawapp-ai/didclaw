@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import appIcon128 from "@/assets/app-icon-128.png";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useGatewayStore } from "@/stores/gateway";
@@ -58,7 +59,7 @@ const techStack = [
           <!-- ── hero ── -->
           <div class="about-hero">
             <div class="about-hero-logo-wrap">
-              <img src="/icon-128.png" class="about-hero-logo" alt="DidClaw">
+              <img :src="appIcon128" class="about-hero-logo" alt="DidClaw">
             </div>
             <h1 class="about-hero-name">DidClaw</h1>
             <p class="about-hero-tagline">{{ t('about.desc') }}</p>
