@@ -33,6 +33,10 @@ fn is_pdf_ext(ext: &str) -> bool {
     ext == "pdf"
 }
 
+fn is_html_ext(ext: &str) -> bool {
+    matches!(ext, "html" | "htm")
+}
+
 fn is_text_preview_ext(ext: &str) -> bool {
     matches!(
         ext,
@@ -40,7 +44,7 @@ fn is_text_preview_ext(ext: &str) -> bool {
             | "ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs" | "py" | "pyw" | "rs"
             | "go" | "java" | "kt" | "kts" | "c" | "h" | "cpp" | "cxx" | "cc" | "hpp" | "hh" | "cs"
             | "rb" | "php" | "swift" | "scala" | "sc" | "sh" | "zsh" | "ps1" | "psm1" | "sql" | "vue"
-            | "html" | "htm" | "xml" | "css" | "scss" | "sass" | "less" | "json" | "jsonc" | "yaml"
+            | "xml" | "css" | "scss" | "sass" | "less" | "json" | "jsonc" | "yaml"
             | "yml" | "toml" | "ini" | "gradle" | "groovy" | "lua" | "pl" | "r" | "dart" | "ex" | "exs"
             | "erl" | "hrl" | "clj" | "cljs" | "edn" | "fs" | "fsx" | "hs" | "nim" | "zig" | "vhdl"
             | "verilog" | "v" | "sv" | "tcl" | "diff" | "patch" | "cmake" | "proto" | "prisma"
@@ -226,6 +230,33 @@ pub async fn open_local_preview(file_url: String) -> Value {
         }
     }
 
+    if is_html_ext(&ext) {
+        let meta = match tokio::fs::metadata(&p).await {
+            Ok(m) => m,
+            Err(e) => return json!({ "ok": false, "error": e.to_string() }),
+        };
+        if meta.len() > MAX_TEXT_PREVIEW_BYTES {
+            return json!({
+                "ok": false,
+                "error": format!(
+                    "HTML 文件过大（>{}MB），请使用外部浏览器打开",
+                    MAX_TEXT_PREVIEW_BYTES / 1024 / 1024
+                ),
+            });
+        }
+        match tokio::fs::read(&p).await {
+            Ok(buf) => {
+                return json!({
+                    "ok": true,
+                    "mimeType": "text/html;charset=utf-8",
+                    "base64": STANDARD.encode(&buf),
+                    "displayKind": "html",
+                });
+            }
+            Err(e) => return json!({ "ok": false, "error": e.to_string() }),
+        }
+    }
+
     if is_text_preview_ext(&ext) || is_dockerfile_name(&p) {
         let meta = match tokio::fs::metadata(&p).await {
             Ok(m) => m,
@@ -277,7 +308,7 @@ pub async fn open_local_preview(file_url: String) -> Value {
         }
     }
 
-    json!({"ok": false, "error": "不支持的文件类型（图片、PDF、Office、Markdown、纯文本与常见源码）"})
+    json!({"ok": false, "error": "不支持的文件类型（图片、PDF、Office、Markdown、HTML、纯文本与常见源码）"})
 }
 
 pub fn show_libre_office_install_dialog() -> Value {

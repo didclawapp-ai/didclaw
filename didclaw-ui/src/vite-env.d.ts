@@ -27,7 +27,7 @@ interface DidClawElectronApi {
         ok: true;
         mimeType: string;
         base64: string;
-        displayKind: "image" | "pdf" | "markdown" | "text";
+        displayKind: "image" | "pdf" | "markdown" | "text" | "html";
       }
     | { ok: false; error: string }
   >;

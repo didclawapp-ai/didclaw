@@ -262,15 +262,17 @@ export const useFilePreviewStore = defineStore("filePreview", () => {
         if (!r.ok) {
           throw new Error(r.error || i18n.global.t("preview.localPreviewFailed"));
         }
-        if (r.displayKind === "markdown" || r.displayKind === "text") {
+        if (r.displayKind === "markdown" || r.displayKind === "text" || r.displayKind === "html") {
           previewTextBody.value = base64Utf8ToString(r.base64);
           const inferred = previewKindFromUrl(u);
           const kind =
             r.displayKind === "markdown"
               ? "markdown"
-              : inferred === "code"
-                ? "code"
-                : "text";
+              : r.displayKind === "html" || inferred === "html"
+                ? "html"
+                : inferred === "code"
+                  ? "code"
+                  : "text";
           target.value = {
             url: u,
             label: short,
