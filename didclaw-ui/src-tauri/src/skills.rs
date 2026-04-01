@@ -1,6 +1,5 @@
 //! OpenClaw 本机技能目录：列表、zip 解压安装、目录复制、删除。
-//! 默认安装目录为 `~/.openclaw/workspace/skills`；若该路径不存在但 `~/.openclaw/skills`
-//! 已存在，则兼容回退到后者，避免旧用户升级后看不到既有技能。
+//! 默认安装目录固定为 `~/.openclaw/workspace/skills`，不存在时自动创建。
 
 use base64::Engine;
 use serde_json::{json, Value};
@@ -10,32 +9,15 @@ use std::path::{Component, Path, PathBuf};
 
 const SKILL_MD: &str = "skill.md";
 
-fn home_openclaw_shared_skills() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or_else(|| "无法解析用户主目录".to_string())?;
-    Ok(home
-        .join(".openclaw")
-        .join("skills"))
-}
-
-fn home_openclaw_workspace_skills_legacy() -> Result<PathBuf, String> {
+/// Returns `~/.openclaw/workspace/skills` unconditionally.
+pub fn default_install_root() -> Result<String, String> {
     let home = dirs::home_dir().ok_or_else(|| "无法解析用户主目录".to_string())?;
     Ok(home
         .join(".openclaw")
         .join("workspace")
-        .join("skills"))
-}
-
-/// 默认安装根：始终优先 `~/.openclaw/workspace/skills`；
-/// 仅当该路径尚不存在 **且** `~/.openclaw/skills` 已有内容时，才兼容回退到后者。
-pub fn default_install_root() -> Result<String, String> {
-    let workspace = home_openclaw_workspace_skills_legacy()?;
-    let shared = home_openclaw_shared_skills()?;
-    let p = if !workspace.is_dir() && shared.is_dir() {
-        shared
-    } else {
-        workspace
-    };
-    Ok(p.to_string_lossy().to_string())
+        .join("skills")
+        .to_string_lossy()
+        .to_string())
 }
 
 fn normalize_install_root(raw: &str) -> Result<PathBuf, String> {

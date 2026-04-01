@@ -439,15 +439,27 @@ function clearClawhubAuth(): void {
   localMessageKind.value = "info";
 }
 
+/** Returns true if a stored path looks like the old shared-skills location
+ *  (e.g. ~/.openclaw/skills) rather than the workspace-scoped default. */
+function isLegacySkillsPath(p: string): boolean {
+  const norm = p.replace(/\\/g, "/").toLowerCase();
+  // matches .openclaw/skills but NOT .openclaw/workspace/skills
+  return /\.openclaw\/skills\/?$/.test(norm);
+}
+
 async function syncInstallRoot(): Promise<void> {
   if (!isTauri()) {
     installRoot.value = "";
     return;
   }
   const stored = getStoredSkillsInstallRoot()?.trim();
-  if (stored) {
+  if (stored && !isLegacySkillsPath(stored)) {
     installRoot.value = stored;
     return;
+  }
+  // Clear a stale legacy path so future installs use the correct default.
+  if (stored && isLegacySkillsPath(stored)) {
+    setStoredSkillsInstallRoot("");
   }
   try {
     installRoot.value = await skillsDefaultInstallRoot();
