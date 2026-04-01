@@ -8,6 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-04-01
+
 ### Added
 
 - **Product Hunt screenshots**: Added `didclaw-ui/producthunt/` with three PNGs (main interface, file preview, dashboard) for launch and marketing use.
@@ -16,9 +18,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Changed
 
+- **Docs**: `docs/gateway-client-protocol-notes.md` now records OpenClaw npm `latest` as **2026.3.31** (per [openclaw/openclaw releases](https://github.com/openclaw/openclaw/releases)); `exec.approval.requested` payload shape note kept in sync.
+
 - **Website**: updated Windows download link to `didclawapp.com/download`, changed all GitHub links to `github.com/didclawapp-ai/didclaw`, replaced footer copyright badge with AGPL-3.0 link, and hid the not-yet-available macOS / Linux download buttons. Website source is now tracked in the repository.
 
 ### Fixed
+
+- **Approval follow-up can now surface the blocked backend pairing upgrade**: DidClaw now checks for the pending `gateway-client` scope-upgrade request that causes "approval clicked but AI still does not continue", and exposes a one-click in-app approval repair instead of forcing users to inspect `~/.openclaw/devices` manually.
+
+- **Exec approval dialog now mirrors more upstream context**: The popup now shows `Session`, `Security`, and `Ask` when the gateway includes them, making approval behavior easier to compare with the official OpenClaw UI and policy state.
+
+- **Exec approvals now show gateway-confirmed status**: After `exec.approval.resolve` is sent, DidClaw now surfaces the later `exec.approval.resolved` confirmation from the gateway ("allow once", "always allow", or "deny") so users can distinguish submission from gateway acknowledgment.
+
+- **Exec approval dialog now gives clearer in-flight feedback**: The popup shows an expiry countdown, a short “approval submitted” notice after clicks, and a warning when multiple similar approvals pile up due to retries, reducing the impression that a click was ignored.
+
+- **Exec approval dialog now explains shell-wrapper behavior**: For `cmd.exe` / `powershell.exe` / `pwsh.exe` style approvals, the popup now clarifies that the current click still approves this run, while upstream `allow-always` may still re-prompt on later similar commands.
+
+- **Exec approval dialog now shows host and resolved executable path when available**: This makes it easier to see whether a request is a direct binary run or a shell/cmdlet case where upstream `allow-always` may not persist an allowlist entry.
+
+- **Exec approval dialog now shows the approval ID**: The popup displays the full gateway approval id so users can compare it directly with the short/full ids echoed by OpenClaw in chat when diagnosing approval flow issues.
+
+- **Exec approval resolve returned “unknown or expired approval id”**: Normalized approval `id` (trim; fallback if ever nested), handle `exec.approval.resolved` to drop completed rows from the queue, and dismiss stale prompts when the gateway reports expired/unknown id (covers no-approval-route and timeouts). See `docs/gateway-client-protocol-notes.md` (exec approval ops note).
+
+- **Exec approval dialog showed “unknown command”**: Gateway `exec.approval.requested` carries the run details under `request` (`command`, `cwd`, `systemRunPlan`, etc.). The UI previously read only top-level fields, so the command line was empty. Parsing now unwraps `request` and still accepts legacy flat payloads.
 
 - **Pasted images not visible to AI**: On desktop, pasted/dropped images are now saved to `~/.openclaw/workspace/.attachments/` and sent to the gateway as a file path instead of inline base64. The gateway reads the file directly, which resolves the issue where the AI could not see the attached image.
 

@@ -828,6 +828,11 @@ export default {
   gatewayConn: {
     helloVersion: "Gateway {version}",
     helloConnected: "已连接",
+    backendRepairPending:
+      "检测到 OpenClaw 后端 gateway-client 正在等待配对升级批准；在批准前，审批点击后 AI 续跑仍可能失败。",
+    backendRepairAction: "批准修复",
+    backendRepairApproving: "正在批准…",
+    backendRepairApproved: "已批准 OpenClaw 后端配对升级，请重新执行刚才的审批。",
     disconnectedWithDetail: "已断开（{code}）：{detail}",
     disconnectedCodeOnly: "已断开（{code}）",
     pairingHint:
@@ -931,6 +936,12 @@ export default {
   // ─── Exec 审批 ExecApprovalDialog ──────────────────
   approval: {
     title: "AI 请求执行命令",
+    id: "审批 ID",
+    host: "宿主",
+    session: "会话",
+    security: "策略",
+    ask: "询问",
+    resolvedPath: "执行文件",
     command: "命令",
     cwd: "目录",
     agent: "Agent",
@@ -938,6 +949,16 @@ export default {
     allowOnce: "仅此次允许",
     allowAlways: "总是允许",
     deny: "拒绝",
+    expiresIn: "剩余",
+    submitting: "正在提交审批到网关...",
+    submittedWaiting: "审批已提交，等待 AI 继续执行...",
+    deniedNotice: "已拒绝该命令。",
+    confirmedAllowOnce: "Gateway 已确认：仅此次允许（{id}）。",
+    confirmedAllowAlways: "Gateway 已确认：总是允许（{id}）。",
+    confirmedDeny: "Gateway 已确认：已拒绝（{id}）。",
+    similarRetriesHint: "检测到另外 {count} 条相似审批，这通常表示 AI 在等待审批期间又重试了同一命令。",
+    expiredHint: "该审批已在网关侧失效（可能未连接带审批能力的客户端、已超时或网关已重启）。请让 AI 重新发起命令，并确保 DidClaw 已连接网关。",
+    shellWrapperHint: "本次点击仍会批准当前命令；但当命令经过 cmd.exe、powershell.exe 或 pwsh.exe 这类 shell-wrapper / cmdlet 执行时，“总是允许”可能不会为后续同类命令持久生效，因此之后仍可能再次弹出审批。",
   },
 
   // ─── Slash 命令 SlashCommandPicker ──────────────────

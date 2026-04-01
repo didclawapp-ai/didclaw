@@ -1,4 +1,5 @@
 import { i18n } from "@/i18n";
+import { parseExecApprovalRequestedPayload } from "./approval";
 import { GatewayClient } from "@/features/gateway/gateway-client";
 import {
   GATEWAY_CLIENT_MODE,
@@ -17,7 +18,6 @@ import {
   summarizeGatewayEvent,
 } from "@/lib/gateway-debug-log";
 import { loadOrCreateDeviceIdentity, clearDeviceToken } from "@/lib/device-identity";
-import type { ExecApprovalRequest } from "./approval";
 import { defineStore } from "pinia";
 import { ref, shallowRef } from "vue";
 
@@ -36,6 +36,16 @@ export function gatewayUrlFromEnv(): string {
 }
 
 type ConnectOpts = { url: string; token?: string; password?: string; deviceToken?: string };
+
+type PendingBackendPairingRepair = {
+  requestId: string;
+  deviceId?: string;
+  clientId?: string;
+  clientMode?: string;
+  displayName?: string;
+  scopes: string[];
+  ts?: number;
+};
 
 let connectRequestId = 0;
 
@@ -96,12 +106,77 @@ export const useGatewayStore = defineStore("gateway", () => {
   const status = ref<GatewayConnectionStatus>("disconnected");
   const lastError = ref<string | null>(null);
   const helloInfo = ref<string | null>(null);
+  const pendingBackendPairingRepair = ref<PendingBackendPairingRepair | null>(null);
+  const backendPairingRepairBusy = ref(false);
+  let backendPairingRepairPollTimer: ReturnType<typeof setInterval> | null = null;
   /** Resolved WS URL for display/diagnostics (desktop local config override in didclaw.db) */
   const url = ref(gatewayUrlFromEnv());
+
+  function isBackendRepairRequest(v: unknown): v is PendingBackendPairingRepair {
+    if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
+    const req = v as Record<string, unknown>;
+    const clientId = typeof req.clientId === "string" ? req.clientId : "";
+    const clientMode = typeof req.clientMode === "string" ? req.clientMode : "";
+    const scopes = Array.isArray(req.scopes) ? req.scopes.filter((x): x is string => typeof x === "string") : [];
+    return clientId === "gateway-client" && clientMode === "backend" && scopes.includes("operator.write");
+  }
+
+  async function refreshPendingBackendPairingRepair(): Promise<void> {
+    if (!client.value?.connected) {
+      pendingBackendPairingRepair.value = null;
+      return;
+    }
+    try {
+      const res = await client.value.request<{ pending?: unknown[] }>("device.pair.list", {});
+      const pending = Array.isArray(res?.pending) ? res.pending : [];
+      const hit = pending.find((item) => isBackendRepairRequest(item));
+      pendingBackendPairingRepair.value = hit ?? null;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function scheduleRefreshPendingBackendPairingRepair(delayMs = 0): void {
+    window.setTimeout(() => {
+      void refreshPendingBackendPairingRepair();
+    }, delayMs);
+  }
+
+  function stopPendingBackendPairingRepairPolling(): void {
+    if (backendPairingRepairPollTimer !== null) {
+      clearInterval(backendPairingRepairPollTimer);
+      backendPairingRepairPollTimer = null;
+    }
+  }
+
+  function startPendingBackendPairingRepairPolling(): void {
+    stopPendingBackendPairingRepairPolling();
+    backendPairingRepairPollTimer = setInterval(() => {
+      void refreshPendingBackendPairingRepair();
+    }, 15_000);
+  }
+
+  async function approvePendingBackendPairingRepair(): Promise<boolean> {
+    const req = pendingBackendPairingRepair.value;
+    if (!req || !client.value?.connected || backendPairingRepairBusy.value) return false;
+    backendPairingRepairBusy.value = true;
+    try {
+      await client.value.request("device.pair.approve", { requestId: req.requestId });
+      pendingBackendPairingRepair.value = null;
+      helloInfo.value = i18n.global.t("gatewayConn.backendRepairApproved");
+      return true;
+    } catch (e) {
+      lastError.value = e instanceof Error ? e.message : String(e);
+      return false;
+    } finally {
+      backendPairingRepairBusy.value = false;
+    }
+  }
 
   function disconnect(): void {
     cancelDeferredGatewayConnect();
     connectRequestId++;
+    stopPendingBackendPairingRepairPolling();
     client.value?.stop();
     client.value = null;
     status.value = "disconnected";
@@ -177,6 +252,9 @@ export const useGatewayStore = defineStore("gateway", () => {
             helloInfo.value = i18n.global.t("gatewayConn.helloConnected");
           }
           status.value = "connected";
+          scheduleRefreshPendingBackendPairingRepair();
+          scheduleRefreshPendingBackendPairingRepair(1500);
+          startPendingBackendPairingRepairPolling();
           void import("./session").then(async ({ useSessionStore }) => {
             const reloaded = await useSessionStore().refresh();
             if (!reloaded) {
@@ -321,21 +399,44 @@ export const useGatewayStore = defineStore("gateway", () => {
             useToolTimelineStore().ingest(evt);
           }).catch((e) => { console.error("[didclaw] toolTimeline ingest error", e); });
           if (evt.event === "exec.approval.requested") {
-            const p = evt.payload as Record<string, unknown> | undefined;
-            // gateway schema uses `id`; tolerate legacy `approvalId` too
-            const approvalId =
-              p && typeof p.id === "string" ? p.id
-              : p && typeof p.approvalId === "string" ? p.approvalId
-              : null;
-            if (approvalId) {
+            const p = evt.payload;
+            if (p && typeof p === "object" && !Array.isArray(p)) {
+              const normalized = parseExecApprovalRequestedPayload(p as Record<string, unknown>);
+              if (normalized) {
+                void import("./approval").then(({ useApprovalStore }) => {
+                  useApprovalStore().addPending(normalized);
+                }).catch((e) => { console.error("[didclaw] approval store error", e); });
+              }
+            }
+          }
+          if (evt.event === "exec.approval.resolved") {
+            const pl = evt.payload as { id?: unknown; decision?: unknown } | undefined;
+            const rid = pl && typeof pl.id === "string" ? pl.id.trim() : "";
+            const decision = pl && typeof pl.decision === "string" ? pl.decision : "";
+            if (rid) {
               void import("./approval").then(({ useApprovalStore }) => {
-                useApprovalStore().addPending({
-                  approvalId,
-                  sessionKey: typeof p?.sessionKey === "string" ? p.sessionKey : undefined,
-                  agentId: typeof p?.agentId === "string" ? p.agentId : undefined,
-                  systemRunPlan: p?.systemRunPlan as ExecApprovalRequest["systemRunPlan"],
-                });
-              }).catch((e) => { console.error("[didclaw] approval store error", e); });
+                const approvalStore = useApprovalStore();
+                approvalStore.removePending(rid);
+                const shortId = rid.slice(0, 8);
+                if (decision === "allow-once") {
+                  approvalStore.setRecentNotice(
+                    i18n.global.t("approval.confirmedAllowOnce", { id: shortId }),
+                    3200,
+                  );
+                } else if (decision === "allow-always") {
+                  approvalStore.setRecentNotice(
+                    i18n.global.t("approval.confirmedAllowAlways", { id: shortId }),
+                    3200,
+                  );
+                } else if (decision === "deny") {
+                  approvalStore.setRecentNotice(
+                    i18n.global.t("approval.confirmedDeny", { id: shortId }),
+                    3200,
+                  );
+                }
+                scheduleRefreshPendingBackendPairingRepair();
+                scheduleRefreshPendingBackendPairingRepair(1200);
+              }).catch((e) => { console.error("[didclaw] approval resolved handler error", e); });
             }
           }
         },
@@ -346,11 +447,13 @@ export const useGatewayStore = defineStore("gateway", () => {
            * 但旧实例仍在后台建连，易与后续手动连接打架并触发 1008 等异常。
            */
           gc.stop();
+          stopPendingBackendPairingRepairPolling();
           const stillCurrent = client.value === gc;
           if (!stillCurrent) return;
 
           client.value = null;
           helloInfo.value = null;
+          pendingBackendPairingRepair.value = null;
 
           // WS 1012 = Service Restart: gateway is restarting (e.g. after plugin install).
           // Auto-reconnect after a short delay instead of showing a persistent error.
@@ -409,10 +512,15 @@ export const useGatewayStore = defineStore("gateway", () => {
     status,
     lastError,
     helloInfo,
+    pendingBackendPairingRepair,
+    backendPairingRepairBusy,
     url,
     connect,
     disconnect,
     refreshResolvedUrl,
     reloadConnection,
+    refreshPendingBackendPairingRepair,
+    scheduleRefreshPendingBackendPairingRepair,
+    approvePendingBackendPairingRepair,
   };
 });

@@ -829,6 +829,11 @@ export default {
   gatewayConn: {
     helloVersion: "Gateway {version}",
     helloConnected: "Connected",
+    backendRepairPending:
+      "Detected a pending pairing scope upgrade for OpenClaw's backend gateway-client. Until it is approved, approvals may submit but the AI follow-up can still fail.",
+    backendRepairAction: "Approve repair",
+    backendRepairApproving: "Approving…",
+    backendRepairApproved: "Approved the OpenClaw backend pairing upgrade. Retry the approval you just submitted.",
     disconnectedWithDetail: "Disconnected ({code}): {detail}",
     disconnectedCodeOnly: "Disconnected ({code})",
     pairingHint:
@@ -932,6 +937,12 @@ export default {
   // ─── Exec approvals ExecApprovalDialog ────────────────
   approval: {
     title: "AI Requests Command Execution",
+    id: "Approval ID",
+    host: "Host",
+    session: "Session",
+    security: "Security",
+    ask: "Ask",
+    resolvedPath: "Executable",
     command: "Command",
     cwd: "Directory",
     agent: "Agent",
@@ -939,6 +950,16 @@ export default {
     allowOnce: "Allow Once",
     allowAlways: "Always Allow",
     deny: "Deny",
+    expiresIn: "Expires",
+    submitting: "Submitting approval to gateway...",
+    submittedWaiting: "Approval submitted. Waiting for AI to continue...",
+    deniedNotice: "Command denied.",
+    confirmedAllowOnce: "Gateway confirmed: allow once ({id}).",
+    confirmedAllowAlways: "Gateway confirmed: always allow ({id}).",
+    confirmedDeny: "Gateway confirmed: denied ({id}).",
+    similarRetriesHint: "Detected {count} additional similar approvals. This usually means the AI retried the same command while waiting for approval.",
+    expiredHint: "This approval is no longer valid on the gateway (missing approval-capable client at request time, timed out, or gateway restarted). Ask the AI to retry and keep DidClaw connected.",
+    shellWrapperHint: "This click still approves the current command. However, when the command runs through a shell wrapper / cmdlet like cmd.exe, powershell.exe, or pwsh.exe, 'Always Allow' may not persist for future similar commands, so a later prompt can still appear.",
   },
 
   // ─── Slash commands SlashCommandPicker ────────────────

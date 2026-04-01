@@ -8,9 +8,9 @@
 
 | 项 | 值 |
 |----|-----|
-| OpenClaw Gateway 版本 | npm `openclaw` 当前 **latest** 为 **2026.3.22**（2026-03-23）；本地 `openclaw-src` 以检出/tag 为准（**以实际 `openclaw --version` / 运行为准**） |
+| OpenClaw Gateway 版本 | npm `openclaw` 当前 **latest** 为 **2026.3.31**（[GitHub Release](https://github.com/openclaw/openclaw/releases) 2026-03-31）；本地 `openclaw-src` 以检出/tag 为准（**以实际 `openclaw --version` / 运行为准**） |
 | didclaw 包版本 | 见 `didclaw/package.json` `version`（构建时写入 `__APP_VERSION__`） |
-| 本笔记最后更新 | 2026-03-23 |
+| 本笔记最后更新 | 2026-04-01 |
 | 验证人 | （团队填写） |
 
 ## 连接参数
@@ -74,7 +74,11 @@
 |------|------|----------|---------|
 | `connect.challenge` | 设备签名 nonce | `nonce` | `GatewayClient` 内部消费 |
 | `chat` | 流式与终态 | 见下表 | `chatEventPayloadSchema` 校验通过后更新 `chat` store |
+| `exec.approval.requested` | 宿主机命令待审批 | `{ id, request, createdAtMs, expiresAtMs }` | `approval` store 入队；弹窗展示 `request.command` 等 |
+| `exec.approval.resolved` | 审批已处理 | 含 `id`、`decision` 等 | 按 `id` 从审批队列移除（与别处 `/approve` 同步） |
 | 其他 | 工具/Agent 等 | 因版本而异 | DEV `console.debug`；`toolTimeline` 展示（按 `sessionKey` 过滤） |
+
+**Exec 审批（运维要点）**：网关在发出 `exec.approval.requested` 后，若当时**没有任何**已连接客户端带有 `operator.admin` 或 `operator.approvals`，会立刻将该请求记为 **no-approval-route** 并过期；UI 仍可能短暂收到广播，但 `exec.approval.resolve` 会返回 `unknown or expired approval id`。DidClaw 建连时已请求 `operator.approvals`；若设备配对记录里从未包含该 scope，需完成一次 **scope 升级配对** 或保持本客户端在跑命令前已连接网关。另据上游 `exec-approvals` 文档，**`allow-always` 持久化的是“已解析到的可执行文件路径”**；若命令属于 shell 语法 / shell wrapper / PowerShell cmdlet（如 `Get-ChildItem`），且上游无法安全解包到稳定的二进制路径，则**不会自动写入 allowlist**，后续同类命令仍可能继续弹审批。
 
 ### `chat` 事件载荷（校验用）
 
@@ -108,6 +112,7 @@
 | 日期 | OpenClaw 版本 | 变更摘要 |
 |------|-----------------|----------|
 | 2026-03-20 | 参考 2026.3.14 | 阶段 E：核心 RPC/事件 Zod、错误中文映射、诊断复制、部署文档 |
+| 2026-04-01 | npm **2026.3.31** | 上游 [Latest](https://github.com/openclaw/openclaw/releases) 已推进至 2026.3.31；DidClaw 侧已确认 `exec.approval.requested` 仍为 `{ id, request, createdAtMs, expiresAtMs }`，命令详情在 `request` 内（与 2026.3.22 行为一致）。 |
 | 2026-03-23 | npm **2026.3.22**（相对 **2026.3.13**） | 上游约一周内有大量提交；与 LCLaw 最相关：**网关启动**改为从已编译 `dist/extensions` 加载捆绑插件（冷启动明显加快，见上游 CHANGELOG `Gateway/startup`）；文档强调 `controlUi.allowedOrigins` 勿滥用 `["*"]`；另有大量插件迁移、exec 审批、Breaking（如弃用 `CLAWDBOT_*` / `.moltbot` 等）。完整差异见 [compare 61d171a…e7d11f6](https://github.com/openclaw/openclaw/compare/61d171ab0b2fe4abc9afe89c518586274b4b76c2...e7d11f6c33e223a0dd8a21cfe01076bd76cef87a)（npm 2026.3.13 与 2026.3.22 对应提交）。 |
 | 2026-03-21 | openclaw `main` `chat.ts` | 确认 `chat.send` 无根级 `model`；didclaw 不再随请求附带 `model` |
 | 2026-03-21 | [Configuration / hot reload](https://docs.openclaw.ai/gateway/configuration#config-hot-reload) | Gateway 监视 `openclaw.json`；`agents`/`models` 表列为可热更新；`gateway.reload.mode: off` 时需手动重启；UI 保存后提示用户 |

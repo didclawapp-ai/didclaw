@@ -14,7 +14,13 @@ const { t } = useI18n();
 const gw = useGatewayStore();
 const localSettings = useLocalSettingsStore();
 const themeStore = useThemeStore();
-const { status, lastError, url } = storeToRefs(gw);
+const {
+  status,
+  lastError,
+  url,
+  pendingBackendPairingRepair,
+  backendPairingRepairBusy,
+} = storeToRefs(gw);
 
 const inlineError = ref<string | null>(null);
 let errorTimer: number | null = null;
@@ -31,7 +37,11 @@ function showHeader(): void {
 }
 
 function scheduleHide(): void {
-  if (inlineError.value !== null || lastError.value !== null) return;
+  if (
+    inlineError.value !== null ||
+    lastError.value !== null ||
+    pendingBackendPairingRepair.value !== null
+  ) return;
   if (hideTimer !== null) return;
   hideTimer = window.setTimeout(() => {
     headerVisible.value = false;
@@ -43,8 +53,8 @@ function onDocMouseMove(e: MouseEvent): void {
   if (e.clientY <= TRIGGER_Y) showHeader();
 }
 
-watch([inlineError, lastError], ([err, gwErr]) => {
-  if (err !== null || gwErr !== null) showHeader();
+watch([inlineError, lastError, pendingBackendPairingRepair], ([err, gwErr, repair]) => {
+  if (err !== null || gwErr !== null || repair !== null) showHeader();
 });
 
 // ── Window controls (Tauri only) ──────────────────────────────────────────────
@@ -154,6 +164,13 @@ function showInlineError(msg: string): void {
     inlineError.value = null;
     errorTimer = null;
   }, 6000);
+}
+
+async function approveBackendPairingRepair(): Promise<void> {
+  const ok = await gw.approvePendingBackendPairingRepair();
+  if (ok) {
+    showInlineError(t("gatewayConn.backendRepairApproved"));
+  }
 }
 
 defineExpose({ showInlineError });
@@ -276,6 +293,19 @@ defineExpose({ showInlineError });
         <button type="button" class="inline-err-close" :aria-label="t('common.close')" @click="inlineError = null">&#x2715;</button>
       </p>
       <p v-else-if="lastError" class="inline-err inline-err--conn" role="alert">{{ lastError }}</p>
+    </transition>
+    <transition name="err-fade">
+      <div v-if="pendingBackendPairingRepair" class="inline-err inline-err--repair" role="alert">
+        <span>{{ t("gatewayConn.backendRepairPending") }}</span>
+        <button
+          type="button"
+          class="inline-err-action"
+          :disabled="backendPairingRepairBusy"
+          @click="approveBackendPairingRepair"
+        >
+          {{ backendPairingRepairBusy ? t("gatewayConn.backendRepairApproving") : t("gatewayConn.backendRepairAction") }}
+        </button>
+      </div>
     </transition>
   </header>
 </template>
@@ -552,6 +582,11 @@ defineExpose({ showInlineError });
 .inline-err--conn {
   color: var(--lc-error);
 }
+.inline-err--repair {
+  color: var(--lc-warning);
+  background: color-mix(in srgb, var(--lc-warning) 15%, var(--lc-surface-top));
+  border-top: 1px solid color-mix(in srgb, var(--lc-warning) 28%, transparent);
+}
 .inline-err-close {
   flex-shrink: 0;
   padding: 0 4px;
@@ -563,6 +598,20 @@ defineExpose({ showInlineError });
   opacity: 0.7;
 }
 .inline-err-close:hover { opacity: 1; }
+.inline-err-action {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--lc-warning) 35%, var(--lc-border));
+  border-radius: 999px;
+  background: var(--lc-bg-raised);
+  color: var(--lc-text);
+  font: inherit;
+  cursor: pointer;
+}
+.inline-err-action:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
 
 /* Transitions */
 .err-fade-enter-active,

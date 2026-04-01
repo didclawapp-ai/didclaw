@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import { GatewayRequestError } from "@/features/gateway/gateway-types";
 import { type ApprovalDecision, useApprovalStore } from "@/stores/approval";
 import { useGatewayStore } from "@/stores/gateway";
 import { storeToRefs } from "pinia";
-import { computed, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
 const approvalStore = useApprovalStore();
 const gwStore = useGatewayStore();
-const { pending } = storeToRefs(approvalStore);
+const { pending, recentNotice } = storeToRefs(approvalStore);
 
 /** 当前展示的审批请求（队列头部） */
 const current = computed(() => pending.value[0] ?? null);
@@ -16,13 +17,77 @@ const current = computed(() => pending.value[0] ?? null);
 const busy = ref(false);
 const resolveError = ref<string | null>(null);
 
-/** 将命令数组拼成可读字符串，若没有则回退到 rawCommand */
+const resolveErrorIsExpired = computed(() =>
+  resolveError.value ? /unknown or expired approval id/i.test(resolveError.value) : false,
+);
+
+const displayApprovalId = computed(() => current.value?.approvalId.trim() ?? "");
+const nowMs = ref(Date.now());
+
+let nowTimer: ReturnType<typeof setInterval> | null = null;
+
+function scheduleBackendRepairRefresh(delayMs: number): void {
+  const schedule = (gwStore as unknown as {
+    scheduleRefreshPendingBackendPairingRepair?: (ms?: number) => void;
+  }).scheduleRefreshPendingBackendPairingRepair;
+  if (typeof schedule === "function") {
+    schedule(delayMs);
+  }
+}
+
+onMounted(() => {
+  nowTimer = setInterval(() => {
+    nowMs.value = Date.now();
+  }, 1000);
+});
+
+onUnmounted(() => {
+  if (nowTimer) clearInterval(nowTimer);
+});
+
+const showShellWrapperHint = computed(() => {
+  const req = current.value;
+  if (!req) return false;
+  const resolved = String(req.resolvedPath ?? "").toLowerCase();
+  if (resolved.endsWith("\\cmd.exe") || resolved.endsWith("\\powershell.exe") || resolved.endsWith("\\pwsh.exe")) {
+    return true;
+  }
+  const cmd = displayCommand(req).trim();
+  return /^(cmd(?:\.exe)?\s+\/[cCkKrRsS]\b|powershell(?:\.exe)?\b|pwsh(?:\.exe)?\b|Get-[A-Za-z])/i.test(cmd);
+});
+
+/** Resolve the most human-readable command string from the approval request */
 function displayCommand(req: (typeof pending.value)[0]): string {
   if (!req) return "";
   const plan = req.systemRunPlan;
-  if (!plan) return "";
-  if (plan.argv?.length) return plan.argv.join(" ");
-  return plan.rawCommand ?? "";
+  // prefer preview/text fields from systemRunPlan (most readable)
+  if (plan?.commandPreview) return plan.commandPreview;
+  if (plan?.commandText) return plan.commandText;
+  if (plan?.argv?.length) return plan.argv.join(" ");
+  if (plan?.rawCommand) return plan.rawCommand;
+  // gateway `request.commandPreview` / `request.command` (flattened on store)
+  if (req.commandPreview) return req.commandPreview;
+  if (req.command) return req.command;
+  if (req.commandArgv?.length) return req.commandArgv.join(" ");
+  return "";
+}
+
+function approvalFingerprint(req: (typeof pending.value)[0]): string {
+  if (!req) return "";
+  return [
+    req.host ?? "",
+    req.resolvedPath ?? "",
+    displayCommand(req),
+    req.systemRunPlan?.cwd ?? req.cwd ?? "",
+    req.agentId ?? "",
+  ].join("::");
+}
+
+function formatRemaining(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 async function resolve(decision: ApprovalDecision): Promise<void> {
@@ -30,22 +95,54 @@ async function resolve(decision: ApprovalDecision): Promise<void> {
   if (!req || busy.value) return;
   busy.value = true;
   resolveError.value = null;
+  const id = req.approvalId.trim();
   try {
     await gwStore.client?.request("exec.approval.resolve", {
-      id: req.approvalId,
+      id,
       decision,
     });
-    approvalStore.removePending(req.approvalId);
+    approvalStore.setRecentNotice(
+      decision === "deny" ? t("approval.deniedNotice") : t("approval.submittedWaiting"),
+    );
+    scheduleBackendRepairRefresh(250);
+    scheduleBackendRepairRefresh(1200);
+    scheduleBackendRepairRefresh(3000);
+    approvalStore.removePending(id);
   } catch (e) {
-    resolveError.value = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : String(e);
+    resolveError.value = msg;
+    const expired =
+      /unknown or expired approval id/i.test(msg) ||
+      (e instanceof GatewayRequestError && /unknown or expired approval id/i.test(e.message));
+    if (expired) {
+      approvalStore.removePending(id);
+    }
   } finally {
     busy.value = false;
   }
 }
+
+const expiresInText = computed(() => {
+  const expiresAt = current.value?.expiresAtMs;
+  if (!expiresAt) return "";
+  return formatRemaining(expiresAt - nowMs.value);
+});
+
+const similarPendingCount = computed(() => {
+  const req = current.value;
+  if (!req) return 0;
+  const target = approvalFingerprint(req);
+  return pending.value.filter((item) => item.approvalId !== req.approvalId && approvalFingerprint(item) === target).length;
+});
+
+const resolveStateText = computed(() => (busy.value ? t("approval.submitting") : ""));
 </script>
 
 <template>
   <Teleport to="body">
+    <Transition name="appr-fade">
+      <div v-if="recentNotice" class="appr-toast" role="status">{{ recentNotice }}</div>
+    </Transition>
     <Transition name="appr-fade">
       <div v-if="current" class="appr-backdrop">
         <div class="appr-dialog" role="dialog" :aria-label="t('approval.title')">
@@ -58,22 +155,60 @@ async function resolve(decision: ApprovalDecision): Promise<void> {
 
           <!-- 命令详情 -->
           <div class="appr-body">
+            <div v-if="displayApprovalId" class="appr-row">
+              <span class="appr-label">{{ t('approval.id') }}</span>
+              <code class="appr-code appr-code--muted">{{ displayApprovalId }}</code>
+            </div>
+            <div v-if="current.host" class="appr-row">
+              <span class="appr-label">{{ t('approval.host') }}</span>
+              <span class="appr-val">{{ current.host }}</span>
+            </div>
+            <div v-if="current.sessionLabel || current.sessionKey" class="appr-row">
+              <span class="appr-label">{{ t('approval.session') }}</span>
+              <span class="appr-val">{{ current.sessionLabel || current.sessionKey }}</span>
+            </div>
+            <div v-if="current.resolvedPath" class="appr-row">
+              <span class="appr-label">{{ t('approval.resolvedPath') }}</span>
+              <code class="appr-code appr-code--muted">{{ current.resolvedPath }}</code>
+            </div>
             <div class="appr-row">
               <span class="appr-label">{{ t('approval.command') }}</span>
               <code class="appr-code">{{ displayCommand(current) || t('approval.unknownCmd') }}</code>
             </div>
-            <div v-if="current.systemRunPlan?.cwd" class="appr-row">
+            <div v-if="current.systemRunPlan?.cwd || current.cwd" class="appr-row">
               <span class="appr-label">{{ t('approval.cwd') }}</span>
-              <code class="appr-code appr-code--muted">{{ current.systemRunPlan.cwd }}</code>
+              <code class="appr-code appr-code--muted">{{ current.systemRunPlan?.cwd || current.cwd }}</code>
             </div>
             <div v-if="current.agentId" class="appr-row">
               <span class="appr-label">{{ t('approval.agent') }}</span>
               <span class="appr-val">{{ current.agentId }}</span>
             </div>
+            <div v-if="current.security" class="appr-row">
+              <span class="appr-label">{{ t('approval.security') }}</span>
+              <span class="appr-val">{{ current.security }}</span>
+            </div>
+            <div v-if="current.ask" class="appr-row">
+              <span class="appr-label">{{ t('approval.ask') }}</span>
+              <span class="appr-val">{{ current.ask }}</span>
+            </div>
+            <div v-if="expiresInText" class="appr-row">
+              <span class="appr-label">{{ t('approval.expiresIn') }}</span>
+              <span class="appr-val">{{ expiresInText }}</span>
+            </div>
+            <p v-if="similarPendingCount > 0" class="appr-hint">
+              {{ t("approval.similarRetriesHint", { count: similarPendingCount }) }}
+            </p>
+            <p v-if="showShellWrapperHint" class="appr-hint">
+              {{ t('approval.shellWrapperHint') }}
+            </p>
           </div>
 
           <!-- 错误提示 -->
-          <p v-if="resolveError" class="appr-error" role="alert">{{ resolveError }}</p>
+          <p v-if="resolveError" class="appr-error" role="alert">
+            <template v-if="resolveErrorIsExpired">{{ t('approval.expiredHint') }}</template>
+            <template v-else>{{ resolveError }}</template>
+          </p>
+          <p v-else-if="resolveStateText" class="appr-info" role="status">{{ resolveStateText }}</p>
 
           <!-- 操作按钮 -->
           <div class="appr-actions">
@@ -130,6 +265,21 @@ async function resolve(decision: ApprovalDecision): Promise<void> {
   max-width: calc(100vw - 32px);
   color: var(--lc-text);
   overflow: hidden;
+}
+
+.appr-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 10080;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  border-radius: var(--lc-radius-sm, 6px);
+  background: var(--lc-bg-elevated, #fff);
+  border: 1px solid var(--lc-border);
+  color: var(--lc-text);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
 }
 
 .appr-header {
@@ -213,6 +363,23 @@ async function resolve(decision: ApprovalDecision): Promise<void> {
   margin: 0 16px 8px;
   font-size: 12px;
   color: var(--lc-error);
+}
+
+.appr-info {
+  margin: 0 16px 8px;
+  font-size: 12px;
+  color: var(--lc-text-muted);
+}
+
+.appr-hint {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lc-text-muted);
+  background: color-mix(in srgb, var(--lc-warning, #d97706) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lc-warning, #d97706) 20%, var(--lc-border));
+  border-radius: var(--lc-radius-sm, 6px);
 }
 
 .appr-actions {
