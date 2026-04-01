@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-04-01
+
+### Changed
+
+- **Update delivery endpoints now align with the public release site**: The app update endpoint examples and website download buttons now point to `didclawapp.com/download`, keeping the in-app updater and public download entrypoints on the same release host.
+
 ## [0.8.3] - 2026-04-01
 
 ### Added
