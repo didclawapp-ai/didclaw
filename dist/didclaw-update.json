@@ -2,7 +2,7 @@
   "version": "0.8.2",
   "date": "2026-04-01",
   "platforms": {
-    "windows": "https://github.com/didclawapp-ai/didclaw/releases/download/v0.8.2/didclaw_0.8.2_x64-setup.exe",
-    "windows_msi": "https://github.com/didclawapp-ai/didclaw/releases/download/v0.8.2/didclaw_0.8.2_x64_en-US.msi"
+    "windows": "https://didclawapp.com/download/didclaw_0.8.2_x64-setup.exe",
+    "windows_msi": "https://didclawapp.com/download/didclaw_0.8.2_x64_en-US.msi"
   }
 }

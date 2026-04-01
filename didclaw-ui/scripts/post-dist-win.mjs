@@ -13,17 +13,15 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 
-const GITHUB_REPO = "didclawapp-ai/didclaw";
-const GITHUB_BASE = `https://github.com/${GITHUB_REPO}/releases/download`;
+const DOWNLOAD_BASE = "https://didclawapp.com/download";
 
 // Read version from package.json
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 const version = pkg.version.replace(/^v/i, "").trim();
-const tag = `v${version}`;
 
-// Construct GitHub Releases URLs (Tauri default naming)
-const exeUrl  = `${GITHUB_BASE}/${tag}/didclaw_${version}_x64-setup.exe`;
-const msiUrl  = `${GITHUB_BASE}/${tag}/didclaw_${version}_x64_en-US.msi`;
+// Construct download URLs
+const exeUrl  = `${DOWNLOAD_BASE}/didclaw_${version}_x64-setup.exe`;
+const msiUrl  = `${DOWNLOAD_BASE}/didclaw_${version}_x64_en-US.msi`;
 
 const manifest = {
   version,
