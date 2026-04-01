@@ -402,7 +402,7 @@ function scheduleAutoClose(): void {
       :disabled="gwStatus !== 'connected'"
       @click.stop="togglePopup"
     >
-      微信
+      WX
     </button>
 
     <Transition name="wc-popup-fade">
