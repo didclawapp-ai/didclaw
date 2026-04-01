@@ -184,7 +184,6 @@ const localSlug = ref("");
 const localBusy = ref(false);
 const localMessage = ref<string | null>(null);
 const localMessageKind = ref<MessageKind>("info");
-const localPluginSpec = ref("");
 const localPluginBusy = ref(false);
 const clawhubToken = ref("");
 const clawhubRegistry = ref("");
@@ -1427,75 +1426,6 @@ async function onPickFolderInstall(): Promise<void> {
     localMessageKind.value = "error";
   } finally {
     localBusy.value = false;
-  }
-}
-
-async function onPickPluginFolder(): Promise<void> {
-  localMessage.value = null;
-  const picked = await skillsPickFolder();
-  if (!picked) {
-    return;
-  }
-  localPluginSpec.value = picked;
-}
-
-async function onPickPluginPackage(): Promise<void> {
-  localMessage.value = null;
-  if (!isDidClawDesktop()) {
-    localMessage.value = "请使用桌面版选择本机插件包。";
-    localMessageKind.value = "info";
-    return;
-  }
-  const api = getDidClawDesktopApi();
-  const picked = await api?.openclawPluginsPickPackageFile?.();
-  if (!picked) {
-    return;
-  }
-  localPluginSpec.value = picked;
-}
-
-async function onInstallLocalPlugin(): Promise<void> {
-  localMessage.value = null;
-  const spec = localPluginSpec.value.trim();
-  if (!spec) {
-    localMessage.value = "请先填写或选择插件目录/归档路径。";
-    localMessageKind.value = "error";
-    return;
-  }
-  if (!isDidClawDesktop()) {
-    localMessage.value = "安装本机插件需要桌面版。";
-    localMessageKind.value = "info";
-    return;
-  }
-  const api = getDidClawDesktopApi();
-  if (!api?.openclawPluginsInstall) {
-    localMessage.value = `当前桌面壳不支持插件安装，请在终端执行：openclaw plugins install ${spec}`;
-    localMessageKind.value = "info";
-    return;
-  }
-  localPluginBusy.value = true;
-  try {
-    const auth = currentClawhubAuth();
-    const r = await api.openclawPluginsInstall({
-      packageSpec: spec,
-      clawhubToken: auth.token,
-      clawhubRegistry: auth.registry,
-    });
-    if (r && typeof r === "object" && "ok" in r && r.ok === true) {
-      localMessage.value = "本机插件安装完成。若 Gateway 已在运行，通常需要重启后才会加载新插件。";
-      localMessageKind.value = "success";
-      return;
-    }
-    localMessage.value =
-      r && typeof r === "object" && "error" in r && typeof r.error === "string"
-        ? truncateInstallFeedback(r.error)
-        : "插件安装失败。";
-    localMessageKind.value = "error";
-  } catch (e) {
-    localMessage.value = formatClawhubErr(e);
-    localMessageKind.value = "error";
-  } finally {
-    localPluginBusy.value = false;
   }
 }
 
