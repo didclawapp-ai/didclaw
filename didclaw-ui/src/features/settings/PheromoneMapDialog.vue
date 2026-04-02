@@ -22,6 +22,7 @@ const injectDone = ref(false);
 const hotNodes = computed(() => store.topNodes(14));
 const hotEdges = computed(() => store.topEdges(8));
 const blockedPoints = computed(() => graph.value.blockedPoints.slice(-6).reverse());
+const trails = computed(() => (graph.value.trails ?? []).slice(-8).reverse());
 const dormantCount = computed(() =>
   Object.values(graph.value.nodes).filter((n) => n.dormant).length,
 );
@@ -135,6 +136,20 @@ function onKeydown(e: KeyboardEvent): void {
                 <div v-for="[edge, e] in hotEdges" :key="edge" class="ph-edge-row">
                   <span class="ph-edge-label">{{ edge.replace("→", " → ") }}</span>
                   <span class="ph-edge-weight ph-dim">×{{ Math.round(e.weight) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cognitive trails -->
+            <div v-if="trails.length > 0" class="ph-section">
+              <div class="ph-section-title">🧭 {{ t("pheromone.trails") }}</div>
+              <div class="ph-trail-list">
+                <div v-for="tr in trails" :key="tr.date + tr.entry" class="ph-trail-row">
+                  <span class="ph-trail-emotion">{{ { A:'⚡', B:'✨', C:'🌧', N:'·' }[tr.emotion] }}</span>
+                  <span class="ph-trail-entry">{{ tr.entry }}</span>
+                  <span class="ph-trail-arrow ph-dim">→</span>
+                  <span class="ph-trail-exit">{{ tr.exit }}</span>
+                  <span class="ph-trail-date ph-dim">{{ tr.date }}</span>
                 </div>
               </div>
             </div>
@@ -292,6 +307,17 @@ function onKeydown(e: KeyboardEvent): void {
 }
 .ph-edge-row:hover { background: var(--lc-bg-elevated); }
 .ph-edge-weight { min-width: 30px; text-align: right; }
+
+.ph-trail-list { display: flex; flex-direction: column; gap: 4px; }
+.ph-trail-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 6px; border-radius: 4px; font-size: 0.88em;
+}
+.ph-trail-row:hover { background: var(--lc-bg-elevated); }
+.ph-trail-emotion { min-width: 16px; text-align: center; }
+.ph-trail-entry { font-weight: 600; }
+.ph-trail-exit { font-weight: 600; }
+.ph-trail-date { margin-left: auto; font-size: 0.8em; }
 
 .ph-blocked-list { display: flex; flex-direction: column; gap: 4px; }
 .ph-blocked-row { display: flex; align-items: center; gap: 8px; font-size: 0.86em; }

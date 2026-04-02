@@ -27,6 +27,13 @@ export interface BlockedPoint {
   since: string;
 }
 
+export interface CognitiveTrail {
+  entry: string;   // first topic of the run
+  exit: string;    // last topic of the run
+  date: string;    // ISO date
+  emotion: EmotionMode;
+}
+
 export interface PheromoneGraph {
   version: string;
   lastDecay: string;   // ISO date YYYY-MM-DD
@@ -34,6 +41,7 @@ export interface PheromoneGraph {
   edges: Record<string, PheromoneEdge>;  // "A→B"
   blockedPoints: BlockedPoint[];
   recentEmotions?: EmotionMode[];        // last N emotion readings
+  trails?: CognitiveTrail[];             // entry→exit records per run
 }
 
 const GRAPH_VERSION = "0.1.0";
@@ -281,6 +289,19 @@ export function updateGraph(
   g.recentEmotions.push(emotion);
   if (g.recentEmotions.length > 10) g.recentEmotions.shift();
 
+  // Record cognitive trail: entry = first user topic, exit = last user topic
+  const allUserTopics = [...new Set(userTopics)];
+  if (allUserTopics.length >= 2) {
+    if (!g.trails) g.trails = [];
+    g.trails.push({
+      entry: allUserTopics[0],
+      exit: allUserTopics[allUserTopics.length - 1],
+      date: today,
+      emotion,
+    });
+    if (g.trails.length > 20) g.trails.shift(); // keep last 20 trails
+  }
+
   // Detect blocked points from user text
   const blocked = detectBlockedTopics(userText);
   for (const bTopic of blocked) {
@@ -371,6 +392,16 @@ export function generateMemorySection(graph: PheromoneGraph): string {
     lines.push("", "### Knowledge Boundaries (user indicated uncertainty)");
     for (const b of activeBlocked) {
       lines.push(`- **${b.node}**: ${b.context.slice(0, 60)}…`);
+    }
+  }
+
+  // Cognitive trails
+  const trails = (graph.trails ?? []).slice(-8);
+  if (trails.length > 0) {
+    lines.push("", "### Cognitive Trails (entry → exit per run)");
+    for (const tr of trails) {
+      const moodIcon: Record<EmotionMode, string> = { A: "⚡", B: "✨", C: "🌧", N: "·" };
+      lines.push(`- ${moodIcon[tr.emotion]} **${tr.entry}** → **${tr.exit}** _(${tr.date})_`);
     }
   }
 

@@ -1384,6 +1384,7 @@ export default {
     lastDecay: "上次衰减",
     hotTopics: "常用话题",
     associations: "常见关联",
+    trails: "认知轨迹",
     blocked: "已知阻断点",
     noData: "数据还不够 — 多聊几轮就有了！",
     injectNote: "距上次写入 AGENTS.md 已有 {runs} 轮（每 5 轮自动写入）",

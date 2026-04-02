@@ -1385,6 +1385,7 @@ export default {
     lastDecay: "last decay",
     hotTopics: "Frequent Topics",
     associations: "Common Associations",
+    trails: "Cognitive Trails",
     blocked: "Knowledge Boundaries",
     noData: "Not enough data yet — keep chatting!",
     injectNote: "{runs} runs since last AGENTS.md update (auto-injects every 5 runs)",
