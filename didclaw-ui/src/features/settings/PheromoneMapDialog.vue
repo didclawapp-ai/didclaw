@@ -11,12 +11,6 @@ const { t } = useI18n();
 const store = usePheromoneStore();
 const { graph, loaded, lastError, runsSinceInject } = storeToRefs(store);
 
-watch(() => props.modelValue, (open) => {
-  if (open && !loaded.value) store.load();
-  if (open && viewMode.value === "graph") setTimeout(startGraphLoop, 100);
-  if (!open) stopGraphLoop();
-}, { immediate: true });
-
 const injecting = ref(false);
 const resetting = ref(false);
 const injectDone = ref(false);
@@ -191,6 +185,12 @@ watch(viewMode, (v) => {
 });
 
 onUnmounted(stopGraphLoop);
+
+watch(() => props.modelValue, (open) => {
+  if (open && !loaded.value) store.load();
+  if (open && viewMode.value === "graph") setTimeout(startGraphLoop, 100);
+  if (!open) stopGraphLoop();
+}, { immediate: true });
 
 function close(): void {
   emit("update:modelValue", false);
