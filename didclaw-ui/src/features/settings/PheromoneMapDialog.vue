@@ -55,132 +55,204 @@ async function doReset(): Promise<void> {
     resetting.value = false;
   }
 }
+
+function close(): void {
+  emit("update:modelValue", false);
+}
+
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === "Escape") close();
+}
 </script>
 
 <template>
-  <el-dialog
-    :model-value="modelValue"
-    :title="t('pheromone.title')"
-    width="560px"
-    @update:model-value="emit('update:modelValue', $event)"
-  >
-    <div v-if="!loaded" class="ph-empty">
-      <span class="ph-dim">{{ t("pheromone.loading") }}</span>
-    </div>
-
-    <div v-else class="ph-body">
-      <!-- Stats bar -->
-      <div class="ph-stats-row">
-        <span class="ph-stat">
-          <strong>{{ totalTopics }}</strong>
-          <span class="ph-dim">{{ t("pheromone.topics") }}</span>
-        </span>
-        <span class="ph-stat">
-          <strong>{{ hotEdges.length }}</strong>
-          <span class="ph-dim">{{ t("pheromone.edges") }}</span>
-        </span>
-        <span class="ph-stat">
-          <strong>{{ dormantCount }}</strong>
-          <span class="ph-dim">{{ t("pheromone.dormant") }}</span>
-        </span>
-        <span class="ph-stat">
-          <strong>{{ graph.lastDecay }}</strong>
-          <span class="ph-dim">{{ t("pheromone.lastDecay") }}</span>
-        </span>
-      </div>
-
-      <!-- Hot nodes -->
-      <div class="ph-section">
-        <div class="ph-section-title">🔥 {{ t("pheromone.hotTopics") }}</div>
-        <div v-if="hotNodes.length === 0" class="ph-dim ph-empty-note">
-          {{ t("pheromone.noData") }}
+  <Teleport to="body">
+    <div v-if="modelValue" class="ph-backdrop" @click.self="close" @keydown="onKeydown">
+      <div class="ph-panel" role="dialog" aria-modal="true" tabindex="-1">
+        <!-- Header -->
+        <div class="ph-head">
+          <h2 class="ph-title">{{ t("pheromone.title") }}</h2>
+          <button type="button" class="ph-close-btn" @click="close" :aria-label="t('common.close')">✕</button>
         </div>
-        <div v-else class="ph-node-list">
-          <div
-            v-for="[topic, node] in hotNodes"
-            :key="topic"
-            class="ph-node-row"
+
+        <!-- Body -->
+        <div class="ph-scroll">
+          <div v-if="!loaded" class="ph-empty">
+            <span class="ph-dim">{{ t("pheromone.loading") }}</span>
+          </div>
+
+          <div v-else class="ph-body">
+            <!-- Stats bar -->
+            <div class="ph-stats-row">
+              <span class="ph-stat">
+                <strong>{{ totalTopics }}</strong>
+                <span class="ph-dim">{{ t("pheromone.topics") }}</span>
+              </span>
+              <span class="ph-stat">
+                <strong>{{ hotEdges.length }}</strong>
+                <span class="ph-dim">{{ t("pheromone.edges") }}</span>
+              </span>
+              <span class="ph-stat">
+                <strong>{{ dormantCount }}</strong>
+                <span class="ph-dim">{{ t("pheromone.dormant") }}</span>
+              </span>
+              <span class="ph-stat">
+                <strong>{{ graph.lastDecay || "—" }}</strong>
+                <span class="ph-dim">{{ t("pheromone.lastDecay") }}</span>
+              </span>
+            </div>
+
+            <!-- Hot nodes -->
+            <div class="ph-section">
+              <div class="ph-section-title">🔥 {{ t("pheromone.hotTopics") }}</div>
+              <div v-if="hotNodes.length === 0" class="ph-dim ph-empty-note">
+                {{ t("pheromone.noData") }}
+              </div>
+              <div v-else class="ph-node-list">
+                <div
+                  v-for="[topic, node] in hotNodes"
+                  :key="topic"
+                  class="ph-node-row"
+                >
+                  <span class="ph-topic" :title="`count: ${node.count}`">{{ topic }}</span>
+                  <span class="ph-bars" :class="strengthClass(node.strength)">
+                    {{ strengthBars(node.strength) }}
+                  </span>
+                  <span class="ph-depth ph-dim">D{{ Math.round(node.depth) }}</span>
+                  <span v-if="node.blocked" class="ph-badge ph-badge-blocked">⚠</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Edges -->
+            <div v-if="hotEdges.length > 0" class="ph-section">
+              <div class="ph-section-title">🔗 {{ t("pheromone.associations") }}</div>
+              <div class="ph-edge-list">
+                <div v-for="[edge, e] in hotEdges" :key="edge" class="ph-edge-row">
+                  <span class="ph-edge-label">{{ edge.replace("→", " → ") }}</span>
+                  <span class="ph-edge-weight ph-dim">×{{ Math.round(e.weight) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Blocked points -->
+            <div v-if="blockedPoints.length > 0" class="ph-section">
+              <div class="ph-section-title">🧱 {{ t("pheromone.blocked") }}</div>
+              <div class="ph-blocked-list">
+                <div v-for="b in blockedPoints" :key="b.node" class="ph-blocked-row">
+                  <span class="ph-badge ph-badge-blocked">{{ b.node }}</span>
+                  <span class="ph-dim ph-blocked-ctx">{{ b.context.slice(0, 50) }}…</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Error -->
+            <div v-if="lastError" class="ph-error">{{ lastError }}</div>
+
+            <!-- Footer note -->
+            <div class="ph-footer-note ph-dim">
+              {{ t("pheromone.injectNote", { runs: runsSinceInject }) }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer actions -->
+        <div class="ph-foot">
+          <button
+            type="button"
+            class="ph-btn ph-btn-danger"
+            :disabled="resetting"
+            @click="doReset"
           >
-            <span class="ph-topic" :title="`count: ${node.count}`">{{ topic }}</span>
-            <span class="ph-bars" :class="strengthClass(node.strength)">
-              {{ strengthBars(node.strength) }}
-            </span>
-            <span class="ph-depth ph-dim">D{{ Math.round(node.depth) }}</span>
-            <span v-if="node.blocked" class="ph-badge ph-badge-blocked">⚠</span>
+            {{ resetting ? "…" : t("pheromone.reset") }}
+          </button>
+          <div class="ph-foot-right">
+            <span v-if="injectDone" class="ph-inject-done">✓ {{ t("pheromone.injected") }}</span>
+            <button
+              type="button"
+              class="ph-btn ph-btn-primary"
+              :disabled="injecting"
+              @click="doInject"
+            >
+              {{ injecting ? "…" : t("pheromone.injectNow") }}
+            </button>
+            <button type="button" class="ph-btn" @click="close">
+              {{ t("common.close") }}
+            </button>
           </div>
         </div>
-      </div>
-
-      <!-- Edges -->
-      <div v-if="hotEdges.length > 0" class="ph-section">
-        <div class="ph-section-title">🔗 {{ t("pheromone.associations") }}</div>
-        <div class="ph-edge-list">
-          <div v-for="[edge, e] in hotEdges" :key="edge" class="ph-edge-row">
-            <span class="ph-edge-label">{{ edge.replace("→", " → ") }}</span>
-            <span class="ph-edge-weight ph-dim">×{{ Math.round(e.weight) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Blocked points -->
-      <div v-if="blockedPoints.length > 0" class="ph-section">
-        <div class="ph-section-title">🧱 {{ t("pheromone.blocked") }}</div>
-        <div class="ph-blocked-list">
-          <div v-for="b in blockedPoints" :key="b.node" class="ph-blocked-row">
-            <span class="ph-badge ph-badge-blocked">{{ b.node }}</span>
-            <span class="ph-dim ph-blocked-ctx">{{ b.context.slice(0, 50) }}…</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Error -->
-      <div v-if="lastError" class="ph-error">{{ lastError }}</div>
-
-      <!-- Footer note -->
-      <div class="ph-footer-note ph-dim">
-        {{ t("pheromone.injectNote", { runs: runsSinceInject }) }}
       </div>
     </div>
-
-    <template #footer>
-      <div class="ph-actions">
-        <el-button
-          size="small"
-          :loading="resetting"
-          type="danger"
-          plain
-          @click="doReset"
-        >
-          {{ t("pheromone.reset") }}
-        </el-button>
-        <div class="ph-actions-right">
-          <span v-if="injectDone" class="ph-inject-done">✓ {{ t("pheromone.injected") }}</span>
-          <el-button
-            size="small"
-            :loading="injecting"
-            type="primary"
-            @click="doInject"
-          >
-            {{ t("pheromone.injectNow") }}
-          </el-button>
-          <el-button size="small" @click="emit('update:modelValue', false)">
-            {{ t("common.close") }}
-          </el-button>
-        </div>
-      </div>
-    </template>
-  </el-dialog>
+  </Teleport>
 </template>
 
 <style scoped>
+.ph-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ph-panel {
+  background: var(--lc-bg);
+  border: 1px solid var(--lc-border);
+  border-radius: 10px;
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* Header */
+.ph-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--lc-border);
+  flex-shrink: 0;
+}
+.ph-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lc-text);
+}
+.ph-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--lc-text-muted);
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.ph-close-btn:hover { background: var(--lc-hover); color: var(--lc-text); }
+
+/* Scrollable body */
+.ph-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  min-height: 0;
+}
+
 .ph-body { display: flex; flex-direction: column; gap: 14px; }
 .ph-empty { padding: 24px 0; text-align: center; }
 .ph-dim { opacity: 0.55; font-size: 0.85em; }
 
 .ph-stats-row {
-  display: flex; gap: 16px; flex-wrap: wrap;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
   padding: 10px 12px;
-  background: var(--el-fill-color-light);
+  background: var(--lc-surface);
   border-radius: 6px;
 }
 .ph-stat { display: flex; flex-direction: column; gap: 2px; }
@@ -191,23 +263,30 @@ async function doReset(): Promise<void> {
 
 .ph-node-list { display: flex; flex-direction: column; gap: 4px; }
 .ph-node-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 3px 6px; border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
 }
-.ph-node-row:hover { background: var(--el-fill-color); }
+.ph-node-row:hover { background: var(--lc-hover); }
 .ph-topic { flex: 1; font-size: 0.92em; font-weight: 500; }
 .ph-bars { font-family: monospace; letter-spacing: 1px; font-size: 0.82em; }
-.strength-high { color: var(--el-color-success); }
-.strength-mid  { color: var(--el-color-warning); }
-.strength-low  { color: var(--el-text-color-placeholder); }
+.strength-high { color: #22c55e; }
+.strength-mid  { color: #f59e0b; }
+.strength-low  { color: var(--lc-text-muted); }
 .ph-depth { min-width: 20px; text-align: right; }
 
 .ph-edge-list { display: flex; flex-direction: column; gap: 4px; }
 .ph-edge-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 3px 6px; border-radius: 4px; font-size: 0.88em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
 }
-.ph-edge-row:hover { background: var(--el-fill-color); }
+.ph-edge-row:hover { background: var(--lc-hover); }
 .ph-edge-weight { min-width: 30px; text-align: right; }
 
 .ph-blocked-list { display: flex; flex-direction: column; gap: 4px; }
@@ -215,21 +294,54 @@ async function doReset(): Promise<void> {
 .ph-blocked-ctx { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ph-badge {
-  display: inline-block; padding: 1px 6px;
-  border-radius: 4px; font-size: 0.78em; font-weight: 600;
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.78em;
+  font-weight: 600;
 }
 .ph-badge-blocked {
-  background: var(--el-color-warning-light-8);
-  color: var(--el-color-warning);
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
 }
 
 .ph-empty-note { padding: 8px 0; }
-.ph-error { color: var(--el-color-danger); font-size: 0.85em; }
+.ph-error { color: #ef4444; font-size: 0.85em; }
 .ph-footer-note { font-size: 0.8em; margin-top: 4px; }
 
-.ph-actions {
-  display: flex; justify-content: space-between; align-items: center;
+/* Footer */
+.ph-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--lc-border);
+  flex-shrink: 0;
 }
-.ph-actions-right { display: flex; align-items: center; gap: 8px; }
-.ph-inject-done { color: var(--el-color-success); font-size: 0.88em; }
+.ph-foot-right { display: flex; align-items: center; gap: 8px; }
+.ph-inject-done { color: #22c55e; font-size: 0.88em; }
+
+.ph-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-bg);
+  color: var(--lc-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ph-btn:hover:not(:disabled) { background: var(--lc-hover); }
+.ph-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ph-btn-primary {
+  background: var(--lc-accent, #2563eb);
+  color: #fff;
+  border-color: transparent;
+}
+.ph-btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+.ph-btn-danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.ph-btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.08); }
 </style>

@@ -27,6 +27,7 @@ const RUNS_SINCE_INJECT_KEY = "pheromone_runs_since_inject";
 export const usePheromoneStore = defineStore("pheromone", () => {
   const graph = ref<PheromoneGraph>(emptyGraph());
   const loaded = ref(false);
+  const loading = ref(false);
   const lastError = ref<string | null>(null);
   const runsSinceInject = ref(0);
 
@@ -34,19 +35,29 @@ export const usePheromoneStore = defineStore("pheromone", () => {
 
   async function load(): Promise<void> {
     if (!isDidClawDesktop()) return;
+    if (loading.value) return;
     const api = getDidClawDesktopApi();
     if (!api?.readPheromoneGraph) return;
+    loading.value = true;
     try {
       const raw = await api.readPheromoneGraph();
       if (raw && typeof raw === "object" && "nodes" in raw) {
         graph.value = raw as PheromoneGraph;
       }
-      // Restore run counter from KV
-      const stored = await api.didclawKvGet(RUNS_SINCE_INJECT_KEY);
-      runsSinceInject.value = stored ? parseInt(stored, 10) || 0 : 0;
+      // Restore run counter from KV (best-effort; errors don't block load)
+      try {
+        const stored = await api.didclawKvGet(RUNS_SINCE_INJECT_KEY);
+        runsSinceInject.value = stored ? parseInt(stored, 10) || 0 : 0;
+      } catch {
+        // KV not available; keep default 0
+      }
       loaded.value = true;
     } catch (e) {
       lastError.value = String(e);
+      // Mark loaded anyway so we don't retry every run
+      loaded.value = true;
+    } finally {
+      loading.value = false;
     }
   }
 
@@ -56,7 +67,11 @@ export const usePheromoneStore = defineStore("pheromone", () => {
     if (!api?.writePheromoneGraph) return;
     try {
       await api.writePheromoneGraph(graph.value);
-      await api.didclawKvSet(RUNS_SINCE_INJECT_KEY, String(runsSinceInject.value));
+      try {
+        await api.didclawKvSet(RUNS_SINCE_INJECT_KEY, String(runsSinceInject.value));
+      } catch {
+        // KV not available; graph still saved
+      }
     } catch (e) {
       lastError.value = String(e);
     }
