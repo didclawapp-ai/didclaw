@@ -9,6 +9,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 ## [Unreleased]
 
 ### Added
+- **Tools profile selector in General Settings**: users can now pick one of four `tools.profile` values (`full` / `coding` / `messaging` / `minimal`) directly from the DidClaw settings UI. The selection reads the current value from `openclaw.json` on open and writes only the `tools.profile` key on change, preserving all other configuration. A backup of `openclaw.json` is created before each write.
+
+### Added
 
 - **Bundled workspace skills**: The `didclaw-ui/skills` tree is shipped in the app bundle (`tauri.conf.json` resources) and, on startup, any packaged skill folder that is not yet present under `~/.openclaw/workspace/skills` is copied there (existing folders are left untouched).
 - **Non-destructive OpenClaw writes (AI settings + gateway provider editor)**: Added `ai-provider-write-policy.ts` — **`env.vars`**: DidClaw only writes an env key when it is **empty** in `openclaw.json` (existing values from CLI or manual edits are left alone). **`providers.*.apiKey`**: patches include a new apiKey only when there was none, the stored key was masked, or the user entered a **different** real key; otherwise the merge updates models/baseUrl without overwriting credentials. Applies to main **AI settings** (including image-gen env sync and Zhipu `ZHIPU_API_KEY`) and **Gateway → Providers** save. `read_open_claw_ai_snapshot` continues to expose `envVars` for these checks.

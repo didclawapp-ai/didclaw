@@ -24,6 +24,14 @@ const shortcutError = ref<string | null>(null);
 const shortcutSuccess = ref(false);
 let shortcutSuccessTimer: number | null = null;
 
+type ToolsProfile = "full" | "coding" | "messaging" | "minimal";
+const TOOLS_PROFILES: ToolsProfile[] = ["full", "coding", "messaging", "minimal"];
+const toolsProfile = ref<ToolsProfile | null>(null);
+const toolsProfileBusy = ref(false);
+const toolsProfileError = ref<string | null>(null);
+const toolsProfileSaved = ref(false);
+let toolsProfileSavedTimer: number | null = null;
+
 async function loadSettings(): Promise<void> {
   try {
     autostartEnabled.value = (await api?.getAutostartEnabled?.()) ?? false;
@@ -41,6 +49,12 @@ async function loadSettings(): Promise<void> {
   } catch {
     shortcutKey.value = "Ctrl+Shift+D";
     shortcutInput.value = "Ctrl+Shift+D";
+  }
+  try {
+    const r = await api?.readOpenClawToolsProfile?.();
+    toolsProfile.value = (r?.ok ? r.profile : null) as ToolsProfile | null;
+  } catch {
+    toolsProfile.value = null;
   }
 }
 
@@ -66,6 +80,30 @@ async function applyShortcut(): Promise<void> {
 
 function resetShortcut(): void {
   shortcutInput.value = "Ctrl+Shift+D";
+}
+
+async function selectToolsProfile(p: ToolsProfile): Promise<void> {
+  if (toolsProfileBusy.value || toolsProfile.value === p) return;
+  toolsProfileError.value = null;
+  toolsProfileBusy.value = true;
+  try {
+    const r = await api?.writeOpenClawToolsProfile?.(p);
+    if (r && !r.ok) {
+      toolsProfileError.value = r.error;
+      return;
+    }
+    toolsProfile.value = p;
+    toolsProfileSaved.value = true;
+    if (toolsProfileSavedTimer !== null) clearTimeout(toolsProfileSavedTimer);
+    toolsProfileSavedTimer = window.setTimeout(() => {
+      toolsProfileSaved.value = false;
+      toolsProfileSavedTimer = null;
+    }, 2000);
+  } catch (e) {
+    toolsProfileError.value = String(e);
+  } finally {
+    toolsProfileBusy.value = false;
+  }
 }
 
 async function toggleAutostart(): Promise<void> {
@@ -201,6 +239,30 @@ function onKeydown(e: KeyboardEvent): void {
             </button>
           </div>
           <p v-if="shortcutError" class="gs-err small">{{ shortcutError }}</p>
+        </div>
+
+        <!-- Tools Profile -->
+        <div class="gs-card">
+          <div class="gs-card-text" style="margin-bottom: 10px;">
+            <div class="gs-card-label">{{ t('generalSettings.toolsProfileLabel') }}</div>
+            <div class="gs-card-desc muted">{{ t('generalSettings.toolsProfileDesc') }}</div>
+          </div>
+          <div class="gs-profile-grid">
+            <button
+              v-for="p in TOOLS_PROFILES"
+              :key="p"
+              type="button"
+              class="gs-profile-btn"
+              :class="{ 'gs-profile-btn--active': toolsProfile === p }"
+              :disabled="toolsProfileBusy"
+              @click="selectToolsProfile(p)"
+            >
+              <span class="gs-profile-name">{{ t(`generalSettings.toolsProfile${p.charAt(0).toUpperCase() + p.slice(1)}`) }}</span>
+              <span class="gs-profile-desc muted">{{ t(`generalSettings.toolsProfile${p.charAt(0).toUpperCase() + p.slice(1)}Desc`) }}</span>
+            </button>
+          </div>
+          <p v-if="toolsProfileSaved" class="gs-ok small">✓ {{ t('generalSettings.toolsProfileSaved') }}</p>
+          <p v-if="toolsProfileError" class="gs-err small">{{ toolsProfileError }}</p>
         </div>
       </div>
     </div>
@@ -380,5 +442,49 @@ function onKeydown(e: KeyboardEvent): void {
 }
 .gs-shortcut-btn--reset {
   color: var(--lc-text-muted);
+}
+
+/* Tools profile grid */
+.gs-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.gs-profile-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--lc-border);
+  border-radius: 6px;
+  background: var(--lc-bg-raised);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.gs-profile-btn:hover:not(:disabled) {
+  border-color: var(--lc-accent, #2563eb);
+}
+.gs-profile-btn--active {
+  border-color: var(--lc-accent, #2563eb);
+  background: rgba(37, 99, 235, 0.08);
+}
+.gs-profile-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.gs-profile-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lc-text);
+}
+.gs-profile-desc {
+  font-size: 11px;
+  line-height: 1.4;
+}
+.gs-ok {
+  color: #059669;
+  margin: 8px 0 0;
 }
 </style>

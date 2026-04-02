@@ -141,6 +141,10 @@ interface DidClawElectronApi {
   }): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;
   /** 立即退出 DidClaw（绕过关闭到托盘逻辑） */
   quitApp?(): Promise<void>;
+  /** tools.profile: read current value from openclaw.json (null = not set) */
+  readOpenClawToolsProfile?(): Promise<{ ok: true; profile: string | null } | { ok: false; error: string }>;
+  /** tools.profile: write value into openclaw.json (preserves all other fields) */
+  writeOpenClawToolsProfile?(profile: string): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;
   /** 开机自启：读取当前状态 */
   getAutostartEnabled?(): Promise<boolean>;
   /** 开机自启：设置启用/禁用 */

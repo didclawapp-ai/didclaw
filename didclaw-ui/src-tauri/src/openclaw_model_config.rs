@@ -431,3 +431,91 @@ pub fn restore_open_claw_config_to_latest_backup() -> Value {
         "backupUsed": latest.to_string_lossy(),
     })
 }
+
+const VALID_TOOL_PROFILES: &[&str] = &["full", "coding", "messaging", "minimal"];
+
+/// Read `tools.profile` from `openclaw.json`. Returns `null` profile when not set.
+pub fn read_open_claw_tools_profile() -> Value {
+    let config_path = match openclaw_config_path() {
+        Ok(p) => p,
+        Err(e) => return json!({"ok": false, "error": e}),
+    };
+    let root: Value = match fs::read_to_string(&config_path) {
+        Ok(raw) => match serde_json::from_str(&raw) {
+            Ok(v) => v,
+            Err(_) => return json!({"ok": false, "error": "openclaw.json 无法解析为 JSON"}),
+        },
+        Err(e) if is_enoent(&e) => json!({}),
+        Err(e) => return json!({"ok": false, "error": e.to_string()}),
+    };
+    let profile = root
+        .get("tools")
+        .and_then(|t| t.get("profile"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    json!({"ok": true, "profile": if profile.is_empty() { Value::Null } else { json!(profile) }})
+}
+
+/// Write `tools.profile` into `openclaw.json`, preserving all other fields.
+pub fn write_open_claw_tools_profile(profile: &str) -> Value {
+    let profile = profile.trim();
+    if !VALID_TOOL_PROFILES.contains(&profile) {
+        return json!({"ok": false, "error": format!("无效的 profile 值 \"{profile}\"，允许: full / coding / messaging / minimal")});
+    }
+
+    let config_path = match openclaw_config_path() {
+        Ok(p) => p,
+        Err(e) => return json!({"ok": false, "error": e}),
+    };
+    let dir = match openclaw_dir() {
+        Ok(d) => d,
+        Err(e) => return json!({"ok": false, "error": e}),
+    };
+
+    let mut root: Value = match fs::read_to_string(&config_path) {
+        Ok(raw) => match serde_json::from_str(&raw) {
+            Ok(v) => v,
+            Err(_) => return json!({"ok": false, "error": "当前 openclaw.json 无法解析为 JSON，已中止写入"}),
+        },
+        Err(e) if is_enoent(&e) => json!({}),
+        Err(e) => return json!({"ok": false, "error": e.to_string()}),
+    };
+
+    if !root.is_object() {
+        root = json!({});
+    }
+    let root_map = root.as_object_mut().unwrap();
+
+    // Ensure tools block exists; update only tools.profile, leave other keys alone
+    if !root_map.get("tools").map(|v| v.is_object()).unwrap_or(false) {
+        root_map.insert("tools".into(), json!({}));
+    }
+    root_map
+        .get_mut("tools")
+        .unwrap()
+        .as_object_mut()
+        .unwrap()
+        .insert("profile".into(), json!(profile));
+
+    let backup_path_str = match backup_current_file_if_exists(&config_path) {
+        Ok(s) => s,
+        Err(e) => return json!({"ok": false, "error": format!("备份失败：{e}")}),
+    };
+
+    let out = match serde_json::to_string_pretty(&root) {
+        Ok(s) => format!("{s}\n"),
+        Err(e) => return json!({"ok": false, "error": e.to_string()}),
+    };
+    if let Err(e) = fs::create_dir_all(&dir) {
+        return json!({"ok": false, "error": e.to_string()});
+    }
+    if let Err(e) = fs::write(&config_path, out) {
+        return json!({"ok": false, "error": e.to_string()});
+    }
+
+    if backup_path_str.is_empty() {
+        json!({"ok": true})
+    } else {
+        json!({"ok": true, "backupPath": backup_path_str})
+    }
+}

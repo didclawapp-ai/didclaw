@@ -78,4 +78,6 @@ commands.allow = [
   "set_prevent_sleep_enabled",
   "get_global_shortcut_key",
   "set_global_shortcut_key",
+  "read_open_claw_tools_profile",
+  "write_open_claw_tools_profile",
 ]

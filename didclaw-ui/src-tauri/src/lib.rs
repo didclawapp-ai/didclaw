@@ -217,6 +217,8 @@ pub fn run() {
             commands::read_open_claw_model_config,
             commands::write_open_claw_model_config,
             commands::write_open_claw_env,
+            commands::read_open_claw_tools_profile,
+            commands::write_open_claw_tools_profile,
             commands::write_open_claw_skill_enabled,
             commands::restore_open_claw_config_to_latest_backup,
             commands::read_open_claw_providers,

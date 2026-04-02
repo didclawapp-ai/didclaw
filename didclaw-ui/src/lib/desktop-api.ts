@@ -90,6 +90,8 @@ function tauriApi(): DidClawElectronApi {
     saveChatAttachment: (base64Data, fileName) =>
       invoke("save_chat_attachment", { base64Data, fileName }),
     quitApp: () => invoke("quit_app"),
+    readOpenClawToolsProfile: () => invoke("read_open_claw_tools_profile"),
+    writeOpenClawToolsProfile: (profile) => invoke("write_open_claw_tools_profile", { profile }),
     getAutostartEnabled: () => invoke<boolean>("get_autostart_enabled"),
     setAutostartEnabled: (enabled) => invoke("set_autostart_enabled", { enabled }),
     getPreventSleepEnabled: () => invoke<boolean>("get_prevent_sleep_enabled"),
