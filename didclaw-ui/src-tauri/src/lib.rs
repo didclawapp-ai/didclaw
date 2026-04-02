@@ -257,9 +257,9 @@ pub fn run() {
             commands::set_global_shortcut_key,
             commands::didclaw_set_app_locale,
             commands::save_chat_attachment,
-            commands::read_pheromone_graph,
-            commands::write_pheromone_graph,
-            commands::inject_pheromone_agents_md,
+            pheromone::read_pheromone_graph,
+            pheromone::write_pheromone_graph,
+            pheromone::inject_pheromone_agents_md,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {
