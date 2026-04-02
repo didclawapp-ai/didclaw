@@ -31,7 +31,6 @@ const { messages, lastError: chatError } = storeToRefs(chat);
 
 const expanded = ref(false);
 let collapseTimer: number | null = null;
-let expandTimer: number | null = null;
 let idleTimer: number | null = null;
 
 const cronDialogOpen = ref(false);
@@ -75,24 +74,45 @@ function onMouseEnter(): void {
     collapseTimer = null;
   }
   if (expanded.value) {
-    // Already open — just reset idle timer
     startIdleTimer();
-    return;
   }
-  if (expandTimer === null) {
-    expandTimer = window.setTimeout(() => {
-      expandTimer = null;
-      expanded.value = true;
-      startIdleTimer();
-    }, 1_000);
+}
+
+function onTriggerClick(): void {
+  if (collapseTimer !== null) {
+    clearTimeout(collapseTimer);
+    collapseTimer = null;
+  }
+  expanded.value = true;
+  startIdleTimer();
+}
+
+function toggleSidebarFromShortcut(): void {
+  if (collapseTimer !== null) {
+    clearTimeout(collapseTimer);
+    collapseTimer = null;
+  }
+  if (expanded.value) {
+    expanded.value = false;
+    clearIdleTimer();
+  } else {
+    expanded.value = true;
+    startIdleTimer();
+  }
+}
+
+function onToggleToolSidebarEvent(): void {
+  toggleSidebarFromShortcut();
+}
+
+function onTriggerKeydown(e: KeyboardEvent): void {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    onTriggerClick();
   }
 }
 
 function onMouseLeave(): void {
-  if (expandTimer !== null) {
-    clearTimeout(expandTimer);
-    expandTimer = null;
-  }
   collapseTimer = window.setTimeout(() => {
     expanded.value = false;
     collapseTimer = null;
@@ -162,10 +182,12 @@ function onOpenChannelDialog(): void {
 
 onMounted(() => {
   window.addEventListener("didclaw-open-channel-dialog", onOpenChannelDialog);
+  window.addEventListener("didclaw-toggle-tool-sidebar", onToggleToolSidebarEvent);
 });
 
 onUnmounted(() => {
   window.removeEventListener("didclaw-open-channel-dialog", onOpenChannelDialog);
+  window.removeEventListener("didclaw-toggle-tool-sidebar", onToggleToolSidebarEvent);
 });
 
 async function onCheckUpdate(): Promise<void> {
@@ -218,7 +240,14 @@ function onRedoFirstRunWizard(): void {
 </script>
 
 <template>
-  <div aria-hidden="true" class="ts-trigger" @mouseenter="onMouseEnter" />
+  <button
+    type="button"
+    class="ts-trigger"
+    :aria-label="t('header.toolbarOpenHint')"
+    :title="t('header.toolbarOpenHint')"
+    @click="onTriggerClick"
+    @keydown="onTriggerKeydown"
+  />
 
   <nav
     :aria-label="t('header.toolbarLabel')"
@@ -409,8 +438,21 @@ function onRedoFirstRunWizard(): void {
   top: 0;
   bottom: 0;
   left: 0;
-  width: 6px;
+  width: 8px;
   z-index: 199;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: transparent;
+}
+.ts-trigger:hover {
+  background: color-mix(in srgb, var(--lc-accent) 12%, transparent);
+}
+.ts-trigger:focus-visible {
+  outline: 2px solid var(--lc-accent);
+  outline-offset: -2px;
 }
 
 .ts-panel {

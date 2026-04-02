@@ -21,6 +21,7 @@ const ALLOWED_USER_KV_KEYS: &[&str] = &[
     "didclaw.clawhubToken",
     "didclaw.clawhubRegistry",
     "didclaw.openclawUpdate.dismissedLatest",
+    "didclaw.openclawUpdate.firstSeen",
     "didclaw.appUpdate.dismissedVersion",
 ];
 

@@ -302,6 +302,33 @@ function onDrop(ev: DragEvent): void {
         >
           ?
         </button>
+        <div class="shortcut-popover-wrap">
+          <button
+            type="button"
+            class="lc-btn lc-btn-ghost shortcut-kbd-btn"
+            :aria-label="t('composer.shortcutsPopoverLabel')"
+            :title="t('composer.shortcutsPopoverLabel')"
+          >
+            <svg class="shortcut-kbd-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="1.25" y="4" width="13.5" height="8.5" rx="1.75" stroke="currentColor" stroke-width="1.25" />
+              <path
+                stroke="currentColor"
+                stroke-width="1.25"
+                stroke-linecap="round"
+                d="M4.25 7.25h1.1M7.45 7.25h1.1M10.65 7.25h1.1M4.25 9.55h7.5"
+              />
+            </svg>
+          </button>
+          <div class="shortcut-popover-hover-bridge" aria-hidden="true" />
+          <div class="shortcut-popover-panel" role="tooltip">
+            <div class="shortcut-popover-title">{{ t('composer.shortcutsTitle') }}</div>
+            <ul class="shortcut-popover-list">
+              <li>{{ t('composer.shortcutLineSidebar') }}</li>
+              <li>{{ t('composer.shortcutLinePreview') }}</li>
+              <li>{{ t('composer.shortcutLineSession') }}</li>
+            </ul>
+          </div>
+        </div>
       </div>
       <div class="row-right">
         <WeChatIndicator />
@@ -404,6 +431,88 @@ function onDrop(ev: DragEvent): void {
   color: var(--lc-accent);
   border-color: var(--lc-accent);
 }
+
+.shortcut-popover-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.shortcut-kbd-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  min-width: unset;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lc-text-dim);
+}
+.shortcut-kbd-icon {
+  width: 15px;
+  height: 15px;
+}
+.shortcut-kbd-btn:hover:not(:disabled) {
+  color: var(--lc-accent);
+  border-color: var(--lc-accent);
+}
+/* Invisible hover bridge so the pointer can move from the button to the panel above */
+.shortcut-popover-hover-bridge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 10px;
+}
+.shortcut-popover-panel {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  min-width: 280px;
+  max-width: min(360px, 92vw);
+  padding: 10px 12px 11px;
+  border-radius: var(--lc-radius-sm);
+  border: 1px solid var(--lc-border);
+  background: var(--lc-surface-panel);
+  box-shadow: var(--lc-shadow-md);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--lc-text);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.14s ease,
+    visibility 0.14s ease;
+}
+.shortcut-popover-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--lc-text-muted);
+  margin-bottom: 8px;
+}
+.shortcut-popover-list {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  list-style: disc;
+}
+.shortcut-popover-list li {
+  margin-bottom: 5px;
+}
+.shortcut-popover-list li:last-child {
+  margin-bottom: 0;
+}
+.shortcut-popover-wrap:hover .shortcut-popover-panel,
+.shortcut-popover-wrap:focus-within .shortcut-popover-panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
 .err {
   color: var(--lc-error);
   margin: 8px 0 0;

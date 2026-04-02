@@ -241,6 +241,34 @@ function onGlobalKeydown(event: KeyboardEvent): void {
     historyDialogOpen.value = false;
     return;
   }
+  // Left quick-actions sidebar: Ctrl+Alt+L — toggle
+  if (
+    event.ctrlKey &&
+    event.altKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.code === "KeyL" || event.key === "l" || event.key === "L")
+  ) {
+    event.preventDefault();
+    window.dispatchEvent(new CustomEvent("didclaw-toggle-tool-sidebar"));
+    return;
+  }
+  // Right preview pane: Ctrl+Alt+P — close if open, else pick local file (desktop)
+  if (
+    event.ctrlKey &&
+    event.altKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.code === "KeyP" || event.key === "p" || event.key === "P")
+  ) {
+    event.preventDefault();
+    if (isPreviewPaneOpen.value) {
+      filePreview.clear();
+    } else if (isDidClawElectron()) {
+      void pickLocalFileForPreview();
+    }
+    return;
+  }
   if (!event.ctrlKey || event.altKey || event.metaKey || event.key !== "Tab") {
     return;
   }
@@ -545,7 +573,7 @@ async function pickLocalFileForPreview(): Promise<void> {
                   v-if="isDidClawElectron() && !isPreviewPaneOpen"
                   type="button"
                   class="lc-btn lc-btn-ghost lc-btn-xs toolbar-mini"
-                  :title="t('shell.localFileTitle')"
+                  :title="`${t('shell.localFileTitle')} ${t('shell.localFileShortcutHint')}`"
                   @click="pickLocalFileForPreview"
                 >
                   {{ t('shell.localFileBtn') }}

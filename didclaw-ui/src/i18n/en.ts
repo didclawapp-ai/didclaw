@@ -56,6 +56,7 @@ export default {
   // ─── Header ───────────────────────────────────────────
   header: {
     toolbarLabel: "Quick actions",
+    toolbarOpenHint: "Toggle quick actions (click edge or Ctrl+Alt+L)",
     cronBtn: "Scheduled",
     cronTitle: "Scheduled tasks: one-time and recurring local tasks",
     skillsBtn: "Skills",
@@ -221,6 +222,11 @@ export default {
     sendEmpty: "Enter a message or add an attachment to send",
     sendReady: "Send (session idle)",
     shortcutTip: "Enter to send, Shift+Enter for new line\nSend is disabled while the assistant is responding\nCtrl+V to paste screenshots as images, drag files in\nSee attachment panel for 'Send with' vs 'Preview only'",
+    shortcutsPopoverLabel: "Keyboard shortcuts",
+    shortcutsTitle: "Shortcuts",
+    shortcutLineSidebar: "Ctrl+Alt+L — Toggle quick actions sidebar",
+    shortcutLinePreview: "Ctrl+Alt+P — Close file preview, or open local file (desktop)",
+    shortcutLineSession: "Ctrl+Tab — Next session · Ctrl+Shift+Tab — Previous",
     attachTitle: "Select file (image, PDF, Office…)",
     pendingFiles: "Attachments ({n})",
     docThumb: "Doc",
@@ -422,6 +428,8 @@ export default {
     followLatest: "Follow Latest",
     showDiagnostic: "Show Diagnostic",
     localFileTitle: "Open a local file and preview it on the right (PDF / image / Office / Markdown / text)",
+    /** Shown after localFileTitle in tooltips; keep in sync with AppShell Ctrl+Alt+P */
+    localFileShortcutHint: "Shortcut: Ctrl+Alt+P (close preview when open, else open file)",
     localFileBtn: "Local File…",
     tokenUsageLabel: "Token Usage",
     messagesFiltered: "Session messages are hidden by filter (<strong>system</strong> lines, audit tables, path lists, config JSON, metadata-only replies, etc.). Check \"Show Diagnostic\" to view them.",

@@ -8,7 +8,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+### Added
+
+- **Keyboard shortcut for the right preview pane**: `Ctrl+Alt+P` closes the file preview when it is open; on desktop, when the preview is closed it opens the same local-file picker as the message toolbar button. The local file button tooltip mentions this shortcut.
+- **Keyboard shortcut for the left quick-actions sidebar**: `Ctrl+Alt+L` toggles the DidClaw tool sidebar open and closed (same as the left edge control).
+- **Composer keyboard icon**: Next to the “?” hint button, a keyboard icon shows a hover popover listing global shortcuts (`Ctrl+Alt+L`, `Ctrl+Alt+P`, session `Ctrl+Tab`).
+
+### Fixed
+
+- **KV_KEY_NOT_ALLOWED when OpenClaw update check runs**: `OpenClawUpdatePrompt` persists a 7-day deferral under `didclaw.openclawUpdate.firstSeen`; that key was missing from the SQLite KV allowlist (`didclaw_db.rs` / `didclaw-kv.ts`), causing unhandled IPC rejections in the dev console.
+
+- **Chat image attachments blocked by ACL**: Added `save_chat_attachment` to `permissions/didclaw.toml` so the desktop shell allows saving pasted/dropped images before send (fixes `Command save_chat_attachment not allowed by ACL`).
+
 ### Changed
+
+- **Left quick-actions toolbar opens on click, not hover**: The slim edge strip no longer expands the sidebar after a hover delay (which fired when the cursor merely passed along the left edge). Users open it with an explicit click; the strip shows a light hover tint and supports keyboard focus.
 
 - **Replace WeChat and WhatsApp icon buttons with text labels**: The circular SVG icon buttons in the composer toolbar are now pill-shaped text buttons ("微信" / "WhatsApp"), making the channel indicators immediately readable without needing to recognise brand icons.
 

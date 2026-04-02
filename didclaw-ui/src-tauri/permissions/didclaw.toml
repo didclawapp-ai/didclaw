@@ -16,6 +16,7 @@ commands.allow = [
   "shell_open_file_url",
   "shell_open_external_url",
   "dialog_save_base64_file",
+  "save_chat_attachment",
   "file_save_copy_as",
   "shell_prepare_email_with_local_file",
   "shell_copy_local_file_for_share",

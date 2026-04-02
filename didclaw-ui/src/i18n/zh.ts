@@ -56,6 +56,7 @@ export default {
   // ─── 顶栏 AppHeader ──────────────────────────────────
   header: {
     toolbarLabel: "快捷功能",
+    toolbarOpenHint: "开关快捷功能（点击左缘或 Ctrl+Alt+L）",
     cronBtn: "定时",
     cronTitle: "定时任务：一次性与周期性本机任务",
     skillsBtn: "技能",
@@ -221,6 +222,11 @@ export default {
     sendEmpty: "输入内容或添加待发附件后发送",
     sendReady: "发送（会话空闲）",
     shortcutTip: "Enter 发送，Shift+Enter 换行\n助手回复进行中时「发送」禁用，可先编辑下一条\nCtrl+V 粘贴截图为图片，拖入文件自动识别\n「随信发送」与「仅预览」见附件区",
+    shortcutsPopoverLabel: "键盘快捷键",
+    shortcutsTitle: "快捷键",
+    shortcutLineSidebar: "Ctrl+Alt+L — 开关左侧快捷功能栏",
+    shortcutLinePreview: "Ctrl+Alt+P — 关闭右侧文件预览，或打开本地文件（桌面端）",
+    shortcutLineSession: "Ctrl+Tab — 下一会话 · Ctrl+Shift+Tab — 上一会话",
     attachTitle: "选择文件（图片、PDF、Office…）",
     pendingFiles: "待发附件（{n}）",
     docThumb: "文",
@@ -422,6 +428,8 @@ export default {
     followLatest: "跟随最新",
     showDiagnostic: "显示诊断/配置",
     localFileTitle: "打开本地文件并在右侧预览（PDF / 图片 / Office / Markdown / 文本）",
+    /** 与 AppShell 全局快捷键 Ctrl+Alt+P 一致 */
+    localFileShortcutHint: "快捷键：Ctrl+Alt+P（已打开预览时关闭，否则选择本地文件）",
     localFileBtn: "本地文件…",
     tokenUsageLabel: "Token 用量",
     messagesFiltered: "本会话消息已按规则隐藏（含全部 <strong>system</strong> 行、审计表、路径清单、配置 JSON、仅元数据的助手回复等）。勾选「显示诊断/配置」可查看。",
