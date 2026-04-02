@@ -45,13 +45,15 @@ export interface PheromoneGraph {
 }
 
 const GRAPH_VERSION = "0.1.0";
-const DECAY_RATE = 0.97;        // per-day strength multiplier
+const DECAY_RATE = 0.97;
 const DORMANT_THRESHOLD = 0.05;
-const STRENGTH_GAIN = 0.06;     // per mention
+const STRENGTH_GAIN = 0.06;
 const MAX_TOPICS_PER_TURN = 6;
 const MAX_HOT_NODES = 12;
 const MAX_HOT_EDGES = 6;
-const INJECT_INTERVAL_RUNS = 5; // inject to AGENTS.md every N runs
+const INJECT_INTERVAL_RUNS = 5;
+const BRIDGE_WEIGHT_THRESHOLD = 2.5; // min edge weight for transitive bridging
+const BRIDGE_INITIAL_WEIGHT = 0.4;   // new bridge edge starts weak
 
 // ── Emotion detection ────────────────────────────────────────────────────────
 
@@ -105,7 +107,7 @@ export function detectEmotion(text: string): EmotionMode {
 
 // Common stop words to filter out of topic extraction
 const STOP_WORDS = new Set([
-  // English
+  // English — common verbs, articles, generic nouns
   "the","a","an","is","are","was","were","be","been","being","have","has","had",
   "do","does","did","will","would","shall","should","may","might","must","can",
   "could","i","you","he","she","it","we","they","me","him","her","us","them",
@@ -116,13 +118,26 @@ const STOP_WORDS = new Set([
   "of","on","to","up","with","from","into","about","like","also","then","than",
   "if","but","because","while","although","though","since","until","unless",
   "ok","okay","yes","no","hi","hello","thanks","thank","please","sorry","sure",
-  // Chinese
+  // Generic English verbs and words that pollute topics
+  "new","get","set","use","make","take","give","show","find","know","see","say",
+  "tell","ask","try","run","add","put","let","got","now","one","two","way","day",
+  "time","thing","things","good","bad","big","small","need","want","look","work",
+  "help","here","there","come","back","out","has","its","via","per","etc",
+  // Chinese — stop words + common fragments
   "的","了","在","是","我","你","他","她","它","们","这","那","有","和","就","不","也",
   "都","而","及","与","着","或","于","一个","可以","什么","怎么","如何","可能","应该",
   "需要","我们","你们","他们","因为","所以","但是","然后","如果","虽然","对于","关于",
   "通过","进行","使用","没有","一些","这些","那些","这个","那个","这里","那里","现在",
   "时候","好的","谢谢","请问","您好","对","嗯","吗","呢","啊","哦","哈","嗯嗯",
   "一下","一点","已经","还是","只是","其实","不是","还有","就是","来说","来看",
+  // Chinese question/quantity fragments
+  "哪些","哪里","哪个","哪种","多少","几个","几种","怎样","为何","为什么","什么样",
+  "有哪些","有什么","是什么","怎么办","如何做","可以吗","好吗","行吗","对吗",
+  // Chinese generic action words
+  "帮我","帮你","告诉","知道","觉得","认为","感觉","看看","说说","想想","试试",
+  "做到","做好","完成","实现","开始","继续","停止","修改","更新","添加","删除",
+  // Single common chars that slip through
+  "新","旧","大","小","多","少","快","慢","好","差","高","低","上","下","左","右",
 ]);
 
 function todayStr(): string {
@@ -302,6 +317,9 @@ export function updateGraph(
     if (g.trails.length > 20) g.trails.shift(); // keep last 20 trails
   }
 
+  // Transitive bridging: build A→C from A→B + B→C
+  applyTransitiveBridging(g);
+
   // Detect blocked points from user text
   const blocked = detectBlockedTopics(userText);
   for (const bTopic of blocked) {
@@ -316,6 +334,38 @@ export function updateGraph(
   }
 
   return g;
+}
+
+/**
+ * Transitive bridging: if A→B and B→C are both strong, create a weak A→C.
+ * Simulates the "chain association" cognitive pattern.
+ */
+function applyTransitiveBridging(g: PheromoneGraph): void {
+  const today = todayStr();
+  // Collect strong directed edges
+  const strong: [string, string][] = [];
+  for (const [key, e] of Object.entries(g.edges)) {
+    if (e.weight >= BRIDGE_WEIGHT_THRESHOLD) {
+      const [a, b] = key.split("→");
+      if (a && b) strong.push([a, b]);
+    }
+  }
+  // Build adjacency map for fast B lookup
+  const adj: Record<string, string[]> = {};
+  for (const [a, b] of strong) {
+    if (!adj[a]) adj[a] = [];
+    adj[a].push(b);
+  }
+  // A→B and B→C → create A→C if not already exists
+  for (const [a, b] of strong) {
+    for (const c of (adj[b] ?? [])) {
+      if (c === a) continue;
+      const bridgeKey = `${a}→${c}`;
+      if (!g.edges[bridgeKey]) {
+        g.edges[bridgeKey] = { weight: BRIDGE_INITIAL_WEIGHT, lastSeen: today };
+      }
+    }
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { usePheromoneStore } from "@/stores/pheromone";
 import { storeToRefs } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps<{ modelValue: boolean }>();
@@ -13,11 +13,14 @@ const { graph, loaded, lastError, runsSinceInject } = storeToRefs(store);
 
 watch(() => props.modelValue, (open) => {
   if (open && !loaded.value) store.load();
+  if (open && viewMode.value === "graph") setTimeout(startGraphLoop, 100);
+  if (!open) stopGraphLoop();
 }, { immediate: true });
 
 const injecting = ref(false);
 const resetting = ref(false);
 const injectDone = ref(false);
+const viewMode = ref<"list" | "graph">("list");
 
 const hotNodes = computed(() => store.topNodes(14));
 const hotEdges = computed(() => store.topEdges(8));
@@ -61,6 +64,134 @@ async function doReset(): Promise<void> {
   }
 }
 
+// ── Force-directed graph ────────────────────────────────────────────────────
+
+const canvasRef = ref<HTMLCanvasElement | null>(null);
+let animId = 0;
+
+interface FNode { id: string; x: number; y: number; vx: number; vy: number; strength: number; blocked?: boolean }
+interface FEdge { a: string; b: string; weight: number; bridge: boolean }
+
+function buildForceData() {
+  const nodes: FNode[] = store.topNodes(20).map(([id, n]) => ({
+    id, x: Math.random() * 400 + 80, y: Math.random() * 260 + 60,
+    vx: 0, vy: 0, strength: n.strength, blocked: n.blocked,
+  }));
+  const nodeIds = new Set(nodes.map(n => n.id));
+  const edges: FEdge[] = Object.entries(graph.value.edges)
+    .filter(([k]) => {
+      const [a, b] = k.split("→");
+      return nodeIds.has(a) && nodeIds.has(b);
+    })
+    .sort((a, b) => b[1].weight - a[1].weight)
+    .slice(0, 30)
+    .map(([k, e]) => {
+      const [a, b] = k.split("→");
+      return { a, b, weight: e.weight, bridge: e.weight < 1 };
+    });
+  return { nodes, edges };
+}
+
+function startGraphLoop() {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+  stopGraphLoop();
+  const ctx = canvas.getContext("2d")!;
+  const W = canvas.width = canvas.offsetWidth;
+  const H = canvas.height = canvas.offsetHeight;
+
+  const { nodes, edges } = buildForceData();
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+  function tick() {
+    // Repulsion
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+        const f = 3000 / (d * d);
+        a.vx -= (dx / d) * f; a.vy -= (dy / d) * f;
+        b.vx += (dx / d) * f; b.vy += (dy / d) * f;
+      }
+    }
+    // Spring attraction along edges
+    for (const e of edges) {
+      const a = nodeMap.get(e.a), b = nodeMap.get(e.b);
+      if (!a || !b) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+      const target = 120, f = (d - target) * 0.015;
+      a.vx += (dx / d) * f; a.vy += (dy / d) * f;
+      b.vx -= (dx / d) * f; b.vy -= (dy / d) * f;
+    }
+    // Center gravity + damping + clamp
+    for (const n of nodes) {
+      n.vx += (W / 2 - n.x) * 0.002;
+      n.vy += (H / 2 - n.y) * 0.002;
+      n.vx *= 0.85; n.vy *= 0.85;
+      n.x = Math.max(40, Math.min(W - 40, n.x + n.vx));
+      n.y = Math.max(30, Math.min(H - 30, n.y + n.vy));
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // Edges
+    for (const e of edges) {
+      const a = nodeMap.get(e.a), b = nodeMap.get(e.b);
+      if (!a || !b) continue;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = e.bridge
+        ? "rgba(99,102,241,0.25)"   // bridge edges: purple, faint
+        : `rgba(99,179,237,${Math.min(0.7, e.weight * 0.15 + 0.15)})`;
+      ctx.lineWidth = e.bridge ? 1 : Math.min(3, e.weight * 0.4 + 0.5);
+      ctx.setLineDash(e.bridge ? [4, 4] : []);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Nodes
+    for (const n of nodes) {
+      const r = Math.max(14, Math.min(28, n.strength * 32 + 12));
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = n.blocked
+        ? "rgba(245,158,11,0.85)"
+        : `rgba(99,179,237,${0.3 + n.strength * 0.55})`;
+      ctx.fill();
+      ctx.strokeStyle = n.blocked ? "#f59e0b" : "#63b3ed";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // Label
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = `${Math.max(10, Math.min(13, r * 0.75))}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const label = n.id.length > 6 ? n.id.slice(0, 6) + "…" : n.id;
+      ctx.fillText(label, n.x, n.y);
+    }
+  }
+
+  function frame() {
+    tick(); draw();
+    animId = requestAnimationFrame(frame);
+  }
+  animId = requestAnimationFrame(frame);
+}
+
+function stopGraphLoop() {
+  if (animId) { cancelAnimationFrame(animId); animId = 0; }
+}
+
+watch(viewMode, (v) => {
+  if (v === "graph") setTimeout(startGraphLoop, 60);
+  else stopGraphLoop();
+});
+
+onUnmounted(stopGraphLoop);
+
 function close(): void {
   emit("update:modelValue", false);
 }
@@ -77,11 +208,20 @@ function onKeydown(e: KeyboardEvent): void {
         <!-- Header -->
         <div class="ph-head">
           <h2 class="ph-title">{{ t("pheromone.title") }}</h2>
-          <button type="button" class="ph-close-btn" @click="close" :aria-label="t('common.close')">✕</button>
+          <div class="ph-head-right">
+            <div class="ph-view-toggle">
+              <button :class="['ph-toggle-btn', viewMode === 'list' && 'active']" @click="viewMode = 'list'">≡</button>
+              <button :class="['ph-toggle-btn', viewMode === 'graph' && 'active']" @click="viewMode = 'graph'">⬡</button>
+            </div>
+            <button type="button" class="ph-close-btn" @click="close" :aria-label="t('common.close')">✕</button>
+          </div>
         </div>
 
+        <!-- Graph view -->
+        <canvas v-if="viewMode === 'graph'" ref="canvasRef" class="ph-canvas" />
+
         <!-- Body -->
-        <div class="ph-scroll">
+        <div v-if="viewMode === 'list'" class="ph-scroll">
           <div v-if="!loaded" class="ph-empty">
             <span class="ph-dim">{{ t("pheromone.loading") }}</span>
           </div>
@@ -340,6 +480,42 @@ function onKeydown(e: KeyboardEvent): void {
 .ph-footer-note { font-size: 0.8em; margin-top: 4px; }
 
 /* Footer */
+.ph-canvas {
+  flex: 1;
+  width: 100%;
+  min-height: 320px;
+  display: block;
+  background: var(--lc-bg-elevated);
+}
+
+.ph-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ph-view-toggle {
+  display: flex;
+  border: 1px solid var(--lc-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ph-toggle-btn {
+  background: none;
+  border: none;
+  padding: 3px 10px;
+  cursor: pointer;
+  color: var(--lc-text-muted);
+  font-size: 14px;
+  transition: background 0.15s;
+}
+.ph-toggle-btn.active {
+  background: var(--lc-bg-elevated);
+  color: var(--lc-text);
+}
+.ph-toggle-btn:hover:not(.active) { background: var(--lc-hover); }
+
 .ph-foot {
   display: flex;
   justify-content: space-between;
