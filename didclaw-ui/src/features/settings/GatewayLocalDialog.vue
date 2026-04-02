@@ -18,6 +18,7 @@ import {
   stripProviderModelRefs,
   type OpenClawAiSnapshot,
 } from "@/lib/openclaw-ai-config";
+import { shouldPatchProviderApiKey } from "@/lib/ai-provider-write-policy";
 import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
 import { OPENCLAW_PROVIDER_ID_RE } from "@/lib/openclaw-provider-id";
 import { gatewayUrlFromEnv, useGatewayStore } from "@/stores/gateway";
@@ -80,6 +81,7 @@ const aiSnapshot = ref<OpenClawAiSnapshot>({
   fallbacks: [],
   modelRefs: [],
   imageGenerationModel: "",
+  envVars: {},
 });
 
 /** extra fields (api, authHeader, etc.) written alongside the provider — from preset or existing config */
@@ -380,11 +382,14 @@ async function onSaveProvider(): Promise<void> {
         : {};
   }
   const body: Record<string, unknown> = {
-    apiKey: pvApiKey.value.trim(),
     models,
     ...pvProviderExtras.value,
   };
   body[urlK] = pvBaseUrl.value.trim();
+  const keyTrim = pvApiKey.value.trim();
+  if (shouldPatchProviderApiKey(aiSnapshot.value, id, keyTrim)) {
+    body.apiKey = keyTrim;
+  }
 
   provBusy.value = true;
   try {

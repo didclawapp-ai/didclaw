@@ -10,17 +10,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Added
 
+- **Bundled workspace skills**: The `didclaw-ui/skills` tree is shipped in the app bundle (`tauri.conf.json` resources) and, on startup, any packaged skill folder that is not yet present under `~/.openclaw/workspace/skills` is copied there (existing folders are left untouched).
+- **Non-destructive OpenClaw writes (AI settings + gateway provider editor)**: Added `ai-provider-write-policy.ts` — **`env.vars`**: DidClaw only writes an env key when it is **empty** in `openclaw.json` (existing values from CLI or manual edits are left alone). **`providers.*.apiKey`**: patches include a new apiKey only when there was none, the stored key was masked, or the user entered a **different** real key; otherwise the merge updates models/baseUrl without overwriting credentials. Applies to main **AI settings** (including image-gen env sync and Zhipu `ZHIPU_API_KEY`) and **Gateway → Providers** save. `read_open_claw_ai_snapshot` continues to expose `envVars` for these checks.
+
 - **Keyboard shortcut for the right preview pane**: `Ctrl+Alt+P` closes the file preview when it is open; on desktop, when the preview is closed it opens the same local-file picker as the message toolbar button. The local file button tooltip mentions this shortcut.
 - **Keyboard shortcut for the left quick-actions sidebar**: `Ctrl+Alt+L` toggles the DidClaw tool sidebar open and closed (same as the left edge control).
 - **Composer keyboard icon**: Next to the “?” hint button, a keyboard icon shows a hover popover listing global shortcuts (`Ctrl+Alt+L`, `Ctrl+Alt+P`, session `Ctrl+Tab`).
 
 ### Fixed
 
+- **Pasted chat images: gateway could not resolve local files**: Attachments now include OpenClaw’s expected `path` field (in addition to `filePath`) when saving to `~/.openclaw/workspace/.attachments/`, and the user message text appends `[Attachment: <absolute path>]` lines so the model/tools can locate the file.
+
 - **KV_KEY_NOT_ALLOWED when OpenClaw update check runs**: `OpenClawUpdatePrompt` persists a 7-day deferral under `didclaw.openclawUpdate.firstSeen`; that key was missing from the SQLite KV allowlist (`didclaw_db.rs` / `didclaw-kv.ts`), causing unhandled IPC rejections in the dev console.
 
 - **Chat image attachments blocked by ACL**: Added `save_chat_attachment` to `permissions/didclaw.toml` so the desktop shell allows saving pasted/dropped images before send (fixes `Command save_chat_attachment not allowed by ACL`).
 
 ### Changed
+
+- **`write_open_claw_env` targets `env.vars`**: Environment patches from DidClaw (image plugins, Zhipu key, etc.) now merge into `openclaw.json` → `env.vars`. Legacy flat string keys previously stored directly under `env` are migrated into `env.vars` on the next write.
 
 - **Left quick-actions toolbar opens on click, not hover**: The slim edge strip no longer expands the sidebar after a hover delay (which fired when the cursor merely passed along the left edge). Users open it with an explicit click; the strip shows a light hover tint and supports keyboard focus.
 

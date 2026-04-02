@@ -10,8 +10,10 @@ export type GatewayChatAttachmentPayload = {
   mimeType: string;
   fileName: string;
   content: string;
-  /** Desktop: absolute path to the saved file; gateway reads by path when present */
+  /** Desktop: absolute path to the saved file (legacy client field) */
   filePath?: string;
+  /** OpenClaw gateway expects `path` for local file refs (same as filePath when saved on disk) */
+  path?: string;
 };
 
 /** Thrown when a file is not a supported image (e.g. PDF picked as “maybe image”). */
@@ -75,12 +77,13 @@ export async function buildImageAttachmentPayload(
   if (api?.saveChatAttachment) {
     const content = await readFileAsBase64Content(f);
     const res = await api.saveChatAttachment(content, f.name || "image.png");
-    if (res.ok) {
+    if (res.ok && typeof res.path === "string" && res.path.length > 0) {
       return {
         type: "image",
         mimeType: f.type || "image/png",
         fileName: f.name || "image",
         filePath: res.path,
+        path: res.path,
         content: "",
       };
     }
@@ -94,4 +97,20 @@ export async function buildImageAttachmentPayload(
     fileName: f.name || "image",
     content,
   };
+}
+
+/** Append lines so the model / tools see absolute paths (gateway uses `path` on attachments; text helps agents that read the user message). */
+export function appendLocalAttachmentPathsToMessage(
+  message: string,
+  attachments: GatewayChatAttachmentPayload[],
+): string {
+  const paths = attachments
+    .map((a) => a.path ?? a.filePath)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
+  if (paths.length === 0) {
+    return message;
+  }
+  const block = paths.map((p) => `[Attachment: ${p}]`).join("\n");
+  const t = message.trim();
+  return t ? `${t}\n\n${block}` : block;
 }

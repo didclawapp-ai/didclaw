@@ -1,0 +1,11 @@
+{
+  "owner": "jaredforreal",
+  "slug": "glmocr-formula",
+  "displayName": "GLM-OCR-Formula",
+  "latest": {
+    "version": "1.0.3",
+    "publishedAt": 1773977310037,
+    "commit": "https://github.com/openclaw/skills/commit/2d9f03a3736defff61a395b12a7e480b3093d2e1"
+  },
+  "history": []
+}

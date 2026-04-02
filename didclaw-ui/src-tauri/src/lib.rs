@@ -27,6 +27,7 @@ mod preview_local;
 mod skills;
 mod setup_status;
 mod workspace_identity;
+mod bundled_skills;
 
 #[cfg(not(debug_assertions))]
 mod static_server;
@@ -127,6 +128,8 @@ pub fn run() {
                     "openclaw: 启动时合并 allowedOrigins 未成功（可忽略）: {e}"
                 ));
             }
+
+            bundled_skills::sync_bundled_workspace_skills(app.handle());
 
             #[cfg(not(debug_assertions))]
             {

@@ -1,0 +1,11 @@
+{
+  "owner": "jaredforreal",
+  "slug": "glmocr-handwriting",
+  "displayName": "GLM-OCR-Handwriting",
+  "latest": {
+    "version": "1.0.3",
+    "publishedAt": 1773977276178,
+    "commit": "https://github.com/openclaw/skills/commit/4535d71ca34d6268cd1193f267fcd355548ea361"
+  },
+  "history": []
+}

@@ -130,10 +130,12 @@ interface DidClawElectronApi {
         primaryModel: string;
         fallbacks: string[];
         modelRefs: string[];
+        /** openclaw.json env.vars (subset; string values) */
+        envVars?: Record<string, unknown>;
       }
     | { ok: false; error: string }
   >;
-  /** Patch `env` section in openclaw.json. Null values remove the key. */
+  /** Patch `env.vars` in openclaw.json (gateway process env). Null values remove the key. */
   writeOpenClawEnv?(payload: {
     patch: Record<string, string | null>;
   }): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string }>;

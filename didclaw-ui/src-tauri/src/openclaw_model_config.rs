@@ -220,8 +220,35 @@ pub fn write_open_claw_model_config(payload: Value) -> Value {
     }
 }
 
-/// Patch `env` section in `openclaw.json`.
-/// `patch` keys with `null` values are removed; string values are set.
+/// Move legacy flat string keys from `env` into `env.vars` (OpenClaw injects process env from `env.vars`).
+fn migrate_legacy_env_strings_into_vars(env: &mut Map<String, Value>) {
+    let mut moves: Vec<(String, Value)> = Vec::new();
+    for (k, v) in env.iter() {
+        if k == "vars" {
+            continue;
+        }
+        if v.is_string() {
+            moves.push((k.clone(), v.clone()));
+        }
+    }
+    for (k, _) in &moves {
+        env.remove(k);
+    }
+    if moves.is_empty() {
+        return;
+    }
+    let vars = env
+        .entry("vars".to_string())
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .unwrap();
+    for (k, v) in moves {
+        vars.insert(k, v);
+    }
+}
+
+/// Patch `env.vars` in `openclaw.json` (process environment for the gateway).
+/// `patch` keys with `null` values are removed; string values are set under `env.vars`.
 pub fn write_open_claw_env(payload: Value) -> Value {
     let patch_obj = match payload.get("patch").and_then(|v| v.as_object()) {
         Some(o) => o,
@@ -260,20 +287,28 @@ pub fn write_open_claw_env(payload: Value) -> Value {
         root_map.insert("env".into(), json!({}));
     }
     let env = root_map.get_mut("env").unwrap().as_object_mut().unwrap();
+    migrate_legacy_env_strings_into_vars(env);
+
+    if !env.get("vars").map(|v| v.is_object()).unwrap_or(false) {
+        env.insert("vars".into(), json!({}));
+    }
+    let vars = env.get_mut("vars").unwrap().as_object_mut().unwrap();
 
     for (k, v) in patch_obj {
         if v.is_null() {
-            env.remove(k);
+            vars.remove(k);
         } else if let Some(s) = v.as_str() {
             if s.is_empty() {
-                env.remove(k);
+                vars.remove(k);
             } else {
-                env.insert(k.clone(), json!(s));
+                vars.insert(k.clone(), json!(s));
             }
         }
     }
 
-    // Remove the env object entirely if empty to keep config clean
+    if vars.is_empty() {
+        env.remove("vars");
+    }
     if env.is_empty() {
         root_map.remove("env");
     }

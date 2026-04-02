@@ -11,6 +11,10 @@ import {
   type OpenClawAiSnapshot,
 } from "@/lib/openclaw-ai-config";
 import {
+  shouldPatchProviderApiKey,
+  shouldWriteEnvVar,
+} from "@/lib/ai-provider-write-policy";
+import {
   findCatalogEntry,
   IMAGE_GEN_CATALOG,
   type ImageGenCatalogEntry,
@@ -34,6 +38,7 @@ const aiSnapshot = ref<OpenClawAiSnapshot>({
   fallbacks: [],
   modelRefs: [],
   imageGenerationModel: "",
+  envVars: {},
 });
 const fallbackModels = ref<string[]>([]);
 const fallbackInput = ref("");
@@ -314,9 +319,11 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
     };
     const keyToWrite = editingKey.value.trim();
     // Reject masked placeholder values (e.g. "sk-a****") returned by the read API
-    const isRealKey = keyToWrite && !keyToWrite.endsWith("****");
+    const isRealKey = Boolean(keyToWrite && !keyToWrite.endsWith("****"));
     if (view.apiKeyRequired || isRealKey) {
-      if (isRealKey) providerBody.apiKey = keyToWrite;
+      if (isRealKey && shouldPatchProviderApiKey(aiSnapshot.value, view.id, keyToWrite)) {
+        providerBody.apiKey = keyToWrite;
+      }
     }
 
     const pr = await api.writeOpenClawProvidersPatch({ patch: { [view.id]: providerBody } });
@@ -350,12 +357,17 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
     }
 
     // If this provider has image generation capability, also sync the env var
-    // so image generation plugins can find the key without manual setup
-    const savedKey = editingKey.value.trim();
-    if (savedKey && view.catalog?.imageModels?.length && api.writeOpenClawEnv) {
+    // so image generation plugins can find the key without manual setup.
+    // Only use a confirmed real key (not a masked placeholder).
+    if (isRealKey && view.catalog?.imageModels?.length && api.writeOpenClawEnv) {
       const imgEntry = IMAGE_GEN_CATALOG.find((e) => e.providerId === view.id);
-      if (imgEntry) {
-        await api.writeOpenClawEnv({ patch: { [imgEntry.envKey]: savedKey } });
+      if (imgEntry && shouldWriteEnvVar(aiSnapshot.value, imgEntry.envKey, keyToWrite)) {
+        await api.writeOpenClawEnv({ patch: { [imgEntry.envKey]: keyToWrite } });
+      }
+    }
+    if (isRealKey && view.id === "zai" && api.writeOpenClawEnv) {
+      if (shouldWriteEnvVar(aiSnapshot.value, "ZHIPU_API_KEY", keyToWrite)) {
+        await api.writeOpenClawEnv({ patch: { ZHIPU_API_KEY: keyToWrite } });
       }
     }
 
@@ -411,6 +423,9 @@ async function removeProvider(view: OpenClawAiProviderView) {
       if (imgEntry) {
         await api.writeOpenClawEnv({ patch: { [imgEntry.envKey]: null } });
       }
+    }
+    if (view.id === "zai" && api.writeOpenClawEnv) {
+      await api.writeOpenClawEnv({ patch: { ZHIPU_API_KEY: null } });
     }
 
     await loadAll();
@@ -471,9 +486,13 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
         ...(provEntry?.baseUrl ? { baseUrl: provEntry.baseUrl } : {}),
         ...(provEntry?.extras ?? {}),
         ...existing,
-        apiKey: keyTrimmed,
         models,
       };
+      // Remove any masked placeholder spread from `existing` before policy check.
+      delete providerPatch.apiKey;
+      if (shouldPatchProviderApiKey(aiSnapshot.value, entry.providerId, keyTrimmed)) {
+        providerPatch.apiKey = keyTrimmed;
+      }
       await api.writeOpenClawProvidersPatch({
         patch: { [entry.providerId]: providerPatch },
       });
@@ -497,7 +516,7 @@ async function applyImageGen(entry: ImageGenCatalogEntry) {
       const stored = typeof pd?.apiKey === "string" ? pd.apiKey : "";
       return stored.endsWith("****") ? "" : stored;
     })();
-    if (resolvedKey && api.writeOpenClawEnv) {
+    if (resolvedKey && api.writeOpenClawEnv && shouldWriteEnvVar(aiSnapshot.value, entry.envKey, resolvedKey)) {
       await api.writeOpenClawEnv({ patch: { [entry.envKey]: resolvedKey } });
     }
 

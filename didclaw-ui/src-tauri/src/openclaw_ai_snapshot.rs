@@ -1,5 +1,28 @@
 use serde_json::{json, Map, Value};
 use std::collections::BTreeSet;
+use std::fs;
+
+fn read_env_vars_from_openclaw_config() -> Map<String, Value> {
+    let path = match crate::openclaw_common::openclaw_config_path() {
+        Ok(p) => p,
+        Err(_) => return Map::new(),
+    };
+    let raw = match fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return Map::new(),
+    };
+    let root: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => return Map::new(),
+    };
+    let Some(env) = root.get("env").and_then(|v| v.as_object()) else {
+        return Map::new();
+    };
+    env.get("vars")
+        .and_then(|v| v.as_object())
+        .cloned()
+        .unwrap_or_default()
+}
 
 fn as_object_clone(value: Option<&Value>) -> Map<String, Value> {
     value
@@ -96,6 +119,8 @@ pub fn read_open_claw_ai_snapshot() -> Value {
         model_refs.insert(item.clone());
     }
 
+    let env_vars = read_env_vars_from_openclaw_config();
+
     json!({
         "ok": true,
         "defaultAgentId": providers_raw
@@ -108,5 +133,6 @@ pub fn read_open_claw_ai_snapshot() -> Value {
         "primaryModel": primary_model,
         "fallbacks": fallbacks,
         "modelRefs": model_refs.into_iter().collect::<Vec<_>>(),
+        "envVars": Value::Object(env_vars),
     })
 }

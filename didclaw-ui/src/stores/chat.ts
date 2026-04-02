@@ -1,6 +1,7 @@
 import type { GatewayEventFrame } from "@/features/gateway/gateway-types";
 import { chatEventPayloadSchema, chatHistoryResponseSchema } from "@/features/gateway/schemas";
 import {
+  appendLocalAttachmentPathsToMessage,
   buildImageAttachmentPayload,
   NotChatImageAttachmentError,
   type GatewayChatAttachmentPayload,
@@ -492,6 +493,7 @@ export const useChatStore = defineStore("chat", () => {
     if (!message.trim() && attachmentsPayload.length > 0) {
       message = "（图片附件）";
     }
+    message = appendLocalAttachmentPathsToMessage(message, attachmentsPayload);
     if (!message.trim()) {
       return;
     }
