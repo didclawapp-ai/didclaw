@@ -33,6 +33,7 @@ export interface PheromoneGraph {
   nodes: Record<string, PheromoneNode>;
   edges: Record<string, PheromoneEdge>;  // "A→B"
   blockedPoints: BlockedPoint[];
+  recentEmotions?: EmotionMode[];        // last N emotion readings
 }
 
 const GRAPH_VERSION = "0.1.0";
@@ -43,6 +44,56 @@ const MAX_TOPICS_PER_TURN = 6;
 const MAX_HOT_NODES = 12;
 const MAX_HOT_EDGES = 6;
 const INJECT_INTERVAL_RUNS = 5; // inject to AGENTS.md every N runs
+
+// ── Emotion detection ────────────────────────────────────────────────────────
+
+/** A = angry/focused, B = happy/expansive, C = sad/ruminant, N = neutral */
+export type EmotionMode = "A" | "B" | "C" | "N";
+
+/** Regex-based emotion signals. Designed for mixed Chinese/English chat text. */
+const EMOTION_SIGNALS: Record<Exclude<EmotionMode, "N">, RegExp[]> = {
+  // Angry: isolating mode — narrow focus, high intensity
+  A: [
+    /！{2,}/,                                          // multiple !!
+    /[草操艹尼玛妈的滚]/,                               // common angry chars
+    /(?:烦死|气死|蠢|傻|垃圾|什么破|搞什么|凭什么|为什么非要)/,
+    /(?:fuck|damn|shit|wtf|stupid|idiot|ridiculous|annoying|hate)/i,
+    /[A-Z]{4,}/,                                       // ALL CAPS WORD
+  ],
+  // Happy: expansive mode — more associations, lower threshold
+  B: [
+    /哈{2,}/,                                          // 哈哈哈
+    /(?:666|牛[啊哦!！]?|太好了|太棒了|完美|太爽|嘿嘿|耶|撒花)/,
+    /(?:awesome|great|excellent|amazing|wonderful|perfect|haha|lol|yay|nice)/i,
+    /[😊🎉✓👍🎊]/u,
+    /(?:可以了|正好|搞定了|成了|终于)/,
+  ],
+  // Sad/郁闷: ruminant mode — loops on existing nodes, few new ones
+  C: [
+    /(?:唉|哎|呜|唔)[^哈]*/,
+    /(?:算了|没意思|好累|烦躁|郁闷|难过|不想|放弃|搞不定|不知道咋办)/,
+    /\.{3,}|…{2,}/,                                    // many ellipsis
+    /(?:sigh|tired|frustrated|depressed|sad|whatever|meh|hopeless)/i,
+    /(?:怎么办|没有用|没用|失败了|又失败)/,
+  ],
+};
+
+/**
+ * Detect the dominant emotion mode from a user message.
+ * Returns the first mode that accumulates ≥2 signal matches, or "N".
+ */
+export function detectEmotion(text: string): EmotionMode {
+  if (!text || text.trim().length < 2) return "N";
+  const scores: Record<Exclude<EmotionMode, "N">, number> = { A: 0, B: 0, C: 0 };
+  for (const mode of ["A", "B", "C"] as const) {
+    for (const re of EMOTION_SIGNALS[mode]) {
+      if (re.test(text)) scores[mode]++;
+    }
+  }
+  // Need at least 2 matching signals to classify; otherwise neutral
+  const winner = (["A", "B", "C"] as const).find((m) => scores[m] >= 2);
+  return winner ?? "N";
+}
 
 // Common stop words to filter out of topic extraction
 const STOP_WORDS = new Set([
@@ -149,6 +200,11 @@ export function emptyGraph(): PheromoneGraph {
 
 /**
  * Update the graph after a completed conversation turn.
+ * Emotion mode shapes how nodes and edges are updated:
+ *   A (angry)  — isolating: focus node gets ×3 boost, edge creation suppressed
+ *   B (happy)  — expansive: all gains boosted, weak edges also created
+ *   C (sad)    — ruminant:  existing edges reinforced, new node creation suppressed
+ *   N (neutral)— default linear update
  */
 export function updateGraph(
   graph: PheromoneGraph,
@@ -157,21 +213,33 @@ export function updateGraph(
 ): PheromoneGraph {
   const today = todayStr();
   const g: PheromoneGraph = JSON.parse(JSON.stringify(graph));
+  const emotion = detectEmotion(userText);
 
   const userTopics = extractTopics(userText);
   const assistantTopics = extractTopics(assistantText);
-  // Union; user topics weighted slightly higher
   const allTopics = [...new Set([...userTopics, ...assistantTopics])].slice(0, MAX_TOPICS_PER_TURN);
 
+  // Emotion-driven multipliers
+  // A: first user topic gets ×3, rest suppressed; B: all ×1.5; C: existing only, ×1.0
+  const nodeGainMultiplier = (topic: string, idx: number): number => {
+    if (emotion === "A") return idx === 0 ? 3.0 : 0.2;  // isolate on first topic
+    if (emotion === "B") return 1.5;                     // expansive
+    if (emotion === "C") return g.nodes[topic] ? 1.0 : 0; // ruminant: no new nodes
+    return 1.0;
+  };
+
   // Update nodes
-  for (const topic of allTopics) {
+  allTopics.forEach((topic, idx) => {
+    const mult = nodeGainMultiplier(topic, idx);
+    if (mult === 0) return; // C mode suppresses new node creation
+
     const existing = g.nodes[topic];
+    const gain = STRENGTH_GAIN * mult;
     if (existing) {
       existing.count += 1;
-      existing.strength = Math.min(1.0, existing.strength + STRENGTH_GAIN);
+      existing.strength = Math.min(1.0, existing.strength + gain);
       existing.lastSeen = today;
       existing.dormant = false;
-      // Heuristic: depth increases if topic appears in both user and assistant output
       if (userTopics.includes(topic) && assistantTopics.includes(topic)) {
         existing.depth = Math.min(5, existing.depth + 0.2);
       }
@@ -179,25 +247,39 @@ export function updateGraph(
       g.nodes[topic] = {
         count: 1,
         lastSeen: today,
-        strength: STRENGTH_GAIN,
+        strength: gain,
         depth: userTopics.includes(topic) ? 2 : 1,
       };
     }
-  }
+  });
 
-  // Update edges (all pairs among user topics)
+  // Update edges
+  // A: suppress new edges (focused, not associating)
+  // B: create edges even for weak pairs
+  // C: reinforce existing edges ×1.5, no new ones
   for (let i = 0; i < userTopics.length; i++) {
     for (let j = i + 1; j < userTopics.length; j++) {
       const key = `${userTopics[i]}→${userTopics[j]}`;
       const e = g.edges[key];
+      if (emotion === "A") continue; // no new associations when angry
+      if (emotion === "C") {
+        if (e) { e.weight += 1.5; e.lastSeen = today; } // reinforce only existing
+        continue;
+      }
+      // N and B: create or update
       if (e) {
-        e.weight += 1;
+        e.weight += emotion === "B" ? 1.5 : 1;
         e.lastSeen = today;
       } else {
         g.edges[key] = { weight: 1, lastSeen: today };
       }
     }
   }
+
+  // Record emotion (keep last 10)
+  if (!g.recentEmotions) g.recentEmotions = [];
+  g.recentEmotions.push(emotion);
+  if (g.recentEmotions.length > 10) g.recentEmotions.shift();
 
   // Detect blocked points from user text
   const blocked = detectBlockedTopics(userText);
@@ -208,7 +290,6 @@ export function updateGraph(
         context: userText.slice(0, 80).trim(),
         since: today,
       });
-      // Mark node as blocked if it exists
       if (g.nodes[bTopic]) g.nodes[bTopic].blocked = true;
     }
   }
@@ -291,6 +372,20 @@ export function generateMemorySection(graph: PheromoneGraph): string {
     for (const b of activeBlocked) {
       lines.push(`- **${b.node}**: ${b.context.slice(0, 60)}…`);
     }
+  }
+
+  // Emotion summary
+  const emotions = graph.recentEmotions ?? [];
+  if (emotions.length > 0) {
+    const counts = { A: 0, B: 0, C: 0, N: 0 };
+    for (const e of emotions) counts[e]++;
+    const dominant = (["A","B","C","N"] as EmotionMode[])
+      .sort((a, b) => counts[b as keyof typeof counts] - counts[a as keyof typeof counts])[0];
+    const moodLabel: Record<EmotionMode, string> = {
+      A: "focused/intense (A)", B: "expansive/positive (B)",
+      C: "ruminant/low-energy (C)", N: "neutral (N)",
+    };
+    lines.push("", `### Recent Mood Tendency`, `- ${moodLabel[dominant]} across last ${emotions.length} turns`);
   }
 
   lines.push(
