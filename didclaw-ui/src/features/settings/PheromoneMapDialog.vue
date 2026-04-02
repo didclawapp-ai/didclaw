@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { usePheromoneStore } from "@/stores/pheromone";
 import { storeToRefs } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
-defineProps<{ modelValue: boolean }>();
+const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ "update:modelValue": [v: boolean] }>();
 
 const { t } = useI18n();
 const store = usePheromoneStore();
 const { graph, loaded, lastError, runsSinceInject } = storeToRefs(store);
+
+watch(() => props.modelValue, (open) => {
+  if (open && !loaded.value) store.load();
+}, { immediate: true });
 
 const injecting = ref(false);
 const resetting = ref(false);
@@ -190,23 +194,23 @@ function onKeydown(e: KeyboardEvent): void {
 .ph-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 2000;
-  background: rgba(0, 0, 0, 0.45);
+  z-index: 12000;
+  background: rgba(15, 23, 42, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .ph-panel {
-  background: var(--lc-bg);
+  background: var(--lc-surface-panel);
   border: 1px solid var(--lc-border);
-  border-radius: 10px;
+  border-radius: var(--lc-radius-sm);
   width: 560px;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--lc-shadow-sm);
 }
 
 /* Header */
@@ -252,8 +256,8 @@ function onKeydown(e: KeyboardEvent): void {
   gap: 16px;
   flex-wrap: wrap;
   padding: 10px 12px;
-  background: var(--lc-surface);
-  border-radius: 6px;
+  background: var(--lc-bg-elevated);
+  border-radius: var(--lc-radius-sm);
 }
 .ph-stat { display: flex; flex-direction: column; gap: 2px; }
 .ph-stat strong { font-size: 1.05em; }
@@ -269,7 +273,7 @@ function onKeydown(e: KeyboardEvent): void {
   padding: 3px 6px;
   border-radius: 4px;
 }
-.ph-node-row:hover { background: var(--lc-hover); }
+.ph-node-row:hover { background: var(--lc-bg-elevated); }
 .ph-topic { flex: 1; font-size: 0.92em; font-weight: 500; }
 .ph-bars { font-family: monospace; letter-spacing: 1px; font-size: 0.82em; }
 .strength-high { color: #22c55e; }
@@ -286,7 +290,7 @@ function onKeydown(e: KeyboardEvent): void {
   border-radius: 4px;
   font-size: 0.88em;
 }
-.ph-edge-row:hover { background: var(--lc-hover); }
+.ph-edge-row:hover { background: var(--lc-bg-elevated); }
 .ph-edge-weight { min-width: 30px; text-align: right; }
 
 .ph-blocked-list { display: flex; flex-direction: column; gap: 4px; }
@@ -323,15 +327,15 @@ function onKeydown(e: KeyboardEvent): void {
 
 .ph-btn {
   padding: 5px 14px;
-  border-radius: 6px;
+  border-radius: var(--lc-radius-sm);
   border: 1px solid var(--lc-border);
-  background: var(--lc-bg);
+  background: var(--lc-bg-raised);
   color: var(--lc-text);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s;
 }
-.ph-btn:hover:not(:disabled) { background: var(--lc-hover); }
+.ph-btn:hover:not(:disabled) { background: var(--lc-bg-elevated); }
 .ph-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .ph-btn-primary {
   background: var(--lc-accent, #2563eb);

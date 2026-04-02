@@ -156,7 +156,7 @@ export function updateGraph(
   assistantText: string,
 ): PheromoneGraph {
   const today = todayStr();
-  const g: PheromoneGraph = structuredClone(graph);
+  const g: PheromoneGraph = JSON.parse(JSON.stringify(graph));
 
   const userTopics = extractTopics(userText);
   const assistantTopics = extractTopics(assistantText);
@@ -222,7 +222,7 @@ export function updateGraph(
  */
 export function applyDecay(graph: PheromoneGraph): PheromoneGraph {
   const today = todayStr();
-  const g: PheromoneGraph = structuredClone(graph);
+  const g: PheromoneGraph = JSON.parse(JSON.stringify(graph));
   const daysSinceLast = daysBetween(g.lastDecay, today);
 
   if (daysSinceLast === 0) return g;
