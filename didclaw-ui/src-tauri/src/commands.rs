@@ -895,3 +895,21 @@ pub fn save_chat_attachment(base64_data: String, file_name: String) -> Result<Va
 
     Ok(json!({ "ok": true, "path": path_str }))
 }
+
+#[tauri::command]
+pub fn read_pheromone_graph() -> Result<serde_json::Value, String> {
+    crate::pheromone::read_pheromone_graph()
+}
+
+#[tauri::command]
+pub fn write_pheromone_graph(graph: serde_json::Value) -> Result<(), String> {
+    crate::pheromone::write_pheromone_graph(graph)
+}
+
+#[tauri::command]
+pub fn inject_pheromone_agents_md(
+    content: String,
+    agent_id: Option<String>,
+) -> Result<(), String> {
+    crate::pheromone::inject_pheromone_agents_md(content, agent_id)
+}

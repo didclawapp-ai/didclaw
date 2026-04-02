@@ -89,6 +89,10 @@ function tauriApi(): DidClawElectronApi {
       invoke("start_channel_qr_flow", { channel, gatewayUrl, flowId }),
     saveChatAttachment: (base64Data, fileName) =>
       invoke("save_chat_attachment", { base64Data, fileName }),
+    readPheromoneGraph: () => invoke("read_pheromone_graph"),
+    writePheromoneGraph: (graph) => invoke("write_pheromone_graph", { graph }),
+    injectPheromoneAgentsMd: (content, agentId) =>
+      invoke("inject_pheromone_agents_md", { content, agentId: agentId ?? null }),
     quitApp: () => invoke("quit_app"),
     readOpenClawToolsProfile: () => invoke("read_open_claw_tools_profile"),
     writeOpenClawToolsProfile: (profile) => invoke("write_open_claw_tools_profile", { profile }),

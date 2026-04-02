@@ -28,6 +28,7 @@ mod skills;
 mod setup_status;
 mod workspace_identity;
 mod bundled_skills;
+mod pheromone;
 
 #[cfg(not(debug_assertions))]
 mod static_server;
@@ -256,6 +257,9 @@ pub fn run() {
             commands::set_global_shortcut_key,
             commands::didclaw_set_app_locale,
             commands::save_chat_attachment,
+            commands::read_pheromone_graph,
+            commands::write_pheromone_graph,
+            commands::inject_pheromone_agents_md,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

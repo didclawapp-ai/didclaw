@@ -318,6 +318,11 @@ interface DidClawElectronApi {
     base64Data: string,
     fileName: string,
   ): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
+  /** Pheromone memory graph — read/write ~/.openclaw/didclaw-pheromone.json */
+  readPheromoneGraph?(): Promise<unknown>;
+  writePheromoneGraph?(graph: unknown): Promise<void>;
+  /** Inject pheromone memory section into AGENTS.md */
+  injectPheromoneAgentsMd?(content: string, agentId?: string): Promise<void>;
 }
 
 interface Window {

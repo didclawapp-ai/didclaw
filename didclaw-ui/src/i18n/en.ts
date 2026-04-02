@@ -1374,4 +1374,23 @@ export default {
     noTextField: "No common text fields",
     noTextBody: "no text body",
   },
+
+  // ─── Pheromone memory map ──────────────────────────────
+  pheromone: {
+    title: "Cognitive Map (Experimental)",
+    loading: "Loading memory graph…",
+    topics: "topics",
+    edges: "associations",
+    dormant: "dormant",
+    lastDecay: "last decay",
+    hotTopics: "Frequent Topics",
+    associations: "Common Associations",
+    blocked: "Knowledge Boundaries",
+    noData: "Not enough data yet — keep chatting!",
+    injectNote: "{runs} runs since last AGENTS.md update (auto-injects every 5 runs)",
+    injected: "Injected to AGENTS.md",
+    injectNow: "Inject to Memory",
+    reset: "Reset Graph",
+    resetConfirm: "Reset the entire cognitive map? This cannot be undone.",
+  },
 } as const;

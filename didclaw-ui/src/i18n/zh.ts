@@ -1373,4 +1373,23 @@ export default {
     noTextField: "无常用文本字段",
     noTextBody: "无文本正文",
   },
+
+  // ─── 信息素认知地图 ────────────────────────────────────
+  pheromone: {
+    title: "认知地图（实验性）",
+    loading: "加载记忆图谱中…",
+    topics: "个话题",
+    edges: "条关联",
+    dormant: "个休眠",
+    lastDecay: "上次衰减",
+    hotTopics: "常用话题",
+    associations: "常见关联",
+    blocked: "已知阻断点",
+    noData: "数据还不够 — 多聊几轮就有了！",
+    injectNote: "距上次写入 AGENTS.md 已有 {runs} 轮（每 5 轮自动写入）",
+    injected: "已写入 AGENTS.md",
+    injectNow: "立即写入记忆",
+    reset: "重置图谱",
+    resetConfirm: "确定要重置整个认知地图吗？此操作无法撤销。",
+  },
 } as const;

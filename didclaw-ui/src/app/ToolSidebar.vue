@@ -8,6 +8,7 @@ import ChannelSetupDialog from "@/features/settings/ChannelSetupDialog.vue";
 import GatewayLocalDialog from "@/features/settings/GatewayLocalDialog.vue";
 import GeneralSettingsDialog from "@/features/settings/GeneralSettingsDialog.vue";
 import UsageStatsDialog from "@/features/settings/UsageStatsDialog.vue";
+import PheromoneMapDialog from "@/features/settings/PheromoneMapDialog.vue";
 import SkillsManagerDialog from "@/features/skills/SkillsManagerDialog.vue";
 import { buildDiagnosticsSnapshot, diagnosticsToPrettyJson } from "@/lib/diagnostics";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
@@ -41,6 +42,7 @@ const doctorDialogOpen = ref(false);
 const backupDialogOpen = ref(false);
 const generalSettingsOpen = ref(false);
 const usageStatsOpen = ref(false);
+const pheromoneMapOpen = ref(false);
 const copiedDiag = ref(false);
 const restartGatewayBusy = ref(false);
 const checkUpdateBusy = ref(false);
@@ -311,6 +313,20 @@ function onRedoFirstRunWizard(): void {
           <span class="ts-label">{{ t('usageStats.menuBtn') }}</span>
         </button>
       </li>
+      <li>
+        <button type="button" class="ts-item" @click="pheromoneMapOpen = true">
+          <span class="ts-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="4" cy="8" r="2" />
+              <circle cx="12" cy="4" r="1.5" />
+              <circle cx="12" cy="12" r="1.5" />
+              <line x1="6" y1="7" x2="10.5" y2="4.8" />
+              <line x1="6" y1="9" x2="10.5" y2="11.2" />
+            </svg>
+          </span>
+          <span class="ts-label">{{ t('pheromone.title') }}</span>
+        </button>
+      </li>
 
       <!-- System group (desktop only) -->
       <template v-if="isDidClawElectron()">
@@ -430,6 +446,7 @@ function onRedoFirstRunWizard(): void {
   <ChannelSetupDialog v-model="channelDialogOpen" />
   <GeneralSettingsDialog v-model="generalSettingsOpen" />
   <UsageStatsDialog v-model="usageStatsOpen" />
+  <PheromoneMapDialog v-model="pheromoneMapOpen" />
 </template>
 
 <style scoped>
