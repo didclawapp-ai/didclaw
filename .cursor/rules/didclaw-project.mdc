@@ -37,6 +37,13 @@ alwaysApply: true
 - **合并前自检**：在客户端目录执行 `pnpm run lint`、`pnpm run typecheck`；涉及 Tauri 时确认 `src-tauri` 能编译。
 - **契约优先**：与 Gateway / HTTP 的字段、错误码、鉴权方式以 `docs/` 与双方代码为准；改契约要同步文档与调用方。
 
+## 实验性功能分支
+
+- **凡未确定纳入正式发版的探索性功能，必须在独立分支上开发**，命名格式：`experiment/<feature-name>`（例：`experiment/pheromone-memory`）。
+- 实验分支**不合并到 `main`**，除非经过充分验证并明确决定正式收录。
+- 实验分支可推送到远程（方便备份与协作），但**不触发版本号变更，不写入 `CHANGELOG.md`**；提交说明注明 `[experiment]` 前缀即可。
+- 当前活跃实验分支：`experiment/pheromone-memory`（信息素记忆系统，认知热图功能）。
+
 ## Git 与保密
 
 - 提交信息用**完整、可读的句子**（统一用**英文**，与 CHANGELOG 保持一致），说明「改了什么、为什么」。
