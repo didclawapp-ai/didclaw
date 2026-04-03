@@ -49,6 +49,9 @@ export const useLiveEditStore = defineStore("liveEdit", () => {
   const pendingPatches = ref<LiveEditPendingPatch[]>([]);
   const applyBusyId = ref<string | null>(null);
   const diffHashesSeen = ref<Set<string>>(new Set());
+  /** Throttle full-text scan during streaming (patches appear once a fence closes). */
+  let lastStreamIngestAtMs = 0;
+  const STREAM_PATCH_SCAN_INTERVAL_MS = 150;
 
   function setExperimental(on: boolean): void {
     experimentalEnabled.value = on;
@@ -80,13 +83,14 @@ export const useLiveEditStore = defineStore("liveEdit", () => {
   function onActiveSessionChanged(): void {
     pendingPatches.value = [];
     diffHashesSeen.value = new Set();
+    lastStreamIngestAtMs = 0;
   }
 
   function enqueuePatchesFromText(text: string | null | undefined): void {
     if (!experimentalEnabled.value) {
       return;
     }
-    const raw = text?.trim();
+    const raw = typeof text === "string" ? text.trim() : "";
     if (!raw) {
       return;
     }
@@ -104,6 +108,25 @@ export const useLiveEditStore = defineStore("liveEdit", () => {
         status: "pending",
       });
     }
+  }
+
+  /**
+   * While the assistant is streaming: scan for **closed** ```diff / ```patch fences so
+   * pending patches can appear before the turn ends. Deduped via hash; throttled for perf.
+   */
+  function ingestStreamingSnapshot(text: string | null | undefined): void {
+    if (!experimentalEnabled.value) {
+      return;
+    }
+    if (text == null || text.indexOf("```") < 0) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastStreamIngestAtMs < STREAM_PATCH_SCAN_INTERVAL_MS) {
+      return;
+    }
+    lastStreamIngestAtMs = now;
+    enqueuePatchesFromText(text);
   }
 
   function discardPatch(id: string): void {
@@ -175,6 +198,7 @@ export const useLiveEditStore = defineStore("liveEdit", () => {
     setWorkspaceRoot,
     onActiveSessionChanged,
     ingestFinishedAssistantStream: enqueuePatchesFromText,
+    ingestStreamingSnapshot,
     discardPatch,
     clearDiscarded,
     pickWorkspace,

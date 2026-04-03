@@ -446,14 +446,15 @@ export default {
     liveCodeTitle: "实时补丁",
     liveCodeClose: "关闭面板",
     liveCodeLead:
-      "助手回复中以 ```diff / ```patch 包裹的 unified diff 会在本轮结束后出现在下方；左侧为当前流式正文预览。应用前请选择工作区根目录。",
+      "左侧为当前流式正文。助手在 ```diff / ```patch 中输出 unified diff 且代码块闭合后，会出现在下方「待应用」（约每 150ms 扫描一次）；本轮结束时仍会再解析一遍补漏。应用前请选择工作区根目录。",
     liveCodeWorkspace: "工作区",
     liveCodePickWorkspace: "选择文件夹…",
     liveCodeNoWorkspace: "未选择工作区，无法应用补丁。",
     liveCodeStreamTitle: "当前流式输出",
     liveCodeStreamEmpty: "（无进行中的助手流式输出）",
     liveCodePatchesTitle: "待应用补丁",
-    liveCodePatchesEmpty: "（尚未检测到 fenced diff，可让助手按 unified diff 格式输出）",
+    liveCodePatchesEmpty:
+      "（尚无已闭合的 ```diff / ```patch；请让助手输出 unified diff，并等待代码块写完整）",
     liveCodeApply: "应用",
     liveCodeApplying: "应用中…",
     liveCodeDiscard: "丢弃",

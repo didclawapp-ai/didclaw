@@ -446,14 +446,15 @@ export default {
     liveCodeTitle: "Live Patch",
     liveCodeClose: "Close panel",
     liveCodeLead:
-      "Unified diffs inside ```diff / ```patch fences appear below after each assistant turn ends; the box above mirrors the current stream. Pick a workspace root before applying.",
+      "Above: live stream. When the assistant emits unified diff inside ```diff / ```patch and the fence closes, patches appear below (~every 150ms scan); end-of-turn still re-parses. Pick a workspace root before applying.",
     liveCodeWorkspace: "Workspace",
     liveCodePickWorkspace: "Choose folder…",
     liveCodeNoWorkspace: "Choose a workspace folder before applying patches.",
     liveCodeStreamTitle: "Streaming output",
     liveCodeStreamEmpty: "(No assistant stream in progress)",
     liveCodePatchesTitle: "Pending patches",
-    liveCodePatchesEmpty: "(No fenced diff yet — ask the model to use unified diff in a ```diff block)",
+    liveCodePatchesEmpty:
+      "(No closed ```diff / ```patch yet — ask for unified diff and wait until the code block is complete)",
     liveCodeApply: "Apply",
     liveCodeApplying: "Applying…",
     liveCodeDiscard: "Discard",

@@ -713,6 +713,7 @@ export const useChatStore = defineStore("chat", () => {
         const chunk = extractChatDeltaText(payload as Record<string, unknown>);
         if (chunk) {
           streamText.value = mergeAssistantStreamDelta(streamText.value, chunk);
+          useLiveEditStore().ingestStreamingSnapshot(streamText.value);
         } else {
           logGatewayPush("chat.handle delta 无文本 chunk（可能仅结构化 message）", {
             runId: payload.runId ?? null,
