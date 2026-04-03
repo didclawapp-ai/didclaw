@@ -362,9 +362,10 @@ function onKeydown(e: KeyboardEvent): void {
   border-radius: var(--lc-radius-sm);
   width: 560px;
   max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 64px);
+  max-height: min(92vh, calc(100dvh - 48px));
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   box-shadow: var(--lc-shadow-sm);
 }
 
@@ -394,12 +395,14 @@ function onKeydown(e: KeyboardEvent): void {
 }
 .ph-close-btn:hover { background: var(--lc-hover); color: var(--lc-text); }
 
-/* Scrollable body */
+/* Scrollable body — flex + min-height 0 + panel overflow:hidden keeps list from stretching the dialog */
 .ph-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
+  flex: 1 1 auto;
   min-height: 0;
+  max-height: calc(100dvh - 200px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 20px;
 }
 
 .ph-body { display: flex; flex-direction: column; gap: 14px; }
@@ -481,9 +484,10 @@ function onKeydown(e: KeyboardEvent): void {
 
 /* Footer */
 .ph-canvas {
-  flex: 1;
+  flex: 1 1 auto;
   width: 100%;
   min-height: 320px;
+  max-height: calc(100dvh - 200px);
   display: block;
   background: var(--lc-bg-elevated);
 }

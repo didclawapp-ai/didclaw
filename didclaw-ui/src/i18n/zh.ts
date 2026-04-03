@@ -446,7 +446,7 @@ export default {
     previewPaneLabel: "文件预览",
     previewTitle: "文件预览",
     previewClose: "关闭预览",
-    liveCodeToolbarBtn: "实时补丁",
+    liveCodeToolbarBtn: "实时",
     liveCodePaneLabel: "实时补丁（实验）",
     liveCodeTitle: "实时补丁",
     liveCodeClose: "关闭面板",

@@ -6,6 +6,7 @@ import WeChatIndicator from "@/features/chat/WeChatIndicator.vue";
 import {
   extractSlashQuery,
   filterCommands,
+  isSlashDraftReadyToSend,
   type SlashCommand,
 } from "@/features/chat/slash-commands";
 import { useChatStore } from "@/stores/chat";
@@ -88,6 +89,7 @@ function onComposerKeydown(ev: KeyboardEvent): void {
       (slashActiveIndex.value - 1 + slashFiltered.value.length) % slashFiltered.value.length;
   } else if (ev.key === "Tab" || ev.key === "Enter") {
     if (ev.key === "Enter" && ev.shiftKey) return;
+    if (ev.key === "Enter" && isSlashDraftReadyToSend(draft.value)) return;
     ev.preventDefault();
     const cmd = slashFiltered.value[slashActiveIndex.value];
     if (cmd) selectSlashCommand(cmd);
@@ -102,8 +104,8 @@ function onComposerEnter(ev: KeyboardEvent): void {
   if (ev.shiftKey) {
     return;
   }
-  // 当 picker 可见时 Enter 由 onComposerKeydown 处理，不走发送
-  if (showSlashPicker.value) {
+  // 选择器打开且草稿尚未构成可发送的完整命令时，Enter 用于补全当前高亮项
+  if (showSlashPicker.value && !isSlashDraftReadyToSend(draft.value)) {
     return;
   }
   ev.preventDefault();

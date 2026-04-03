@@ -47,3 +47,26 @@ export function filterCommands(query: string): SlashCommand[] {
   const q = query.toLowerCase();
   return SLASH_COMMANDS.filter((c) => c.command.slice(1).startsWith(q));
 }
+
+/**
+ * 草稿是否已是「可直接发送」的斜杠命令（选择器仍可能打开时，Enter 应变发送而非补全）。
+ * 无参命令：整行等于该命令（忽略首尾空白，命令名大小写不敏感）。
+ * 有参命令：`/cmd` + 空格 + 非空参数。
+ */
+export function isSlashDraftReadyToSend(draft: string): boolean {
+  const t = draft.trim();
+  if (!t.startsWith("/")) return false;
+  for (const cmd of SLASH_COMMANDS) {
+    const nameLower = cmd.command.toLowerCase();
+    const tLower = t.toLowerCase();
+    if (cmd.hasArgs) {
+      if (t.length <= cmd.command.length) continue;
+      if (t[cmd.command.length] !== " ") continue;
+      if (t.slice(0, cmd.command.length).toLowerCase() !== nameLower) continue;
+      if (t.slice(cmd.command.length + 1).trim().length > 0) return true;
+    } else if (tLower === nameLower) {
+      return true;
+    }
+  }
+  return false;
+}
