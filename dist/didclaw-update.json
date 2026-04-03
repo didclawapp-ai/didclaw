@@ -1,8 +1,8 @@
 {
-  "version": "0.8.4",
-  "date": "2026-04-02",
+  "version": "0.8.5",
+  "date": "2026-04-03",
   "platforms": {
-    "windows": "https://didclawapp.com/download/didclaw_0.8.4_x64-setup.exe",
-    "windows_msi": "https://didclawapp.com/download/didclaw_0.8.4_x64_en-US.msi"
+    "windows": "https://didclawapp.com/download/didclaw_0.8.5_x64-setup.exe",
+    "windows_msi": "https://didclawapp.com/download/didclaw_0.8.5_x64_en-US.msi"
   }
 }

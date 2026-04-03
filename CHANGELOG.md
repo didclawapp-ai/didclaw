@@ -8,6 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+## [0.8.5] - 2026-04-03
+
+### Added
+
+- **Experimental features merged to main**: Live Patch panel (pick workspace + apply fenced unified diff) and Pheromone memory graph UI, with Tauri commands (`live_edit_*`, `pheromone::*`) and IPC permissions.
+- **Gateway & AppShell maintainability**: Modular gateway store (`gateway-store-*`), 1012 service-restart backoff, dev-only swallowed-error logging, chat throttle helper + tests; AppShell split into composables plus `AppShellTopBanners` / `AppShellConversationColumn`.
+- **Rust**: Centralized `didclaw_invoke_handlers!` in `command_registration.rs`; `live_edit_patch` and `pheromone` modules wired into the handler list.
+
 ### Added
 - **Tools profile selector in General Settings**: users can now pick one of four `tools.profile` values (`full` / `coding` / `messaging` / `minimal`) directly from the DidClaw settings UI. The selection reads the current value from `openclaw.json` on open and writes only the `tools.profile` key on change, preserving all other configuration. A backup of `openclaw.json` is created before each write.
 
