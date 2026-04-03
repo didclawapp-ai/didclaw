@@ -289,11 +289,15 @@ _Phase 3 — UX 与联动_
      ↓
 ✅ P1-4 Slash 命令  →  ✅ P1-2 Exec 审批  →  ✅ P1-5 故障切换  →  ✅ P1-3 渠道接入
      ↓
-P2-1 Overview Dashboard  →  P2-2 代理工作区编辑器  →  P2-3 节点管理  →  P2-4 使用情况详细
+✅ Tools profile / 写保护 / 文件链接（0.9.x）
+     ↓
+QQ Bot 向导 + SearXNG 搜索（0.10.x）  →  微信优化 + 安全策略编辑器（0.11.x）
      ↓
 1.0.0 发布
      ↓
-P3 多 Agent 集群（P1-1 常驻指令 + P1-6 多窗口 + 消息路由）  ← 1.x 阶段
+P3 多 Agent 集群（常驻指令 + 多窗口 + 消息路由）  ← 1.1.x 阶段
+     ↓
+代理管理 UI + 广播组 + 节点管理  ← 1.2.x 阶段
 ```
 
 ---
@@ -316,14 +320,22 @@ P3 多 Agent 集群（P1-1 常驻指令 + P1-6 多窗口 + 消息路由）  ← 
 | 防休眠 | ✅ 完成 v0.8.0 | 通用设置开关，Windows `SetThreadExecutionState` |
 | 全局快捷键 | ✅ 完成 v0.8.0 | 默认 `Ctrl+Shift+D` 召唤，通用设置可自定义 |
 | 用量统计 | ✅ 完成 v0.8.0 | 侧边栏入口，汇总活跃会话 Token 消耗 |
+| Tools profile 选择器 | ✅ 完成 v0.9.x | 通用设置四模式卡片（full/coding/messaging/minimal），读写 `tools.profile` |
+| 配置写保护策略 | ✅ 完成 v0.9.x | `shouldPatchProviderApiKey` / `shouldWriteEnvVar`，防止覆盖已有用户配置 |
+| 文件路径自动链接 | ✅ 完成 v0.9.x | 聊天消息中 Windows 路径自动转为 `file:///` 可点击链接 |
 | P2-1 Overview Dashboard | ⏭ 跳过 | 侧边栏已有各独立入口，简洁优先 |
 | P2-2 代理工作区文件编辑器 | ⏭ 跳过 0.x | 保留至 1.x，CLI 编辑已够用 |
-| P2-3 节点管理 | ⏭ 跳过 0.x | 保留至 1.x |
+| P2-3 节点管理 | ⏭ 跳过 0.x | 保留至 1.3.x |
 | P2-4 使用情况详细（按日期） | ⏭ 跳过 0.x | 当前 Token 汇总已够用；按日期筛选保留至 1.x |
 | 内置 Skills 捆绑 | ⏭ 跳过 | 用户可自行从 ClawHub 安装；暂不内置 |
-| P1-1 常驻指令 | ⏸ 延至 1.x | 需与多 Agent + 多窗口配合，工程量大 |
-| P1-6 会话多窗口 | ⏸ 延至 1.x | 同上，三件套须一起做 |
-| 消息路由规则（通信） | ⏸ 延至 1.x | 依赖多 Agent，否则无意义 |
+| QQ Bot 渠道向导 | ⏸ 计划 0.10.x | OpenClaw 2026.3.31 内置，配置向导纳入 0.x 渠道扩展 |
+| SearXNG 搜索集成 | ⏸ 计划 0.10.x | OpenClaw 2026.4.1 内置，隐私友好的自建搜索 |
+| 微信渠道向导优化 | ⏸ 计划 0.11.x | 跟进官方插件成熟度；Android 支持、群聊等新能力 |
+| Exec 审批策略编辑器 | ⏸ 计划 0.11.x | 可视化管理 `exec-approvals.json`；上游 2026.4.1 修复了审批一致性 |
+| P1-1 常驻指令 | ⏸ 延至 1.1.x | 需与多 Agent + 多窗口配合，工程量大 |
+| P1-6 会话多窗口 | ⏸ 延至 1.1.x | 同上，三件套须一起做 |
+| 消息路由规则（通信） | ⏸ 延至 1.1.x | 依赖多 Agent，否则无意义 |
+| 代理管理 UI + 广播组 | ⏸ 延至 1.2.x | 多账号渠道路由、节点管理 |
 
 ---
 
@@ -335,20 +347,112 @@ P3 多 Agent 集群（P1-1 常驻指令 + P1-6 多窗口 + 消息路由）  ← 
 | 历史 | 0.4.0 | Slash 命令、Exec 审批、模型故障切换 — P1 部分完成 |
 | 历史 | 0.5.0 | 消息渠道接入（WhatsApp/飞书/Discord/企业微信）— P1 主体完成 |
 | 历史 | 0.6.x | 在线升级、任务栏常驻、Gateway 元数据修正 |
-| 当前 | **0.8.0** | 开机自启、防休眠、全局快捷键、用量统计 — 用户体验提升完成 |
-| 发布候选 | **0.9.0** | 功能冻结；仅做 Bug 修复、i18n 补全、错误信息优化、轻量 UI 打磨 |
+| 历史 | **0.8.0** | 开机自启、防休眠、全局快捷键、用量统计 — 用户体验提升完成 |
+| 历史 | **0.9.x** | Tools profile 选择器、配置写保护策略、文件路径自动链接 |
+| 渠道扩展 | **0.10.x** | QQ Bot 渠道向导 + SearXNG 自建搜索集成 |
+| 安全与渠道 | **0.11.x** | 微信渠道向导优化 + Exec 审批策略编辑器 |
+| 发布候选 | **0.12.0** | 功能冻结；仅做 Bug 修复、i18n 补全、错误信息优化、轻量 UI 打磨 |
 | Product Hunt 发布 | **1.0.0** | 正式发布 |
-| 多 Agent 集群 | 1.1.0 | 常驻指令（P1-1）+ 会话多窗口（P1-6）+ 消息路由（通信） |
-| 多 Agent 完善 | 1.2.0 | 代理管理 UI、广播组、多账号渠道路由 |
+| 多 Agent 集群 | **1.1.0** | 常驻指令（P1-1）+ 会话多窗口（P1-6）+ 消息路由 |
+| 多 Agent 完善 | **1.2.0** | 代理管理 UI + 广播组 + 多账号渠道路由 + 节点管理 |
 
 ---
 
 ## 1.x 多 Agent 集群说明
 
-> **决定**：P1-1 常驻指令、P1-6 会话多窗口、消息路由（通信）三项功能依赖关系强、测试复杂度高（跨窗口状态同步、Pinia 作用域隔离、Tauri 多窗口 IPC、路由规则校验等），保守估计开发 + 测试需数周。延至 1.0 正式发布后作为 1.1.0 整体交付，保证 1.0 发布节点的质量与稳定性。
+> **决定**：1.0 正式发布前，聚焦渠道扩展（QQ Bot、SearXNG、微信优化）和安全机制（Exec 审批策略编辑器）。多 Agent 三件套依赖关系强，延至 1.0 后整体交付，保证 1.0 发布节点的质量与稳定性。
 
 **1.1.0 三件套必须同时交付的原因：**
 - 单独做代理管理：定义了多 Agent 但无法在界面中区分查看
 - 单独做多窗口：多个窗口看的仍是同一 Agent
 - 单独做消息路由：路由规则无多 Agent 可选，配置无意义
 - **三者合一**才能实现：工作渠道 → 工作 Agent（独立窗口）/ 个人渠道 → 个人 Agent（独立窗口）
+
+---
+
+## 0.x 渠道与安全扩展规划
+
+### 0.10.x — QQ Bot 渠道向导
+
+**背景**：OpenClaw 2026.3.31 将 QQ Bot 列为内置渠道插件，无需单独安装，支持 C2C 私聊、群聊 @消息、频道消息、富媒体（图片/语音/视频/文件）及多账号。
+
+**目标**：在「渠道」设置界面增加 QQ Bot 配置面板，与现有 WhatsApp/Discord 向导并列。
+
+**技术方案**
+- 配置字段：`appId`（QQ 开放平台 AppID）+ `clientSecret`（AppSecret）
+- 写入 `openclaw.json` 的 `channels.qqbot.*`
+- 可选：多账号支持（`channels.qqbot.accounts.*`）
+- 引导用户前往 [QQ 开放平台](https://q.qq.com/) 创建 Bot
+
+**工作范围**
+- [ ] `ChannelSetupDialog.vue`：新增 QQ Bot Tab（AppID + AppSecret 表单）
+- [ ] Tauri：`write_channel_config("qqbot", payload)` 复用现有命令
+- [ ] i18n：添加 QQ Bot 相关字符串（zh + en）
+- [ ] 引导文案：AppSecret 不以明文存储、扫码授权等注意事项
+
+---
+
+### 0.10.x — SearXNG 自建搜索集成
+
+**背景**：OpenClaw 2026.4.1 新增内置 SearXNG 搜索插件（`web_search` 提供方），用户可部署私有 SearXNG 实例，不依赖 Google/Bing API，隐私友好。
+
+**目标**：在 AI 设置中增加"搜索引擎"配置区域，支持配置 SearXNG 作为网络搜索来源。
+
+**技术方案**
+- 配置路径：`webSearch.provider: "searxng"` + `webSearch.searxng.host: "http://..."`
+- 读写复用现有 `read_open_claw_snapshot` / `write_open_claw_*` 机制
+- 遵循"先读后写"原则：已有搜索配置不覆盖
+
+**工作范围**
+- [ ] AI 配置页新增「网络搜索」分区（搜索引擎下拉：Tavily / SearXNG / 关闭）
+- [ ] SearXNG 选中时显示 Host 地址输入框 + 连接测试按钮
+- [ ] Tauri：`write_open_claw_web_search_config(provider, host)` 命令
+- [ ] i18n：搜索配置相关字符串
+
+---
+
+### 0.11.x — 微信渠道内置向导优化
+
+**背景**：当前个人微信通过第三方 `@tencent-weixin/openclaw-weixin` 插件接入，存在以下已知限制和体验问题：
+- 仅支持 iPhone 微信 8.0.70+，Android 尚未支持
+- 扫码后误报「绑定失败」（插件安装触发网关重启导致超时）
+- 不支持群聊
+
+**目标**：随官方插件成熟度提升，同步更新 DidClaw 向导逻辑，改善绑定成功率和用户体验。
+
+**计划改进方向**
+- 检测 Android 环境时主动提示当前不支持，避免用户困惑
+- 绑定流程增加重试机制，容忍网关重启期间的短暂超时
+- 追踪官方 `@tencent-weixin/openclaw-weixin` 更新，同步支持新能力（如群聊）
+- 考虑是否支持企业微信个人版通道的自动检测
+
+**工作范围**
+- [ ] 更新 `ChannelSetupDialog.vue` 微信 Tab 的平台检测与提示文案
+- [ ] 改进绑定失败后的错误提示（区分"网关重启中"和"真实失败"）
+- [ ] 跟踪上游插件 Changelog，评估群聊等新能力的接入时机
+
+---
+
+### 0.11.x — 安全机制完善
+
+**背景**：OpenClaw 2026.3.31 / 2026.4.1 对 `exec-approvals.json` 做了重大修复：
+- `allow-always` 现在真正持久化（不再像 `allow-once`）
+- Windows 下无法构建 allowlist 时需要显式审批（不再硬性失败）
+- `openclaw doctor` 新增警告：`tools.exec` 比 `exec-approvals.json` 宽松时提示用户
+
+这些修复解决了"有的电脑一直弹审批、有的不弹"的根本原因（见 [上游 changelog](https://github.com/openclaw/openclaw/releases/tag/v2026.4.1)）。
+
+**目标**：在 DidClaw UI 中提供可视化的 Exec 审批策略编辑器，让用户直接管理 `exec-approvals.json`，并展示当前 `tools.profile` 与 exec 策略的一致性状态。
+
+**技术方案**
+- 读取 `~/.openclaw/exec-approvals.json` 并展示已批准/已拒绝的命令列表
+- 支持删除单条规则（撤销 allow-always）
+- 展示 `tools.profile` 与 exec 策略的匹配状态（复用 Doctor 诊断逻辑）
+- 当 `tools.exec` 比 `exec-approvals.json` 宽松时，在 UI 内显示安全提示（对应上游新增的 `doctor` 警告）
+
+**工作范围**
+- [ ] Tauri：`read_exec_approvals()` / `delete_exec_approval(id)` 命令
+- [ ] `ExecApprovalsPolicyDialog.vue`：已批准命令列表 + 删除按钮
+- [ ] 安全一致性状态卡片（复用 DoctorPanel 诊断结果）
+- [ ] 节点管理基础 UI（`nodes.list` / `nodes.unpair`）
+- [ ] i18n：安全策略相关字符串

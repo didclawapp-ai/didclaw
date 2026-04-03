@@ -41,3 +41,4 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 sys-locale = "0.3.2"
+diffy = "0.4"

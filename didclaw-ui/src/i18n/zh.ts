@@ -122,6 +122,10 @@ export default {
     autoStartLabel: "自动在本机启动网关",
     autoStartHint: "仅当本机端口未监听时启动；连远程网关不受影响。",
     stopOnQuitLabel: "关闭应用时同时关闭网关",
+    liveEditExperimentalSection: "实验功能：实时补丁",
+    liveEditExperimentalLabel: "实验：聊天内 fenced diff 写入工作区",
+    liveEditExperimentalHint:
+      "开启后可在消息区旁打开「实时补丁」面板；助手在 ```diff 代码块中给出 unified diff 时，可一键应用到所选文件夹。仅桌面版。",
     gatewayAdvanced: "高级选项",
     executableLabel: "openclaw 可执行文件路径",
     executableTip: "找不到 openclaw 时填写完整路径，一般留空即可。",
@@ -442,6 +446,24 @@ export default {
     previewPaneLabel: "文件预览",
     previewTitle: "文件预览",
     previewClose: "关闭预览",
+    liveCodeToolbarBtn: "实时补丁",
+    liveCodePaneLabel: "实时补丁（实验）",
+    liveCodeTitle: "实时补丁",
+    liveCodeClose: "关闭面板",
+    liveCodeLead:
+      "左侧为当前流式正文。助手在 ```diff / ```patch 中输出 unified diff 且代码块闭合后，会出现在下方「待应用」（约每 150ms 扫描一次）；本轮结束时仍会再解析一遍补漏。应用前请选择工作区根目录。",
+    liveCodeWorkspace: "工作区",
+    liveCodePickWorkspace: "选择文件夹…",
+    liveCodeNoWorkspace: "未选择工作区，无法应用补丁。",
+    liveCodeStreamTitle: "当前流式输出",
+    liveCodeStreamEmpty: "（无进行中的助手流式输出）",
+    liveCodePatchesTitle: "待应用补丁",
+    liveCodePatchesEmpty:
+      "（尚无已闭合的 ```diff / ```patch；请让助手输出 unified diff，并等待代码块写完整）",
+    liveCodeApply: "应用",
+    liveCodeApplying: "应用中…",
+    liveCodeDiscard: "丢弃",
+    liveCodePatchError: "上次失败",
   },
 
   // ─── Doctor 诊断面板 DoctorPanel ────────────────────
@@ -1380,5 +1402,25 @@ export default {
     fieldHint: "字段: ",
     noTextField: "无常用文本字段",
     noTextBody: "无文本正文",
+  },
+
+  // ─── 信息素认知地图 ────────────────────────────────────
+  pheromone: {
+    title: "认知地图（实验性）",
+    loading: "加载记忆图谱中…",
+    topics: "个话题",
+    edges: "条关联",
+    dormant: "个休眠",
+    lastDecay: "上次衰减",
+    hotTopics: "常用话题",
+    associations: "常见关联",
+    trails: "认知轨迹",
+    blocked: "已知阻断点",
+    noData: "数据还不够 — 多聊几轮就有了！",
+    injectNote: "距上次写入 AGENTS.md 已有 {runs} 轮（每 5 轮自动写入）",
+    injected: "已写入 AGENTS.md",
+    injectNow: "立即写入记忆",
+    reset: "重置图谱",
+    resetConfirm: "确定要重置整个认知地图吗？此操作无法撤销。",
   },
 } as const;

@@ -318,6 +318,21 @@ interface DidClawElectronApi {
     base64Data: string,
     fileName: string,
   ): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
+  /** Pheromone memory graph — read/write ~/.openclaw/didclaw-pheromone.json */
+  readPheromoneGraph?(): Promise<unknown>;
+  writePheromoneGraph?(graph: unknown): Promise<void>;
+  /** Inject pheromone memory section into AGENTS.md */
+  injectPheromoneAgentsMd?(content: string, agentId?: string): Promise<void>;
+  /** Experimental: pick workspace folder for live patch apply */
+  liveEditPickWorkspace?(): Promise<string | null>;
+  /** Experimental: apply unified diff under workspace root (Tauri) */
+  liveEditApplyUnifiedDiff?(payload: {
+    root: string;
+    diff: string;
+  }): Promise<{
+    ok: boolean;
+    results: Array<{ path: string; ok: boolean; error?: string }>;
+  }>;
 }
 
 interface Window {

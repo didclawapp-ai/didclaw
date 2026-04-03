@@ -735,6 +735,16 @@ pub fn skills_pick_folder() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+pub fn live_edit_pick_workspace() -> Result<Option<String>, String> {
+    Ok(crate::skills::pick_folder())
+}
+
+#[tauri::command]
+pub fn live_edit_apply_unified_diff(root: String, diff: String) -> Result<Value, String> {
+    crate::live_edit_patch::apply_unified_diff_under_root(&root, &diff)
+}
+
+#[tauri::command]
 pub fn read_workspace_identity() -> Result<Value, String> {
     Ok(crate::workspace_identity::read_workspace_identity())
 }

@@ -98,6 +98,12 @@ macro_rules! didclaw_invoke_handlers {
             crate::commands::set_global_shortcut_key,
             crate::commands::didclaw_set_app_locale,
             crate::commands::save_chat_attachment,
+            // ─── 实验：pheromone 图 / 实时补丁面板 ───────────────────
+            crate::pheromone::read_pheromone_graph,
+            crate::pheromone::write_pheromone_graph,
+            crate::pheromone::inject_pheromone_agents_md,
+            crate::commands::live_edit_pick_workspace,
+            crate::commands::live_edit_apply_unified_diff,
         ]
     };
 }

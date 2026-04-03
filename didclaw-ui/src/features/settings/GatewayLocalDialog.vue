@@ -23,6 +23,7 @@ import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-mode
 import { OPENCLAW_PROVIDER_ID_RE } from "@/lib/openclaw-provider-id";
 import { gatewayUrlFromEnv, useGatewayStore } from "@/stores/gateway";
 import { useChatStore } from "@/stores/chat";
+import { useLiveEditStore } from "@/stores/liveEdit";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { computed, ref, watch } from "vue";
 import AiProviderSetup from "@/features/settings/AiProviderSetup.vue";
@@ -38,6 +39,7 @@ const { t } = useI18n();
 const gw = useGatewayStore();
 const localSettings = useLocalSettingsStore();
 const chat = useChatStore();
+const liveEdit = useLiveEditStore();
 
 type TabId = "gateway" | "ai" | "model" | "providers";
 
@@ -704,6 +706,19 @@ async function onRestoreModel(): Promise<void> {
                   <span>{{ t('settings.stopOnQuitLabel') }}</span>
                 </label>
               </div>
+
+              <details v-if="isDidClawElectron()" class="gateway-advanced" style="margin-top: 8px">
+                <summary class="gateway-advanced-summary muted small">{{ t('settings.liveEditExperimentalSection') }}</summary>
+                <label class="field field--checkbox-row" style="margin-top: 10px">
+                  <input
+                    type="checkbox"
+                    :checked="liveEdit.experimentalEnabled"
+                    @change="liveEdit.setExperimental(($event.target as HTMLInputElement).checked)"
+                  >
+                  <span>{{ t('settings.liveEditExperimentalLabel') }}</span>
+                </label>
+                <p class="hint small muted gateway-auto-hint">{{ t('settings.liveEditExperimentalHint') }}</p>
+              </details>
 
               <details class="gateway-advanced">
                 <summary class="gateway-advanced-summary muted small">{{ t('settings.gatewayAdvanced') }}</summary>

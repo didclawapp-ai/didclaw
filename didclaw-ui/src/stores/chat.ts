@@ -35,6 +35,7 @@ import { i18n } from "@/i18n";
 import { defineStore } from "pinia";
 import { computed, nextTick, ref } from "vue";
 import { useGatewayStore } from "./gateway";
+import { useLiveEditStore } from "./liveEdit";
 import { usePreviewStore } from "./preview";
 import { useSessionStore } from "./session";
 
@@ -720,6 +721,7 @@ export const useChatStore = defineStore("chat", () => {
         const chunk = extractChatDeltaText(payload as Record<string, unknown>);
         if (chunk) {
           streamText.value = mergeAssistantStreamDelta(streamText.value, chunk);
+          useLiveEditStore().ingestStreamingSnapshot(streamText.value);
         } else {
           logGatewayPush("chat.handle delta 无文本 chunk（可能仅结构化 message）", {
             runId: payload.runId ?? null,
@@ -731,6 +733,8 @@ export const useChatStore = defineStore("chat", () => {
           localRunIdBefore: runId.value,
         });
         snapshotRunDuration();
+        const streamSnap = streamText.value;
+        useLiveEditStore().ingestFinishedAssistantStream(streamSnap);
         streamText.value = null;
         runId.value = null;
         clearPendingSilentHistorySync();
@@ -738,6 +742,7 @@ export const useChatStore = defineStore("chat", () => {
       } else if (payload.state === "aborted") {
         logGatewayPush("chat.handle → aborted → loadHistory(silent)", { runId: payload.runId ?? null });
         clearRunTiming();
+        useLiveEditStore().ingestFinishedAssistantStream(streamText.value);
         streamText.value = null;
         runId.value = null;
         clearPendingSilentHistorySync();
@@ -748,6 +753,7 @@ export const useChatStore = defineStore("chat", () => {
           errorMessage: payload.errorMessage ?? null,
         });
         clearRunTiming();
+        useLiveEditStore().ingestFinishedAssistantStream(streamText.value);
         streamText.value = null;
         runId.value = null;
         lastError.value =

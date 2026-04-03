@@ -122,6 +122,10 @@ export default {
     autoStartLabel: "Auto-start gateway on this machine",
     autoStartHint: "Only starts when the local port isn't listening; remote gateways are unaffected.",
     stopOnQuitLabel: "Stop gateway when app exits",
+    liveEditExperimentalSection: "Experimental: Live Patch",
+    liveEditExperimentalLabel: "Experimental: apply fenced diffs from chat to a workspace",
+    liveEditExperimentalHint:
+      "When enabled, open the Live Patch panel beside messages. If the assistant emits unified diffs inside ```diff fences, you can apply them to a chosen folder. Desktop only.",
     gatewayAdvanced: "Advanced",
     executableLabel: "openclaw executable path",
     executableTip: "Usually leave blank. Fill in if openclaw can't be found automatically.",
@@ -442,6 +446,24 @@ export default {
     previewPaneLabel: "File Preview",
     previewTitle: "File Preview",
     previewClose: "Close Preview",
+    liveCodeToolbarBtn: "Live Patch",
+    liveCodePaneLabel: "Live Patch (experimental)",
+    liveCodeTitle: "Live Patch",
+    liveCodeClose: "Close panel",
+    liveCodeLead:
+      "Above: live stream. When the assistant emits unified diff inside ```diff / ```patch and the fence closes, patches appear below (~every 150ms scan); end-of-turn still re-parses. Pick a workspace root before applying.",
+    liveCodeWorkspace: "Workspace",
+    liveCodePickWorkspace: "Choose folder…",
+    liveCodeNoWorkspace: "Choose a workspace folder before applying patches.",
+    liveCodeStreamTitle: "Streaming output",
+    liveCodeStreamEmpty: "(No assistant stream in progress)",
+    liveCodePatchesTitle: "Pending patches",
+    liveCodePatchesEmpty:
+      "(No closed ```diff / ```patch yet — ask for unified diff and wait until the code block is complete)",
+    liveCodeApply: "Apply",
+    liveCodeApplying: "Applying…",
+    liveCodeDiscard: "Discard",
+    liveCodePatchError: "Failed",
   },
 
   // ─── Doctor panel ─────────────────────────────────────
@@ -1381,5 +1403,25 @@ export default {
     fieldHint: "Fields: ",
     noTextField: "No common text fields",
     noTextBody: "no text body",
+  },
+
+  // ─── Pheromone memory map ──────────────────────────────
+  pheromone: {
+    title: "Cognitive Map (Experimental)",
+    loading: "Loading memory graph…",
+    topics: "topics",
+    edges: "associations",
+    dormant: "dormant",
+    lastDecay: "last decay",
+    hotTopics: "Frequent Topics",
+    associations: "Common Associations",
+    trails: "Cognitive Trails",
+    blocked: "Knowledge Boundaries",
+    noData: "Not enough data yet — keep chatting!",
+    injectNote: "{runs} runs since last AGENTS.md update (auto-injects every 5 runs)",
+    injected: "Injected to AGENTS.md",
+    injectNow: "Inject to Memory",
+    reset: "Reset Graph",
+    resetConfirm: "Reset the entire cognitive map? This cannot be undone.",
   },
 } as const;

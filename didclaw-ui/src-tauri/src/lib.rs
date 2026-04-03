@@ -29,6 +29,8 @@ mod setup_status;
 mod workspace_identity;
 mod bundled_skills;
 mod command_registration;
+mod live_edit_patch;
+mod pheromone;
 
 #[cfg(not(debug_assertions))]
 mod static_server;

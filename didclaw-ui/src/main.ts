@@ -1,5 +1,6 @@
 import { hydrateDidClawKvCache } from "@/lib/didclaw-kv";
 import { i18n, syncTauriLocaleAfterI18nReady } from "@/i18n";
+import { usePheromoneStore } from "@/stores/pheromone";
 import { createPinia } from "pinia";
 import { createApp } from "vue";
 import App from "./App.vue";
@@ -53,4 +54,6 @@ void (async () => {
   app.use(i18n);
   await syncTauriLocaleAfterI18nReady();
   app.mount("#app");
+  // Init pheromone memory after app is mounted so stores are ready
+  usePheromoneStore().init();
 })();

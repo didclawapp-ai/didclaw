@@ -18,11 +18,14 @@ const props = defineProps<{
   messageListSelectedIndex: number | null;
   sessionTokenUsage: { in: number; out: number } | null;
   isPreviewPaneOpen: boolean;
+  /** 实验性实时补丁入口（桌面 + 设置开启时显示）。 */
+  showLiveCodeToolbar?: boolean;
 }>();
 
 defineEmits<{
   pickLocalFile: [];
   selectMessage: [index: number];
+  toggleLiveCode: [];
 }>();
 
 const { t } = useI18n();
@@ -53,6 +56,15 @@ const { followLatest, showDiagnosticMessages } = storeToRefs(preview);
           >
           {{ t('shell.showDiagnostic') }}
         </label>
+        <button
+          v-if="isDidClawElectron() && props.showLiveCodeToolbar"
+          type="button"
+          class="lc-btn lc-btn-ghost lc-btn-xs toolbar-mini"
+          :title="t('shell.liveCodeToolbarBtn')"
+          @click="$emit('toggleLiveCode')"
+        >
+          {{ t('shell.liveCodeToolbarBtn') }}
+        </button>
         <button
           v-if="isDidClawElectron() && !props.isPreviewPaneOpen"
           type="button"
