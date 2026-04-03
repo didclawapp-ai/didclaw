@@ -7,7 +7,7 @@ import { useThemeStore } from "@/stores/theme";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { storeToRefs } from "pinia";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -24,38 +24,6 @@ const {
 
 const inlineError = ref<string | null>(null);
 let errorTimer: number | null = null;
-
-// ── Auto-hide ────────────────────────────────────────────────────────────────
-const TRIGGER_Y = 8;
-const HIDE_DELAY = 1500;
-const headerVisible = ref(true);
-let hideTimer: number | null = null;
-
-function showHeader(): void {
-  if (hideTimer !== null) { clearTimeout(hideTimer); hideTimer = null; }
-  headerVisible.value = true;
-}
-
-function scheduleHide(): void {
-  if (
-    inlineError.value !== null ||
-    lastError.value !== null ||
-    pendingBackendPairingRepair.value !== null
-  ) return;
-  if (hideTimer !== null) return;
-  hideTimer = window.setTimeout(() => {
-    headerVisible.value = false;
-    hideTimer = null;
-  }, HIDE_DELAY);
-}
-
-function onDocMouseMove(e: MouseEvent): void {
-  if (e.clientY <= TRIGGER_Y) showHeader();
-}
-
-watch([inlineError, lastError, pendingBackendPairingRepair], ([err, gwErr, repair]) => {
-  if (err !== null || gwErr !== null || repair !== null) showHeader();
-});
 
 // ── Window controls (Tauri only) ──────────────────────────────────────────────
 const isDesktop = isTauri();
@@ -81,8 +49,6 @@ async function closeWindow(): Promise<void> {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  document.addEventListener("mousemove", onDocMouseMove);
-  scheduleHide();
   if (isDesktop) {
     await syncMaximized();
     unlistenResize = await getCurrentWindow().onResized(() => void syncMaximized());
@@ -90,8 +56,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  document.removeEventListener("mousemove", onDocMouseMove);
-  if (hideTimer !== null) clearTimeout(hideTimer);
   unlistenResize?.();
 });
 
@@ -177,12 +141,7 @@ defineExpose({ showInlineError });
 </script>
 
 <template>
-  <header
-    class="top"
-    :class="{ 'top--visible': headerVisible }"
-    @mouseenter="showHeader"
-    @mouseleave="scheduleHide"
-  >
+  <header class="top">
     <div class="top-row" data-tauri-drag-region>
       <div class="left-group">
         <div class="brand">
@@ -322,11 +281,6 @@ defineExpose({ showInlineError });
   background: var(--lc-surface-top);
   backdrop-filter: blur(12px);
   box-shadow: var(--lc-shadow-sm);
-  transform: translateY(-100%);
-  transition: transform 0.2s ease;
-}
-.top--visible {
-  transform: translateY(0);
 }
 .top::after {
   content: "";

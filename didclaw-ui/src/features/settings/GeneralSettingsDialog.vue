@@ -30,6 +30,7 @@ const toolsProfile = ref<ToolsProfile | null>(null);
 const toolsProfileBusy = ref(false);
 const toolsProfileError = ref<string | null>(null);
 const toolsProfileSaved = ref(false);
+const toolsProfileExecSyncWarn = ref<string | null>(null);
 let toolsProfileSavedTimer: number | null = null;
 
 async function loadSettings(): Promise<void> {
@@ -85,6 +86,7 @@ function resetShortcut(): void {
 async function selectToolsProfile(p: ToolsProfile): Promise<void> {
   if (toolsProfileBusy.value || toolsProfile.value === p) return;
   toolsProfileError.value = null;
+  toolsProfileExecSyncWarn.value = null;
   toolsProfileBusy.value = true;
   try {
     const r = await api?.writeOpenClawToolsProfile?.(p);
@@ -94,6 +96,12 @@ async function selectToolsProfile(p: ToolsProfile): Promise<void> {
     }
     toolsProfile.value = p;
     toolsProfileSaved.value = true;
+    const sync = r && "execApprovalsSync" in r ? r.execApprovalsSync : undefined;
+    if (sync && sync.ok === false) {
+      toolsProfileExecSyncWarn.value = t("generalSettings.toolsProfileExecSyncWarn", {
+        msg: sync.error,
+      });
+    }
     if (toolsProfileSavedTimer !== null) clearTimeout(toolsProfileSavedTimer);
     toolsProfileSavedTimer = window.setTimeout(() => {
       toolsProfileSaved.value = false;
@@ -263,6 +271,7 @@ function onKeydown(e: KeyboardEvent): void {
           </div>
           <p v-if="toolsProfileSaved" class="gs-ok small">✓ {{ t('generalSettings.toolsProfileSaved') }}</p>
           <p v-if="toolsProfileError" class="gs-err small">{{ toolsProfileError }}</p>
+          <p v-if="toolsProfileExecSyncWarn" class="gs-warn small">{{ toolsProfileExecSyncWarn }}</p>
         </div>
       </div>
     </div>
@@ -350,6 +359,10 @@ function onKeydown(e: KeyboardEvent): void {
 .small { font-size: 12px; }
 .gs-err {
   color: var(--lc-error);
+  margin: 8px 0 0;
+}
+.gs-warn {
+  color: var(--lc-warning, #d97706);
   margin: 8px 0 0;
 }
 

@@ -299,6 +299,8 @@ onUnmounted(() => {
   font-family: var(--lc-font);
   font-size: 14px;
   color: var(--lc-text);
+  /* fixed AppHeader 不占文档流，为会话栏/模型条等留出顶栏高度 */
+  padding-top: var(--lc-app-header-height);
 }
 .main-wrap {
   flex: 1;

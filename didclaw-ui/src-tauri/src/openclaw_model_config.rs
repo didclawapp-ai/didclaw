@@ -513,9 +513,18 @@ pub fn write_open_claw_tools_profile(profile: &str) -> Value {
         return json!({"ok": false, "error": e.to_string()});
     }
 
-    if backup_path_str.is_empty() {
+    let mut ok_ret = if backup_path_str.is_empty() {
         json!({"ok": true})
     } else {
         json!({"ok": true, "backupPath": backup_path_str})
+    };
+    if let Some(m) = ok_ret.as_object_mut() {
+        m.insert(
+            "execApprovalsSync".into(),
+            crate::openclaw_exec_approvals_defaults::sync_exec_approvals_defaults_for_tools_profile(
+                profile,
+            ),
+        );
     }
+    ok_ret
 }

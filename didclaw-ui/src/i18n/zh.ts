@@ -1287,7 +1287,9 @@ export default {
     globalShortcutReset: "恢复默认",
     globalShortcutApplying: "应用中…",
     toolsProfileLabel: "Agent 工具权限",
-    toolsProfileDesc: "控制 AI Agent 可以调用哪些工具。更改后重启 Gateway 生效。",
+    toolsProfileDesc:
+      "控制 AI Agent 可以调用哪些工具；会同步写入 ~/.openclaw/exec-approvals.json 的 defaults（主机命令审批策略），与四档一致。更改后重启 Gateway 生效；若 OpenClaw 另有更严的 tools.exec 配置，以更严者为准。",
+    toolsProfileExecSyncWarn: "openclaw.json 已保存，但 exec-approvals.json 未同步：{msg}",
     toolsProfileFull: "全量（full）",
     toolsProfileFullDesc: "开放所有工具，包括执行命令",
     toolsProfileCoding: "编码（coding）",

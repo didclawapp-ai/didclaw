@@ -19,6 +19,7 @@ mod openclaw_gateway;
 mod openclaw_gateway_origins;
 mod openclaw_version_check;
 mod openclaw_model_config;
+mod openclaw_exec_approvals_defaults;
 mod oauth_providers;
 mod openclaw_providers;
 mod openclaw_skill_config;

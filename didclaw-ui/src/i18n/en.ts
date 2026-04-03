@@ -1288,7 +1288,9 @@ export default {
     globalShortcutReset: "Reset Default",
     globalShortcutApplying: "Applying…",
     toolsProfileLabel: "Agent Tool Permissions",
-    toolsProfileDesc: "Controls which tools the AI agent can call. Restart Gateway to apply changes.",
+    toolsProfileDesc:
+      "Controls which tools the agent can call; also writes `defaults` in `exec-approvals.json` (host exec approval policy) to match the four presets. Restart Gateway to apply. If `tools.exec` in OpenClaw is stricter, the stricter rule wins.",
+    toolsProfileExecSyncWarn: "openclaw.json was saved but exec-approvals.json was not updated: {msg}",
     toolsProfileFull: "Full (full)",
     toolsProfileFullDesc: "All tools, including shell commands",
     toolsProfileCoding: "Coding (coding)",

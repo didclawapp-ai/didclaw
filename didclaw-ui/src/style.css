@@ -59,6 +59,8 @@
   --lc-body-grid-color: rgba(15, 23, 42, 0.035);
   --lc-sidebar-w: 210px;
   --lc-sidebar-speed: 0.22s;
+  /* 固定顶栏占位：与 AppHeader.vue .top-row 42px + border-bottom 1px 一致 */
+  --lc-app-header-height: 43px;
 }
 
 /* ── 暗色主题覆盖 ─────────────────────────────────────────────── */
