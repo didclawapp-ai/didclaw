@@ -83,4 +83,6 @@ commands.allow = [
   "read_pheromone_graph",
   "write_pheromone_graph",
   "inject_pheromone_agents_md",
+  "live_edit_pick_workspace",
+  "live_edit_apply_unified_diff",
 ]

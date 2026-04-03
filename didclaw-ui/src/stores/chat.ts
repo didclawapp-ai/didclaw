@@ -31,6 +31,7 @@ import { generateUUID } from "@/lib/uuid";
 import { defineStore } from "pinia";
 import { computed, nextTick, ref } from "vue";
 import { useGatewayStore } from "./gateway";
+import { useLiveEditStore } from "./liveEdit";
 import { usePreviewStore } from "./preview";
 import { useSessionStore } from "./session";
 
@@ -723,6 +724,8 @@ export const useChatStore = defineStore("chat", () => {
           localRunIdBefore: runId.value,
         });
         snapshotRunDuration();
+        const streamSnap = streamText.value;
+        useLiveEditStore().ingestFinishedAssistantStream(streamSnap);
         streamText.value = null;
         runId.value = null;
         clearPendingSilentHistorySync();
@@ -730,6 +733,7 @@ export const useChatStore = defineStore("chat", () => {
       } else if (payload.state === "aborted") {
         logGatewayPush("chat.handle → aborted → loadHistory(silent)", { runId: payload.runId ?? null });
         clearRunTiming();
+        useLiveEditStore().ingestFinishedAssistantStream(streamText.value);
         streamText.value = null;
         runId.value = null;
         clearPendingSilentHistorySync();
@@ -740,6 +744,7 @@ export const useChatStore = defineStore("chat", () => {
           errorMessage: payload.errorMessage ?? null,
         });
         clearRunTiming();
+        useLiveEditStore().ingestFinishedAssistantStream(streamText.value);
         streamText.value = null;
         runId.value = null;
         lastError.value = payload.errorMessage?.trim() || "对话出错（网关返回 error 状态）";

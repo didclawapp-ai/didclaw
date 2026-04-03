@@ -11,6 +11,7 @@ import ChatMessageList from "@/features/chat/ChatMessageList.vue";
 import InlineToolTimeline from "@/features/chat/InlineToolTimeline.vue";
 import MessageComposer from "@/features/chat/MessageComposer.vue";
 import ExecApprovalDialog from "@/features/chat/ExecApprovalDialog.vue";
+import LiveCodePanel from "@/features/live-edit/LiveCodePanel.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
 import {
   buildListPreview,
@@ -22,6 +23,7 @@ import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { isExternalHttpUrl, openExternalUrl } from "@/lib/open-external";
 import { sessionDisplayLabel } from "@/lib/session-display";
 import { useChatStore } from "@/stores/chat";
+import { useLiveEditStore } from "@/stores/liveEdit";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useFilePreviewStore } from "@/stores/filePreview";
 import { usePreviewStore } from "@/stores/preview";
@@ -52,6 +54,7 @@ const { t } = useI18n();
 
 const session = useSessionStore();
 const chat = useChatStore();
+const liveEditStore = useLiveEditStore();
 const gw = useGatewayStore();
 const localSettings = useLocalSettingsStore();
 const preview = usePreviewStore();
@@ -60,6 +63,7 @@ const filePreview = useFilePreviewStore();
 const { followLatest, showDiagnosticMessages } = storeToRefs(preview);
 const { sessions, allSessions, loading: sessionsLoading, error: sessionsError, activeSessionKey, activeSession } =
   storeToRefs(session);
+const { experimentalEnabled: liveCodeExperimental, panelOpen: liveCodePanelOpen } = storeToRefs(liveEditStore);
 const {
   messages,
   historyLoading,
@@ -87,8 +91,18 @@ const isPreviewPaneOpen = computed(
     fpChatMessagePreview.value != null,
 );
 
-const previewPaneRef = ref<HTMLElement | null>(null);
-useTauriPreviewWindowStrip(isPreviewPaneOpen, previewPaneRef);
+const isLiveCodeShellOpen = computed(
+  () => isDidClawElectron() && liveCodeExperimental.value === true && liveCodePanelOpen.value === true,
+);
+
+const isRightPaneOpen = computed(() => isPreviewPaneOpen.value || isLiveCodeShellOpen.value);
+
+const rightStackRef = ref<HTMLElement | null>(null);
+useTauriPreviewWindowStrip(isRightPaneOpen, rightStackRef);
+
+function toggleLiveCodePanel(): void {
+  liveEditStore.setPanelOpen(!liveCodePanelOpen.value);
+}
 
 const activeSessionLabel = computed(() => {
   const row = activeSession.value;
@@ -370,6 +384,10 @@ watch(showDeferredModelBanner, () => {
   void refreshOnboardingResumeBanner();
 });
 
+watch(activeSessionKey, () => {
+  liveEditStore.onActiveSessionChanged();
+});
+
 const displayLines = computed(() => {
   const base = messages.value.map((m) => messageToChatLine(m));
   let list = base;
@@ -521,7 +539,7 @@ async function pickLocalFileForPreview(): Promise<void> {
 
     <div class="main-wrap">
       <ToolSidebar />
-      <div class="main" :class="{ 'preview-pane-open': isPreviewPaneOpen }">
+      <div class="main" :class="{ 'preview-pane-open': isRightPaneOpen }">
         <aside class="left">
           <SessionControlBar
             :active-session-key="activeSessionKey"
@@ -569,6 +587,15 @@ async function pickLocalFileForPreview(): Promise<void> {
                   >
                   {{ t('shell.showDiagnostic') }}
                 </label>
+                <button
+                  v-if="isDidClawElectron() && liveCodeExperimental"
+                  type="button"
+                  class="lc-btn lc-btn-ghost lc-btn-xs toolbar-mini"
+                  :title="t('shell.liveCodeToolbarBtn')"
+                  @click="toggleLiveCodePanel"
+                >
+                  {{ t('shell.liveCodeToolbarBtn') }}
+                </button>
                 <button
                   v-if="isDidClawElectron() && !isPreviewPaneOpen"
                   type="button"
@@ -630,18 +657,24 @@ async function pickLocalFileForPreview(): Promise<void> {
         </aside>
 
         <section
-          v-if="isPreviewPaneOpen"
-          ref="previewPaneRef"
-          class="right"
-          :aria-label="t('shell.previewPaneLabel')"
+          v-if="isRightPaneOpen"
+          ref="rightStackRef"
+          class="right-stack"
         >
-          <div class="panel-title preview-panel-head">
-            <span>{{ t('shell.previewTitle') }}</span>
-            <button type="button" class="preview-close-btn" :title="t('shell.previewClose')" @click="filePreview.clear()">&#x2715;</button>
-          </div>
-          <div class="preview-wrap">
-            <PreviewPane />
-          </div>
+          <section
+            v-if="isPreviewPaneOpen"
+            class="right right--preview"
+            :aria-label="t('shell.previewPaneLabel')"
+          >
+            <div class="panel-title preview-panel-head">
+              <span>{{ t('shell.previewTitle') }}</span>
+              <button type="button" class="preview-close-btn" :title="t('shell.previewClose')" @click="filePreview.clear()">&#x2715;</button>
+            </div>
+            <div class="preview-wrap">
+              <PreviewPane />
+            </div>
+          </section>
+          <LiveCodePanel v-if="isLiveCodeShellOpen" />
         </section>
       </div>
     </div>
@@ -750,15 +783,30 @@ async function pickLocalFileForPreview(): Promise<void> {
 .main:not(.preview-pane-open) .left {
   border-right: none;
 }
-.right {
+.right-stack {
   flex: 1;
   min-width: 260px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: var(--lc-surface-panel);
   border-left: 1px solid var(--lc-border);
+  background: var(--lc-surface-panel);
+}
+.right-stack .right--preview {
+  flex: 1;
+  min-height: 0;
+  border-bottom: 1px solid var(--lc-border);
+}
+.right-stack .right--preview:last-child {
+  border-bottom: none;
+}
+.right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--lc-surface-panel);
 }
 .preview-wrap {
   flex: 1;

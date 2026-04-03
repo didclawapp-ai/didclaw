@@ -29,6 +29,7 @@ mod setup_status;
 mod workspace_identity;
 mod bundled_skills;
 mod pheromone;
+mod live_edit_patch;
 
 #[cfg(not(debug_assertions))]
 mod static_server;
@@ -260,6 +261,8 @@ pub fn run() {
             pheromone::read_pheromone_graph,
             pheromone::write_pheromone_graph,
             pheromone::inject_pheromone_agents_md,
+            commands::live_edit_pick_workspace,
+            commands::live_edit_apply_unified_diff,
         ])
         .build(tauri::generate_context!())
         .map_err(|e| {

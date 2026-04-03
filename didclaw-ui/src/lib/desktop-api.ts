@@ -113,6 +113,12 @@ function tauriApi(): DidClawElectronApi {
         skipOnboard: payload.skipOnboard,
         upgrade: payload.upgrade ?? false,
       }),
+    liveEditPickWorkspace: () => invoke<string | null>("live_edit_pick_workspace"),
+    liveEditApplyUnifiedDiff: (payload: { root: string; diff: string }) =>
+      invoke<{
+        ok: boolean;
+        results: Array<{ path: string; ok: boolean; error?: string }>;
+      }>("live_edit_apply_unified_diff", { root: payload.root, diff: payload.diff }),
   };
 }
 
