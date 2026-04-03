@@ -13,6 +13,7 @@ import {
   type UiChatMessage,
   isOptimisticUserMessage,
 } from "@/lib/chat-messages";
+import { CHAT_HISTORY_LIMIT } from "@/lib/chat-history-config";
 import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
 import { getOpenClawAfterWriteHint } from "@/lib/openclaw-config-hint";
@@ -25,9 +26,12 @@ import {
   summarizeChatEventPayload,
 } from "@/lib/gateway-debug-log";
 import { describeGatewayError } from "@/lib/gateway-errors";
+import { logSwallowedError } from "@/lib/client-dev-log";
+import { createMinIntervalThrottle } from "@/lib/min-interval-throttle";
 import { extractChatDeltaText, mergeAssistantStreamDelta } from "@/lib/message-display";
 import { formatZodIssues } from "@/lib/zod-format";
 import { generateUUID } from "@/lib/uuid";
+import { i18n } from "@/i18n";
 import { defineStore } from "pinia";
 import { computed, nextTick, ref } from "vue";
 import { useGatewayStore } from "./gateway";
@@ -373,7 +377,7 @@ export const useChatStore = defineStore("chat", () => {
       return;
     }
     if (silent && isGatewayPushDebugEnabled()) {
-      logGatewayPush("loadHistory(silent) 请求 chat.history", { sessionKey: key, limit: 200 });
+      logGatewayPush("loadHistory(silent) 请求 chat.history", { sessionKey: key, limit: CHAT_HISTORY_LIMIT });
     }
     if (!silent) {
       historyLoading.value = true;
@@ -382,7 +386,7 @@ export const useChatStore = defineStore("chat", () => {
     try {
       const res = await c.request<unknown>("chat.history", {
         sessionKey: key,
-        limit: 200,
+        limit: CHAT_HISTORY_LIMIT,
       });
       const parsed = chatHistoryResponseSchema.safeParse(res);
       if (!parsed.success) {
@@ -431,6 +435,8 @@ export const useChatStore = defineStore("chat", () => {
    */
   const GATEWAY_CHAT_SYNC_DEBOUNCE_MS = 1500;
   let gatewayChatSyncTimer: number | null = null;
+  const throttleUnparsedHistoryFallback = createMinIntervalThrottle(900);
+  const throttleSessionsRefreshOther = createMinIntervalThrottle(1500);
 
   function scheduleDebouncedSilentHistoryFromGateway(source: string): void {
     if (gatewayChatSyncTimer !== null) {
@@ -481,12 +487,16 @@ export const useChatStore = defineStore("chat", () => {
     }
     let message = text;
     if (nonImages.length > 0) {
+      const intro = i18n.global.t("composer.nonImageAttachIntro");
       const lines = nonImages
-        .map((x) => `- ${x.file.name}（${x.file.type || "未知类型"}）`)
+        .map((x) =>
+          i18n.global.t("composer.nonImageAttachLine", {
+            name: x.file.name,
+            type: x.file.type || i18n.global.t("composer.unknownFileType"),
+          }),
+        )
         .join("\n");
-      const block =
-        "以下文件已随消息发送；网关当前仅将**图片**作为多模态附件传入模型，其它格式请放到工作区或通过可访问链接提供：\n" +
-        lines;
+      const block = `${intro}\n${lines}`;
       message = message ? `${message}\n\n---\n${block}` : `---\n${block}`;
     }
 
@@ -562,8 +572,8 @@ export const useChatStore = defineStore("chat", () => {
     }
     try {
       await c.request("chat.abort", runId.value ? { sessionKey: key, runId: runId.value } : { sessionKey: key });
-    } catch {
-      /* ignore */
+    } catch (e) {
+      logSwallowedError("chat.abortIfStreaming", e);
     }
     streamText.value = null;
     runId.value = null;
@@ -594,7 +604,6 @@ export const useChatStore = defineStore("chat", () => {
    * `chat` 事件载荷若因网关新增字段/状态未入 Zod 枚举而解析失败，仍可能对当前会话有新消息
    *（例如主会话 systemEvent / 定时任务）。对**当前选中会话**节流拉 `chat.history`，避免只靠重连。
    */
-  let lastChatHistoryFallbackMs = 0;
   function scheduleHistoryReloadForUnparsedChatEvent(raw: unknown, hint: string): void {
     const p = raw as { sessionKey?: unknown };
     const key = typeof p.sessionKey === "string" ? p.sessionKey : null;
@@ -612,25 +621,24 @@ export const useChatStore = defineStore("chat", () => {
       });
       return;
     }
-    const now = Date.now();
-    if (now - lastChatHistoryFallbackMs < 900) {
-      logGatewayPush("chat schema miss: 兜底 loadHistory 节流中，跳过", { hint, msSinceLast: now - lastChatHistoryFallbackMs });
+    const throttled = throttleUnparsedHistoryFallback();
+    if (!throttled.ok) {
+      logGatewayPush("chat schema miss: 兜底 loadHistory 节流中，跳过", {
+        hint,
+        msSinceLast: throttled.msSinceLast,
+      });
       return;
     }
-    lastChatHistoryFallbackMs = now;
     console.warn("[didclaw] chat event payload skipped by schema, history fallback:", hint);
     logGatewayPush("chat schema miss → loadHistory(silent)", { hint, sessionKey: key });
     void loadHistory({ silent: true });
   }
 
   /** 非当前会话的 chat 事件：节流刷新会话列表（例如定时任务新建的隔离会话） */
-  let lastSessionsRefreshForOtherSessionMs = 0;
   function scheduleSessionsListRefreshForOtherSession(): void {
-    const now = Date.now();
-    if (now - lastSessionsRefreshForOtherSessionMs < 1500) {
+    if (!throttleSessionsRefreshOther().ok) {
       return;
     }
-    lastSessionsRefreshForOtherSessionMs = now;
     void useSessionStore().refresh();
   }
 
@@ -662,7 +670,7 @@ export const useChatStore = defineStore("chat", () => {
     }
     const payload = parsed.data;
 
-    (async () => {
+    async function processChatGatewayEventPayload(): Promise<void> {
       const sessionStore = useSessionStore();
       const activeKey = sessionStore.activeSessionKey;
       if (payload.sessionKey !== activeKey) {
@@ -742,10 +750,13 @@ export const useChatStore = defineStore("chat", () => {
         clearRunTiming();
         streamText.value = null;
         runId.value = null;
-        lastError.value = payload.errorMessage?.trim() || "对话出错（网关返回 error 状态）";
+        lastError.value =
+          payload.errorMessage?.trim() || i18n.global.t("composer.gatewayChatErrorFallback");
         flushPendingSilentHistorySync("chat.error");
       }
-    })().catch((e) => {
+    }
+
+    void processChatGatewayEventPayload().catch((e) => {
       console.error("[didclaw] handleGatewayEvent async error", e);
     });
   }

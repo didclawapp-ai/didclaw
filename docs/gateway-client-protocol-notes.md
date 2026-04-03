@@ -28,7 +28,7 @@
 |------|------|------------------|----------|----------|
 | （隐式）`connect` | 握手 hello | 由 `GatewayClient` 组装 auth、client、device 等 | `hello-ok` 等 | `gatewayHelloOkSchema`（`schemas.ts`） |
 | `sessions.list` | 会话列表 | `includeGlobal`, `includeUnknown` | `sessions[]`：`key` 必填 | `sessionsListResponseSchema` |
-| `chat.history` | 历史消息 | `sessionKey`, `limit` | `messages[]`：见下「与官方 Control UI」 | `chatHistoryResponseSchema` |
+| `chat.history` | 历史消息 | `sessionKey`, `limit`（didclaw 默认见 `didclaw-ui/src/lib/chat-history-config.ts`） | `messages[]`：见下「与官方 Control UI」 | `chatHistoryResponseSchema` |
 | `chat.send` | 发送并触发 Agent | `sessionKey`, `message`, `deliver`, `idempotencyKey`，可选 **`attachments`**、**`thinking`**、**`timeoutMs`** 等（以网关 `validateChatSendParams` / TypeBox 为准）；**根级无 `model`**（模型由网关按 `openclaw.json` / 会话解析） | 依网关版本而定 | 未强校验（仅用 `request` 成功/失败） |
 | `chat.abort` | 中断生成 | `sessionKey`，可选 `runId` | 依网关版本而定 | 未强校验 |
 | `cron.status` | 调度器摘要 | `{}` | `enabled`、`jobs`、`nextWakeAtMs` 等 | 未强校验（`CronJobsDialog`） |
@@ -64,7 +64,7 @@
 
 网关侧（参考 `src/gateway/server-methods/chat.ts`）：
 
-- 从会话 transcript 读出消息后 **`slice(-limit)`** 截最近 N 条，再经裁剪/脱敏后返回；条目中 **`timestamp` 一般为 number（毫秒）**。
+- 从会话 transcript 读出消息后 **`slice(-limit)`** 截最近 N 条，再经裁剪/脱敏后返回；条目中 **`timestamp` 一般为 number（毫秒）**。DidClaw 客户端将单次请求的 `limit` 配置为 **500**（`CHAT_HISTORY_LIMIT`），在网关未提供游标分页前减轻长会话截断；若上游对 `limit` 有硬顶则以其为准。
 
 **didclaw**：在 `loadHistory` 内对 `messages` 调用 `sortHistoryMessagesOldestFirst`（`lib/chat-history-sort.ts`）：若每条都能解析时间则按 `timestamp` 升序；否则仅在「首尾时间倒置」时整体 `reverse`，以兼容异常顺序。列表行在 `messageToChatLine` 中展示与官方类似的 **本地 `HH:mm`**（来自 `timestamp`）。
 

@@ -238,6 +238,11 @@ export default {
     previewTitle: "在右侧预览",
     preview: "预览",
     remove: "移除",
+    unknownFileType: "未知类型",
+    nonImageAttachIntro:
+      "以下文件已随消息发送；网关当前仅将**图片**作为多模态附件传入模型，其它格式请放到工作区或通过可访问链接提供：",
+    nonImageAttachLine: "- {name}（{type}）",
+    gatewayChatErrorFallback: "对话出错（网关返回 error 状态）",
   },
 
   // ─── 定时任务 CronJobsDialog ─────────────────────────
@@ -845,6 +850,9 @@ export default {
     disconnectedCodeOnly: "已断开（{code}）",
     pairingHint:
       " — 请在网关主机执行: openclaw devices list / openclaw devices approve <id>",
+    serviceRestartRetrying: "网关重启中，正在重连（第 {current}/{max} 次）…",
+    serviceRestartGiveUp:
+      "网关多次重启后仍无法连接（已连续尝试 {max} 次）。请检查 OpenClaw Gateway 是否正常运行。",
   },
 
   // ─── Tauri IPC / 原生层（errorKey / invoke 错误码）──────

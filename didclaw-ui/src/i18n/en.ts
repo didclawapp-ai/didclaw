@@ -238,6 +238,11 @@ export default {
     previewTitle: "Preview on the right",
     preview: "Preview",
     remove: "Remove",
+    unknownFileType: "unknown type",
+    nonImageAttachIntro:
+      "These files were sent with your message. The gateway currently passes only **images** to the model as multimodal attachments; put other formats in the workspace or use an accessible link:",
+    nonImageAttachLine: "- {name} ({type})",
+    gatewayChatErrorFallback: "Something went wrong (gateway reported error state)",
   },
 
   // ─── Cron jobs ────────────────────────────────────────
@@ -846,6 +851,9 @@ export default {
     disconnectedCodeOnly: "Disconnected ({code})",
     pairingHint:
       " — On the gateway host run: openclaw devices list / openclaw devices approve <id>",
+    serviceRestartRetrying: "Gateway restarting, reconnecting ({current}/{max})…",
+    serviceRestartGiveUp:
+      "Could not reconnect after {max} restart attempts. Check that OpenClaw Gateway is running.",
   },
 
   // ─── Tauri IPC / native layer (errorKey / invoke codes) ─

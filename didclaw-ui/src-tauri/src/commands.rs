@@ -83,8 +83,14 @@ pub fn dialog_save_base64_file(
             "error": "文件过大（超过 50MB 限制）",
         }));
     }
-    let cleaned: String = base64_data.chars().filter(|c| !c.is_whitespace()).collect();
-    let bytes = match base64::engine::general_purpose::STANDARD.decode(cleaned.as_bytes()) {
+    // 按字节过滤空白，避免对大 String 做 chars()（UTF-32 展开）的额外分配
+    let cleaned: Vec<u8> = base64_data
+        .as_bytes()
+        .iter()
+        .copied()
+        .filter(|b| !b.is_ascii_whitespace())
+        .collect();
+    let bytes = match base64::engine::general_purpose::STANDARD.decode(cleaned.as_slice()) {
         Ok(b) => b,
         Err(e) => {
             return Ok(json!({

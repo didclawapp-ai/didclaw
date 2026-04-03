@@ -34,6 +34,7 @@ function productionCspMeta(): string {
 }
 
 export default defineConfig(({ command }): UserConfig => ({
+  // 与 `src/vite-env.d.ts` 中 `declare const __APP_VERSION__` 一致；供网关 clientVersion / 关于页等使用
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
