@@ -6,6 +6,9 @@
 # Product Hunt 素材（本地制作，不入库）
 didclaw-ui/producthunt/
 
+# DidClaw 更新清单（dist:win 等脚本生成，不入库）
+/dist/didclaw-update.json
+
 # 客户端构建、依赖与测试产物
 didclaw-ui/node_modules/
 didclaw-ui/dist/
