@@ -52,8 +52,12 @@
 | `read_open_claw_agents_list` | 返回 `{ ok, list }`，`list` 为 `agents.list` 数组（缺文件时 `ok: true, list: []`） |
 | `write_open_claw_agents_list_merge` | `payload: { agents: [...] }`，每项须含 `id`；按 `id` **字段级合并**已有项并保留 OpenClaw 其它键；写前备份 `openclaw.json`；成功后对 **per-agent auth** 执行与官方 [Multi-Agent](https://docs.openclaw.ai/concepts/multi-agent) 一致的 **main → 子 agent 复制 `auth-profiles.json`**（仅当子 agent `profiles` 为空或文件缺失，写前备份） |
 | `sync_openclaw_subagent_auth_profiles_from_main` | 仅同步凭据：按当前 `openclaw.json` 的 `agents.list`，将 **`agents/main/agent/auth-profiles.json`** 复制到需补全的子 agent（同上条件）；供 **仅 `config.patch` 写入列表** 后前端再调一次 |
+| `read_open_claw_tools_agent_to_agent` | 返回 `{ ok, enabled, allow }`，对应 `openclaw.json` → `tools.agentToAgent`（缺省 `enabled: false`、`allow: []`） |
+| `write_open_claw_tools_agent_to_agent_merge` | `payload: { enabled, allow: string[] }`；合并写入 `tools.agentToAgent`，保留同对象内其它键（如 `maxPingPongTurns`）；写前备份 `openclaw.json` |
 
-实现：`didclaw-ui/src-tauri/src/openclaw_agents_config.rs`。前端：`CompanyAgentsHubDialog` + `lib/openclaw-gateway-config.ts` + `getDidClawDesktopApi().readOpenClawAgentsList` / `writeOpenClawAgentsListMerge` / `syncOpenclawSubagentAuthProfilesFromMain`。
+实现：`didclaw-ui/src-tauri/src/openclaw_agents_config.rs`（agents）、`openclaw_tools_agent_to_agent.rs`（协作拓扑）。前端：`CompanyAgentsHubDialog` + `lib/openclaw-gateway-config.ts`（含 `patchToolsAgentToAgentViaGateway`）+ `lib/agent-to-agent-topology.ts`。
+
+**Phase 2 / `tools.agentToAgent`（手配最小片段，以当时网关为准）**：官方 [Multi-Agent](https://docs.openclaw.ai/concepts/multi-agent) 示例形态为 `tools.agentToAgent.enabled` + `allow: ["home","work"]`（无向白名单）。DidClaw 向导将星型/自定义边 **编译为该结构**；连接网关时优先 **`config.patch`** 写入 `{ "tools": { "agentToAgent": { ... } } }`，否则 Tauri 合并回退。是否在子职务会话中看到可核验的跨 agent 工具效果，需在目标 OpenClaw 版本上做一次 **main → 子** 实机验证（里程碑 2.1）。
 
 **官方依据**：OpenClaw 文档明确 **Auth profiles are per-agent**、**Main agent credentials are not shared automatically**；若需共用，**copy `auth-profiles.json` into the other agent's agentDir** — DidClaw 自动复制即实现该步骤，而非替代 `openclaw.json` schema。
 

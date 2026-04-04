@@ -278,6 +278,49 @@ export default {
     sessionSelectLabel: "绑定会话",
     sessionSelectTitle: "从 Gateway sessions.list 选择该职务对应的 sessionKey",
     sessionDefaultMain: "主会话 (…:main)",
+
+    topologySection: "协作拓扑（tools.agentToAgent）",
+    topologyHint:
+      "与「多列职务聊天」不同：此处写入的是 OpenClaw 官方跨 agent 工具白名单。未启用时，主会话里模型若声称「已通知某职务」未必会在该职务会话中留下可核验记录。",
+    topologyVsColumnsHint:
+      "官方配置字段仅为 enabled 与 allow（agent id 列表）。星型/主↔子要求上方职务表中**必须有一行 id 为 main**（总经理会话），否则会与 allow 中的 main 不一致；全连接风险高，保存前会二次确认。",
+    topologyMainMissingWarning:
+      "当前选择了「星型」或「主↔子」，但职务表里没有 id「main」。请添加一行：id 填 main，并合并保存 agents.list，再保存协作拓扑；否则主会话无法与其它职务对齐官方多 Agent 配置。",
+    topologyDocMultiAgent: "Multi-Agent 文档",
+    topologyDocSecurity: "安全说明",
+    topologyTemplate: "预设",
+    topologyTplOff: "关闭（不启用职务间工具）",
+    topologyTplStar: "星型：main → 各子职务（allow = main + 全部非 main）",
+    topologyTplBidirectional: "主↔子（落盘与星型相同，便于理解）",
+    topologyTplFull: "全连接（所有职务 id 互列入 allow，危险）",
+    topologyTplCustom: "自定义有向边（编译为 allow = 端点并集；禁止环路）",
+    topologyCustomHint:
+      "每条边表示希望参与协作的 agent；保存时合并为官方 allow 列表。请先在上方表格中填写职务 id。",
+    topologyFrom: "从",
+    topologyTo: "到",
+    topologyPickAgent: "选择 id",
+    topologyAddEdge: "添加一条边",
+    topologyCurrentJson: "当前 tools.agentToAgent（只读）",
+    topologySave: "保存协作拓扑",
+    topologyFullMeshConfirm:
+      "全连接会使任意列出的职务之间均可使用跨 agent 工具，暴露面显著扩大。确定要继续吗？",
+    afterWriteTopologyViaGateway:
+      "已通过网关写入 tools.agentToAgent。若未热加载，请重启本机网关后验证主会话→子职务会话是否出现工具链产生的记录。",
+    afterWriteTopologyLocalFallbackLead:
+      "网关未能应用此次协作拓扑修改，已改为写入本机 openclaw.json（已按规则备份）。",
+    topologyErr: {
+      needAtLeastOneAgentId: "请先在职务表中至少填写一个 agent id。",
+      invalidAgentId: "存在不合法的 agent id（须以字母开头，仅含字母、数字、._-）。",
+      tooManyEdges: "自定义边数量超过上限，请删减后再保存。",
+      edgeEmptyEndpoint: "自定义边存在空的「从」或「到」。",
+      edgeSelfLoop: "自定义边不能从某 id 指向自身。",
+      edgeUnknownAgent: "边的端点须来自当前职务表中的 id。",
+      directedCycle: "自定义边形成有向环，请修改后再保存。",
+      customNeedsEdge: "自定义模式请至少添加一条有效边。",
+      unknownTemplate: "无法识别的拓扑模板。",
+      mainNotInAgentsList:
+        "星型/主↔子要求 agents.list 中包含 id「main」。请在上方表格添加 main 一行，先「合并到 openclaw.json」，再保存协作拓扑。",
+    },
   },
 
   composer: {

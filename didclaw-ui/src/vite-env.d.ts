@@ -262,6 +262,14 @@ interface DidClawElectronApi {
     errors?: Array<{ agentId?: string; error?: string }>;
     note?: string;
   }>;
+  readOpenClawToolsAgentToAgent?(): Promise<
+    | { ok: true; enabled: boolean; allow: string[] }
+    | { ok: false; error: string }
+  >;
+  writeOpenClawToolsAgentToAgentMerge?(payload: {
+    enabled: boolean;
+    allow: string[];
+  }): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string; backupPath?: string }>;
   /** 读取 workspace/IDENTITY.md 和 USER.md 中的 AI 名称与用户名称 */
   readWorkspaceIdentity?(): Promise<
     { ok: true; aiName?: string | null; userName?: string | null }

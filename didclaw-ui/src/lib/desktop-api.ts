@@ -67,6 +67,9 @@ function tauriApi(): DidClawElectronApi {
       invoke("write_open_claw_agents_list_merge", { payload }),
     syncOpenclawSubagentAuthProfilesFromMain: () =>
       invoke("sync_openclaw_subagent_auth_profiles_from_main"),
+    readOpenClawToolsAgentToAgent: () => invoke("read_open_claw_tools_agent_to_agent"),
+    writeOpenClawToolsAgentToAgentMerge: (payload: { enabled: boolean; allow: string[] }) =>
+      invoke("write_open_claw_tools_agent_to_agent_merge", { payload }),
     runOpenclawOnboard: (payload) =>
       invoke("run_openclaw_onboard", { authChoice: payload.authChoice }),
     runMinimaxOauth: (payload) =>

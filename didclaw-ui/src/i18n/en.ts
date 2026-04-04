@@ -282,6 +282,49 @@ export default {
     sessionSelectLabel: "Bound session",
     sessionSelectTitle: "Pick sessionKey for this role from Gateway sessions.list",
     sessionDefaultMain: "Main (…:main)",
+
+    topologySection: "Collaboration topology (tools.agentToAgent)",
+    topologyHint:
+      "Unlike side-by-side role chats, this writes the official OpenClaw cross-agent tool allowlist. When disabled, a model saying it “notified a role” may not leave verifiable traces in that role’s session.",
+    topologyVsColumnsHint:
+      "On disk: only `enabled` and `allow`. Star / main↔subs require a **table row with id `main`** so agents.list matches the hub id in allow. Full mesh asks for confirmation.",
+    topologyMainMissingWarning:
+      "Star or main↔subs is selected but there is no `main` id in the roles table. Add a row with id `main`, merge agents.list, then save topology — otherwise the primary session won’t align with OpenClaw multi-agent config.",
+    topologyDocMultiAgent: "Multi-Agent docs",
+    topologyDocSecurity: "Security",
+    topologyTemplate: "Preset",
+    topologyTplOff: "Off (no cross-agent tools)",
+    topologyTplStar: "Star: main + every non-main id in allow",
+    topologyTplBidirectional: "Main ↔ subs (same on disk as star; clearer label)",
+    topologyTplFull: "Full mesh (all listed ids in allow — dangerous)",
+    topologyTplCustom: "Custom directed edges → allow = union of endpoints (cycles blocked)",
+    topologyCustomHint:
+      "Each edge marks agents that should participate; saving merges endpoints into the official allow list. Fill role ids in the table above first.",
+    topologyFrom: "From",
+    topologyTo: "To",
+    topologyPickAgent: "Pick id",
+    topologyAddEdge: "Add edge",
+    topologyCurrentJson: "Current tools.agentToAgent (read-only)",
+    topologySave: "Save collaboration topology",
+    topologyFullMeshConfirm:
+      "Full mesh allows cross-agent tools between every listed role and greatly increases exposure. Continue?",
+    afterWriteTopologyViaGateway:
+      "Updated tools.agentToAgent via the gateway. If not hot-reloaded, restart the gateway and verify main → role sessions show tool-driven activity.",
+    afterWriteTopologyLocalFallbackLead:
+      "The gateway did not apply this topology change; wrote local openclaw.json instead (backup rules applied).",
+    topologyErr: {
+      needAtLeastOneAgentId: "Enter at least one agent id in the roles table.",
+      invalidAgentId: "An agent id is invalid (letter-first; letters, digits, . _ - only).",
+      tooManyEdges: "Too many custom edges; remove some before saving.",
+      edgeEmptyEndpoint: "A custom edge has an empty from or to.",
+      edgeSelfLoop: "A custom edge cannot point from an id to itself.",
+      edgeUnknownAgent: "Edge endpoints must be ids from the current roles table.",
+      directedCycle: "Custom edges contain a directed cycle; fix before saving.",
+      customNeedsEdge: "Custom mode needs at least one valid edge.",
+      unknownTemplate: "Unknown topology template.",
+      mainNotInAgentsList:
+        "Star / main↔subs requires `main` in agents.list. Add a `main` row above, merge into openclaw.json, then save collaboration topology.",
+    },
   },
 
   composer: {

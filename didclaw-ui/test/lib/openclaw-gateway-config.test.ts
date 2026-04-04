@@ -2,6 +2,7 @@ import { GatewayRequestError } from "@/features/gateway/gateway-types";
 import {
   extractAgentsListFromConfigGet,
   extractConfigSnapshotHash,
+  extractToolsAgentToAgentFromConfigGet,
   isGatewayConfigHashStaleError,
   isGatewayConfigPatchRejectedError,
   retryAfterSecondsFromGatewayDetails,
@@ -23,6 +24,20 @@ describe("openclaw-gateway-config", () => {
     ).toEqual([{ id: "sales" }]);
     expect(extractAgentsListFromConfigGet({ config: {} })).toEqual([]);
     expect(extractAgentsListFromConfigGet({ config: { agents: {} } })).toEqual([]);
+  });
+
+  it("extractToolsAgentToAgentFromConfigGet", () => {
+    expect(
+      extractToolsAgentToAgentFromConfigGet({
+        config: {
+          tools: { agentToAgent: { enabled: true, allow: ["main", "sales", "main"] } },
+        },
+      }),
+    ).toEqual({ enabled: true, allow: ["main", "sales"] });
+    expect(extractToolsAgentToAgentFromConfigGet({ config: {} })).toEqual({
+      enabled: false,
+      allow: [],
+    });
   });
 
   it("retryAfterSecondsFromGatewayDetails", () => {

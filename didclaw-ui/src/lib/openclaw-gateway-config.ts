@@ -27,6 +27,79 @@ export function extractAgentsListFromConfigGet(payload: unknown): unknown[] {
   return Array.isArray(list) ? list : [];
 }
 
+/** 从 `config.get` 响应解析 `tools.agentToAgent`（缺省 enabled=false, allow=[]）。 */
+export function extractToolsAgentToAgentFromConfigGet(payload: unknown): {
+  enabled: boolean;
+  allow: string[];
+} {
+  if (!payload || typeof payload !== "object") {
+    return { enabled: false, allow: [] };
+  }
+  const config = (payload as { config?: unknown }).config;
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return { enabled: false, allow: [] };
+  }
+  const tools = (config as { tools?: unknown }).tools;
+  if (!tools || typeof tools !== "object" || Array.isArray(tools)) {
+    return { enabled: false, allow: [] };
+  }
+  const ata = (tools as { agentToAgent?: unknown }).agentToAgent;
+  if (!ata || typeof ata !== "object" || Array.isArray(ata)) {
+    return { enabled: false, allow: [] };
+  }
+  const o = ata as { enabled?: unknown; allow?: unknown };
+  const enabled = o.enabled === true;
+  const raw = o.allow;
+  if (!Array.isArray(raw)) {
+    return { enabled, allow: [] };
+  }
+  const allow: string[] = [];
+  for (const x of raw) {
+    if (typeof x === "string") {
+      const t = x.trim();
+      if (t) {
+        allow.push(t);
+      }
+    }
+  }
+  allow.sort();
+  const dedup = [...new Set(allow)];
+  return { enabled, allow: dedup };
+}
+
+export type PatchToolsAgentToAgentOptions = {
+  sessionKey?: string | null;
+};
+
+/**
+ * 通过 `config.get` → `config.patch` 合并 `tools.agentToAgent`（与 agents.list 相同 raw 补丁模式）。
+ */
+export async function patchToolsAgentToAgentViaGateway(
+  client: GatewayClient,
+  agentToAgent: { enabled: boolean; allow: string[] },
+  opts?: PatchToolsAgentToAgentOptions,
+): Promise<void> {
+  const snap = await client.request<unknown>("config.get", {});
+  const baseHash = extractConfigSnapshotHash(snap);
+  if (!baseHash) {
+    throw new Error("config.get: missing hash in response");
+  }
+  const raw = JSON.stringify({
+    tools: {
+      agentToAgent: {
+        enabled: agentToAgent.enabled,
+        allow: [...agentToAgent.allow].sort(),
+      },
+    },
+  });
+  const params: Record<string, unknown> = { raw, baseHash };
+  const sk = opts?.sessionKey?.trim();
+  if (sk) {
+    params.sessionKey = sk;
+  }
+  await client.request<unknown>("config.patch", params);
+}
+
 export function retryAfterSecondsFromGatewayDetails(details: unknown): number | null {
   if (!details || typeof details !== "object") {
     return null;

@@ -67,6 +67,8 @@ macro_rules! didclaw_invoke_handlers {
             crate::commands::read_open_claw_agents_list,
             crate::commands::write_open_claw_agents_list_merge,
             crate::commands::sync_openclaw_subagent_auth_profiles_from_main,
+            crate::commands::read_open_claw_tools_agent_to_agent,
+            crate::commands::write_open_claw_tools_agent_to_agent_merge,
             // ─── 内置 skills 安装目录 / Doctor / OAuth / 备份 ───────
             crate::commands::skills_default_install_root,
             crate::commands::skills_list_installed,

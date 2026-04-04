@@ -39,7 +39,7 @@
 | Control UI / WebChat | ✅ | 主界面承担聊天与控制；**侧重**安装、预览、备份、技能等增强（非「API 一一等同」官方 Web） |
 | 会话模型（主会话 / 群组等） | ✅ | `didclaw-ui/src/stores/session.ts` + `chat.ts` 与 `sessions.list` 同步 |
 | Multi-agent：每 agent 独立 auth-profiles | ✅ | 官方 [Multi-Agent Routing](https://docs.openclaw.ai/concepts/multi-agent)：`~/.openclaw/agents/<agentId>/agent/auth-profiles.json`，主凭据不自动共享，需共用时 **复制** 至目标 agentDir；DidClaw 保存 `agents.list` 后对空凭据子 agent **从 main 复制**（`sync_openclaw_subagent_auth_profiles_from_main` / `openclaw_agents_config.rs`） |
-| Multi-agent：`tools.agentToAgent` 职务间真实投递 | ❌ | **Phase 2**（见 [`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md) §6）：拓扑编译 + UI；与「无人公司」闭环相关 |
+| Multi-agent：`tools.agentToAgent` 职务间真实投递 | ⚠️ | **DidClaw**：向导内「协作拓扑」编译写入 + Gateway `config.patch` / Tauri 合并（`agent-to-agent-topology.ts` 等）。**运行时 main→子可核验**仍须在目标 OpenClaw 上手配/验收（spec §6.2.1）。 |
 | Gateway 本机子进程 | ✅ | `openclaw_gateway.rs`：`ensure` / `restart` / `stop` 等（以实际命令名为准） |
 
 ---

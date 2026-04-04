@@ -705,6 +705,18 @@ pub fn sync_openclaw_subagent_auth_profiles_from_main() -> Result<Value, String>
 }
 
 #[tauri::command]
+pub fn read_open_claw_tools_agent_to_agent() -> Result<Value, String> {
+    Ok(crate::openclaw_tools_agent_to_agent::read_open_claw_tools_agent_to_agent())
+}
+
+#[tauri::command]
+pub fn write_open_claw_tools_agent_to_agent_merge(payload: Value) -> Result<Value, String> {
+    Ok(crate::openclaw_tools_agent_to_agent::write_open_claw_tools_agent_to_agent_merge(
+        payload,
+    ))
+}
+
+#[tauri::command]
 pub fn skills_default_install_root() -> Result<String, String> {
     crate::skills::default_install_root()
 }

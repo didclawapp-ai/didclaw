@@ -70,19 +70,22 @@
 
 ## 6. 建议实施顺序（含进度）
 
-### 结论（截至 2026-04-04）
+### 结论（截至 2026-04-05）
 
 | 范围 | 状态 |
 |------|------|
 | **Phase 1 — 代码与文档（MVP）** | **已完成**：多表面 chat、`agents.list` 合并写入（Gateway 优先 + Tauri 回退）、职务列 UI、浮层、错误与成功提示文案。 |
 | **Phase 1 — 验收** | **未替代人工**：见 spec **§8**（双职务不串会话、网关无报错、升级兼容等）需在目标 OpenClaw 环境跑一遍。 |
 | **Phase 0 — 手配回归** | **仍建议**：团队在有真实 Gateway 的机器上勾选完成（非阻塞发版，但影响信心）。 |
+| **Phase 2 — 核心代码（2.2 / 2.3）** | **已落地**：`tools.agentToAgent` 拓扑编译（`lib/agent-to-agent-topology.ts`）、Hub「协作拓扑」UI、`config.patch` + Tauri `read/write_open_claw_tools_agent_to_agent*`、协议笔记与单测。 |
+| **Phase 2 — 2.1 冻结与验收 A** | **仍须人工**：目标 OpenClaw 版本上 main→子 **可核验** 手配/记录；非代码项。 |
+| **Phase 2 — 可选** | **2.4** 可观测性增强、**2.5** bindings 向导、**2.6** detach 子窗口 **未做**。 |
 
 ### 与产品原型的差距（有意推迟，不算 Phase 1 欠账）
 
-- Spec **§4** 中的 **「五步成立公司」完整向导**、**组织图模板（扁平/金字塔）**：当前实现为 **Hub 表格合并 + 右下角列表浮层**，属 **轻量 MVP**；完整步骤向导与可编辑组织图归 **Phase 2**。  
-- **§5.4** 对官方最小示例的 **snapshot 单测**：仓库内 **尚未加**；可作为后续硬化工序。
-- **Phase 2（spec §6 已扩写）**：**职务间真实协作** — `tools.agentToAgent`（及必要时 [Session tools](https://docs.openclaw.ai/concepts/session-tool)）编译进标准配置；组织图 **边** + 预设拓扑；验收 **main→子 可核验 history**；可选 bindings 向导、detach 子窗口。详见 **[`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md)** 的 **§6 · Phase 2** 整节。
+- Spec **§4** 中的 **「五步成立公司」完整向导**、**组织图模板（扁平/金字塔）**：当前实现为 **Hub 表格合并 + 右下角列表浮层**，属 **轻量 MVP**；完整步骤向导与可拖拽组织图仍可作为后续增强。  
+- **§5.4** 对官方最小示例的 **snapshot 单测**：**已加** `tools.agentToAgent` 最小结构快照（`agent-to-agent-topology.test.ts`）。
+- **Phase 2（spec §6）**：**职务间配置闭环（DidClaw）** — `tools.agentToAgent` 经向导写入；**运行时** main→子 **可核验 history** 依赖网关与模型实际调用工具，须按 **§6.2.1** 在环境中验证。可选：[Session tools](https://docs.openclaw.ai/concepts/session-tool) 等补充、**2.4–2.6**。详见 **[`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md)** **§6**。
 
 ---
 

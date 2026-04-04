@@ -58,6 +58,8 @@ commands.allow = [
   "read_open_claw_agents_list",
   "write_open_claw_agents_list_merge",
   "sync_openclaw_subagent_auth_profiles_from_main",
+  "read_open_claw_tools_agent_to_agent",
+  "write_open_claw_tools_agent_to_agent_merge",
   "write_open_claw_env",
   "skills_default_install_root",
   "skills_list_installed",

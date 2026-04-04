@@ -23,6 +23,7 @@ mod openclaw_exec_approvals_defaults;
 mod oauth_providers;
 mod openclaw_providers;
 mod openclaw_agents_config;
+mod openclaw_tools_agent_to_agent;
 mod openclaw_skill_config;
 mod paths;
 mod preview_local;

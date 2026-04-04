@@ -4,11 +4,19 @@ import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { isDidClawDesktop } from "@/lib/desktop-api";
 import { buildModelPickerRows, readOpenClawAiSnapshot } from "@/lib/openclaw-ai-config";
 import {
+  type AgentTopologyEdge,
+  compileAgentToAgentTopology,
+  inferTopologyTemplate,
+  type TopologyTemplate,
+} from "@/lib/agent-to-agent-topology";
+import {
   isGatewayConfigHashStaleError,
   isGatewayConfigPatchRejectedError,
   isGatewayConfigRequestError,
   patchAgentsListMergeViaGateway,
+  patchToolsAgentToAgentViaGateway,
   extractAgentsListFromConfigGet,
+  extractToolsAgentToAgentFromConfigGet,
   retryAfterSecondsFromGatewayDetails,
 } from "@/lib/openclaw-gateway-config";
 import { useChatStore } from "@/stores/chat";
@@ -39,6 +47,13 @@ const listJson = ref<string>("[]");
 const rows = ref<Array<{ id: string; name: string; workspace: string; model: string }>>([
   { id: "", name: "", workspace: "default", model: "" },
 ]);
+
+/** Phase 2：`tools.agentToAgent` 协作拓扑 */
+const topoTemplate = ref<TopologyTemplate>("off");
+const topoCustomEdges = ref<AgentTopologyEdge[]>([]);
+const topoBusy = ref(false);
+const topoError = ref<string | null>(null);
+const topoAllowReadback = ref<string>("");
 
 /** 来自 `readOpenClawAiSnapshot`（桌面版），用于 model 列下拉 */
 const modelPickerRows = ref<Array<{ value: string; label: string }>>([]);
@@ -126,6 +141,26 @@ const canSaveViaGateway = computed(() => !!gateway.client?.connected);
 /** 已连接 Gateway 时可通过 `config.patch` 写入；否则需桌面版 Tauri 合并。 */
 const canMergeAgents = computed(() => canSaveViaGateway.value || canUseDesktop.value);
 
+const agentIdsFromRows = computed(() =>
+  [...new Set(rows.value.map((r) => r.id.trim()).filter((id) => id.length > 0))],
+);
+
+const topologyAgentSelectOptions = computed(() => agentIdsFromRows.value);
+
+const canTopologyDesktopWrite = computed(
+  () => isDidClawElectron() && !!getDidClawDesktopApi()?.writeOpenClawToolsAgentToAgentMerge,
+);
+const canSaveTopology = computed(() => canSaveViaGateway.value || canTopologyDesktopWrite.value);
+
+/** 星型/主↔子依赖 agents.list 中的 main，与 allow 白名单一致 */
+const showTopologyMainMissingWarning = computed(() => {
+  const t = topoTemplate.value;
+  if (t !== "star" && t !== "bidirectional") {
+    return false;
+  }
+  return !agentIdsFromRows.value.includes("main");
+});
+
 function formatGatewaySaveError(err: unknown): string {
   if (isGatewayConfigRequestError(err)) {
     if (isGatewayConfigHashStaleError(err)) {
@@ -201,8 +236,153 @@ async function refreshList(): Promise<void> {
   }
 }
 
+function applyTopologyFromOfficial(ata: { enabled: boolean; allow: string[] }): void {
+  const ids = agentIdsFromRows.value;
+  const inferred = inferTopologyTemplate(ata, ids);
+  topoTemplate.value = inferred;
+  if (inferred === "custom" && ata.enabled && ata.allow.length > 0) {
+    const m = "main";
+    if (ata.allow.includes(m)) {
+      topoCustomEdges.value = ata.allow
+        .filter((id) => id !== m)
+        .map((to) => ({ from: m, to }));
+    } else {
+      topoCustomEdges.value = [];
+    }
+  } else if (inferred !== "custom") {
+    topoCustomEdges.value = [];
+  }
+  topoAllowReadback.value = JSON.stringify({ enabled: ata.enabled, allow: ata.allow }, null, 2);
+}
+
+async function refreshTopologyState(): Promise<void> {
+  topoError.value = null;
+  const gc = gateway.client;
+  if (gc?.connected) {
+    try {
+      const payload = await gc.request<unknown>("config.get", {});
+      applyTopologyFromOfficial(extractToolsAgentToAgentFromConfigGet(payload));
+      return;
+    } catch (e) {
+      topoError.value = formatGatewaySaveError(e);
+    }
+  }
+  const api = getDidClawDesktopApi();
+  if (!api?.readOpenClawToolsAgentToAgent) {
+    topoAllowReadback.value = "";
+    return;
+  }
+  try {
+    const r = await api.readOpenClawToolsAgentToAgent();
+    if (r.ok) {
+      const allow = Array.isArray(r.allow) ? r.allow.filter((x): x is string => typeof x === "string") : [];
+      applyTopologyFromOfficial({ enabled: r.enabled === true, allow });
+    }
+  } catch {
+    topoAllowReadback.value = "";
+  }
+}
+
 async function refreshHubData(): Promise<void> {
-  await Promise.all([refreshList(), loadModelPickerOptions()]);
+  await refreshList();
+  await loadModelPickerOptions();
+  await refreshTopologyState();
+}
+
+watch(topoTemplate, (next, prev) => {
+  if (next === "custom" && (prev === "star" || prev === "bidirectional")) {
+    const m = "main";
+    const subs = agentIdsFromRows.value.filter((id) => id !== m);
+    topoCustomEdges.value = subs.map((to) => ({ from: m, to }));
+  }
+  if (next !== "custom" && next !== "off") {
+    topoError.value = null;
+  }
+});
+
+function addTopoEdgeRow(): void {
+  topoCustomEdges.value = [...topoCustomEdges.value, { from: "", to: "" }];
+}
+
+function removeTopoEdgeRow(i: number): void {
+  topoCustomEdges.value = topoCustomEdges.value.filter((_, j) => j !== i);
+}
+
+function topologyErrorMessage(code: string): string {
+  const key = `company.topologyErr.${code}`;
+  const msg = t(key);
+  return msg === key ? code : msg;
+}
+
+async function saveTopology(): Promise<void> {
+  topoError.value = null;
+  if (!canSaveTopology.value) {
+    topoError.value = t("company.saveNeedsDesktopOrGateway");
+    return;
+  }
+  const ids = agentIdsFromRows.value;
+  if (topoTemplate.value === "full" && ids.length > 2) {
+    const ok = window.confirm(t("company.topologyFullMeshConfirm"));
+    if (!ok) {
+      return;
+    }
+  }
+  const compiled = compileAgentToAgentTopology({
+    template: topoTemplate.value,
+    agentIds: ids,
+    customEdges: topoCustomEdges.value,
+  });
+  if (!compiled.ok) {
+    topoError.value = topologyErrorMessage(compiled.error);
+    return;
+  }
+  topoBusy.value = true;
+  let attemptedGatewayWrite = false;
+  try {
+    const gc = gateway.client;
+    const api = getDidClawDesktopApi();
+    if (gc?.connected) {
+      attemptedGatewayWrite = true;
+      try {
+        await patchToolsAgentToAgentViaGateway(gc, compiled.config, {
+          sessionKey: sessionStore.activeSessionKey,
+        });
+        chat.flashOpenClawConfigHint(
+          [t("company.afterWriteTopologyViaGateway"), getOpenClawAfterWriteHint()].filter(Boolean).join("\n\n"),
+        );
+        await refreshTopologyState();
+        return;
+      } catch (e) {
+        if (!api?.writeOpenClawToolsAgentToAgentMerge) {
+          topoError.value = formatGatewaySaveError(e);
+          return;
+        }
+      }
+    }
+    if (!api?.writeOpenClawToolsAgentToAgentMerge) {
+      topoError.value = t("company.saveNeedsDesktopOrGateway");
+      return;
+    }
+    const res = await api.writeOpenClawToolsAgentToAgentMerge(compiled.config);
+    if (!res.ok) {
+      topoError.value = res.backupPath ? `${res.error}（备份：${res.backupPath}）` : res.error;
+      return;
+    }
+    chat.flashOpenClawConfigHint(
+      [
+        attemptedGatewayWrite
+          ? `${t("company.afterWriteTopologyLocalFallbackLead")}\n${getOpenClawAfterWriteHint()}`
+          : getOpenClawAfterWriteHint(),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    );
+    await refreshTopologyState();
+  } catch (e) {
+    topoError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    topoBusy.value = false;
+  }
 }
 
 watch(
@@ -481,6 +661,91 @@ function authSyncLinesFromMergeRes(res: {
           </section>
 
           <section class="hub-section">
+            <h3>{{ t("company.topologySection") }}</h3>
+            <p class="hint">{{ t("company.topologyHint") }}</p>
+            <p class="hint">{{ t("company.topologyVsColumnsHint") }}</p>
+            <p v-if="showTopologyMainMissingWarning" class="hint topology-main-missing">
+              {{ t("company.topologyMainMissingWarning") }}
+            </p>
+            <p class="hint">
+              <a
+                class="topology-doc-link"
+                href="https://docs.openclaw.ai/concepts/multi-agent"
+                target="_blank"
+                rel="noopener noreferrer"
+              >{{ t("company.topologyDocMultiAgent") }}</a>
+              ·
+              <a
+                class="topology-doc-link"
+                href="https://docs.openclaw.ai/gateway/security"
+                target="_blank"
+                rel="noopener noreferrer"
+              >{{ t("company.topologyDocSecurity") }}</a>
+            </p>
+            <div class="topology-row">
+              <label class="topology-label">{{ t("company.topologyTemplate") }}</label>
+              <select v-model="topoTemplate" class="inp topology-select" :disabled="topoBusy">
+                <option value="off">{{ t("company.topologyTplOff") }}</option>
+                <option value="star">{{ t("company.topologyTplStar") }}</option>
+                <option value="bidirectional">{{ t("company.topologyTplBidirectional") }}</option>
+                <option value="full">{{ t("company.topologyTplFull") }}</option>
+                <option value="custom">{{ t("company.topologyTplCustom") }}</option>
+              </select>
+            </div>
+            <div v-if="topoTemplate === 'custom'" class="topology-custom">
+              <p class="hint">{{ t("company.topologyCustomHint") }}</p>
+              <table class="grid-table">
+                <thead>
+                  <tr>
+                    <th>{{ t("company.topologyFrom") }}</th>
+                    <th>{{ t("company.topologyTo") }}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(edge, ei) in topoCustomEdges" :key="ei">
+                    <td>
+                      <select v-model="edge.from" class="inp model-select">
+                        <option value="">{{ t("company.topologyPickAgent") }}</option>
+                        <option v-for="aid in topologyAgentSelectOptions" :key="`f-${ei}-${aid}`" :value="aid">
+                          {{ aid }}
+                        </option>
+                      </select>
+                    </td>
+                    <td>
+                      <select v-model="edge.to" class="inp model-select">
+                        <option value="">{{ t("company.topologyPickAgent") }}</option>
+                        <option v-for="aid in topologyAgentSelectOptions" :key="`t-${ei}-${aid}`" :value="aid">
+                          {{ aid }}
+                        </option>
+                      </select>
+                    </td>
+                    <td>
+                      <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs" @click="removeTopoEdgeRow(ei)">−</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="addTopoEdgeRow">
+                {{ t("company.topologyAddEdge") }}
+              </button>
+            </div>
+            <p v-if="topoAllowReadback" class="hint topology-readback-label">{{ t("company.topologyCurrentJson") }}</p>
+            <pre v-if="topoAllowReadback" class="json-preview topology-json-preview">{{ topoAllowReadback }}</pre>
+            <div class="row-actions">
+              <button
+                type="button"
+                class="lc-btn lc-btn-primary lc-btn-sm"
+                :disabled="topoBusy || !canSaveTopology"
+                @click="saveTopology"
+              >
+                {{ t("company.topologySave") }}
+              </button>
+            </div>
+            <p v-if="topoError" class="err">{{ topoError }}</p>
+          </section>
+
+          <section class="hub-section">
             <h3>{{ t("company.currentAgentsJson") }}</h3>
             <pre class="json-preview">{{ listJson }}</pre>
             <div class="row-actions">
@@ -525,7 +790,7 @@ function authSyncLinesFromMergeRes(res: {
   padding: 24px;
 }
 .hub-dialog {
-  width: min(720px, 100%);
+  width: min(840px, 100%);
   max-height: min(90vh, 900px);
   overflow: hidden;
   display: flex;
@@ -637,6 +902,39 @@ function authSyncLinesFromMergeRes(res: {
   color: var(--lc-text-muted);
 }
 .model-missing-hint {
+  color: var(--lc-warning, #b45309);
+}
+.topology-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.topology-label {
+  font-size: 12px;
+  color: var(--lc-text-muted);
+}
+.topology-select {
+  min-width: 220px;
+}
+.topology-custom {
+  margin-bottom: 12px;
+}
+.topology-doc-link {
+  color: var(--lc-accent, #3b82f6);
+  text-decoration: none;
+}
+.topology-doc-link:hover {
+  text-decoration: underline;
+}
+.topology-readback-label {
+  margin-top: 8px;
+}
+.topology-json-preview {
+  max-height: 120px;
+}
+.topology-main-missing {
   color: var(--lc-warning, #b45309);
 }
 </style>

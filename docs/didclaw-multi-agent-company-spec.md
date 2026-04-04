@@ -1,6 +1,6 @@
 # DidClaw「公司制多 Agent」方案与实施
 
-> **状态**：**Phase 1（MVP）代码与主文档已落地**（2026-04-04）；**人工验收（§8）与 Phase 0 手配回归**仍建议在目标环境执行。**Phase 2 方案已扩写（§6）**，实现未开始。  
+> **状态**：**Phase 1（MVP）已落地**（2026-04-04）。**Phase 2**：**2.2 拓扑编译器 + 2.3 Hub「协作拓扑」UI + Tauri/Gateway 写入**已于 2026-04-05 进仓库；**§6.2.1 手配冻结与验收 A（main→子可核验）** 仍为环境侧任务；可选 2.4–2.6 未做。  
 > **复杂度**：当前 DidClaw 路线中**最高**之一（产品隐喻 + 官方 multi-agent 配置 + 多表面 UI + 配置热更新与网关行为一致）  
 > **维护**：OpenClaw 升级后优先核对本文 [§2 官方文档索引](#2-官方文档索引与修订时必查) 所列页面及 `agents` / `bindings` / `tools.agentToAgent` 等 schema。  
 > **关联文档**：[`didclaw-openclaw-alignment.md`](./didclaw-openclaw-alignment.md) · [`openclaw-features.md`](./openclaw-features.md) · [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md) · **新开对话粘贴用** [`didclaw-multi-agent-company-new-chat-briefing.md`](./didclaw-multi-agent-company-new-chat-briefing.md)
@@ -145,6 +145,8 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 - **§5.4 单测**：以官方最小示例为 snapshot 的 **JSON 编译器单测** — **尚未添加**（可选后续，不阻塞 Phase 1 代码闭环）。
 
 ### Phase 2 — 职务互联与「无人公司」闭环（**关键；相对 Phase 1 为能力补全**）
+
+> **DidClaw 实现进展（2026-04-05）**：**里程碑 2.2 / 2.3** 已提供 — `lib/agent-to-agent-topology.ts`（预设 + 自定义边 → 官方 `tools.agentToAgent`）、`CompanyAgentsHubDialog` 内「协作拓扑」、`patchToolsAgentToAgentViaGateway` + `write_open_claw_tools_agent_to_agent_merge`。**里程碑 2.1**（目标版本最小 E2E 冻结）与 **验收 A** 仍须在真实网关上由团队完成。
 
 > **产品断层（Phase 1 已暴露）**：多列 UI 仅提供 **并列会话**；主 agent 在自然语言里说「已发通知」**不会**自动写入子 agent 会话。要实现「开无人公司」——**总经理发指令、职务 agent 侧可核验、可继续执行**——必须让运行时走 **OpenClaw 官方支持的跨 agent / 跨会话机制**，而不是再叠一层 DidClaw 私有总线。
 
