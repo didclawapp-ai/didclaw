@@ -29,6 +29,7 @@ defineProps<{
   openClawPrimaryBusy: boolean;
   openClawPrimaryPickerError: string | null;
   openClawConfigHint: string | null;
+  sessionListNotice: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -122,6 +123,9 @@ const emit = defineEmits<{
     </p>
     <p v-if="isDesktop && openClawConfigHint" class="session-config-hint">
       {{ openClawConfigHint }}
+    </p>
+    <p v-if="isDesktop && sessionListNotice" class="session-config-hint session-list-notice">
+      {{ sessionListNotice }}
     </p>
   </div>
 </template>

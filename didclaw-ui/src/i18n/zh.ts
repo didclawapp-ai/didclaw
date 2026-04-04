@@ -1005,7 +1005,8 @@ export default {
     navHint: "导航",
     confirmHint: "选择",
     closeHint: "关闭",
-    new:      "新建会话",
+    new:
+      "新建会话（网关会轮换当前会话；旧对话仍在「历史」里，可切回查看）",
     remember: "让 AI 记住某事",
     forget:   "清除记忆",
     status:   "查看当前用量状态",
@@ -1337,14 +1338,26 @@ export default {
   },
 
   sessionHistory: {
-    title: "历史会话",
-    subtitle: "按最近活跃排序，点击即可切换查看。",
+    title: "历史与会话",
+    gatewaySubtitle:
+      "网关会话（sessions.list）：按 session key 区分实时对话。/new、/reset 或「＋新建」后，旧 key 仍会出现在此列表（若网关已上报）。",
+    memorySubtitle:
+      "工作区记忆（OpenClaw 4.x）：`~/.openclaw/workspace/memory` 下的 `.md` 归档，与网关会话列表是两套来源；点击在右侧预览全文。",
+    tabGateway: "网关会话",
+    tabMemory: "工作区记忆",
     closeBtn: "关闭历史会话",
-    searchPlaceholder: "搜索会话名、渠道或 session key",
+    searchPlaceholder: "搜索名称或 session key",
     count: "共 {n} 条",
     badgeCurrent: "当前",
     badgeClosed: "已结束",
-    empty: "没有匹配的历史会话。",
+    badgeMarkdown: "记忆",
+    memoryPathHint: "~/.openclaw/workspace/memory",
+    memoryLoading: "正在读取记忆目录…",
+    memoryEmpty: "未找到 .md 记忆文件，或目录尚不存在（确认 OpenClaw 已写入 workspace/memory）。",
+    memorySizeB: "{n} B",
+    memorySizeKb: "{n} KB",
+    memorySizeMb: "{n} MB",
+    empty: "没有匹配的网关会话。",
   },
 
   appUpdate: {
@@ -1375,8 +1388,11 @@ export default {
     closeBtn: "关闭",
     historyTitle: "查看历史会话并快速切换",
     historyBtn: "历史",
-    newTitle: "开始一个新的对话（当前对话将保留在历史列表中）",
+    newTitle:
+      "开始一个新的对话（当前对话将保留在会话列表与「历史」中；也可在输入框发送 /new 由网关轮换会话）",
     newBtn: "＋新建",
+    sessionListNotice:
+      "提示：此前的会话仍在「历史」或上方下拉里，点选即可恢复该会话的记录。",
     modelSwitchTitle: "在这里切换「默认用哪个 AI 模型」。选好后会保存到本机；新对话一般会按这个来。",
     selectModel: "请选择默认模型…",
     moreSettingsTitle: "打开本机设置，可改密钥、接口地址或恢复备份",

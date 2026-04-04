@@ -12,6 +12,7 @@ import ExecApprovalDialog from "@/features/chat/ExecApprovalDialog.vue";
 import LiveCodePanel from "@/features/live-edit/LiveCodePanel.vue";
 import PreviewPane from "@/features/preview/PreviewPane.vue";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
+import { absolutePathToFileUrl } from "@/lib/openclaw-workspace-memory";
 import { useAppShellConversationPanel } from "@/composables/useAppShellConversationPanel";
 import { useAppShellExternalDocumentClick } from "@/composables/useAppShellExternalDocumentClick";
 import { useAppShellGlobalShortcuts } from "@/composables/useAppShellGlobalShortcuts";
@@ -60,6 +61,7 @@ const {
   openClawPrimaryBusy,
   openClawPrimaryPickerError,
   openClawConfigHint,
+  sessionListNotice,
 } = storeToRefs(chat);
 const {
   target: fpTarget,
@@ -160,8 +162,15 @@ function openHistorySession(key: string): void {
   void session.selectSession(key);
 }
 
-function newChat(): void {
-  void session.selectSession(window.crypto.randomUUID());
+function previewWorkspaceMemoryFile(payload: { path: string; name: string }): void {
+  historyDialogOpen.value = false;
+  void filePreview.openUrl(absolutePathToFileUrl(payload.path), payload.name);
+}
+
+async function newChat(): Promise<void> {
+  await session.selectSession(window.crypto.randomUUID());
+  void session.refresh();
+  chat.flashSessionListNotice();
 }
 
 async function pickLocalFileForPreview(): Promise<void> {
@@ -235,6 +244,7 @@ onUnmounted(() => {
             :open-claw-primary-busy="openClawPrimaryBusy"
             :open-claw-primary-picker-error="openClawPrimaryPickerError"
             :open-claw-config-hint="openClawConfigHint"
+            :session-list-notice="sessionListNotice"
             @new-chat="newChat"
             @select-session="onSessionSelectChange"
             @close-active-session="closeActiveSession"
@@ -287,6 +297,7 @@ onUnmounted(() => {
       :active-session-key="activeSessionKey"
       @close="closeHistoryDialog"
       @select="openHistorySession"
+      @preview-memory="previewWorkspaceMemoryFile"
     />
   </div>
 </template>

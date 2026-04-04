@@ -80,6 +80,7 @@ commands.allow = [
   "set_global_shortcut_key",
   "read_open_claw_tools_profile",
   "write_open_claw_tools_profile",
+  "list_openclaw_workspace_memory",
   "read_pheromone_graph",
   "write_pheromone_graph",
   "inject_pheromone_agents_md",

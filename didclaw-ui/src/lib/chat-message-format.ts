@@ -164,7 +164,7 @@ export function shouldHideDiagnosticChatLine(role: "user" | "assistant" | "syste
 }
 
 /** OpenClaw 注入的「新会话 /new」启动说明，常为 user 角色 */
-function isOpenClawSessionBootstrapInjection(t: string): boolean {
+export function isOpenClawSessionBootstrapInjection(t: string): boolean {
   return /A new session was started via \/new or \/reset/i.test(t);
 }
 

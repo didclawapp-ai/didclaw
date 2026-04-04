@@ -1,3 +1,4 @@
+import type { WorkspaceMemoryFileRow } from "@/lib/openclaw-workspace-memory";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 /** 浏览器 + Electron + Tauri 统一判断 */
@@ -57,6 +58,8 @@ function tauriApi(): DidClawElectronApi {
     readOpenClawProviders: () => invoke("read_open_claw_providers"),
     readOpenClawAiSnapshot: () => invoke("read_open_claw_ai_snapshot"),
     readWorkspaceIdentity: () => invoke("read_workspace_identity"),
+    listOpenClawWorkspaceMemory: (): Promise<{ ok: boolean; files?: WorkspaceMemoryFileRow[] }> =>
+      invoke("list_openclaw_workspace_memory"),
     writeOpenClawProvidersPatch: (payload) =>
       invoke("write_open_claw_providers_patch", { payload }),
     runOpenclawOnboard: (payload) =>

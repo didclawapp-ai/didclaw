@@ -242,6 +242,11 @@ interface DidClawElectronApi {
     { ok: true; aiName?: string | null; userName?: string | null }
     | { ok: false; error: string }
   >;
+  /** `~/.openclaw/workspace/memory/*.md` — OpenClaw archived / permanent memory (not sessions.list) */
+  listOpenClawWorkspaceMemory?(): Promise<{
+    ok: boolean;
+    files?: Array<{ name: string; path: string; modifiedMs: number; size: number }>;
+  }>;
   /**
    * Run `openclaw onboard --auth-choice <authChoice>`.
    * Opens a browser for OAuth; resolves when the CLI process exits.

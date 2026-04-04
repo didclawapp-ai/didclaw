@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { formatSessionHistoryTime, sessionDisplayLabel } from "@/lib/session-display";
+import type { WorkspaceMemoryFileRow } from "@/lib/openclaw-workspace-memory";
 import type { SessionRow } from "@/stores/session";
+import { isDidClawElectron } from "@/lib/electron-bridge";
+import { getDidClawDesktopApi } from "@/lib/desktop-api";
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -15,18 +18,55 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   select: [key: string];
+  previewMemory: [payload: { path: string; name: string }];
 }>();
 
 const search = ref("");
+type HistoryTab = "gateway" | "memory";
+const tab = ref<HistoryTab>("gateway");
+const memoryFiles = ref<WorkspaceMemoryFileRow[]>([]);
+const memoryLoading = ref(false);
+const memoryError = ref<string | null>(null);
+
+const desktop = computed(() => isDidClawElectron());
 
 watch(
   () => props.open,
   (open) => {
     if (open) {
       search.value = "";
+      void refreshMemoryList();
     }
   },
 );
+
+async function refreshMemoryList(): Promise<void> {
+  if (!desktop.value) {
+    memoryFiles.value = [];
+    memoryError.value = null;
+    return;
+  }
+  memoryLoading.value = true;
+  memoryError.value = null;
+  try {
+    const api = getDidClawDesktopApi();
+    if (!api?.listOpenClawWorkspaceMemory) {
+      memoryFiles.value = [];
+      return;
+    }
+    const r = await api.listOpenClawWorkspaceMemory();
+    if (r?.ok === true && Array.isArray(r.files)) {
+      memoryFiles.value = r.files;
+    } else {
+      memoryFiles.value = [];
+    }
+  } catch (e) {
+    memoryError.value = e instanceof Error ? e.message : String(e);
+    memoryFiles.value = [];
+  } finally {
+    memoryLoading.value = false;
+  }
+}
 
 const filteredRows = computed(() => {
   const keyword = search.value.trim().toLowerCase();
@@ -45,12 +85,45 @@ const filteredRows = computed(() => {
     });
 });
 
+const filteredMemoryRows = computed(() => {
+  const keyword = search.value.trim().toLowerCase();
+  if (!keyword) {
+    return memoryFiles.value;
+  }
+  return memoryFiles.value.filter((f) => f.name.toLowerCase().includes(keyword));
+});
+
+const subtitleText = computed(() =>
+  tab.value === "gateway" ? t("sessionHistory.gatewaySubtitle") : t("sessionHistory.memorySubtitle"),
+);
+
+const listCount = computed(() =>
+  tab.value === "gateway" ? filteredRows.value.length : filteredMemoryRows.value.length,
+);
+
 function close(): void {
   emit("close");
 }
 
 function selectSession(key: string): void {
   emit("select", key);
+}
+
+function openMemoryFile(row: WorkspaceMemoryFileRow): void {
+  emit("previewMemory", { path: row.path, name: row.name });
+}
+
+function formatMemorySize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "—";
+  }
+  if (bytes < 1024) {
+    return t("sessionHistory.memorySizeB", { n: bytes });
+  }
+  if (bytes < 1024 * 1024) {
+    return t("sessionHistory.memorySizeKb", { n: (bytes / 1024).toFixed(1) });
+  }
+  return t("sessionHistory.memorySizeMb", { n: (bytes / (1024 * 1024)).toFixed(1) });
 }
 </script>
 
@@ -70,7 +143,7 @@ function selectSession(key: string): void {
         <div class="history-dialog-head">
           <div>
             <h2 id="history-dialog-title" class="history-dialog-title">{{ t('sessionHistory.title') }}</h2>
-            <p class="history-dialog-subtitle">{{ t('sessionHistory.subtitle') }}</p>
+            <p class="history-dialog-subtitle">{{ subtitleText }}</p>
           </div>
           <button
             type="button"
@@ -81,6 +154,28 @@ function selectSession(key: string): void {
             ×
           </button>
         </div>
+        <div v-if="desktop" class="history-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="history-tab"
+            :class="{ 'is-active': tab === 'gateway' }"
+            :aria-selected="tab === 'gateway'"
+            @click="tab = 'gateway'"
+          >
+            {{ t('sessionHistory.tabGateway') }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="history-tab"
+            :class="{ 'is-active': tab === 'memory' }"
+            :aria-selected="tab === 'memory'"
+            @click="tab = 'memory'"
+          >
+            {{ t('sessionHistory.tabMemory') }}
+          </button>
+        </div>
         <div class="history-dialog-toolbar">
           <input
             v-model="search"
@@ -88,29 +183,57 @@ function selectSession(key: string): void {
             type="search"
             :placeholder="t('sessionHistory.searchPlaceholder')"
           >
-          <span class="history-count">{{ t('sessionHistory.count', { n: filteredRows.length }) }}</span>
+          <span class="history-count">{{ t('sessionHistory.count', { n: listCount }) }}</span>
         </div>
-        <div v-if="filteredRows.length > 0" class="history-list">
-          <button
-            v-for="row in filteredRows"
-            :key="row.key"
-            type="button"
-            class="history-item"
-            :class="{ 'is-active': row.key === activeSessionKey }"
-            @click="selectSession(row.key)"
-          >
-            <div class="history-item-main">
-              <div class="history-item-title-row">
-                <span class="history-item-title">{{ sessionDisplayLabel(row.key, row.label) }}</span>
-                <span v-if="row.key === activeSessionKey" class="history-item-badge">{{ t('sessionHistory.badgeCurrent') }}</span>
-                <span v-else-if="row.localOnly" class="history-item-badge muted-badge">{{ t('sessionHistory.badgeClosed') }}</span>
+        <template v-if="tab === 'gateway'">
+          <div v-if="filteredRows.length > 0" class="history-list">
+            <button
+              v-for="row in filteredRows"
+              :key="row.key"
+              type="button"
+              class="history-item"
+              :class="{ 'is-active': row.key === activeSessionKey }"
+              @click="selectSession(row.key)"
+            >
+              <div class="history-item-main">
+                <div class="history-item-title-row">
+                  <span class="history-item-title">{{ sessionDisplayLabel(row.key, row.label) }}</span>
+                  <span v-if="row.key === activeSessionKey" class="history-item-badge">{{ t('sessionHistory.badgeCurrent') }}</span>
+                  <span v-else-if="row.localOnly" class="history-item-badge muted-badge">{{ t('sessionHistory.badgeClosed') }}</span>
+                </div>
+                <div class="history-item-key">{{ row.key }}</div>
               </div>
-              <div class="history-item-key">{{ row.key }}</div>
-            </div>
-            <div class="history-item-time">{{ formatSessionHistoryTime(row.lastActiveAt) }}</div>
-          </button>
-        </div>
-        <div v-else class="history-empty muted">{{ t('sessionHistory.empty') }}</div>
+              <div class="history-item-time">{{ formatSessionHistoryTime(row.lastActiveAt) }}</div>
+            </button>
+          </div>
+          <div v-else class="history-empty muted">{{ t('sessionHistory.empty') }}</div>
+        </template>
+        <template v-else>
+          <div v-if="memoryLoading" class="history-empty muted">{{ t('sessionHistory.memoryLoading') }}</div>
+          <div v-else-if="memoryError" class="history-empty history-memory-err">{{ memoryError }}</div>
+          <div v-else-if="filteredMemoryRows.length > 0" class="history-list">
+            <button
+              v-for="row in filteredMemoryRows"
+              :key="row.path"
+              type="button"
+              class="history-item"
+              @click="openMemoryFile(row)"
+            >
+              <div class="history-item-main">
+                <div class="history-item-title-row">
+                  <span class="history-item-title">{{ row.name }}</span>
+                  <span class="history-item-badge muted-badge">{{ t('sessionHistory.badgeMarkdown') }}</span>
+                </div>
+                <div class="history-item-key">{{ t('sessionHistory.memoryPathHint') }}</div>
+              </div>
+              <div class="history-item-meta">
+                <span class="history-item-time">{{ formatSessionHistoryTime(row.modifiedMs) }}</span>
+                <span class="history-item-size">{{ formatMemorySize(row.size) }}</span>
+              </div>
+            </button>
+          </div>
+          <div v-else class="history-empty muted">{{ t('sessionHistory.memoryEmpty') }}</div>
+        </template>
       </div>
     </div>
   </transition>
@@ -165,6 +288,29 @@ function selectSession(key: string): void {
   line-height: 1;
   cursor: pointer;
   padding: 4px;
+}
+.history-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 10px 18px 0;
+  border-bottom: 1px solid var(--lc-border);
+}
+.history-tab {
+  border: 1px solid transparent;
+  border-radius: 8px 8px 0 0;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--lc-text-muted);
+  background: transparent;
+}
+.history-tab.is-active {
+  color: var(--lc-text);
+  border-color: var(--lc-border);
+  border-bottom-color: var(--lc-surface-panel);
+  margin-bottom: -1px;
+  background: var(--lc-surface-panel);
 }
 .history-dialog-toolbar {
   display: flex;
@@ -273,10 +419,24 @@ function selectSession(key: string): void {
   color: var(--lc-text-dim);
   white-space: nowrap;
 }
+.history-item-meta {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.history-item-size {
+  font-size: 11px;
+  color: var(--lc-text-dim);
+}
 .history-empty {
   padding: 20px 18px 24px;
   color: var(--lc-text-muted);
   font-size: 13px;
+}
+.history-memory-err {
+  color: var(--lc-error, #dc2626);
 }
 .history-fade-enter-active,
 .history-fade-leave-active {

@@ -16,6 +16,7 @@ import {
 import { CHAT_HISTORY_LIMIT } from "@/lib/chat-history-config";
 import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
+import { isOpenClawSessionBootstrapInjection } from "@/lib/chat-message-format";
 import { getOpenClawAfterWriteHint } from "@/lib/openclaw-config-hint";
 import { buildModelPickerRows, readOpenClawAiSnapshot } from "@/lib/openclaw-ai-config";
 import { describeOpenClawPrimaryModelIncompatibility } from "@/lib/openclaw-model-guards";
@@ -157,6 +158,9 @@ export const useChatStore = defineStore("chat", () => {
   /** 写入 openclaw.json 后的短提示（约 12s 消失） */
   const openClawConfigHint = ref<string | null>(null);
   let openClawConfigHintTimer: number | null = null;
+  /** Short notice after /new, +New, or when history shows a session-rotation bootstrap line */
+  const sessionListNotice = ref<string | null>(null);
+  let sessionListNoticeTimer: number | null = null;
 
   /** 后台子代理（非当前会话）最近一次 agent 事件时间戳 */
   const backgroundAgentLastSeenMs = ref<number | null>(null);
@@ -199,6 +203,33 @@ export const useChatStore = defineStore("chat", () => {
       openClawConfigHint.value = null;
       openClawConfigHintTimer = null;
     }, 14000);
+  }
+
+  function flashSessionListNotice(message?: string): void {
+    sessionListNotice.value = message ?? i18n.global.t("sessionBar.sessionListNotice");
+    if (sessionListNoticeTimer != null) {
+      clearTimeout(sessionListNoticeTimer);
+    }
+    sessionListNoticeTimer = window.setTimeout(() => {
+      sessionListNotice.value = null;
+      sessionListNoticeTimer = null;
+    }, 12000);
+  }
+
+  function uiMessagePlainTextForBootstrap(m: UiChatMessage): string {
+    if (isOptimisticUserMessage(m)) {
+      return m.text;
+    }
+    const o = m as Record<string, unknown>;
+    if (typeof o.text === "string") {
+      return o.text;
+    }
+    if (Array.isArray(o.content)) {
+      return (o.content as Array<Record<string, unknown>>)
+        .map((p) => (p?.type === "text" && typeof p.text === "string" ? p.text : ""))
+        .join("");
+    }
+    return "";
   }
 
   /** 发送中或助手流式进行中时禁止再发（避免与网关并发 run 打架） */
@@ -408,6 +439,14 @@ export const useChatStore = defineStore("chat", () => {
       runId.value = null;
       runStartedAtMs.value = null;
       lastDeltaAtMs.value = null;
+      if (!silent) {
+        const rotated = messages.value.some((m) =>
+          isOpenClawSessionBootstrapInjection(uiMessagePlainTextForBootstrap(m)),
+        );
+        if (rotated) {
+          void session.refresh();
+        }
+      }
       if (silent && isGatewayPushDebugEnabled()) {
         logGatewayPush("loadHistory(silent) 完成", {
           sessionKey: key,
@@ -548,6 +587,11 @@ export const useChatStore = defineStore("chat", () => {
         ...(attachmentsPayload.length > 0 ? { attachments: attachmentsPayload } : {}),
       });
       removeIncludedPendingFiles();
+      const slashHead = text.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+      if (slashHead === "/new" || slashHead === "/reset") {
+        void session.refresh();
+        flashSessionListNotice();
+      }
     } catch (e) {
       messages.value = messages.value.filter(
         (m) => !isOptimisticUserMessage(m) || m[CHAT_OPTIMISTIC_KEY] !== idem,
@@ -799,6 +843,8 @@ export const useChatStore = defineStore("chat", () => {
     setOpenClawPrimaryModel,
     openClawConfigHint,
     flashOpenClawConfigHint,
+    sessionListNotice,
+    flashSessionListNotice,
     backgroundAgentLastSeenMs,
     backgroundAgentSessionKey,
     flashingSessionKeys,

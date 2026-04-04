@@ -1006,7 +1006,8 @@ export default {
     navHint: "navigate",
     confirmHint: "select",
     closeHint: "close",
-    new:      "Start a new session",
+    new:
+      "Start a new session (Gateway rotates the active session; older chats stay in History)",
     remember: "Ask AI to remember something",
     forget:   "Clear a memory",
     status:   "Show current usage status",
@@ -1338,14 +1339,26 @@ export default {
   },
 
   sessionHistory: {
-    title: "Session History",
-    subtitle: "Sorted by most recently active. Click to switch.",
+    title: "History & sessions",
+    gatewaySubtitle:
+      "Gateway sessions (sessions.list): live session keys. After /new, /reset, or + New, older keys may still appear here when the Gateway reports them.",
+    memorySubtitle:
+      "Workspace memory (OpenClaw 4.x): `.md` files under `~/.openclaw/workspace/memory` — separate from the Gateway session list; click to preview.",
+    tabGateway: "Gateway sessions",
+    tabMemory: "Workspace memory",
     closeBtn: "Close history",
-    searchPlaceholder: "Search by name, channel, or session key",
-    count: "{n} sessions",
+    searchPlaceholder: "Search name or session key",
+    count: "{n} items",
     badgeCurrent: "Current",
     badgeClosed: "Closed",
-    empty: "No matching sessions found.",
+    badgeMarkdown: "memory",
+    memoryPathHint: "~/.openclaw/workspace/memory",
+    memoryLoading: "Loading memory folder…",
+    memoryEmpty: "No `.md` memory files found (OpenClaw may not have written `workspace/memory` yet).",
+    memorySizeB: "{n} B",
+    memorySizeKb: "{n} KB",
+    memorySizeMb: "{n} MB",
+    empty: "No matching gateway sessions.",
   },
 
   appUpdate: {
@@ -1376,8 +1389,11 @@ export default {
     closeBtn: "Close",
     historyTitle: "View session history and switch",
     historyBtn: "History",
-    newTitle: "Start a new conversation (current one stays in history)",
+    newTitle:
+      "Start a new conversation (current one stays in the list and History; you can also send /new in the composer)",
     newBtn: "+ New",
+    sessionListNotice:
+      "Previous sessions are still in History or the dropdown above—select one to view that transcript.",
     modelSwitchTitle: "Switch the default AI model. Saved locally; new chats will use this.",
     selectModel: "Select default model…",
     moreSettingsTitle: "Open local settings: API keys, endpoint, or restore backup",

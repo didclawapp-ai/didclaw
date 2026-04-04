@@ -8,7 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Added
+
+- **Workspace memory in History dialog**: Desktop app lists OpenClaw `~/.openclaw/workspace/memory/*.md` (permanent / archived memory from OpenClaw 4.x) on a **Workspace memory** tab next to **Gateway sessions**, with preview via the existing local file pipeline (`list_openclaw_workspace_memory` IPC).
+
+### Changed
+
+- **Session history after /new or + New**: Refresh `sessions.list` when the user sends `/new` or `/reset`, when opening a transcript that contains OpenClaw’s session-bootstrap line, or after toolbar **+ New**; show a short notice pointing users to **History** / the session dropdown so prior transcripts stay discoverable (aligned with OpenClaw Gateway session keys + `chat.history`).
 
 ## [0.8.5] - 2026-04-03
 

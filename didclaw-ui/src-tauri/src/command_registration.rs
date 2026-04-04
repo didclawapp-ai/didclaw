@@ -74,6 +74,7 @@ macro_rules! didclaw_invoke_handlers {
             crate::commands::skills_pick_zip_file,
             crate::commands::skills_pick_folder,
             crate::commands::read_workspace_identity,
+            crate::openclaw_workspace_memory::list_openclaw_workspace_memory,
             crate::commands::run_openclaw_doctor,
             crate::commands::run_openclaw_onboard,
             crate::commands::run_minimax_oauth,

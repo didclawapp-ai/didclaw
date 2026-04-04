@@ -28,6 +28,7 @@ mod preview_local;
 mod skills;
 mod setup_status;
 mod workspace_identity;
+mod openclaw_workspace_memory;
 mod bundled_skills;
 mod command_registration;
 mod live_edit_patch;
