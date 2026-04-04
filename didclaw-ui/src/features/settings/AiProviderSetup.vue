@@ -317,6 +317,10 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
       models,
       ...view.extras,
     };
+    // 小米曾误用 anthropic-messages + authHeader；合并写入不会自动删旧键，显式去掉
+    if (view.id === "xiaomi") {
+      providerBody.authHeader = null;
+    }
     const keyToWrite = editingKey.value.trim();
     // Reject masked placeholder values (e.g. "sk-a****") returned by the read API
     const isRealKey = Boolean(keyToWrite && !keyToWrite.endsWith("****"));
@@ -370,7 +374,6 @@ async function applyProvider(view: OpenClawAiProviderView, setPrimary: boolean) 
         await api.writeOpenClawEnv({ patch: { ZHIPU_API_KEY: keyToWrite } });
       }
     }
-
     await loadAll();
     expandedId.value = null;
     modelEditMode.value = false;
@@ -427,7 +430,6 @@ async function removeProvider(view: OpenClawAiProviderView) {
     if (view.id === "zai" && api.writeOpenClawEnv) {
       await api.writeOpenClawEnv({ patch: { ZHIPU_API_KEY: null } });
     }
-
     await loadAll();
     expandedId.value = null;
     void chat.refreshOpenClawModelPicker();

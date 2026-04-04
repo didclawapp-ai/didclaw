@@ -298,6 +298,10 @@ fn merge_provider_entry(existing: &Value, patch: &Map<String, Value>) -> Value {
         } else if k == "baseURL" {
             base.remove("baseUrl");
         }
+        if v.is_null() {
+            base.remove(k);
+            continue;
+        }
         base.insert(k.clone(), v.clone());
     }
     Value::Object(base)
