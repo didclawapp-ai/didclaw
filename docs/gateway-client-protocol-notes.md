@@ -10,7 +10,7 @@
 |----|-----|
 | OpenClaw Gateway 版本 | npm `openclaw` 当前 **latest** 为 **2026.3.31**（[GitHub Release](https://github.com/openclaw/openclaw/releases) 2026-03-31）；本地 `openclaw-src` 以检出/tag 为准（**以实际 `openclaw --version` / 运行为准**） |
 | didclaw 包版本 | 见 `didclaw/package.json` `version`（构建时写入 `__APP_VERSION__`） |
-| 本笔记最后更新 | 2026-04-01 |
+| 本笔记最后更新 | 2026-04-04 |
 | 验证人 | （团队填写） |
 
 ## 连接参数
@@ -38,16 +38,29 @@
 | `cron.update` | 更新任务 | **`id`**（与官方 UI 一致）、`patch`（如 `enabled`） | 依网关版本而定 | 未强校验 |
 | `cron.remove` | 删除任务 | **`id`** | 依网关版本而定 | 未强校验 |
 | `cron.run` | 立即运行 | **`id`**，可选 `mode: "force"` | 依网关版本而定 | 未强校验 |
+| `config.get` | 读取脱敏配置快照 | `{}`（以网关 `validateConfigGetParams` 为准） | 含 **`hash`**（供 `config.patch` 的 `baseHash`）、**`config`**（脱敏对象）等；与上游 `redactConfigSnapshot` 一致 | 未强校验（`openclaw-gateway-config.ts` 宽松解析） |
+| `config.patch` | 合并补丁写 `openclaw.json` | **`raw`**（JSON5 兼容字符串，对象）、**`baseHash`**（须与最近一次 `config.get` 的 `hash` 一致）；可选 **`sessionKey`**、`note`、`restartDelayMs` | 成功体含 `ok`、`path`、`config`（脱敏）等；可能触发网关重启（见官方 Config RPC） | 未强校验 |
 
 未实现：`chat.inject` 等，需要时在表中增行并补 Zod。
+
+## DidClaw 桌面 IPC（非 Gateway WebSocket）
+
+多 Agent / 「公司制」向导：**已连接 Gateway 时**优先 **`config.get` → `config.patch`** 合并 `agents.list`（与网关 `mergeObjectArraysById` 一致）；失败或未连接时回退为 Tauri 直写 **`openclaw.json`**。
+
+| Tauri 命令 | 用途 |
+|------------|------|
+| `read_open_claw_agents_list` | 返回 `{ ok, list }`，`list` 为 `agents.list` 数组（缺文件时 `ok: true, list: []`） |
+| `write_open_claw_agents_list_merge` | `payload: { agents: [...] }`，每项须含 `id`；按 `id` 覆盖或追加；写前备份 `openclaw.json` |
+
+实现：`didclaw-ui/src-tauri/src/openclaw_agents_config.rs`。前端：`CompanyAgentsHubDialog` + `lib/openclaw-gateway-config.ts` + `getDidClawDesktopApi().readOpenClawAgentsList` / `writeOpenClawAgentsListMerge`。
 
 ### 网关主动推送（WebSocket `type: "event"`）
 
 | `event` | didclaw 行为 | 官方 Control UI 参考 |
 |---------|--------------|----------------------|
-| `chat` | `useChatStore().handleGatewayEvent`：同会话流式/终态时 `loadHistory`；异会话可自动跟随或节流 `sessions.refresh` | `app-gateway.ts` → `handleChatGatewayEvent` |
+| `chat` | `useChatStore().handleGatewayEvent`：**主会话 + 已打开职务列**的 `sessionKey` 在 **`trackedSessionKeys`** 内时，只更新对应 **chat 表面**，不抢主会话；否则沿用原逻辑（异会话可自动跟随或节流 `sessions.refresh`）。流式/终态对该键 `loadHistory({ silent, sessionKey })` | `app-gateway.ts` → `handleChatGatewayEvent` |
 | `sessions.changed` | **`sessions.refresh()`** + **`chat.loadHistory({ silent: true })`** | `loadSessions` |
-| `agent` | 工具时间线（`toolTimeline`）；**若 `payload.sessionKey` 与当前选中会话一致**，didclaw **节流** `chat.history(silent)`（部分网关不下发 `chat` 时对齐主时间线） | `handleAgentEvent`（工具流、compaction 等） |
+| `agent` | 工具时间线（`toolTimeline`）；**若 `payload.sessionKey` 与当前选中会话一致**，didclaw **节流** `chat.history(silent)`；**若该 key 为已打开职务列**（`companyRolePanels`），对**该 key** 节流 `loadHistory(silent)`，**不**自动 `selectSession`（部分网关不下发 `chat` 时对齐侧栏时间线） | `handleAgentEvent`（工具流、compaction 等） |
 | `cron` | didclaw **节流** `chat.history(silent)`（同上，与官方仅刷新 Cron 页不同） | 官方：`host.tab === "cron"` 时 `loadCron` |
 | 其他 | `toolTimeline` 合并展示；调试日志见 DEV `console.debug` | 略 |
 
@@ -112,6 +125,8 @@
 | 日期 | OpenClaw 版本 | 变更摘要 |
 |------|-----------------|----------|
 | 2026-03-20 | 参考 2026.3.14 | 阶段 E：核心 RPC/事件 Zod、错误中文映射、诊断复制、部署文档 |
+| 2026-04-04 | （同锁定表） | 多 Agent MVP：**按 `sessionKey` 分 chat 表面**（主会话 + 职务侧栏）；`chat` / `agent` 推送行为见上表；**Tauri** `read_open_claw_agents_list` / `write_open_claw_agents_list_merge` 记入本文（非 Gateway RPC）。 |
+| 2026-04-04 | （同锁定表） | **公司向导**：接 **`config.get` / `config.patch`** 写入 `agents.list`（Gateway 优先，Tauri 回退）；见上表 RPC 行与 `openclaw-gateway-config.ts`。 |
 | 2026-04-01 | npm **2026.3.31** | 上游 [Latest](https://github.com/openclaw/openclaw/releases) 已推进至 2026.3.31；DidClaw 侧已确认 `exec.approval.requested` 仍为 `{ id, request, createdAtMs, expiresAtMs }`，命令详情在 `request` 内（与 2026.3.22 行为一致）。 |
 | 2026-03-23 | npm **2026.3.22**（相对 **2026.3.13**） | 上游约一周内有大量提交；与 LCLaw 最相关：**网关启动**改为从已编译 `dist/extensions` 加载捆绑插件（冷启动明显加快，见上游 CHANGELOG `Gateway/startup`）；文档强调 `controlUi.allowedOrigins` 勿滥用 `["*"]`；另有大量插件迁移、exec 审批、Breaking（如弃用 `CLAWDBOT_*` / `.moltbot` 等）。完整差异见 [compare 61d171a…e7d11f6](https://github.com/openclaw/openclaw/compare/61d171ab0b2fe4abc9afe89c518586274b4b76c2...e7d11f6c33e223a0dd8a21cfe01076bd76cef87a)（npm 2026.3.13 与 2026.3.22 对应提交）。 |
 | 2026-03-21 | openclaw `main` `chat.ts` | 确认 `chat.send` 无根级 `model`；didclaw 不再随请求附带 `model` |

@@ -10,9 +10,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Added
 
+- **Multi-agent (company / roles) MVP**: Desktop header opens a hub to merge `agents.list` into `openclaw.json` (with backup) via `read_open_claw_agents_list` / `write_open_claw_agents_list_merge`, open side **role chat** columns (default `agent:<id>:main`), share one Gateway WebSocket with per-`sessionKey` chat state in the chat store, a **bottom-right floating “Roles” panel**, and **per-column session binding** via a dropdown fed from `sessions.list` (`agent:<roleId>:*` keys only). When the Gateway WebSocket is connected, the hub **prefers** official **`config.get` / `config.patch`** for read/merge of `agents.list`, falling back to the Tauri file merge on failure or when offline.
 - **Workspace memory in History dialog**: Desktop app lists OpenClaw `~/.openclaw/workspace/memory/*.md` (permanent / archived memory from OpenClaw 4.x) on a **Workspace memory** tab next to **Gateway sessions**, with preview via the existing local file pipeline (`list_openclaw_workspace_memory` IPC).
 
+### Fixed
+
+- **Multi-agent hub**: After loading `agents.list` (Gateway `config.get` or desktop read), the **editable wizard table** now mirrors the same entries as the read-only JSON preview (open dialog / Refresh / successful save).
+
 ### Changed
+
+- **Multi-agent hub (Gateway config)**: Saving `agents.list` now surfaces **hash-mismatch** and **patch validation** errors with actionable copy (refresh before retry / read gateway message), and shows **different success hints** when the write went through the gateway versus local `openclaw.json` merge (including after gateway failure + desktop fallback).
 
 - **Session history after /new or + New**: Refresh `sessions.list` when the user sends `/new` or `/reset`, when opening a transcript that contains OpenClaw’s session-bootstrap line, or after toolbar **+ New**; show a short notice pointing users to **History** / the session dropdown so prior transcripts stay discoverable (aligned with OpenClaw Gateway session keys + `chat.history`).
 

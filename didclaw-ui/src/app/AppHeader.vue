@@ -7,6 +7,7 @@ import { useThemeStore } from "@/stores/theme";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { storeToRefs } from "pinia";
+import { isDidClawElectron } from "@/lib/electron-bridge";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -121,6 +122,10 @@ function toggleLocale(): void {
   currentLocale.value = currentLocale.value === "zh" ? "en" : "zh";
 }
 
+function openCompanyHub(): void {
+  window.dispatchEvent(new CustomEvent("didclaw-open-company-hub"));
+}
+
 function showInlineError(msg: string): void {
   inlineError.value = msg;
   if (errorTimer !== null) clearTimeout(errorTimer);
@@ -171,6 +176,21 @@ defineExpose({ showInlineError });
           </span>
         </button>
         <div class="header-quick-tools">
+          <button
+            v-if="isDidClawElectron()"
+            type="button"
+            class="header-icon-btn header-icon-btn--company"
+            :title="t('header.companyAgents')"
+            :aria-label="t('header.companyAgents')"
+            @click="openCompanyHub"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="header-icon-svg">
+              <path
+                fill="currentColor"
+                d="M12 2l8 4v6c0 5-3.4 9.7-8 11-4.6-1.3-8-6-8-11V6l8-4zm0 2.2L6 7.1V12c0 4 2.6 8 6 9.1 3.4-1.1 6-5.1 6-9.1V7.1L12 4.2zM12 8a2 2 0 110 4 2 2 0 010-4zm-3.5 9.3c.5-1.7 2-2.8 3.5-2.8s3 1.1 3.5 2.8c-1 .6-2.2 1-3.5 1s-2.5-.4-3.5-1z"
+              />
+            </svg>
+          </button>
           <button
             type="button"
             class="header-icon-btn header-icon-btn--theme"

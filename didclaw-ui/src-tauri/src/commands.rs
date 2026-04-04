@@ -690,6 +690,16 @@ pub fn write_open_claw_providers_patch(payload: Value) -> Result<Value, String> 
 }
 
 #[tauri::command]
+pub fn read_open_claw_agents_list() -> Result<Value, String> {
+    Ok(crate::openclaw_agents_config::read_open_claw_agents_list())
+}
+
+#[tauri::command]
+pub fn write_open_claw_agents_list_merge(payload: Value) -> Result<Value, String> {
+    Ok(crate::openclaw_agents_config::write_open_claw_agents_list_merge(payload))
+}
+
+#[tauri::command]
 pub fn skills_default_install_root() -> Result<String, String> {
     crate::skills::default_install_root()
 }

@@ -1,6 +1,7 @@
 # didclaw 功能补全清单
 
 > **用途**：在 [`OpenClaw-顶层界面-开发方案.md`](./OpenClaw-顶层界面-开发方案.md) 与 [`didclaw-开发步骤.md`](./didclaw-开发步骤.md) 已列能力之外，对照 [OpenClaw 官方文档](https://docs.openclaw.ai/) 与产品预期，整理**可增量交付**的功能与设置项；用于排期与勾选跟踪。  
+> **路线图（功能全貌对表）**：优先参考 [`didclaw-openclaw-alignment.md`](./didclaw-openclaw-alignment.md)；本清单保留为**增量条目**与勾选。  
 > **原则**：OpenClaw Gateway **不改源码**；补全集中在 `didclaw` 与文档。  
 > **当前包版本**（发版时请与 `didclaw/package.json` 同步）：**0.2.0**
 

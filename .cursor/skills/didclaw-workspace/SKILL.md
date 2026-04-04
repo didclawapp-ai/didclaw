@@ -30,8 +30,11 @@ description: >-
 
 | 主题 | 建议入口 |
 |------|----------|
+| OpenClaw 能力全貌 vs DidClaw 对齐、路线图排期 | `docs/didclaw-openclaw-alignment.md` |
+| OpenClaw 上游功能清单（随官方仓库维护） | `docs/openclaw-features.md` |
+| 多 Agent（公司制）方案与官方文档索引 | `docs/didclaw-multi-agent-company-spec.md` |
 | DidClaw 自有 SQLite 存储、KV、与 OpenClaw 目录边界 | `docs/didclaw-sqlite-storage-migration.md` |
-| 网关 / HTTP 字段与错误码 | `docs/` 中对应文档 + 调用方代码（契约优先） |
+| 网关 / HTTP 字段与错误码 | `docs/gateway-client-protocol-notes.md` + 调用方代码（契约优先） |
 
 未明确要求时，**不要**新建或扩展说明用 Markdown（见 `didclaw-project.mdc`）。
 

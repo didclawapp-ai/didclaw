@@ -170,6 +170,10 @@ gateway:
 | `docs/didclaw-功能补全清单.md` | 增量功能排期 |
 | `docs/didclaw-桌面端专属-实现方案.md` | 桌面端专属能力 |
 | `docs/didclaw-skills-功能实施方案.md` | 技能（ClawHub）管理与实施说明 |
+| `docs/didclaw-openclaw-alignment.md` | OpenClaw 能力 vs DidClaw 对齐状态与路线图 |
+| `docs/openclaw-features.md` | OpenClaw 上游功能清单（仓库对齐版，随上游更新） |
+| `docs/didclaw-multi-agent-company-spec.md` | 「公司制」多 Agent 方案与实施（附官方文档索引） |
+| `docs/didclaw-multi-agent-company-new-chat-briefing.md` | 新对话上下文简报（可复制到新窗口开干） |
 | `docs/didclaw-electron-to-tauri-迁移计划.md` | 迁移阶段、§11 进度、§9 回归与手测记录 |
 | `didclaw/src-tauri/src/openclaw_providers.rs`、`openclaw_model_config.rs` | OpenClaw 模型与 Providers 读写（原 TS 逻辑见 Git 历史） |
 | `didclaw/src-tauri/src/openclaw_gateway.rs` | 本机网关进程拉起与端口探测 |

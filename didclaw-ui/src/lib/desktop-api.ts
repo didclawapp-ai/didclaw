@@ -62,6 +62,9 @@ function tauriApi(): DidClawElectronApi {
       invoke("list_openclaw_workspace_memory"),
     writeOpenClawProvidersPatch: (payload) =>
       invoke("write_open_claw_providers_patch", { payload }),
+    readOpenClawAgentsList: () => invoke("read_open_claw_agents_list"),
+    writeOpenClawAgentsListMerge: (payload: { agents: Record<string, unknown>[] }) =>
+      invoke("write_open_claw_agents_list_merge", { payload }),
     runOpenclawOnboard: (payload) =>
       invoke("run_openclaw_onboard", { authChoice: payload.authChoice }),
     runMinimaxOauth: (payload) =>

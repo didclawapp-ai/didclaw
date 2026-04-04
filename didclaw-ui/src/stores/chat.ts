@@ -34,7 +34,8 @@ import { formatZodIssues } from "@/lib/zod-format";
 import { generateUUID } from "@/lib/uuid";
 import { i18n } from "@/i18n";
 import { defineStore } from "pinia";
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, reactive, ref } from "vue";
+import { useCompanyRolePanelsStore } from "./companyRolePanels";
 import { useGatewayStore } from "./gateway";
 import { useLiveEditStore } from "./liveEdit";
 import { usePreviewStore } from "./preview";
@@ -50,6 +51,41 @@ export type PendingComposerFile = {
   /** false：不参与本次 chat.send，发送成功后仍保留在列表（仅预览/对照） */
   includeInSend: boolean;
 };
+
+/** 每个 sessionKey 一条聊天表面（主会话 + 职务面板共享 GatewayClient） */
+export type ChatSurfaceState = {
+  messages: UiChatMessage[];
+  historyLoading: boolean;
+  sending: boolean;
+  streamText: string | null;
+  runId: string | null;
+  draft: string;
+  lastError: string | null;
+  pendingComposerFiles: PendingComposerFile[];
+  runStartedAtMs: number | null;
+  lastDeltaAtMs: number | null;
+  lastCompletedRunDurationMs: number | null;
+  lastCompletedRunAtMs: number | null;
+  pendingSilentHistorySource: string | null;
+};
+
+function createEmptyChatSurface(): ChatSurfaceState {
+  return {
+    messages: [],
+    historyLoading: false,
+    sending: false,
+    streamText: null,
+    runId: null,
+    draft: "",
+    lastError: null,
+    pendingComposerFiles: [],
+    runStartedAtMs: null,
+    lastDeltaAtMs: null,
+    lastCompletedRunDurationMs: null,
+    lastCompletedRunAtMs: null,
+    pendingSilentHistorySource: null,
+  };
+}
 
 function collectOptimistics(msgs: UiChatMessage[]): OptimisticUserMessage[] {
   return msgs.filter(isOptimisticUserMessage);
@@ -132,20 +168,143 @@ function mergeIncomingHistoryWithOptimistics(
 }
 
 export const useChatStore = defineStore("chat", () => {
-  const messages = ref<UiChatMessage[]>([]);
-  const historyLoading = ref(false);
-  const sending = ref(false);
-  const streamText = ref<string | null>(null);
-  const runId = ref<string | null>(null);
-  const draft = ref("");
-  const lastError = ref<string | null>(null);
-  const pendingComposerFiles = ref<PendingComposerFile[]>([]);
-  /** 本轮用户发送起点（用于工具时间线对齐与耗时） */
-  const runStartedAtMs = ref<number | null>(null);
-  /** 最近一次助手 delta 到达时间（卡住检测） */
-  const lastDeltaAtMs = ref<number | null>(null);
-  const lastCompletedRunDurationMs = ref<number | null>(null);
-  const lastCompletedRunAtMs = ref<number | null>(null);
+  const surfaces = reactive<Record<string, ChatSurfaceState>>({});
+
+  function ensureSurface(sessionKey: string): ChatSurfaceState {
+    if (!surfaces[sessionKey]) {
+      surfaces[sessionKey] = createEmptyChatSurface();
+    }
+    return surfaces[sessionKey];
+  }
+
+  function getActiveSurface(): ChatSurfaceState | null {
+    const k = useSessionStore().activeSessionKey;
+    if (!k) {
+      return null;
+    }
+    return ensureSurface(k);
+  }
+
+  function trackedSessionKeys(): Set<string> {
+    const set = new Set<string>();
+    const sk = useSessionStore().activeSessionKey;
+    if (sk) {
+      set.add(sk);
+    }
+    for (const p of useCompanyRolePanelsStore().panels) {
+      set.add(p.sessionKey);
+    }
+    return set;
+  }
+
+  const messages = computed({
+    get: (): UiChatMessage[] => getActiveSurface()?.messages ?? [],
+    set: (v: UiChatMessage[]) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.messages = v;
+      }
+    },
+  });
+  const historyLoading = computed({
+    get: () => getActiveSurface()?.historyLoading ?? false,
+    set: (v: boolean) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.historyLoading = v;
+      }
+    },
+  });
+  const sending = computed({
+    get: () => getActiveSurface()?.sending ?? false,
+    set: (v: boolean) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.sending = v;
+      }
+    },
+  });
+  const streamText = computed({
+    get: () => getActiveSurface()?.streamText ?? null,
+    set: (v: string | null) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.streamText = v;
+      }
+    },
+  });
+  const runId = computed({
+    get: () => getActiveSurface()?.runId ?? null,
+    set: (v: string | null) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.runId = v;
+      }
+    },
+  });
+  const draft = computed({
+    get: () => getActiveSurface()?.draft ?? "",
+    set: (v: string) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.draft = v;
+      }
+    },
+  });
+  const lastError = computed({
+    get: () => getActiveSurface()?.lastError ?? null,
+    set: (v: string | null) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.lastError = v;
+      }
+    },
+  });
+  const pendingComposerFiles = computed({
+    get: () => getActiveSurface()?.pendingComposerFiles ?? [],
+    set: (v: PendingComposerFile[]) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.pendingComposerFiles = v;
+      }
+    },
+  });
+  const runStartedAtMs = computed({
+    get: () => getActiveSurface()?.runStartedAtMs ?? null,
+    set: (v: number | null) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.runStartedAtMs = v;
+      }
+    },
+  });
+  const lastDeltaAtMs = computed({
+    get: () => getActiveSurface()?.lastDeltaAtMs ?? null,
+    set: (v: number | null) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.lastDeltaAtMs = v;
+      }
+    },
+  });
+  const lastCompletedRunDurationMs = computed({
+    get: () => getActiveSurface()?.lastCompletedRunDurationMs ?? null,
+    set: (v: number | null) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.lastCompletedRunDurationMs = v;
+      }
+    },
+  });
+  const lastCompletedRunAtMs = computed({
+    get: () => getActiveSurface()?.lastCompletedRunAtMs ?? null,
+    set: (v: number | null) => {
+      const s = getActiveSurface();
+      if (s) {
+        s.lastCompletedRunAtMs = v;
+      }
+    },
+  });
 
   /**
    * 会话栏模型下拉：与 ~/.openclaw/openclaw.json 同步，切换即写 **primary**（写前备份）。
@@ -192,7 +351,28 @@ export const useChatStore = defineStore("chat", () => {
     );
   }
 
-  const agentBusy = computed(() => sending.value || runId.value != null);
+  const agentBusy = computed(() => {
+    const s = getActiveSurface();
+    return s ? s.sending || s.runId != null : false;
+  });
+
+  function getComposerPhaseFor(sessionKey: string): "idle" | "sending" | "streaming" | "waiting" {
+    const s = surfaces[sessionKey];
+    if (!s) {
+      return "idle";
+    }
+    if (s.sending) {
+      return "sending";
+    }
+    if (s.runId == null) {
+      return "idle";
+    }
+    const hasText = Boolean(s.streamText?.trim());
+    if (hasText) {
+      return "streaming";
+    }
+    return "waiting";
+  }
 
   function flashOpenClawConfigHint(message?: string): void {
     openClawConfigHint.value = message ?? getOpenClawAfterWriteHint();
@@ -332,16 +512,16 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   /** 发送成功后移除「参与发送」的项，保留仅预览项 */
-  function removeIncludedPendingFiles(): void {
+  function removeIncludedPendingFilesForSurface(surf: ChatSurfaceState): void {
     const next: PendingComposerFile[] = [];
-    for (const p of pendingComposerFiles.value) {
+    for (const p of surf.pendingComposerFiles) {
       if (p.includeInSend) {
         URL.revokeObjectURL(p.objectUrl);
       } else {
         next.push(p);
       }
     }
-    pendingComposerFiles.value = next;
+    surf.pendingComposerFiles = next;
   }
 
   function removePendingComposerFile(id: string): void {
@@ -360,61 +540,84 @@ export const useChatStore = defineStore("chat", () => {
     pendingComposerFiles.value = [];
   }
 
-  const pendingSilentHistorySource = ref<string | null>(null);
-
-  function markPendingSilentHistorySync(source: string): void {
-    pendingSilentHistorySource.value = source;
-  }
-
-  function clearPendingSilentHistorySync(): void {
-    pendingSilentHistorySource.value = null;
-  }
-
-  function flushPendingSilentHistorySync(reason: string): void {
-    const source = pendingSilentHistorySource.value;
-    if (!source || sending.value || runId.value != null) {
+  function markPendingSilentHistorySync(source: string, sessionKey?: string): void {
+    const k = sessionKey ?? useSessionStore().activeSessionKey;
+    if (!k) {
       return;
     }
-    pendingSilentHistorySource.value = null;
+    ensureSurface(k).pendingSilentHistorySource = source;
+  }
+
+  function clearPendingSilentHistorySync(sessionKey?: string): void {
+    const k = sessionKey ?? useSessionStore().activeSessionKey;
+    if (!k) {
+      return;
+    }
+    const surf = surfaces[k];
+    if (surf) {
+      surf.pendingSilentHistorySource = null;
+    }
+  }
+
+  function flushPendingSilentHistorySync(reason: string, sessionKey?: string): void {
+    const k = sessionKey ?? useSessionStore().activeSessionKey;
+    if (!k) {
+      return;
+    }
+    const surf = surfaces[k];
+    if (!surf) {
+      return;
+    }
+    const source = surf.pendingSilentHistorySource;
+    if (!source || surf.sending || surf.runId != null) {
+      return;
+    }
+    surf.pendingSilentHistorySource = null;
     logGatewayPush("pending history sync → loadHistory(silent)", {
       source,
       reason,
+      sessionKey: k,
     });
-    void loadHistory({ silent: true });
+    void loadHistory({ silent: true, sessionKey: k });
   }
 
-  async function loadHistory(opts?: { silent?: boolean }): Promise<void> {
+  async function loadHistory(opts?: { silent?: boolean; sessionKey?: string }): Promise<void> {
     const silent = opts?.silent === true;
-    // Silent background syncs (e.g. from sessions.changed) must not interrupt
-    // an active streaming run — the final handler will reload history anyway.
-    if (silent && (sending.value || runId.value != null)) {
-      markPendingSilentHistorySync("loadHistory-silent");
-      return;
-    }
     const gw = useGatewayStore();
     const c = gw.client;
     const session = useSessionStore();
-    const key = session.activeSessionKey;
-    if (!c?.connected || !key) {
+    const key = opts?.sessionKey ?? session.activeSessionKey;
+    if (!key) {
+      logGatewayPush("loadHistory 跳过（无 sessionKey）", { silent });
+      return;
+    }
+    const surf = ensureSurface(key);
+    // Silent background syncs (e.g. from sessions.changed) must not interrupt
+    // an active streaming run — the final handler will reload history anyway.
+    if (silent && (surf.sending || surf.runId != null)) {
+      markPendingSilentHistorySync("loadHistory-silent", key);
+      return;
+    }
+    if (!c?.connected) {
       logGatewayPush("loadHistory 跳过（未连接或无当前会话）", {
         silent,
         connected: !!c?.connected,
         sessionKey: key,
       });
-      messages.value = [];
-      streamText.value = null;
-      runId.value = null;
-      runStartedAtMs.value = null;
-      lastDeltaAtMs.value = null;
+      surf.messages = [];
+      surf.streamText = null;
+      surf.runId = null;
+      surf.runStartedAtMs = null;
+      surf.lastDeltaAtMs = null;
       return;
     }
     if (silent && isGatewayPushDebugEnabled()) {
       logGatewayPush("loadHistory(silent) 请求 chat.history", { sessionKey: key, limit: CHAT_HISTORY_LIMIT });
     }
     if (!silent) {
-      historyLoading.value = true;
+      surf.historyLoading = true;
     }
-    lastError.value = null;
+    surf.lastError = null;
     try {
       const res = await c.request<unknown>("chat.history", {
         sessionKey: key,
@@ -422,25 +625,25 @@ export const useChatStore = defineStore("chat", () => {
       });
       const parsed = chatHistoryResponseSchema.safeParse(res);
       if (!parsed.success) {
-        lastError.value = `历史消息格式异常：${formatZodIssues(parsed.error)}`;
-        messages.value = [];
-        streamText.value = null;
-        runId.value = null;
-        runStartedAtMs.value = null;
-        lastDeltaAtMs.value = null;
+        surf.lastError = `历史消息格式异常：${formatZodIssues(parsed.error)}`;
+        surf.messages = [];
+        surf.streamText = null;
+        surf.runId = null;
+        surf.runStartedAtMs = null;
+        surf.lastDeltaAtMs = null;
         return;
       }
       const msgs = parsed.data.messages;
       const raw = (Array.isArray(msgs) ? msgs : []) as GatewayChatMessage[];
       const incoming = sortHistoryMessagesOldestFirst(raw);
-      const previous = messages.value;
-      messages.value = mergeIncomingHistoryWithOptimistics(incoming, previous);
-      streamText.value = null;
-      runId.value = null;
-      runStartedAtMs.value = null;
-      lastDeltaAtMs.value = null;
+      const previous = surf.messages;
+      surf.messages = mergeIncomingHistoryWithOptimistics(incoming, previous);
+      surf.streamText = null;
+      surf.runId = null;
+      surf.runStartedAtMs = null;
+      surf.lastDeltaAtMs = null;
       if (!silent) {
-        const rotated = messages.value.some((m) =>
+        const rotated = surf.messages.some((m) =>
           isOpenClawSessionBootstrapInjection(uiMessagePlainTextForBootstrap(m)),
         );
         if (rotated) {
@@ -451,11 +654,11 @@ export const useChatStore = defineStore("chat", () => {
         logGatewayPush("loadHistory(silent) 完成", {
           sessionKey: key,
           incomingCount: incoming.length,
-          mergedCount: messages.value.length,
+          mergedCount: surf.messages.length,
         });
       }
     } catch (e) {
-      lastError.value = describeGatewayError(e);
+      surf.lastError = describeGatewayError(e);
       logGatewayPush("loadHistory 失败", {
         silent,
         sessionKey: key,
@@ -463,7 +666,7 @@ export const useChatStore = defineStore("chat", () => {
       });
     } finally {
       if (!silent) {
-        historyLoading.value = false;
+        surf.historyLoading = false;
       }
     }
   }
@@ -474,37 +677,52 @@ export const useChatStore = defineStore("chat", () => {
    * `chat.history` 与 transcript 对齐（与重连后行为一致）。
    */
   const GATEWAY_CHAT_SYNC_DEBOUNCE_MS = 1500;
-  let gatewayChatSyncTimer: number | null = null;
+  const gatewayChatSyncTimers: Record<string, number> = {};
   const throttleUnparsedHistoryFallback = createMinIntervalThrottle(900);
   const throttleSessionsRefreshOther = createMinIntervalThrottle(1500);
 
-  function scheduleDebouncedSilentHistoryFromGateway(source: string): void {
-    if (gatewayChatSyncTimer !== null) {
-      clearTimeout(gatewayChatSyncTimer);
+  function scheduleDebouncedSilentHistoryForSession(sessionKey: string, source: string): void {
+    const prev = gatewayChatSyncTimers[sessionKey];
+    if (prev != null) {
+      clearTimeout(prev);
     }
-    gatewayChatSyncTimer = window.setTimeout(() => {
-      gatewayChatSyncTimer = null;
-      if (sending.value || runId.value != null) {
-        markPendingSilentHistorySync(source);
+    gatewayChatSyncTimers[sessionKey] = window.setTimeout(() => {
+      delete gatewayChatSyncTimers[sessionKey];
+      const surf = surfaces[sessionKey];
+      if (!surf) {
+        return;
+      }
+      if (surf.sending || surf.runId != null) {
+        markPendingSilentHistorySync(source, sessionKey);
         logGatewayPush("cron/agent → debounced loadHistory 跳过（本机发送或流式 runId 占用）", {
           source,
+          sessionKey,
         });
         return;
       }
-      logGatewayPush("cron/agent → debounced loadHistory(silent)", { source });
-      void loadHistory({ silent: true });
+      logGatewayPush("cron/agent → debounced loadHistory(silent)", { source, sessionKey });
+      void loadHistory({ silent: true, sessionKey });
     }, GATEWAY_CHAT_SYNC_DEBOUNCE_MS);
   }
 
-  async function sendMessage(): Promise<void> {
+  function scheduleDebouncedSilentHistoryFromGateway(source: string): void {
+    const k = useSessionStore().activeSessionKey;
+    if (!k) {
+      return;
+    }
+    scheduleDebouncedSilentHistoryForSession(k, source);
+  }
+
+  async function sendMessageForSession(sessionKey: string): Promise<void> {
     const gw = useGatewayStore();
     const c = gw.client;
     const session = useSessionStore();
-    const key = session.activeSessionKey;
-    const text = draft.value.trim();
-    const queueSnapshot = pendingComposerFiles.value.slice();
+    const key = sessionKey.trim();
+    const surf = ensureSurface(key);
+    const text = surf.draft.trim();
+    const queueSnapshot = surf.pendingComposerFiles.slice();
     const sendQueue = queueSnapshot.filter((p) => p.includeInSend);
-    if (!c?.connected || !key || sending.value || runId.value != null) {
+    if (!c?.connected || !key || surf.sending || surf.runId != null) {
       return;
     }
     if (!text && sendQueue.length === 0) {
@@ -520,7 +738,7 @@ export const useChatStore = defineStore("chat", () => {
         if (e instanceof NotChatImageAttachmentError) {
           nonImages.push(p);
         } else {
-          lastError.value = e instanceof Error ? e.message : String(e);
+          surf.lastError = e instanceof Error ? e.message : String(e);
           return;
         }
       }
@@ -548,15 +766,15 @@ export const useChatStore = defineStore("chat", () => {
       return;
     }
 
-    sending.value = true;
-    lastError.value = null;
+    surf.sending = true;
+    surf.lastError = null;
     const idem = generateUUID();
     const t0 = Date.now();
-    runId.value = idem;
-    runStartedAtMs.value = t0;
-    lastDeltaAtMs.value = null;
-    streamText.value = null;
-    draft.value = "";
+    surf.runId = idem;
+    surf.runStartedAtMs = t0;
+    surf.lastDeltaAtMs = null;
+    surf.streamText = null;
+    surf.draft = "";
 
     const optimisticParts: string[] = [];
     if (text) {
@@ -575,8 +793,10 @@ export const useChatStore = defineStore("chat", () => {
       timestamp: t0,
       [CHAT_OPTIMISTIC_KEY]: idem,
     };
-    messages.value = [...messages.value, optimistic];
-    usePreviewStore().setFollowLatest(true);
+    surf.messages = [...surf.messages, optimistic];
+    if (key === session.activeSessionKey) {
+      usePreviewStore().setFollowLatest(true);
+    }
     await nextTick();
     try {
       await c.request("chat.send", {
@@ -586,63 +806,85 @@ export const useChatStore = defineStore("chat", () => {
         idempotencyKey: idem,
         ...(attachmentsPayload.length > 0 ? { attachments: attachmentsPayload } : {}),
       });
-      removeIncludedPendingFiles();
+      removeIncludedPendingFilesForSurface(surf);
       const slashHead = text.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
       if (slashHead === "/new" || slashHead === "/reset") {
         void session.refresh();
         flashSessionListNotice();
       }
     } catch (e) {
-      messages.value = messages.value.filter(
+      surf.messages = surf.messages.filter(
         (m) => !isOptimisticUserMessage(m) || m[CHAT_OPTIMISTIC_KEY] !== idem,
       );
-      runId.value = null;
-      streamText.value = null;
-      runStartedAtMs.value = null;
-      lastDeltaAtMs.value = null;
-      lastError.value = describeGatewayError(e);
+      surf.runId = null;
+      surf.streamText = null;
+      surf.runStartedAtMs = null;
+      surf.lastDeltaAtMs = null;
+      surf.lastError = describeGatewayError(e);
     } finally {
-      sending.value = false;
-      flushPendingSilentHistorySync("sendMessage.finally");
+      surf.sending = false;
+      flushPendingSilentHistorySync("sendMessage.finally", key);
     }
   }
 
-  async function abortIfStreaming(): Promise<void> {
+  async function sendMessage(): Promise<void> {
+    const k = useSessionStore().activeSessionKey;
+    if (!k) {
+      return;
+    }
+    await sendMessageForSession(k);
+  }
+
+  async function abortIfStreaming(opts?: { sessionKey?: string }): Promise<void> {
     const gw = useGatewayStore();
     const c = gw.client;
     const session = useSessionStore();
-    const key = session.activeSessionKey;
+    const key = opts?.sessionKey ?? session.activeSessionKey;
     if (!c?.connected || !key) {
       return;
     }
+    const surf = ensureSurface(key);
     try {
-      await c.request("chat.abort", runId.value ? { sessionKey: key, runId: runId.value } : { sessionKey: key });
+      await c.request(
+        "chat.abort",
+        surf.runId ? { sessionKey: key, runId: surf.runId } : { sessionKey: key },
+      );
     } catch (e) {
       logSwallowedError("chat.abortIfStreaming", e);
     }
-    streamText.value = null;
-    runId.value = null;
-    clearRunTiming();
+    surf.streamText = null;
+    surf.runId = null;
+    surf.runStartedAtMs = null;
+    surf.lastDeltaAtMs = null;
   }
 
   function clearRunTiming(): void {
-    runStartedAtMs.value = null;
-    lastDeltaAtMs.value = null;
+    const surf = getActiveSurface();
+    if (surf) {
+      surf.runStartedAtMs = null;
+      surf.lastDeltaAtMs = null;
+    }
+  }
+
+  function snapshotRunDurationForSurface(surf: ChatSurfaceState): void {
+    const start = surf.runStartedAtMs;
+    if (start != null) {
+      surf.lastCompletedRunDurationMs = Date.now() - start;
+      surf.lastCompletedRunAtMs = Date.now();
+    } else {
+      surf.lastCompletedRunDurationMs = null;
+      surf.lastCompletedRunAtMs = null;
+    }
+    surf.runStartedAtMs = null;
+    surf.lastDeltaAtMs = null;
   }
 
   /** 正常结束一轮时记录耗时（中断 / error 不写入，避免误显示「上一轮」） */
   function snapshotRunDuration(): void {
-    const start = runStartedAtMs.value;
-    if (start != null) {
-      lastCompletedRunDurationMs.value = Date.now() - start;
-      lastCompletedRunAtMs.value = Date.now();
-    } else {
-      // start was lost (e.g. externally triggered run); clear stale data so the
-      // old "Done · X.Xs" doesn't re-appear from a previous run.
-      lastCompletedRunDurationMs.value = null;
-      lastCompletedRunAtMs.value = null;
+    const surf = getActiveSurface();
+    if (surf) {
+      snapshotRunDurationForSurface(surf);
     }
-    clearRunTiming();
   }
 
   /**
@@ -658,8 +900,9 @@ export const useChatStore = defineStore("chat", () => {
       logGatewayPush("chat schema miss: 无 sessionKey，跳过 history 兜底", { hint });
       return;
     }
-    if (key !== active) {
-      logGatewayPush("chat schema miss: sessionKey≠当前选中，跳过 history 兜底", {
+    const tracked = trackedSessionKeys();
+    if (!tracked.has(key)) {
+      logGatewayPush("chat schema miss: sessionKey 非主会话且未打开职务面板，跳过 history 兜底", {
         hint,
         eventSessionKey: key,
         activeSessionKey: active,
@@ -676,7 +919,7 @@ export const useChatStore = defineStore("chat", () => {
     }
     console.warn("[didclaw] chat event payload skipped by schema, history fallback:", hint);
     logGatewayPush("chat schema miss → loadHistory(silent)", { hint, sessionKey: key });
-    void loadHistory({ silent: true });
+    void loadHistory({ silent: true, sessionKey: key });
   }
 
   /** 非当前会话的 chat 事件：节流刷新会话列表（例如定时任务新建的隔离会话） */
@@ -718,7 +961,77 @@ export const useChatStore = defineStore("chat", () => {
     async function processChatGatewayEventPayload(): Promise<void> {
       const sessionStore = useSessionStore();
       const activeKey = sessionStore.activeSessionKey;
-      if (payload.sessionKey !== activeKey) {
+      const eventKey = payload.sessionKey;
+      const tracked = trackedSessionKeys();
+
+      if (tracked.has(eventKey)) {
+        const surf = ensureSurface(eventKey);
+        const useLiveEdit = eventKey === activeKey;
+        if (payload.state === "delta") {
+          logGatewayPush("chat.handle → delta", { runId: payload.runId ?? null, trackedPanel: !useLiveEdit });
+          surf.lastDeltaAtMs = Date.now();
+          if (payload.runId) {
+            surf.runId = payload.runId;
+          }
+          if (surf.runStartedAtMs == null) {
+            surf.runStartedAtMs = Date.now();
+          }
+          const chunk = extractChatDeltaText(payload as Record<string, unknown>);
+          if (chunk) {
+            surf.streamText = mergeAssistantStreamDelta(surf.streamText, chunk);
+            if (useLiveEdit) {
+              useLiveEditStore().ingestStreamingSnapshot(surf.streamText);
+            }
+          } else {
+            logGatewayPush("chat.handle delta 无文本 chunk（可能仅结构化 message）", {
+              runId: payload.runId ?? null,
+            });
+          }
+        } else if (payload.state === "final") {
+          logGatewayPush("chat.handle → final → loadHistory(silent)", {
+            runId: payload.runId ?? null,
+            localRunIdBefore: surf.runId,
+          });
+          snapshotRunDurationForSurface(surf);
+          const streamSnap = surf.streamText;
+          if (useLiveEdit) {
+            useLiveEditStore().ingestFinishedAssistantStream(streamSnap);
+          }
+          surf.streamText = null;
+          surf.runId = null;
+          clearPendingSilentHistorySync(eventKey);
+          void loadHistory({ silent: true, sessionKey: eventKey });
+        } else if (payload.state === "aborted") {
+          logGatewayPush("chat.handle → aborted → loadHistory(silent)", { runId: payload.runId ?? null });
+          surf.runStartedAtMs = null;
+          surf.lastDeltaAtMs = null;
+          if (useLiveEdit) {
+            useLiveEditStore().ingestFinishedAssistantStream(surf.streamText);
+          }
+          surf.streamText = null;
+          surf.runId = null;
+          clearPendingSilentHistorySync(eventKey);
+          void loadHistory({ silent: true, sessionKey: eventKey });
+        } else if (payload.state === "error") {
+          logGatewayPush("chat.handle → error", {
+            runId: payload.runId ?? null,
+            errorMessage: payload.errorMessage ?? null,
+          });
+          surf.runStartedAtMs = null;
+          surf.lastDeltaAtMs = null;
+          if (useLiveEdit) {
+            useLiveEditStore().ingestFinishedAssistantStream(surf.streamText);
+          }
+          surf.streamText = null;
+          surf.runId = null;
+          surf.lastError =
+            payload.errorMessage?.trim() || i18n.global.t("composer.gatewayChatErrorFallback");
+          flushPendingSilentHistorySync("chat.error", eventKey);
+        }
+        return;
+      }
+
+      if (eventKey !== activeKey) {
         const composerIdle =
           !sending.value &&
           runId.value == null &&
@@ -757,8 +1070,6 @@ export const useChatStore = defineStore("chat", () => {
         if (payload.runId) {
           runId.value = payload.runId;
         }
-        // 用户切换到正在运行的后台会话时，runStartedAtMs 会因 loadHistory 而清空；
-        // 首个到达的 delta 补设起始时间，使计时器能够正常显示
         if (runStartedAtMs.value == null) {
           runStartedAtMs.value = Date.now();
         }
@@ -832,9 +1143,14 @@ export const useChatStore = defineStore("chat", () => {
     clearPendingComposerFiles,
     loadHistory,
     sendMessage,
+    sendMessageForSession,
+    surfaces,
+    ensureSurface,
+    getComposerPhaseFor,
     abortIfStreaming,
     handleGatewayEvent,
     scheduleDebouncedSilentHistoryFromGateway,
+    scheduleDebouncedSilentHistoryForSession,
     openClawPrimaryModel,
     openClawModelPickerRows,
     openClawPrimaryBusy,

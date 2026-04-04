@@ -5,6 +5,9 @@ import AppShellTopBanners from "@/app/AppShellTopBanners.vue";
 import SessionControlBar from "@/app/SessionControlBar.vue";
 import SessionHistoryDialog from "@/app/SessionHistoryDialog.vue";
 import ToolSidebar from "@/app/ToolSidebar.vue";
+import CompanyAgentsHubDialog from "@/features/company/CompanyAgentsHubDialog.vue";
+import CompanyOrgFloatingPanel from "@/features/company/CompanyOrgFloatingPanel.vue";
+import RoleChatColumn from "@/features/company/RoleChatColumn.vue";
 import FirstRunWizard from "@/features/onboarding/FirstRunWizard.vue";
 import OpenClawUpdatePrompt from "@/features/openclaw/OpenClawUpdatePrompt.vue";
 import DidClawUpdatePrompt from "@/features/update/DidClawUpdatePrompt.vue";
@@ -21,6 +24,7 @@ import { useAppShellOnboardingBanners } from "@/composables/useAppShellOnboardin
 import { useAppShellSessionToolbar } from "@/composables/useAppShellSessionToolbar";
 import { useTauriPreviewWindowStrip } from "@/composables/useTauriPreviewWindowStrip";
 import { useChatStore } from "@/stores/chat";
+import { useCompanyRolePanelsStore } from "@/stores/companyRolePanels";
 import { useLiveEditStore } from "@/stores/liveEdit";
 import { useLocalSettingsStore } from "@/stores/localSettings";
 import { useFilePreviewStore } from "@/stores/filePreview";
@@ -95,6 +99,16 @@ function toggleLiveCodePanel(): void {
 }
 
 const historyDialogOpen = ref(false);
+
+const companyRolePanelsStore = useCompanyRolePanelsStore();
+const { panels: companyPanels } = storeToRefs(companyRolePanelsStore);
+const companyHubOpen = ref(false);
+function onOpenCompanyHub(): void {
+  companyHubOpen.value = true;
+}
+function closeCompanyHub(): void {
+  companyHubOpen.value = false;
+}
 
 const {
   showOnboardingResumeBanner,
@@ -203,11 +217,13 @@ useAppShellLifecycle({
 onMounted(() => {
   window.addEventListener("keydown", onGlobalKeydown);
   document.addEventListener("click", onGlobalDocumentClick, true);
+  window.addEventListener("didclaw-open-company-hub", onOpenCompanyHub);
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
   document.removeEventListener("click", onGlobalDocumentClick, true);
+  window.removeEventListener("didclaw-open-company-hub", onOpenCompanyHub);
 });
 </script>
 
@@ -217,6 +233,7 @@ onUnmounted(() => {
     <OpenClawUpdatePrompt v-if="isDidClawElectron()" />
     <DidClawUpdatePrompt />
     <ExecApprovalDialog />
+    <CompanyAgentsHubDialog v-if="isDidClawElectron()" :open="companyHubOpen" @close="closeCompanyHub" />
     <AppHeader />
     <AppShellTopBanners
       :show-onboarding-resume-banner="showOnboardingResumeBanner"
@@ -269,6 +286,15 @@ onUnmounted(() => {
           />
         </aside>
 
+        <template v-if="isDidClawElectron()">
+          <RoleChatColumn
+            v-for="p in companyPanels"
+            :key="p.id"
+            :panel="p"
+            @close="companyRolePanelsStore.closePanel(p.id)"
+          />
+        </template>
+
         <section
           v-if="isRightPaneOpen"
           ref="rightStackRef"
@@ -299,6 +325,7 @@ onUnmounted(() => {
       @select="openHistorySession"
       @preview-memory="previewWorkspaceMemoryFile"
     />
+    <CompanyOrgFloatingPanel v-if="isDidClawElectron()" />
   </div>
 </template>
 
