@@ -8,7 +8,7 @@
 
 ## 1. 产品目标（一句话）
 
-让**普通用户**用「成立公司 → 职务 → 规则」隐喻使用 OpenClaw **官方多 Agent**（`agents.list` / `bindings` 等），主会话 + 多职务聊天表面；**不是**自造与网关无关的私有路由协议。
+让**普通用户**用「成立公司 → 职务 → 规则」隐喻使用 OpenClaw **官方多 Agent**（`agents.list` / `bindings` / **`tools.agentToAgent`** 等），主会话 + 多职务聊天表面；**不是**自造与网关无关的私有路由协议。**Phase 2** 补齐「无人公司」：**主 agent 对子职务的真实投递**可核验（见 spec **§6 Phase 2**），避免仅多列 UI 造成的「叙事式通知」断层。
 
 ---
 
@@ -62,7 +62,7 @@
 ### 5.1 `openclaw.json` / `agents` — 仓库现状（已核实，随实现更新）
 
 - Tauri 侧**已有**：`openclaw_providers`、`openclaw_model_config`、`openclaw_channel_config`、备份/恢复等；入口 **`didclaw-ui/src-tauri/src/commands.rs`**、**`lib.rs`**。
-- **`agents.list`（已实现）**：**`read_open_claw_agents_list`**、**`write_open_claw_agents_list_merge`**（`openclaw_agents_config.rs`，写前备份 `openclaw.json`，按 `id` 覆盖或追加）。
+- **`agents.list`（已实现）**：**`read_open_claw_agents_list`**、**`write_open_claw_agents_list_merge`**（`openclaw_agents_config.rs`，写前备份 `openclaw.json`，按 `id` **字段级合并**）。
 - **Gateway**：**`config.get` / `config.patch`** 已在向导中接入（`openclaw-gateway-config.ts`）；未连接或失败时回退 **Rust 合并**。详见 [`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md) **§5.0**。
 - **Auth profiles（官方 [Multi-Agent Routing](https://docs.openclaw.ai/concepts/multi-agent)）**：每 agent 独立 **`~/.openclaw/agents/<id>/agent/auth-profiles.json`**，主代理 Key **不自动共享**；官方推荐需共用时 **复制** 到子 agent 目录。DidClaw 在保存职务列表后，对凭据为空的子 agent **自动从 main 复制**（等价于文档中的 copy），实现见 **`sync_openclaw_subagent_auth_profiles_from_main`** / `write_open_claw_agents_list_merge` 尾部逻辑。
 
@@ -82,6 +82,7 @@
 
 - Spec **§4** 中的 **「五步成立公司」完整向导**、**组织图模板（扁平/金字塔）**：当前实现为 **Hub 表格合并 + 右下角列表浮层**，属 **轻量 MVP**；完整步骤向导与可编辑组织图归 **Phase 2**。  
 - **§5.4** 对官方最小示例的 **snapshot 单测**：仓库内 **尚未加**；可作为后续硬化工序。
+- **Phase 2（spec §6 已扩写）**：**职务间真实协作** — `tools.agentToAgent`（及必要时 [Session tools](https://docs.openclaw.ai/concepts/session-tool)）编译进标准配置；组织图 **边** + 预设拓扑；验收 **main→子 可核验 history**；可选 bindings 向导、detach 子窗口。详见 **[`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md)** 的 **§6 · Phase 2** 整节。
 
 ---
 
@@ -98,7 +99,7 @@
    - [x] **`config.patch` / `config.get`**：已接 `GatewayClient`（保存/刷新 agents 优先）；未连接或失败时回退 Rust 合并；hash 过期 / 校验失败 / 限流等有用户可见文案。  
    - [x] 职务面板绑定 **从 `sessions.list` 选会话**（`RoleChatColumn` 下拉；默认 `agent:<id>:main`，可切到同 agent 下其它 key）。  
 
-3. **Phase 2**：`agentToAgent` / bindings 向导化、拉线编译、detach 子窗口、五步向导与组织图模板等。
+3. **Phase 2（开新窗口主战场）** — 必读 spec **§6 Phase 2** 全文；建议顺序：**Milestone 2.1 上游最小 E2E 冻结** → **2.2 拓扑编译器** → **2.3 组织图边 UI** → 2.4 可观测性 → 可选 2.5 bindings、2.6 detach。
 
 ---
 
@@ -106,7 +107,8 @@
 
 在改代码前在仓库内搜索并阅读：
 
-- **`GatewayClient`**：**`config.patch` / `config.get`** 见 **`lib/openclaw-gateway-config.ts`** 与 **`CompanyAgentsHubDialog`**；写配置 **Gateway 优先**，回退 Tauri **`write_open_claw_agents_list_merge`**。Phase 1 代码已齐；**§6 结论表**区分「代码完成」与「人工验收」。
+- **Phase 2 前置**：精读 **spec §6 Phase 2** + 官方 [Multi-Agent Routing](https://docs.openclaw.ai/concepts/multi-agent)（`tools.agentToAgent`）与 [Session tools](https://docs.openclaw.ai/concepts/session-tool)；在目标 OpenClaw 版本做 **一条 main→子 agent 可核验** 的手配实验后再动 DidClaw 编译器。
+- **`GatewayClient`**：**`config.patch` / `config.get`** 见 **`lib/openclaw-gateway-config.ts`** 与 **`CompanyAgentsHubDialog`**；写配置 **Gateway 优先**，回退 Tauri **`write_open_claw_agents_list_merge`**。Phase 1 代码已齐；**§6 结论表**区分「代码完成」与「人工验收」。Phase 2 写入 **`tools.agentToAgent`** 等时需 **同一套 patch/合并策略**（可能新增 Tauri 模块或扩展现有 `config.patch` payload，以设计为准）。
 - **`agents.list`**：模块 **`openclaw_agents_config.rs`**、命令 **`read_open_claw_agents_list` / `write_open_claw_agents_list_merge`**；前端 **`CompanyAgentsHubDialog`**、**`desktop-api`**。
 - **多表面**：**`stores/chat.ts`**（`surfaces` / `trackedSessionKeys`）、**`stores/companyRolePanels.ts`**、**`gateway-store-on-event.ts`**（职务列 `agent` 节流 history）；布局 **`AppShell.vue`** + **`RoleChatColumn.vue`**。
 
@@ -114,7 +116,7 @@
 
 ## 8. 用户原话（动机，可选）
 
-多 Agent 目前偏开发者；希望 **普通用户也能在 OpenClaw 上「开公司」**，DidClaw 做降门槛壳层，对齐官方以便网关升级可跟。
+多 Agent 目前偏开发者；希望 **普通用户也能在 OpenClaw 上「开公司」乃至无人值守协作**，DidClaw 做降门槛壳层，对齐官方以便网关升级可跟。**Phase 2** 解决「多列聊天 ≠ 真通知」：**官方拓扑与工具链**落地后，才接近「无人公司」叙事。
 
 ---
 

@@ -1,6 +1,6 @@
 # DidClaw「公司制多 Agent」方案与实施
 
-> **状态**：**Phase 1（MVP）代码与主文档已落地**（2026-04-04）；**人工验收（§8）与 Phase 0 手配回归**仍建议在目标环境执行。Phase 2+ 未开始。  
+> **状态**：**Phase 1（MVP）代码与主文档已落地**（2026-04-04）；**人工验收（§8）与 Phase 0 手配回归**仍建议在目标环境执行。**Phase 2 方案已扩写（§6）**，实现未开始。  
 > **复杂度**：当前 DidClaw 路线中**最高**之一（产品隐喻 + 官方 multi-agent 配置 + 多表面 UI + 配置热更新与网关行为一致）  
 > **维护**：OpenClaw 升级后优先核对本文 [§2 官方文档索引](#2-官方文档索引与修订时必查) 所列页面及 `agents` / `bindings` / `tools.agentToAgent` 等 schema。  
 > **关联文档**：[`didclaw-openclaw-alignment.md`](./didclaw-openclaw-alignment.md) · [`openclaw-features.md`](./openclaw-features.md) · [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md) · **新开对话粘贴用** [`didclaw-multi-agent-company-new-chat-briefing.md`](./didclaw-multi-agent-company-new-chat-briefing.md)
@@ -144,15 +144,83 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 - **配置写入**：**Gateway `config.get` / `config.patch`**（已连接时优先；`lib/openclaw-gateway-config.ts`）+ **Rust 合并回退** + 热重载与 **网关/本地** 成功提示区分 + **hash 过期 / 校验失败 / 限流** 等错误文案。✅
 - **§5.4 单测**：以官方最小示例为 snapshot 的 **JSON 编译器单测** — **尚未添加**（可选后续，不阻塞 Phase 1 代码闭环）。
 
-### Phase 2 — 增强
+### Phase 2 — 职务互联与「无人公司」闭环（**关键；相对 Phase 1 为能力补全**）
 
-- **职务间协作可视化**：边 → `tools.agentToAgent` 编译；预设模板（仅主连子、全连接白名单等）。
-- **与通道向导结合**：在理解 [Channel routing](https://docs.openclaw.ai/channels/channel-routing) 前提下，向导内编辑 **bindings**（高风险，需充分校验与回滚）。
-- **可选子窗口**：detach 职务面板。
+> **产品断层（Phase 1 已暴露）**：多列 UI 仅提供 **并列会话**；主 agent 在自然语言里说「已发通知」**不会**自动写入子 agent 会话。要实现「开无人公司」——**总经理发指令、职务 agent 侧可核验、可继续执行**——必须让运行时走 **OpenClaw 官方支持的跨 agent / 跨会话机制**，而不是再叠一层 DidClaw 私有总线。
+
+#### 2.0 目标定义（验收口径）
+
+| 能力 | Phase 1 | Phase 2 目标 |
+|------|---------|----------------|
+| 多职务并排聊天 | ✅ 用户可切换列、各 `sessionKey` 隔离 | 保持 |
+| 主会话「叙事」通知子职务 | ⚠️ 仅为模型幻觉式描述 | ❌ 不足；需 **可验证的侧效果** |
+| 主 → 子 的真实投递 | ❌ | ✅ 仅通过 **官方配置 + 网关工具** 实现；子 agent 会话 **history 中可出现** 可归因于工具调用的内容（具体形态以 OpenClaw 当前实现为准） |
+| 拓扑可编辑、可落盘 | ❌ | ✅ 与 `agents.list` **同一写入路径**（`config.patch` 优先，Tauri 合并回退），可导出为标准 `openclaw.json` 片段 |
+
+#### 2.1 官方能力锚点（实施前在目标版本上 **重读并重做最小实验**）
+
+以下顺序为 **建议阅读 → CLI/手配验证**；字段名以当时文档与网关行为为准。
+
+1. **[Multi-Agent Routing](https://docs.openclaw.ai/concepts/multi-agent)** — **`tools.agentToAgent`**（allow/deny、方向、与多 agent 隔离的默认策略）。**首选**作为「总经办 → 职务」投递的主机制。
+2. **[Session tools](https://docs.openclaw.ai/concepts/session-tool)** — 如向其它会话 **发送/列出/读历史** 等能力（具体方法名以当时网关 RPC 与文档为准）：在 `agentToAgent` 不足以覆盖产品语义时，作为 **显式跨 `sessionKey` 写入** 的补充（需严格权限与审计认知）。
+3. **[Multi-Agent Sandbox & Tools](https://docs.openclaw.ai/tools/multi-agent-sandbox-tools)** — 各 agent 的 **`tools.allow` / `tools.deny` / `sandbox`**：编译拓扑时必须 **不放宽** 用户未授权的能力。
+4. **[Configuration reference](https://docs.openclaw.ai/gateway/configuration-reference)** — `agents`、`tools`、`bindings` 等 **字段级** 细节与默认值。
+5. **[Channel routing](https://docs.openclaw.ai/channels/channel-routing)** — **bindings** 仍为 **入站** 路由；与「职务间互发」不同层，但 **Phase 2 可选** 做向导化（见 2.5）。
+
+**冻结产出**：在团队选定的 OpenClaw 版本上，完成 **一条** 可重复的「main → sales」成功投递最小配置 + 截图/笔记（写入 `gateway-client-protocol-notes.md` 或本仓库 wiki，避免口口相传）。
+
+#### 2.2 里程碑（建议实现顺序）
+
+**Milestone 2.1 — 调研冻结**（阻塞后续开发）
+
+- 用官方 CLI / 手写 JSON 验证：`tools.agentToAgent` **最小 allow 集** 下，main 中模型 **实际调用** 工具后，sales（或等价子 agent）会话 **可见变化**。
+- 若上游以 **session 工具** 为主路径，同样做 **最小 E2E**，并记录 **与 agentToAgent 的取舍**（写进本文 §6.2 脚注或 `gateway-client-protocol-notes.md`）。
+- 核对 [Config hot reload](https://docs.openclaw.ai/gateway/configuration#config-hot-reload)：拓扑变更后是否需重启网关；DidClaw 提示文案对齐。
+
+**Milestone 2.2 — 拓扑 → 配置编译器（DidClaw 核心后端逻辑）**
+
+- **输入**：DidClaw 内部 **有向边** 模型 `fromAgentId` → `toAgentId`（可选：`label`、`policy` 占位，但 **落盘仅官方字段**）。
+- **输出**：合并写入 **`openclaw.json`（及网关可见的等价结构）** 中的 **`tools.agentToAgent`**（及必要的 per-agent `tools` 片段），**禁止**引入私有键名。
+- **预设模板**（降低用户成本）：例如 **星型（仅 main→各子）**、**主↔子双向白名单**、**全连接（强危险，默认关闭 + 二次确认）**；自定义边表需 **边数上限** 与循环检测（产品层防误配）。
+- **测试**：对官方文档 **最小 JSON 片段** 做 **snapshot / 结构断言**；编译器 **round-trip**（边表 → JSON → 边表）在单测中覆盖。
+
+**Milestone 2.3 — UI：组织图与协作拓扑**
+
+- **§4.1 未竟部分**：组织图 **边** 可编辑（可先 **模板 + 下拉** 再 **拖拽**）；与 **`CompanyAgentsHubDialog`** 或独立 **「协作拓扑」** 对话框联动保存。
+- **用户可见说明**（必填）：明确区分 **「仅并列聊天」** 与 **「已启用职务间官方协作」**；未启用时，主会话中的「已通知某职务」**不应被产品文案暗示为真**（可选：主会话内轻提示「职务间投递需在协作拓扑中开启」—— copy 与 i18n 另列）。
+- 与 **职务列** 联动：保存拓扑后提示 **热重载 / 重启网关**（行为以 2.1 冻结结果为准）。
+
+**Milestone 2.4 — 可观测性（增强信任，非阻塞闭环）**
+
+- 当网关事件可区分 **跨 agent 工具结果** 时，主会话或全局 **简短提示**（不泄露密钥）。
+- 职务列：若技术上可靠，可对 **非用户手打的 inbound** 做轻量标记（需避免误报；做不到则仅文档说明「到子 agent 列查看 history」）。
+
+**Milestone 2.5 — bindings 向导化（可选；高风险）**
+
+- 在理解 [Channel routing](https://docs.openclaw.ai/channels/channel-routing) 前提下，于向导 **高级** 区提供 **bindings** 编辑：**强校验、写前备份、回滚提示**；默认不引导新手修改。
+- **与 2.2 的关系**：bindings 解决 **渠道进来找谁**；**不替代** agentToAgent / session 工具解决 **职务间互发**。
+
+**Milestone 2.6 — 子窗口 detach（可选）**
+
+- **§5.2**：职务面板 **Tauri 独立窗口** + **Pinia / Tauri event** 状态同步；与 Phase 2 闭环 **无硬依赖**，可并行排期。
+
+#### 2.3 Phase 2 验收要点（建议写入测试清单）
+
+| # | 场景 | 期望 |
+|---|------|------|
+| A | 仅开启 **main→sales** allow；用户在 **main** 发出「请通知 sales：……」类指令（具体措辞以模型为准） | **不得** 要求用户同时打开 sales 列打字；sales 绑定会话的 **history** 中出现 **可归因于官方工具链** 的新增内容（与 2.1 冻结形态一致） |
+| B | 关闭或收紧 `agentToAgent` 后重复 A | **不应** 出现跨会话注入 |
+| C | 配置经 **Gateway `config.patch`** 与 **仅 Tauri 写入** 各测一遍 | 网关与磁盘上 **拓扑语义等价**（允许 hash/格式差异，不允许语义分叉） |
+| D | 安全默认 | 新用户/新向导默认 **非全互聊**；开启全连接需 **确认 + [Security](https://docs.openclaw.ai/gateway/security) 链接** |
+
+#### 2.4 与 Phase 3 边界
+
+- **Phase 2**：**同步/近实时**「把一句话或任务投递到另一职务会话」+ **拓扑配置 UI** + 可选 bindings、detach。
+- **Phase 3**：[Sub-Agents](https://docs.openclaw.ai/tools/subagents)、**Cron / 班表式** 无人值守、多步编排与更长周期任务；**需单独安全与配额评审**。
 
 ### Phase 3 — 可选
 
-- 与 [Sub-Agents](https://docs.openclaw.ai/tools/subagents) / 后台任务形态结合；会话工具高级编排（需单独安全评审）。
+- 在 Phase 2 闭环稳定后：与 [Sub-Agents](https://docs.openclaw.ai/tools/subagents) / **Cron** / 后台任务形态结合；会话工具 **高级编排**（单独安全评审）。
 
 ---
 
@@ -191,6 +259,7 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 | 2026-04-04 | 实施 | **`config.get` / `config.patch`** 接入向导（`openclaw-gateway-config.ts`）；hash/校验/限流提示与网关/本地成功文案区分 |
 | 2026-04-04 | 文档 | **Phase 1 代码闭环**：更新简报 §6 结论表；spec 状态行、Phase 1 说明、§8 验收表；明确与 §4 完整向导/组织图的差距 |
 | 2026-04-04 | 文档 | §5.0：对齐官方 **Multi-Agent** 中 **per-agent auth-profiles** 与「复制到另一 agentDir」做法；记录 DidClaw 在保存 `agents.list` 后的 **main → 子 agent** 自动复制行为 |
+| 2026-04-04 | 文档 | **§6 Phase 2 扩写**：无人公司闭环（`agentToAgent` / session 工具）、里程碑 2.1–2.6、验收表、与 Phase 1 断层说明及 Phase 3 边界 |
 
 ---
 
