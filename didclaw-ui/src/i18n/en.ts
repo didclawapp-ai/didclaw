@@ -225,14 +225,18 @@ export default {
     closeDialog: "Close",
     wizardSection: "Merge into agents.list",
     wizardHint:
-      "Fields follow the official OpenClaw schema. openclaw.json is backed up before write. Restart the gateway if config hot reload does not apply.",
+      "Fields follow the official OpenClaw schema. openclaw.json is backed up before write. On desktop, pick a model from the Model column; leave empty to use the global default. Restart the gateway if config hot reload does not apply.",
     colId: "id",
     colName: "name",
     colWorkspace: "workspace",
     colModel: "model",
     phId: "e.g. sales",
     phName: "display name",
-    phModel: "optional",
+    phModel: "Type a model ref",
+    modelUseDefault: "(Use global default model)",
+    modelPickerLoadFailed: "Could not load model list: {message}. You can type a model ref in the Model column.",
+    rowsMissingModelHint:
+      "Some roles have an id but no model: the gateway/global default will be used. If an agent cannot chat, pick a concrete model for each row.",
     addRow: "Add row",
     mergeToOpenclaw: "Merge into openclaw.json",
     currentAgentsJson: "Current agents.list (read-only)",
@@ -258,6 +262,10 @@ export default {
     needOneAgentId: "Enter at least one agent id.",
     closeRolePanel: "Close role panel",
     roleComposerPlaceholder: "Message… (Enter to send)",
+    rolePanelApiKeyHint:
+      "Role chats use the **model** for that agent in `agents.list`. Sub-agents also need credentials under `~/.openclaw/agents/<id>/agent/auth-profiles.json`; an empty store causes 401. DidClaw copies from **main** when you save the agents list. If errors persist, merge-save again from the hub or verify main’s auth-profiles include the provider key.",
+    authProfilesSyncedHint: "Copied main agent API credentials to role agent folders: {agents} (auth-profiles.json).",
+    authProfilesSyncErrorsHint: "Auth profile sync failed for some agents: {detail}",
     floatingFab: "Roles",
     floatingToggleTitle: "Org / open role columns and configured agents",
     floatingRegion: "Role org list",
@@ -278,6 +286,7 @@ export default {
 
   composer: {
     placeholder: "Type a message… (paste screenshot with Ctrl+V)",
+    send: "Send",
     sendOffline: "Not connected to gateway",
     sendBusy: "Assistant is responding — button turns green when idle",
     sendEmpty: "Enter a message or add an attachment to send",

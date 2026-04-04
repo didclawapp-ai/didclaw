@@ -217,7 +217,7 @@ async function startQrFlow(): Promise<void> {
   if (api.getOpenClawSetupStatus) {
     try {
       const s = await api.getOpenClawSetupStatus();
-      if (!s.openclawDirExists || !s.openclawCli?.ok) {
+      if (!s.openclawSetupIndicated || !s.openclawCli?.ok) {
         qrState.value = "failed";
         qrMessage.value = t('channel.needsOpenClawSetup');
         return;

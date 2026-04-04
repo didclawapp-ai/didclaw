@@ -39,7 +39,7 @@ export function useAppShellOnboardingBanners(localSettings: LocalSettingsStore):
     }
     try {
       const s = await api.getOpenClawSetupStatus();
-      const envReady = s.openclawDirExists && s.openclawConfigState !== "missing";
+      const envReady = s.openclawConfigState !== "missing";
       if (!envReady) {
         showOnboardingResumeBanner.value = false;
         return;

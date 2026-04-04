@@ -201,7 +201,10 @@ interface DidClawElectronApi {
   >;
   /** 首次安装向导预检（桌面端） */
   getOpenClawSetupStatus(): Promise<{
+    /** 目录存在（含仅复制内置 skills 的情况）；勿单独用作「已装 OpenClaw」 */
     openclawDirExists: boolean;
+    /** `openclaw.json` 已存在，或已找到 openclaw CLI（与官方环境一致时再跳过首装引导） */
+    openclawSetupIndicated: boolean;
     openclawConfigState: "ok" | "missing" | "invalid";
     openclawConfigError: string | null;
     openclawCli: { ok: true; path: string } | { ok: false; error: string };
@@ -243,8 +246,22 @@ interface DidClawElectronApi {
   writeOpenClawAgentsListMerge?(payload: {
     agents: Array<Record<string, unknown>>;
   }): Promise<
-    { ok: true; backupPath?: string } | { ok: false; error: string; backupPath?: string }
+    | {
+        ok: true;
+        backupPath?: string;
+        authProfilesSynced?: string[];
+        authProfilesSyncNote?: string;
+        authProfilesSyncErrors?: Array<{ agentId?: string; error?: string }>;
+      }
+    | { ok: false; error: string; backupPath?: string }
   >;
+  /** 将 main 的 auth-profiles.json 复制到 agents.list 中凭据为空的子代理（config.patch 保存后也可调用） */
+  syncOpenclawSubagentAuthProfilesFromMain?(): Promise<{
+    ok: boolean;
+    synced?: string[];
+    errors?: Array<{ agentId?: string; error?: string }>;
+    note?: string;
+  }>;
   /** 读取 workspace/IDENTITY.md 和 USER.md 中的 AI 名称与用户名称 */
   readWorkspaceIdentity?(): Promise<
     { ok: true; aiName?: string | null; userName?: string | null }

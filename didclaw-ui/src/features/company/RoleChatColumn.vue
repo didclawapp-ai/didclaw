@@ -15,6 +15,7 @@ import {
   useCompanyRolePanelsStore,
 } from "@/stores/companyRolePanels";
 import { useChatStore } from "@/stores/chat";
+import { useGatewayStore } from "@/stores/gateway";
 import { usePreviewStore } from "@/stores/preview";
 import { useSessionStore } from "@/stores/session";
 import { storeToRefs } from "pinia";
@@ -31,11 +32,13 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const chat = useChatStore();
+const gw = useGatewayStore();
 const preview = usePreviewStore();
 const sessionStore = useSessionStore();
 const companyPanels = useCompanyRolePanelsStore();
 const { showDiagnosticMessages } = storeToRefs(preview);
 const { allSessions } = storeToRefs(sessionStore);
+const { status: gatewayStatus } = storeToRefs(gw);
 
 const sk = computed(() => props.panel.sessionKey);
 
@@ -137,6 +140,13 @@ watch(
     }
   },
 );
+
+watch(gatewayStatus, (s, prev) => {
+  if (s === "connected" && prev !== "connected") {
+    chat.ensureSurface(sk.value);
+    void chat.loadHistory({ sessionKey: sk.value });
+  }
+});
 </script>
 
 <template>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { getOpenClawAfterWriteHint } from "@/lib/openclaw-config-hint";
 import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
+import { isDidClawDesktop } from "@/lib/desktop-api";
+import { buildModelPickerRows, readOpenClawAiSnapshot } from "@/lib/openclaw-ai-config";
 import {
   isGatewayConfigHashStaleError,
   isGatewayConfigPatchRejectedError,
@@ -37,6 +39,48 @@ const listJson = ref<string>("[]");
 const rows = ref<Array<{ id: string; name: string; workspace: string; model: string }>>([
   { id: "", name: "", workspace: "default", model: "" },
 ]);
+
+/** 来自 `readOpenClawAiSnapshot`（桌面版），用于 model 列下拉 */
+const modelPickerRows = ref<Array<{ value: string; label: string }>>([]);
+const modelPickerError = ref<string | null>(null);
+/** 新增行时预填为当前全局主模型 */
+const suggestedDefaultModel = ref("");
+
+async function loadModelPickerOptions(): Promise<void> {
+  modelPickerError.value = null;
+  modelPickerRows.value = [];
+  suggestedDefaultModel.value = "";
+  if (!isDidClawDesktop()) {
+    return;
+  }
+  try {
+    const snap = await readOpenClawAiSnapshot();
+    modelPickerRows.value = buildModelPickerRows(snap);
+    suggestedDefaultModel.value = snap.primaryModel.trim();
+  } catch (e) {
+    modelPickerError.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
+const modelOptionsForSelect = computed(() => {
+  const map = new Map<string, { value: string; label: string }>();
+  for (const o of modelPickerRows.value) {
+    map.set(o.value, o);
+  }
+  for (const r of rows.value) {
+    const m = r.model.trim();
+    if (m && !map.has(m)) {
+      map.set(m, { value: m, label: m });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.value.localeCompare(b.value));
+});
+
+const useModelSelect = computed(() => isDidClawDesktop() && modelOptionsForSelect.value.length > 0);
+
+const rowsMissingModel = computed(() =>
+  rows.value.some((r) => r.id.trim() !== "" && r.model.trim() === ""),
+);
 
 function agentItemToRow(o: unknown): { id: string; name: string; workspace: string; model: string } | null {
   if (o == null || typeof o !== "object" || Array.isArray(o)) {
@@ -157,17 +201,29 @@ async function refreshList(): Promise<void> {
   }
 }
 
+async function refreshHubData(): Promise<void> {
+  await Promise.all([refreshList(), loadModelPickerOptions()]);
+}
+
 watch(
   () => props.open,
   (v) => {
     if (v) {
-      void refreshList();
+      void refreshHubData();
     }
   },
 );
 
 function addRow(): void {
-  rows.value = [...rows.value, { id: "", name: "", workspace: "default", model: "" }];
+  rows.value = [
+    ...rows.value,
+    {
+      id: "",
+      name: "",
+      workspace: "default",
+      model: suggestedDefaultModel.value.trim(),
+    },
+  ];
 }
 
 function removeRow(i: number): void {
@@ -177,6 +233,15 @@ function removeRow(i: number): void {
 async function saveAgents(): Promise<void> {
   error.value = null;
   const api = getDidClawDesktopApi();
+  let primaryModelFallback = "";
+  if (isDidClawDesktop()) {
+    try {
+      const snap = await readOpenClawAiSnapshot();
+      primaryModelFallback = snap.primaryModel.trim();
+    } catch {
+      /* 无法读取快照时仅按表格原样写入 */
+    }
+  }
   const agents: Record<string, unknown>[] = [];
   for (const r of rows.value) {
     const id = r.id.trim();
@@ -190,8 +255,12 @@ async function saveAgents(): Promise<void> {
     if (r.workspace.trim()) {
       o.workspace = r.workspace.trim();
     }
-    if (r.model.trim()) {
-      o.model = r.model.trim();
+    let modelVal = r.model.trim();
+    if (!modelVal && id !== "main" && primaryModelFallback) {
+      modelVal = primaryModelFallback;
+    }
+    if (modelVal) {
+      o.model = modelVal;
     }
     agents.push(o);
   }
@@ -213,8 +282,11 @@ async function saveAgents(): Promise<void> {
         await patchAgentsListMergeViaGateway(gc, agents, {
           sessionKey: sessionStore.activeSessionKey,
         });
-        chat.flashOpenClawConfigHint(t("company.afterWriteAgentsViaGateway"));
-        await refreshList();
+        const gwExtra = await collectSubagentAuthSyncLines();
+        chat.flashOpenClawConfigHint(
+          [t("company.afterWriteAgentsViaGateway"), ...gwExtra].filter(Boolean).join("\n\n"),
+        );
+        await refreshHubData();
         return;
       } catch (e) {
         if (!api?.writeOpenClawAgentsListMerge) {
@@ -233,12 +305,18 @@ async function saveAgents(): Promise<void> {
       error.value = res.backupPath ? `${res.error}（备份：${res.backupPath}）` : res.error;
       return;
     }
+    const mergeExtra = authSyncLinesFromMergeRes(res);
     chat.flashOpenClawConfigHint(
-      attemptedGatewayWrite
-        ? `${t("company.afterWriteAgentsLocalFallbackLead")}\n${getOpenClawAfterWriteHint()}`
-        : getOpenClawAfterWriteHint(),
+      [
+        attemptedGatewayWrite
+          ? `${t("company.afterWriteAgentsLocalFallbackLead")}\n${getOpenClawAfterWriteHint()}`
+          : getOpenClawAfterWriteHint(),
+        ...mergeExtra,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     );
-    await refreshList();
+    await refreshHubData();
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -282,6 +360,64 @@ function openAllNonMain(): void {
 function onBackdrop(): void {
   emit("close");
 }
+
+/** 将 main 的 auth-profiles 同步到子代理目录；返回文案片段供与保存提示合并。 */
+async function collectSubagentAuthSyncLines(): Promise<string[]> {
+  const api = getDidClawDesktopApi();
+  if (!api?.syncOpenclawSubagentAuthProfilesFromMain) {
+    return [];
+  }
+  try {
+    const sync = await api.syncOpenclawSubagentAuthProfilesFromMain();
+    if (!sync.ok) {
+      return [];
+    }
+    const lines: string[] = [];
+    const synced = (sync.synced ?? []).filter((x): x is string => typeof x === "string");
+    if (synced.length > 0) {
+      lines.push(t("company.authProfilesSyncedHint", { agents: synced.join(", ") }));
+    }
+    const errs = sync.errors ?? [];
+    if (errs.length > 0) {
+      const detail = errs
+        .map((e) => {
+          const id = e && typeof e === "object" ? String((e as { agentId?: string }).agentId ?? "?") : "?";
+          const msg = e && typeof e === "object" ? String((e as { error?: string }).error ?? "") : String(e);
+          return `${id}: ${msg}`;
+        })
+        .join("; ");
+      lines.push(t("company.authProfilesSyncErrorsHint", { detail }));
+    }
+    return lines;
+  } catch {
+    return [];
+  }
+}
+
+function authSyncLinesFromMergeRes(res: {
+  authProfilesSynced?: unknown;
+  authProfilesSyncErrors?: unknown;
+}): string[] {
+  const lines: string[] = [];
+  const synced = res.authProfilesSynced;
+  if (Array.isArray(synced) && synced.length > 0 && synced.every((x) => typeof x === "string")) {
+    lines.push(t("company.authProfilesSyncedHint", { agents: synced.join(", ") }));
+  }
+  const errs = res.authProfilesSyncErrors;
+  if (Array.isArray(errs) && errs.length > 0) {
+    const detail = errs
+      .map((e) => {
+        if (e && typeof e === "object") {
+          const o = e as { agentId?: string; error?: string };
+          return `${o.agentId ?? "?"}: ${o.error ?? ""}`;
+        }
+        return String(e);
+      })
+      .join("; ");
+    lines.push(t("company.authProfilesSyncErrorsHint", { detail }));
+  }
+  return lines;
+}
 </script>
 
 <template>
@@ -299,6 +435,8 @@ function onBackdrop(): void {
           <section class="hub-section">
             <h3>{{ t("company.wizardSection") }}</h3>
             <p class="hint">{{ t("company.wizardHint") }}</p>
+            <p v-if="modelPickerError" class="hint model-picker-err">{{ t("company.modelPickerLoadFailed", { message: modelPickerError }) }}</p>
+            <p v-if="rowsMissingModel" class="hint model-missing-hint">{{ t("company.rowsMissingModelHint") }}</p>
             <table class="grid-table">
               <thead>
                 <tr>
@@ -314,7 +452,15 @@ function onBackdrop(): void {
                   <td><input v-model="r.id" class="inp" :placeholder="t('company.phId')"></td>
                   <td><input v-model="r.name" class="inp" :placeholder="t('company.phName')"></td>
                   <td><input v-model="r.workspace" class="inp"></td>
-                  <td><input v-model="r.model" class="inp" :placeholder="t('company.phModel')"></td>
+                  <td>
+                    <select v-if="useModelSelect" v-model="r.model" class="inp model-select">
+                      <option value="">{{ t("company.modelUseDefault") }}</option>
+                      <option v-for="opt in modelOptionsForSelect" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
+                    </select>
+                    <input v-else v-model="r.model" class="inp" :placeholder="t('company.phModel')">
+                  </td>
                   <td>
                     <button type="button" class="lc-btn lc-btn-ghost lc-btn-xs" @click="removeRow(i)">−</button>
                   </td>
@@ -338,7 +484,7 @@ function onBackdrop(): void {
             <h3>{{ t("company.currentAgentsJson") }}</h3>
             <pre class="json-preview">{{ listJson }}</pre>
             <div class="row-actions">
-              <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" :disabled="busy" @click="refreshList">
+              <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" :disabled="busy" @click="refreshHubData">
                 {{ t("company.refreshList") }}
               </button>
               <button type="button" class="lc-btn lc-btn-ghost lc-btn-sm" @click="openAllNonMain">
@@ -483,5 +629,14 @@ function onBackdrop(): void {
   color: var(--lc-error);
   font-size: 13px;
   margin-top: 8px;
+}
+.model-select {
+  cursor: pointer;
+}
+.model-picker-err {
+  color: var(--lc-text-muted);
+}
+.model-missing-hint {
+  color: var(--lc-warning, #b45309);
 }
 </style>

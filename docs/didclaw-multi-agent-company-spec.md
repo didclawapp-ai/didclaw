@@ -98,8 +98,9 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 ### 5.0 仓库现状：`openclaw.json` / `agents`（截至 2026-04-04，随代码更新）
 
 - **已有**：Tauri 侧 `openclaw_providers`、`openclaw_model_config`、`openclaw_channel_config`，以及配置 **备份/恢复** 等；命令注册在 **`didclaw-ui/src-tauri/src/commands.rs`** 与 **`lib.rs`**。
-- **`agents.list`（已落地）**：模块 **`openclaw_agents_config.rs`** — **`read_open_claw_agents_list`**（返回 `{ ok, list }`）、**`write_open_claw_agents_list_merge`**（`payload.agents` 为对象数组，按 `id` 覆盖或追加；写前备份 `openclaw.json`）。
+- **`agents.list`（已落地）**：模块 **`openclaw_agents_config.rs`** — **`read_open_claw_agents_list`**（返回 `{ ok, list }`）、**`write_open_claw_agents_list_merge`**（`payload.agents` 为对象数组，按 `id` **字段级合并**已有项并保留 OpenClaw 其它键；写前备份 `openclaw.json`）。
 - **Gateway**：**`config.get` / `config.patch`**（与官方 [Config RPC](https://docs.openclaw.ai/gateway/configuration#config-rpc-programmatic-updates) 一致；需 `baseHash`、权限与限频）；**已接** `GatewayClient`（向导优先）；与 Rust 合并并存为回退。
+- **Auth profiles（与官方 [Multi-Agent Routing](https://docs.openclaw.ai/concepts/multi-agent) 一致）**：凭据按 **agent 隔离**，每个 agent 只读自己的 **`~/.openclaw/agents/<agentId>/agent/auth-profiles.json`**；**主代理凭据不会自动下发**到子 agent；官方说明若要在多 agent 间共用 Key，应 **把 `auth-profiles.json` 复制到目标 agent 的 agentDir**（且勿错误复用 `agentDir` 以免会话/鉴权冲突）。DidClaw **不另造协议**：在合并保存 **`agents.list`** 之后（Tauri 写入成功，或仅 Gateway 保存时随后调用桌面 IPC），对 `agents.list` 中 **非 `main`、且 `profiles` 为空或文件缺失** 的 id，自动执行与官方相同的 **从 `main` 复制整份 `auth-profiles.json`**（写前备份已有文件）。推荐工作流仍可与 CLI 并用：例如 `openclaw agents add <id>` 生成目录与工作区后，再在 DidClaw 向导中合并列表并保存以触发同步（或手动 copy，与文档一致）。
 
 ### 5.1 Gateway 连接
 
@@ -189,6 +190,7 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 | 2026-04-04 | 实施 | 职务列 **`sessions.list` 会话下拉**（`agent-session-key` + `setPanelSessionKey`） |
 | 2026-04-04 | 实施 | **`config.get` / `config.patch`** 接入向导（`openclaw-gateway-config.ts`）；hash/校验/限流提示与网关/本地成功文案区分 |
 | 2026-04-04 | 文档 | **Phase 1 代码闭环**：更新简报 §6 结论表；spec 状态行、Phase 1 说明、§8 验收表；明确与 §4 完整向导/组织图的差距 |
+| 2026-04-04 | 文档 | §5.0：对齐官方 **Multi-Agent** 中 **per-agent auth-profiles** 与「复制到另一 agentDir」做法；记录 DidClaw 在保存 `agents.list` 后的 **main → 子 agent** 自动复制行为 |
 
 ---
 

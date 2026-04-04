@@ -700,6 +700,11 @@ pub fn write_open_claw_agents_list_merge(payload: Value) -> Result<Value, String
 }
 
 #[tauri::command]
+pub fn sync_openclaw_subagent_auth_profiles_from_main() -> Result<Value, String> {
+    Ok(crate::openclaw_agents_config::sync_subagent_auth_profiles_from_main())
+}
+
+#[tauri::command]
 pub fn skills_default_install_root() -> Result<String, String> {
     crate::skills::default_install_root()
 }

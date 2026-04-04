@@ -225,14 +225,18 @@ export default {
     closeDialog: "关闭",
     wizardSection: "合并写入 agents.list",
     wizardHint:
-      "按 OpenClaw 官方 schema 填写。写入前会备份 openclaw.json。保存后若网关未热加载配置，请在设置中重启 AI 服务。",
+      "按 OpenClaw 官方 schema 填写。写入前会备份 openclaw.json。桌面版「model」列可从本机已配置模型中选择；留空则沿用全局默认模型。保存后若网关未热加载配置，请在设置中重启 AI 服务。",
     colId: "id",
     colName: "名称",
     colWorkspace: "workspace",
     colModel: "model",
     phId: "如 sales",
     phName: "展示名",
-    phModel: "可选",
+    phModel: "手动输入 model ref",
+    modelUseDefault: "（沿用全局默认模型）",
+    modelPickerLoadFailed: "无法加载模型列表：{message}。可在 model 列手动输入 ref。",
+    rowsMissingModelHint:
+      "有职务已填 id 但未选 model：将沿用网关/全局默认，若该 agent 无法对话，请为每行选择具体模型。",
     addRow: "添加一行",
     mergeToOpenclaw: "合并到 openclaw.json",
     currentAgentsJson: "当前 agents.list（只读）",
@@ -254,6 +258,10 @@ export default {
     needOneAgentId: "请至少填写一行有效的 agent id。",
     closeRolePanel: "关闭职务面板",
     roleComposerPlaceholder: "输入消息…（Enter 发送）",
+    rolePanelApiKeyHint:
+      "职务会话使用的是 openclaw.json → agents.list 里**该 agent 的 model**，与顶栏主会话模型是两套配置。子代理目录下 `~/.openclaw/agents/<id>/agent/auth-profiles.json` 若为空会导致 401：保存职务列表时 DidClaw 会尝试从 **main** 同步凭据。若仍报错，请在向导中再次「合并保存」或检查 main 的 auth-profiles 是否已有对应服务商 Key。",
+    authProfilesSyncedHint: "已从主代理同步 API 凭据到子职务目录：{agents}（auth-profiles.json）。",
+    authProfilesSyncErrorsHint: "部分子代理凭据同步失败：{detail}",
     floatingFab: "职务",
     floatingToggleTitle: "组织 / 已开职务列与配置中的 agents",
     floatingRegion: "职务组织列表",
@@ -274,6 +282,7 @@ export default {
 
   composer: {
     placeholder: "输入消息…（截图可 Ctrl+V 粘贴为图片）",
+    send: "发送",
     sendOffline: "未连接网关",
     sendBusy: "助手回复进行中，结束后按钮会变绿",
     sendEmpty: "输入内容或添加待发附件后发送",

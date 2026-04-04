@@ -604,6 +604,9 @@ export const useChatStore = defineStore("chat", () => {
         connected: !!c?.connected,
         sessionKey: key,
       });
+      if (!silent) {
+        surf.lastError = i18n.global.t("composer.sendOffline");
+      }
       surf.messages = [];
       surf.streamText = null;
       surf.runId = null;

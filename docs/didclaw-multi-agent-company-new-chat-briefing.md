@@ -64,6 +64,7 @@
 - Tauri 侧**已有**：`openclaw_providers`、`openclaw_model_config`、`openclaw_channel_config`、备份/恢复等；入口 **`didclaw-ui/src-tauri/src/commands.rs`**、**`lib.rs`**。
 - **`agents.list`（已实现）**：**`read_open_claw_agents_list`**、**`write_open_claw_agents_list_merge`**（`openclaw_agents_config.rs`，写前备份 `openclaw.json`，按 `id` 覆盖或追加）。
 - **Gateway**：**`config.get` / `config.patch`** 已在向导中接入（`openclaw-gateway-config.ts`）；未连接或失败时回退 **Rust 合并**。详见 [`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md) **§5.0**。
+- **Auth profiles（官方 [Multi-Agent Routing](https://docs.openclaw.ai/concepts/multi-agent)）**：每 agent 独立 **`~/.openclaw/agents/<id>/agent/auth-profiles.json`**，主代理 Key **不自动共享**；官方推荐需共用时 **复制** 到子 agent 目录。DidClaw 在保存职务列表后，对凭据为空的子 agent **自动从 main 复制**（等价于文档中的 copy），实现见 **`sync_openclaw_subagent_auth_profiles_from_main`** / `write_open_claw_agents_list_merge` 尾部逻辑。
 
 ---
 

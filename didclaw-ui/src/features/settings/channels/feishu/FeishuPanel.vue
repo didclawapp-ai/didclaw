@@ -156,7 +156,7 @@ async function checkEnvReady(): Promise<boolean> {
   if (!api?.getOpenClawSetupStatus) return true;
   try {
     const s = await api.getOpenClawSetupStatus();
-    if (!s.openclawDirExists || !s.openclawCli?.ok) {
+    if (!s.openclawSetupIndicated || !s.openclawCli?.ok) {
       installSummary.value = "请先完成应用初始化设置，重启应用后将自动引导完成配置。";
       return false;
     }

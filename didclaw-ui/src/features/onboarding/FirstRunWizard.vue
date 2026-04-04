@@ -109,7 +109,8 @@ async function installSelectedChannels(): Promise<void> {
 const visible = ref(false);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
-const openclawDirExists = ref(false);
+/** 与 `getOpenClawSetupStatus().openclawSetupIndicated` 同步；非「仅 .openclaw 目录存在」 */
+const openclawSetupIndicated = ref(false);
 const configState = ref<"ok" | "missing" | "invalid">("missing");
 const configError = ref<string | null>(null);
 const cliOk = ref(false);
@@ -300,7 +301,7 @@ async function refreshStatus(): Promise<void> {
     if (s.controlUiAllowedOriginsMerged) {
       await restartGatewayAfterControlUiMerge(gw);
     }
-    openclawDirExists.value = s.openclawDirExists;
+    openclawSetupIndicated.value = s.openclawSetupIndicated;
     configState.value = s.openclawConfigState;
     configError.value = s.openclawConfigError;
     if (s.openclawCli.ok) {
@@ -313,13 +314,13 @@ async function refreshStatus(): Promise<void> {
       cliError.value = s.openclawCli.error;
     }
 
-    if (!s.openclawDirExists) {
+    if (!s.openclawSetupIndicated) {
       phase.value = "env";
       visible.value = true;
       return;
     }
 
-    // openclaw is installed: start connecting the gateway in the background
+    // OpenClaw 环境已就绪（配置或 CLI）：后台连网关
     // so it's ready by the time the user reaches the model config step.
     scheduleDeferredGatewayConnect(gw);
 
@@ -355,7 +356,7 @@ async function refreshStatus(): Promise<void> {
     visible.value = true;
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
-    if (openclawDirExists.value || configState.value !== "missing" || cliOk.value) {
+    if (openclawSetupIndicated.value) {
       phase.value = channelsStepDone.value ? "model" : "channels";
     } else {
       phase.value = "env";
@@ -367,7 +368,7 @@ async function refreshStatus(): Promise<void> {
   }
 }
 
-/** 从本机设置返回后重新检测，便于装完助手仍无 .openclaw 时再次提示 */
+/** 从本机设置返回后重新检测（例如刚配置 openclaw 可执行路径后） */
 watch(
   () => localSettings.visible,
   (now, prev) => {

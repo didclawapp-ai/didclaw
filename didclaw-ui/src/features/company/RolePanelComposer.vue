@@ -24,6 +24,19 @@ const draft = computed({
 
 const phase = computed(() => chat.getComposerPhaseFor(props.sessionKey));
 
+const surfaceLastError = computed(() => chat.surfaces[props.sessionKey]?.lastError ?? null);
+
+const roleApiKeyHint = computed(() => {
+  const e = surfaceLastError.value;
+  if (!e) {
+    return null;
+  }
+  if (/401|invalid\s*api\s*key|api\s*key/i.test(e)) {
+    return t("company.rolePanelApiKeyHint");
+  }
+  return null;
+});
+
 const sendVisualState = computed<"offline" | "busy" | "ready">(() => {
   if (status.value !== "connected") {
     return "offline";
@@ -32,6 +45,19 @@ const sendVisualState = computed<"offline" | "busy" | "ready">(() => {
     return "busy";
   }
   return "ready";
+});
+
+const sendButtonTitle = computed(() => {
+  if (sendVisualState.value === "offline") {
+    return t("composer.sendOffline");
+  }
+  if (sendVisualState.value === "busy") {
+    return t("composer.sendBusy");
+  }
+  if (!draft.value.trim()) {
+    return t("composer.sendEmpty");
+  }
+  return t("composer.sendReady");
 });
 
 function send(): void {
@@ -48,11 +74,14 @@ function send(): void {
       :placeholder="t('company.roleComposerPlaceholder')"
       @keydown.enter.exact.prevent="send"
     />
+    <p v-if="surfaceLastError" class="role-composer-err" role="alert">{{ surfaceLastError }}</p>
+    <p v-if="roleApiKeyHint" class="role-composer-hint">{{ roleApiKeyHint }}</p>
     <div class="role-composer-actions">
       <button
         type="button"
         class="lc-btn lc-btn-primary lc-btn-sm"
         :disabled="sendVisualState !== 'ready' || !draft.trim()"
+        :title="sendButtonTitle"
         @click="send"
       >
         {{ t("composer.send") }}
@@ -85,5 +114,17 @@ function send(): void {
 .role-composer-actions {
   display: flex;
   justify-content: flex-end;
+}
+.role-composer-err {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--lc-error);
+}
+.role-composer-hint {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--lc-text-muted);
 }
 </style>

@@ -57,7 +57,8 @@ export function useAppShellLifecycle(opts: {
           if (s.controlUiAllowedOriginsMerged) {
             await restartGatewayAfterControlUiMerge(opts.gw);
           }
-          const envReady = s.openclawDirExists && s.openclawConfigState !== "missing";
+          // 仅以 openclaw.json 为准：仅有 .openclaw（如内置 skills）不视为可连网关
+          const envReady = s.openclawConfigState !== "missing";
           const modelReady = isFirstRunModelStepComplete();
           if (!envReady || !modelReady) {
             return;

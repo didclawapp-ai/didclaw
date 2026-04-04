@@ -1,4 +1,7 @@
 //! 首次安装向导预检：`~/.openclaw`、`openclaw.json`、CLI 是否在 PATH。
+//!
+//! **注意**：DidClaw 安装时可能仅向 `~/.openclaw` 复制内置 skills，目录存在 **不等于** 已安装 OpenClaw。
+//! 用 `openclaw_setup_indicated`（`openclaw.json` 已存在或已解析到 `openclaw` 可执行文件）判断「环境已就绪」。
 
 use serde_json::{json, Value};
 use std::fs;
@@ -50,6 +53,12 @@ pub fn build_open_claw_setup_status(app: &AppHandle) -> Value {
             "error": "未找到 openclaw。请运行官方 install.ps1，或在本机设置「连助手」中填写可执行文件路径。"
         }),
     };
+    let openclaw_cli_ok = openclaw_cli
+        .get("ok")
+        .and_then(|v| v.as_bool())
+        == Some(true);
+    let openclaw_setup_indicated =
+        config_state != "missing" || openclaw_cli_ok;
 
     let origins_merged =
         match crate::openclaw_gateway_origins::ensure_didclaw_desktop_allowed_origins() {
@@ -64,6 +73,7 @@ pub fn build_open_claw_setup_status(app: &AppHandle) -> Value {
 
     json!({
         "openclawDirExists": openclaw_dir_exists,
+        "openclawSetupIndicated": openclaw_setup_indicated,
         "openclawConfigState": config_state,
         "openclawConfigError": config_error,
         "openclawCli": openclaw_cli,

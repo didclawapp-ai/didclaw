@@ -50,9 +50,12 @@
 | Tauri 命令 | 用途 |
 |------------|------|
 | `read_open_claw_agents_list` | 返回 `{ ok, list }`，`list` 为 `agents.list` 数组（缺文件时 `ok: true, list: []`） |
-| `write_open_claw_agents_list_merge` | `payload: { agents: [...] }`，每项须含 `id`；按 `id` 覆盖或追加；写前备份 `openclaw.json` |
+| `write_open_claw_agents_list_merge` | `payload: { agents: [...] }`，每项须含 `id`；按 `id` **字段级合并**已有项并保留 OpenClaw 其它键；写前备份 `openclaw.json`；成功后对 **per-agent auth** 执行与官方 [Multi-Agent](https://docs.openclaw.ai/concepts/multi-agent) 一致的 **main → 子 agent 复制 `auth-profiles.json`**（仅当子 agent `profiles` 为空或文件缺失，写前备份） |
+| `sync_openclaw_subagent_auth_profiles_from_main` | 仅同步凭据：按当前 `openclaw.json` 的 `agents.list`，将 **`agents/main/agent/auth-profiles.json`** 复制到需补全的子 agent（同上条件）；供 **仅 `config.patch` 写入列表** 后前端再调一次 |
 
-实现：`didclaw-ui/src-tauri/src/openclaw_agents_config.rs`。前端：`CompanyAgentsHubDialog` + `lib/openclaw-gateway-config.ts` + `getDidClawDesktopApi().readOpenClawAgentsList` / `writeOpenClawAgentsListMerge`。
+实现：`didclaw-ui/src-tauri/src/openclaw_agents_config.rs`。前端：`CompanyAgentsHubDialog` + `lib/openclaw-gateway-config.ts` + `getDidClawDesktopApi().readOpenClawAgentsList` / `writeOpenClawAgentsListMerge` / `syncOpenclawSubagentAuthProfilesFromMain`。
+
+**官方依据**：OpenClaw 文档明确 **Auth profiles are per-agent**、**Main agent credentials are not shared automatically**；若需共用，**copy `auth-profiles.json` into the other agent's agentDir** — DidClaw 自动复制即实现该步骤，而非替代 `openclaw.json` schema。
 
 ### 网关主动推送（WebSocket `type: "event"`）
 
