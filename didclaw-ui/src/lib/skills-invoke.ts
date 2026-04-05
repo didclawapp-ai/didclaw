@@ -295,6 +295,34 @@ export async function openclawSkillsInfo(skillName: string): Promise<OpenClawSki
   return r ?? {};
 }
 
+export async function writeOpenclawCompanyRosterSkill(skillMd: string): Promise<{
+  ok: boolean;
+  path?: string;
+  slug?: string;
+  backupPath?: string | null;
+  error?: string;
+}> {
+  if (!isTauri()) {
+    return { ok: false, error: "not-tauri" };
+  }
+  const r = await invoke<{
+    ok?: boolean;
+    error?: string;
+    path?: string;
+    slug?: string;
+    backupPath?: string | null;
+  }>("write_openclaw_company_roster_skill", { skillMd });
+  if (r && typeof r === "object" && r.ok === false) {
+    throw new Error(r.error || "write_openclaw_company_roster_skill failed");
+  }
+  return {
+    ok: r?.ok === true,
+    path: typeof r?.path === "string" ? r.path : undefined,
+    slug: typeof r?.slug === "string" ? r.slug : undefined,
+    backupPath: r?.backupPath ?? undefined,
+  };
+}
+
 export async function writeOpenClawSkillEnabled(
   skillKey: string,
   enabled: boolean,

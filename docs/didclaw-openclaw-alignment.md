@@ -4,7 +4,7 @@
 > **上游能力定义**：见同目录 [`openclaw-features.md`](./openclaw-features.md)（仓库对齐版）。  
 > **协议与 RPC 细节**：见 [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md)。  
 > **多 Agent（公司制）专题方案**：见 [`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md)。  
-> **整理日期**：2026-04-04（修订：纳入代码核对与表述修正）
+> **整理日期**：2026-04-05（修订：§十二 公司 roster 技能已落地；统计见文末）
 
 ---
 
@@ -199,6 +199,7 @@
 | 插件 list/inspect/enable/update/uninstall | ✅ | `openclaw_plugins_*` |
 | 插件 zip 安装 | ✅ | `plugins_pick_package_file` |
 | 技能创建向导 | ❌ | 未做 |
+| **多 Agent：公司 roster 技能（第五步）** | ✅ | Hub **`CompanyAgentsHubDialog`**「生成 / 更新」：`write_openclaw_company_roster_skill` → **`~/.openclaw/skills/didclaw-company-roster/SKILL.md`**（与 `openclaw skills list --json.managedSkillsDir` 一致；**≠** ZIP 根 **`~/.openclaw/workspace/skills`**）；已连网关时 **`patchSkillsEntryEnabledViaGateway`**，否则 **`write_open_claw_skill_enabled`**。细则 **[`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md) §5.5**。 |
 
 ---
 
@@ -273,7 +274,7 @@
 
 | 状态 | 行数（约） |
 |------|------------|
-| ✅ | 48 |
+| ✅ | 49 |
 | 🟡 | 14 |
 | ❌ | 24 |
 | ➖ | 2 |
@@ -297,6 +298,7 @@
 5. **节点**：只读 `node.list` + 文档链，再迭代控制
 6. **Dashboard**：系统与连接概览（可选）
 7. **斜杠命令**：将常用网关命令同步进 `slash-commands.ts` 提示（不改变网关语义）
+8. ~~**多 Agent 公司技能（第五步）**~~：**已落地**（Hub + `write_openclaw_company_roster_skill` / `skills.entries`）；后续可做模板仓库化、版本历史等（仍见 **§5.5**）
 
 ---
 
@@ -305,3 +307,5 @@
 | 日期 | 说明 |
 |------|------|
 | 2026-04-04 | 首版入 `docs/`：合并 workspace 对齐表 + 代码核对（会话模型 API、斜杠命令、Token 来源、统计说明） |
+| 2026-04-05 | §十二 增加「公司 roster 技能」未对齐行；路线图第 8 条；整理日期与 ❌ 计数 +1 |
+| 2026-04-05 | §十二 公司 roster 技能改 ✅；统计 ✅+1 / ❌−1；路线图第 8 条标已落地 |

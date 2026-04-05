@@ -1,6 +1,6 @@
 # DidClaw「公司制多 Agent」方案与实施
 
-> **状态**：**Phase 1（MVP）已落地**（2026-04-04）。**Phase 2**：**2.2 拓扑编译器 + 2.3 Hub「协作拓扑」UI + Tauri/Gateway 写入**已于 2026-04-05 进仓库；**§6.2.1 手配冻结与验收 A（main→子可核验）** 仍为环境侧任务；可选 2.4–2.6 未做。  
+> **状态**：**Phase 1（MVP）已落地**（2026-04-04）。**Phase 2**：**2.2 拓扑编译器 + 2.3 Hub「协作拓扑」UI + Tauri/Gateway 写入**已于 2026-04-05 进仓库；**§6.2.1 手配冻结与验收 A（main→子可核验）** 仍为环境侧任务；可选 2.4–2.6 未做。**第五步「公司技能」**：见 **[§5.5](#55-第五步公司技能skillmd-实施方案)** — **Hub「生成/更新」+ `write_openclaw_company_roster_skill` + `skills.entries`（网关 `config.patch` 优先）已于 2026-04-05 进仓库**。  
 > **复杂度**：当前 DidClaw 路线中**最高**之一（产品隐喻 + 官方 multi-agent 配置 + 多表面 UI + 配置热更新与网关行为一致）  
 > **维护**：OpenClaw 升级后优先核对本文 [§2 官方文档索引](#2-官方文档索引与修订时必查) 所列页面及 `agents` / `bindings` / `tools.agentToAgent` 等 schema。  
 > **关联文档**：[`didclaw-openclaw-alignment.md`](./didclaw-openclaw-alignment.md) · [`openclaw-features.md`](./openclaw-features.md) · [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md) · **新开对话粘贴用** [`didclaw-multi-agent-company-new-chat-briefing.md`](./didclaw-multi-agent-company-new-chat-briefing.md)
@@ -17,7 +17,7 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 
 | 维度 | 说明 |
 |------|------|
-| **产品** | 成立公司 → 架构（扁平/金字塔等模板）→ 职务与人数 → 每职务模型 → 公司章程；**仪表盘浮窗 + 组织图**；点击职务打开/关闭聊天表面；支持「一键打开全部职务窗口」。 |
+| **产品** | 成立公司 → 架构（扁平/金字塔等模板）→ 职务与人数 → 每职务模型 → **公司章程（第五步：共享公司 roster 技能，§5.5）**；**仪表盘浮窗 + 组织图**；点击职务打开/关闭聊天表面；支持「一键打开全部职务窗口」。 |
 | **技术** | UI 状态与 **官方 `agentId` / sessionKey** 一致；配置变更走 **官方支持的写入路径**（见 §2）；多职务表面共享 **同一条 Gateway WebSocket**（见 §5）。 |
 | **非目标（MVP）** | 不做与官方无关的私有路由协议；不强制要求多 OS 级独立窗口（见 §5.2）。 |
 
@@ -40,6 +40,7 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 | 安全 | [Security](https://docs.openclaw.ai/gateway/security) | DM、沙盒、暴露面；公司规则文案与安全策略一致 |
 | 配置热更新 | [Gateway configuration — Config hot reload](https://docs.openclaw.ai/gateway/configuration#config-hot-reload) | `agents` / `bindings` 等变更是否热应用（表中以官方为准） |
 | 程序化改配置 | [Gateway configuration — Config RPC](https://docs.openclaw.ai/gateway/configuration#config-rpc-programmatic-updates) | `config.patch` / `config.apply` 速率限制与重启行为；DidClaw 写入策略 |
+| **Skills（技能）** | [Skills](https://docs.openclaw.ai/tools/skills)、[Creating skills](https://docs.openclaw.ai/tools/creating-skills)、[Agent — Skills](https://docs.openclaw.ai/concepts/agent)、[FAQ](https://docs.openclaw.ai/help/faq)（检索 *skills* / *workspace*） | 多 Agent 下 **共享技能目录** 与 per-workspace `skills`；`skills.entries`（[Configuration reference](https://docs.openclaw.ai/gateway/configuration-reference)）；**第五步公司 roster** 落点见 **§5.5** |
 
 **仓库级实现索引（非文档，升级时 diff）**
 
@@ -63,7 +64,7 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 | **职务** | `agents.list[]` 的一项：`id`（稳定键）、`name`、`workspace`、`model`、可选 `tools`/`sandbox`/`skills` | `id` 与界面「职务」一一对应；展示名可 i18n |
 | **主会话窗口** | 用户选定的 **default agent**（或显式「总经理」agent）的 **主会话** `sessionKey` | 与 [Session](https://docs.openclaw.ai/concepts/session) 一致；具体 key 以 `sessions.list` 为准 |
 | **职务聊天表面** | 同一 `agentId` 下用户选择的会话，或固定为该 agent 的 main session | MVP 建议：**每职务面板默认对应该 agent 的 main** |
-| **公司规则** | 各 agent 的 `AGENTS.md`/`SOUL.md`、以及 `tools`/`sandbox`/`groupChat` 等配置片段 | 可向导化编辑；写入 workspace 文件或 `config.patch` |
+| **公司规则（原型第五步）** | **首选**：共享 **OpenClaw Skill**（`SKILL.md`）+ `openclaw.json` → `skills.entries` 启用；**辅以** 各 agent workspace 内 `AGENTS.md`/`SOUL.md` 与 `tools`/`sandbox`/`groupChat` 等官方配置片段 | **全员默认可读** 的 roster/职责/sessionKey 约定放在 **`~/.openclaw/skills/<slug>/`**（共享目录，见 §5.5）；**勿**仅改单一职务的 `AGENTS.md` 代替共享技能 |
 | **职务 A → 职务 B 的线（未来）** | 非独立官方图结构；编译为 **`tools.agentToAgent.allow` 允许的协作关系** 或依赖 **会话工具** 的策略 | 见 [Multi-Agent Routing](https://docs.openclaw.ai/concepts/multi-agent) 中 `tools.agentToAgent` 示例 |
 
 **重要约束（官方语义）**
@@ -125,6 +126,78 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 - 输入：向导表单 + 模板（扁平/金字塔…）。
 - 输出：`agents.list` 增量、`bindings`（若向导包含通道绑定则需谨慎，MVP 可 **仅创建 agents，bindings 沿用现有通道设置或文档引导**）。
 - 单元测试：对 **官方文档中的最小示例** 做 snapshot（结构合法、关键字段存在）。
+
+### 5.5 第五步：公司技能（`SKILL.md`）实施方案
+
+> **产品定位**：原型「五步成立公司」第 5 步 **编写规则** → DidClaw 交付物以 **一份全员可加载的 OpenClaw 技能** 为主：内含各职务 **规范 Web 主会话键**（`agent:<agentId>:main`）、展示名与职责摘要、协作拓扑（人话 + 与 `tools.agentToAgent` 一致）、**跨会话须用官方工具**（如 `sessions_send`）、**禁止**将 WebSocket 客户端名当作 `sessionKey` 等。  
+> **官方依据**：[Skills — Per-agent vs shared](https://docs.openclaw.ai/tools/skills)、[Agent — Skills 加载位置与优先级](https://docs.openclaw.ai/concepts/agent)、[FAQ — 技能加载顺序](https://docs.openclaw.ai/help/faq)、[Configuration reference — skills](https://docs.openclaw.ai/gateway/configuration-reference)。
+
+#### 5.5.1 原则（不得偏离）
+
+| 原则 | 说明 |
+|------|------|
+| **共享目录** | 多 Agent 时，要使 **所有职务 agent 默认都能加载** 同一份说明，技能应落在 OpenClaw 的 **托管本机共享目录 `~/.openclaw/skills/<slug>/`**（Windows：`%USERPROFILE%\.openclaw\skills\<slug>\`），而非仅某一职务的 `<workspace>/skills`（后者仅该 workspace 独占）。 |
+| **加载优先级** | 官方顺序（简写）：`<workspace>/skills` → **`~/.openclaw/skills`** → bundled → `skills.load.extraDirs`（最低）。共享公司技能走第二段即可全员可见；若需覆盖同名，才考虑 per-workspace 复制（维护成本高，默认不做）。 |
+| **启用** | 磁盘有合法 `SKILL.md` 后，通过 **`openclaw.json` → `skills.entries.<slug>.enabled: true`**（或等价）保证默认开启；DidClaw 已有 **`write_open_claw_skill_enabled`**（Tauri）可复用；网关权威场景下可 **`config.patch`** 合并 `skills` 段（须与现有 hash 流程一致）。 |
+| **模板与运行时分离** | **仓库内模板**（仅用于开发与打包源）≠ 用户机器上的运行时技能；第五步成功 = **渲染模板并写入用户 `~/.openclaw/skills/<slug>/`**，而非只改 Git 内文件。 |
+| **路径对齐** | DidClaw 桌面当前另有 **`~/.openclaw/workspace/skills`**（ZIP/文件夹导入等，见 `didclaw-skills-功能实施方案.md`）。**实施本方案前**须在目标 OpenClaw 版本上用 **`openclaw skills list`（或文档推荐命令）** 核对：**共享目录究竟为 `~/.openclaw/skills` 还是环境另有约定**，避免写错目录导致「技能写了但不加载」。 |
+
+#### 5.5.2 建议固定约定（产品层）
+
+- **技能目录名 / `slug`**：`didclaw-company-roster`（或同等稳定 kebab-case；全仓库与 `skills.entries` 一致）。  
+- **`SKILL.md` frontmatter**：遵循 [Creating skills](https://docs.openclaw.ai/tools/creating-skills)（`name`、`description` 等）。  
+- **正文必备块**（可模板化）：职务表（`id`、显示名、`agent:<id>:main`）、拓扑摘要、工具与 sessionKey 约定、可选「全公司禁令/风格」段落。  
+- **`AGENTS.md`（可选）**：仅作 **强调** 时可向 **各** `workspace` 合并一句「多职务协作时请遵循共享技能 `didclaw-company-roster`」——**不能**替代共享技能；若只改 main 的 `AGENTS.md`，子职务 **看不到**。
+
+#### 5.5.3 实施步骤（工程顺序）
+
+1. **冻结 slug 与模板**  
+   - 在仓库增加 **只读模板**（如 `didclaw-ui` 旁 `skills/didclaw-company-roster/SKILL.md.template` 或 `openclaw-skills` 仓库内同源模板），含 frontmatter 占位符与 Markdown 章节骨架。  
+   - 模板 **不**作为运行时唯一真源；发布/构建时可随 DidClaw 打包供复制。
+
+2. **内容生成器（TypeScript 或 Rust）**  
+   - **输入**：当前 Hub 职务表（`id`/`name`/`workspace`/`model`）、协作拓扑编译结果（或 `allow` 人话描述）、可选用户编辑的「公司章程」段落。  
+   - **输出**：完整 `SKILL.md` 字符串（UTF-8）。
+
+3. **写入共享技能目录（Tauri 优先）**  
+   - 新建命令或扩展现有 `skills` 模块：`ensure_dir(~/.openclaw/skills/<slug>)`、**写前备份**已有 `SKILL.md`（若存在）、原子写入 `SKILL.md`。  
+   - 拒绝路径穿越；slug 白名单或与固定常量一致。
+
+4. **默认启用**  
+   - 调用 **`write_open_claw_skill_enabled(slug, true)`** 或网关 **`config.patch`** 写入 `skills.entries.<slug>.enabled: true`（与团队「网关优先」策略一致时后者为主，离线桌面以前者为主）。
+
+5. **UI 与触发时机**  
+   - 在 **`CompanyAgentsHubDialog`**（或未来五步向导最后一步）提供 **「生成/更新公司技能」** 按钮；或在 **保存职务表 + 拓扑成功** 后提示「是否同步公司技能」。  
+   - 展示 **只读预览**（生成后的 Markdown 片段）与 **成功/失败** 文案；提示 **重启网关或热重载** 若配置未生效（对齐 [Config hot reload](https://docs.openclaw.ai/gateway/configuration#config-hot-reload)）。
+
+6. **文档与验收**  
+   - 更新 [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md) 若新增 IPC。  
+   - **验收**：在至少 **两个** `agents.list` 职务下各开一会话，确认 **`openclaw skills list`（或 UI 技能列表）** 可见该技能且模型侧能使用其中 sessionKey 约定（与 Phase 2 验收 A 可合并手测）。
+
+#### 5.5.4 与 Phase 2 / Phase 3 的边界
+
+- **依赖**：不替代 **`tools.agentToAgent` / `sessions.visibility`**；技能解决 **「模型知不知道往哪发、谁是谁」**，拓扑解决 **「网关允不允许发」**。  
+- **建议排期**：**Milestone 2.7**（可与 2.4 可观测性并行）；**不阻塞** 2.1 冻结，但 **建议在 2.1 手测环境** 中顺带验证技能目录与 `entries` 行为。  
+- **Phase 3**：更复杂的 per-agent `AGENTS.md` 合并、章程版本历史、与 Cron/子代理联动 — **本 §5.5 不展开**。
+
+#### 5.5.5 常见问题与边界（FAQ）
+
+| 问题 | 说明 |
+|------|------|
+| **`workspace/skills` 与 `~/.openclaw/skills` 混用** | DidClaw 桌面 **`skills_default_install_root`** 指向 **`~/.openclaw/workspace/skills`**（ZIP/文件夹导入，见 [`didclaw-skills-功能实施方案.md`](./didclaw-skills-功能实施方案.md)）。OpenClaw 文档中 **全员共享**技能优先描述 **`~/.openclaw/skills`**。公司 roster **目标目录以官方加载行为为准**（§5.5.1），必要时在实现中 **同时**支持「写入官方共享目录」与「用户自定义 `skills.load.extraDirs`」的文档说明，但 **不在 `openclaw.json` 中发明私有键**。 |
+| **非 Web 主会话的 sessionKey** | 技能正文应写明：微信/Feishu 等 **渠道会话** 的 `sessionKey` 可能 **不是** `agent:<id>:main`；需 **`sessions_list`** 或运维提供的映射表。 |
+| **用户手动禁用 `skills.entries`** | 生成/更新技能后若用户曾将 `didclaw-company-roster` **设为 disabled**，DidClaw 可 **合并 `enabled: true`** 或提示用户自行打开；产品需决定是 **幂等覆盖** 还是 **仅提示**。 |
+| **与 `bundled_skills` 的关系** | 应用启动时同步到 **`~/.openclaw/workspace/skills`** 的内置技能（`bundled_skills.rs`）与公司 roster **独立**；公司技能 **不建议**依赖 bundle 目录，以免与版本升级覆盖策略纠缠。 |
+| **网关与磁盘双写** | 已连 Gateway 时，`skills.entries` 建议 **`config.patch`** 与磁盘写 **同一 slug**，失败时明确提示「仅本地已更新 / 仅网关已更新」之一，避免认知分裂（具体策略在实现 PR 中定稿）。 |
+
+#### 5.5.6 关联文档
+
+| 文档 | 用途 |
+|------|------|
+| [`didclaw-openclaw-alignment.md`](./didclaw-openclaw-alignment.md) **§十二** | OpenClaw vs DidClaw 技能能力对齐表（含本第五步状态） |
+| [`didclaw-skills-功能实施方案.md`](./didclaw-skills-功能实施方案.md) | 技能管理器 UI、共享目录与 CLI 安装路径说明 |
+| [`didclaw-multi-agent-company-new-chat-briefing.md`](./didclaw-multi-agent-company-new-chat-briefing.md) | 新对话粘贴用简报（含 §5.5 指针） |
+| [`gateway-client-protocol-notes.md`](./gateway-client-protocol-notes.md) | 若新增 Tauri IPC / 扩展 `config.patch` 载荷，更新此笔记 |
 
 ---
 
@@ -206,6 +279,12 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 
 - **§5.2**：职务面板 **Tauri 独立窗口** + **Pinia / Tauri event** 状态同步；与 Phase 2 闭环 **无硬依赖**，可并行排期。
 
+**Milestone 2.7 — 第五步：公司 roster 技能（规划中；细则 §5.5）**
+
+- 仓库模板 + 由职务表/拓扑 **生成 `SKILL.md`** → 写入 **`~/.openclaw/skills/<slug>/`**；**`skills.entries.<slug>.enabled: true`**（Tauri 与/或 `config.patch`）。  
+- Hub / 向导 **「生成或更新公司技能」** 与成功提示；**实施前**用目标 OpenClaw 版本 **核对共享技能目录**（§5.5.1 路径对齐）。  
+- **验收**：至少两职务下可见技能加载；与 **会话工具 + sessionKey 约定** 手测可合并。
+
 #### 2.3 Phase 2 验收要点（建议写入测试清单）
 
 | # | 场景 | 期望 |
@@ -214,6 +293,7 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 | B | 关闭或收紧 `agentToAgent` 后重复 A | **不应** 出现跨会话注入 |
 | C | 配置经 **Gateway `config.patch`** 与 **仅 Tauri 写入** 各测一遍 | 网关与磁盘上 **拓扑语义等价**（允许 hash/格式差异，不允许语义分叉） |
 | D | 安全默认 | 新用户/新向导默认 **非全互聊**；开启全连接需 **确认 + [Security](https://docs.openclaw.ai/gateway/security) 链接** |
+| E | （Milestone **2.7** 落地后）公司技能 | Hub「生成/更新」后，**两职务**会话侧均可通过官方机制 **加载** roster 技能；`skills.entries` 与磁盘 `SKILL.md` **语义一致**（与 A 可合并手测） |
 
 #### 2.4 与 Phase 3 边界
 
@@ -234,6 +314,7 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 | `config.apply` 全量替换误用 | 禁止向导默认走全量；优先 patch 或结构化合并 |
 | 多面板同时流式 | 事件按 `sessionKey` 路由；单连接下注意 store 隔离与性能 |
 | 用户误开「全职务可互聊」 | 默认关闭 `agentToAgent`；高级项强提示并链 [Security](https://docs.openclaw.ai/gateway/security) |
+| 公司技能写入目录与 OpenClaw 实际加载路径不一致 | 实施 §5.5 前 **`openclaw skills list`**（或等价）核对；文档区分 **`workspace/skills`** 与 **`~/.openclaw/skills`**（见 §5.5.5） |
 
 ---
 
@@ -262,6 +343,9 @@ OpenClaw 的 **多 Agent** 能力通过 `openclaw.json` 中 `agents.list`、`bin
 | 2026-04-04 | 文档 | **Phase 1 代码闭环**：更新简报 §6 结论表；spec 状态行、Phase 1 说明、§8 验收表；明确与 §4 完整向导/组织图的差距 |
 | 2026-04-04 | 文档 | §5.0：对齐官方 **Multi-Agent** 中 **per-agent auth-profiles** 与「复制到另一 agentDir」做法；记录 DidClaw 在保存 `agents.list` 后的 **main → 子 agent** 自动复制行为 |
 | 2026-04-04 | 文档 | **§6 Phase 2 扩写**：无人公司闭环（`agentToAgent` / session 工具）、里程碑 2.1–2.6、验收表、与 Phase 1 断层说明及 Phase 3 边界 |
+| 2026-04-05 | 文档 | **§2** 增 Skills 官方链接；**§3** 公司规则改为「共享技能为主」；新增 **§5.5** 第五步公司技能实施方案与 **§6 Milestone 2.7**；状态行同步 |
+| 2026-04-05 | 文档 | **§5.5** 增补 **5.5.5 FAQ**、**5.5.6 关联文档**；与 alignment / gateway 笔记交叉引用 |
+| 2026-04-05 | 文档 | **§1.2** 产品表、**§2** Skills 行细化；**§7** 风险增「技能目录不一致」；**§6.2.3** 验收表增 **E**（2.7） |
 
 ---
 

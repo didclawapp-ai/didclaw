@@ -25,6 +25,7 @@ mod openclaw_providers;
 mod openclaw_agents_config;
 mod openclaw_tools_agent_to_agent;
 mod openclaw_skill_config;
+mod openclaw_company_roster_skill;
 mod paths;
 mod preview_local;
 mod skills;

@@ -195,3 +195,40 @@ export async function patchAgentsListMergeViaGateway(
   }
   await client.request<unknown>("config.patch", params);
 }
+
+export type PatchSkillsEntryOptions = {
+  sessionKey?: string | null;
+};
+
+/**
+ * `config.get` → `config.patch` 合并 `skills.entries.<skillKey>.enabled`（与 agents.list 相同 raw 补丁模式）。
+ */
+export async function patchSkillsEntryEnabledViaGateway(
+  client: GatewayClient,
+  skillKey: string,
+  enabled: boolean,
+  opts?: PatchSkillsEntryOptions,
+): Promise<void> {
+  const key = skillKey.trim();
+  if (!key) {
+    throw new Error("skillKey is empty");
+  }
+  const snap = await client.request<unknown>("config.get", {});
+  const baseHash = extractConfigSnapshotHash(snap);
+  if (!baseHash) {
+    throw new Error("config.get: missing hash in response");
+  }
+  const raw = JSON.stringify({
+    skills: {
+      entries: {
+        [key]: { enabled },
+      },
+    },
+  });
+  const params: Record<string, unknown> = { raw, baseHash };
+  const sk = opts?.sessionKey?.trim();
+  if (sk) {
+    params.sessionKey = sk;
+  }
+  await client.request<unknown>("config.patch", params);
+}

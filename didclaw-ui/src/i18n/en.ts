@@ -327,6 +327,28 @@ export default {
       mainNotInAgentsList:
         "Star / main↔subs requires `main` in agents.list. Add a `main` row above, merge into openclaw.json, then save collaboration topology.",
     },
+
+    rosterSection: "Company skill (shared roster)",
+    rosterHint:
+      "Generate an OpenClaw shared SKILL.md from the role table and collaboration topology, write it under ~/.openclaw/skills (not the ZIP install root ~/.openclaw/workspace/skills), and merge skills.entries. Use `openclaw skills list --json` to confirm managedSkillsDir.",
+    rosterManagedDirHint: "Fixed slug; matches openclaw.json → skills.entries key",
+    rosterWorkspaceLabel: "Shared company workspace root (optional)",
+    rosterWorkspacePlaceholder: "e.g. F:/MyCompany/workspace or F:/LCLAW/projects/connector",
+    rosterWorkspaceHint:
+      "Use an absolute path on disk as the “office floor” root. Each agent’s workspace in the table should be this path or a subfolder; avoid keeping deliverables only under global npm openclaw/default.",
+    rosterCharterLabel: "Company charter (optional, embedded in the skill)",
+    rosterCharterPlaceholder: "e.g. tone, confidentiality, external comms…",
+    rosterPreviewLabel: "Preview of SKILL.md to be written",
+    rosterSync: "Generate / update company skill",
+    rosterNeedsDesktop: "Writing the shared skills folder requires the DidClaw desktop app (Tauri).",
+    rosterWriteFailed: "Failed to write SKILL.md.",
+    afterWriteRosterSkillDisk: "Wrote shared skill: {path} (slug: `{slug}`).",
+    afterWriteRosterSkillBackup: "Backed up previous file: {path}",
+    afterWriteRosterSkillGateway: "Merged skills.entries via the gateway; skill enabled.",
+    afterWriteRosterSkillLocalFallback:
+      "Gateway could not patch skills.entries; merged local openclaw.json instead: {message}",
+    afterWriteRosterSkillOpenclawJson: "Merged local openclaw.json → skills.entries; skill enabled.",
+    rosterSkillFileOkConfigFailed: "SKILL.md was written, but enabling in config failed: {message}",
   },
 
   composer: {

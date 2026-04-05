@@ -10,7 +10,7 @@
 |----|-----|
 | OpenClaw Gateway 版本 | npm `openclaw` 当前 **latest** 为 **2026.3.31**（[GitHub Release](https://github.com/openclaw/openclaw/releases) 2026-03-31）；本地 `openclaw-src` 以检出/tag 为准（**以实际 `openclaw --version` / 运行为准**） |
 | didclaw 包版本 | 见 `didclaw/package.json` `version`（构建时写入 `__APP_VERSION__`） |
-| 本笔记最后更新 | 2026-04-04 |
+| 本笔记最后更新 | 2026-04-05 |
 | 验证人 | （团队填写） |
 
 ## 连接参数
@@ -54,8 +54,12 @@
 | `sync_openclaw_subagent_auth_profiles_from_main` | 仅同步凭据：按当前 `openclaw.json` 的 `agents.list`，将 **`agents/main/agent/auth-profiles.json`** 复制到需补全的子 agent（同上条件）；供 **仅 `config.patch` 写入列表** 后前端再调一次 |
 | `read_open_claw_tools_agent_to_agent` | 返回 `{ ok, enabled, allow, sessionsVisibility }`（后者为 `tools.sessions.visibility`，可无） |
 | `write_open_claw_tools_agent_to_agent_merge` | `payload: { enabled, allow: string[] }`；合并 `tools.agentToAgent`；**当 `enabled: true` 时同时合并 `tools.sessions.visibility = "all"`**（跨 agent 的 `sessions_*` 前提）；关闭协作时不改 `sessions`；写前备份 |
+| `write_open_claw_skill_enabled` | `skillKey`, `enabled`：合并 `skills.entries.<skillKey>.enabled`；写前备份 `openclaw.json`（权限表 `invoke-all` 须包含本命令） |
+| `write_openclaw_company_roster_skill` | `skillMd`：写入 **`~/.openclaw/skills/didclaw-company-roster/SKILL.md`**（与 `openclaw skills list --json` 的 **`managedSkillsDir`** 下子目录一致；**不同于** ZIP 安装根 `~/.openclaw/workspace/skills`）；既有 `SKILL.md` 备份为同目录 `SKILL.md.didclaw-backup-<ts>.md` |
 
-实现：`didclaw-ui/src-tauri/src/openclaw_agents_config.rs`（agents）、`openclaw_tools_agent_to_agent.rs`（协作拓扑）。前端：`CompanyAgentsHubDialog` + `lib/openclaw-gateway-config.ts`（含 `patchToolsAgentToAgentViaGateway`）+ `lib/agent-to-agent-topology.ts`。
+实现：`didclaw-ui/src-tauri/src/openclaw_agents_config.rs`（agents）、`openclaw_tools_agent_to_agent.rs`（协作拓扑）、`openclaw_company_roster_skill.rs` / `openclaw_skill_config.rs`（公司技能与 entries）。前端：`CompanyAgentsHubDialog` + `lib/openclaw-gateway-config.ts`（`patchToolsAgentToAgentViaGateway`、`patchSkillsEntryEnabledViaGateway`）+ `lib/agent-to-agent-topology.ts` + `lib/company-roster-skill.ts`。
+
+**第五步 — 公司 roster 技能**：产品细则见 **[`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md) §5.5**。Hub「生成 / 更新」先 **Tauri 写磁盘**，已连网关时优先 **`config.patch`** 合并 **`skills.entries[didclaw-company-roster].enabled: true`**，失败则回退 **`write_open_claw_skill_enabled`**。
 
 **Phase 2 / `tools.agentToAgent`（手配最小片段，以当时网关为准）**：官方 [Multi-Agent](https://docs.openclaw.ai/concepts/multi-agent) 示例形态为 `tools.agentToAgent.enabled` + `allow: ["home","work"]`（无向白名单）。DidClaw 向导将星型/自定义边 **编译为该结构**；连接网关时优先 **`config.patch`** 写入 `{ "tools": { "agentToAgent": { ... } } }`，否则 Tauri 合并回退。是否在子职务会话中看到可核验的跨 agent 工具效果，需在目标 OpenClaw 版本上做一次 **main → 子** 实机验证（里程碑 2.1）。
 
@@ -134,6 +138,7 @@
 | 2026-03-20 | 参考 2026.3.14 | 阶段 E：核心 RPC/事件 Zod、错误中文映射、诊断复制、部署文档 |
 | 2026-04-04 | （同锁定表） | 多 Agent MVP：**按 `sessionKey` 分 chat 表面**（主会话 + 职务侧栏）；`chat` / `agent` 推送行为见上表；**Tauri** `read_open_claw_agents_list` / `write_open_claw_agents_list_merge` 记入本文（非 Gateway RPC）。 |
 | 2026-04-04 | （同锁定表） | **公司向导**：接 **`config.get` / `config.patch`** 写入 `agents.list`（Gateway 优先，Tauri 回退）；见上表 RPC 行与 `openclaw-gateway-config.ts`。 |
+| 2026-04-05 | （同锁定表） | **第五步公司技能**：在「桌面 IPC」节增加 **规划中** 说明（[`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md) §5.5）；待实现后补 Tauri 命令与 `config.patch` 字段说明。 |
 | 2026-04-01 | npm **2026.3.31** | 上游 [Latest](https://github.com/openclaw/openclaw/releases) 已推进至 2026.3.31；DidClaw 侧已确认 `exec.approval.requested` 仍为 `{ id, request, createdAtMs, expiresAtMs }`，命令详情在 `request` 内（与 2026.3.22 行为一致）。 |
 | 2026-03-23 | npm **2026.3.22**（相对 **2026.3.13**） | 上游约一周内有大量提交；与 LCLaw 最相关：**网关启动**改为从已编译 `dist/extensions` 加载捆绑插件（冷启动明显加快，见上游 CHANGELOG `Gateway/startup`）；文档强调 `controlUi.allowedOrigins` 勿滥用 `["*"]`；另有大量插件迁移、exec 审批、Breaking（如弃用 `CLAWDBOT_*` / `.moltbot` 等）。完整差异见 [compare 61d171a…e7d11f6](https://github.com/openclaw/openclaw/compare/61d171ab0b2fe4abc9afe89c518586274b4b76c2...e7d11f6c33e223a0dd8a21cfe01076bd76cef87a)（npm 2026.3.13 与 2026.3.22 对应提交）。 |
 | 2026-03-21 | openclaw `main` `chat.ts` | 确认 `chat.send` 无根级 `model`；didclaw 不再随请求附带 `model` |

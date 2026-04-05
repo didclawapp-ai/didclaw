@@ -70,6 +70,14 @@ function tauriApi(): DidClawElectronApi {
     readOpenClawToolsAgentToAgent: () => invoke("read_open_claw_tools_agent_to_agent"),
     writeOpenClawToolsAgentToAgentMerge: (payload: { enabled: boolean; allow: string[] }) =>
       invoke("write_open_claw_tools_agent_to_agent_merge", { payload }),
+    writeOpenclawCompanyRosterSkill: (payload: { skillMd: string }) =>
+      invoke<{
+        ok: boolean;
+        path?: string;
+        slug?: string;
+        backupPath?: string | null;
+        error?: string;
+      }>("write_openclaw_company_roster_skill", { skillMd: payload.skillMd }),
     runOpenclawOnboard: (payload) =>
       invoke("run_openclaw_onboard", { authChoice: payload.authChoice }),
     runMinimaxOauth: (payload) =>

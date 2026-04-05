@@ -10,16 +10,22 @@ import {
   type TopologyTemplate,
 } from "@/lib/agent-to-agent-topology";
 import {
+  buildCompanyRosterSkillMarkdown,
+  COMPANY_ROSTER_SKILL_SLUG,
+} from "@/lib/company-roster-skill";
+import {
   isGatewayConfigHashStaleError,
   isGatewayConfigPatchRejectedError,
   isGatewayConfigRequestError,
   patchAgentsListMergeViaGateway,
+  patchSkillsEntryEnabledViaGateway,
   patchToolsAgentToAgentViaGateway,
   extractAgentsListFromConfigGet,
   extractToolsAgentToAgentFromConfigGet,
   extractToolsSessionsVisibilityFromConfigGet,
   retryAfterSecondsFromGatewayDetails,
 } from "@/lib/openclaw-gateway-config";
+import { writeOpenClawSkillEnabled } from "@/lib/skills-invoke";
 import { useChatStore } from "@/stores/chat";
 import { useCompanyRolePanelsStore } from "@/stores/companyRolePanels";
 import { useGatewayStore } from "@/stores/gateway";
@@ -55,6 +61,13 @@ const topoCustomEdges = ref<AgentTopologyEdge[]>([]);
 const topoBusy = ref(false);
 const topoError = ref<string | null>(null);
 const topoAllowReadback = ref<string>("");
+
+/** 第五步：共享公司技能（~/.openclaw/skills + skills.entries） */
+const rosterCharter = ref("");
+/** 公司共享工作区根（绝对路径），写入 roster 技能，避免职务默认落到 npm 包内 default */
+const rosterWorkspaceRoot = ref("");
+const rosterBusy = ref(false);
+const rosterError = ref<string | null>(null);
 
 /** 来自 `readOpenClawAiSnapshot`（桌面版），用于 model 列下拉 */
 const modelPickerRows = ref<Array<{ value: string; label: string }>>([]);
@@ -152,6 +165,35 @@ const canTopologyDesktopWrite = computed(
   () => isDidClawElectron() && !!getDidClawDesktopApi()?.writeOpenClawToolsAgentToAgentMerge,
 );
 const canSaveTopology = computed(() => canSaveViaGateway.value || canTopologyDesktopWrite.value);
+
+const canSyncCompanyRosterSkill = computed(
+  () => isDidClawElectron() && !!getDidClawDesktopApi()?.writeOpenclawCompanyRosterSkill,
+);
+
+const rosterSkillPreview = computed(() => {
+  const ids = agentIdsFromRows.value;
+  const topo = compileAgentToAgentTopology({
+    template: topoTemplate.value,
+    agentIds: ids,
+    customEdges: topoCustomEdges.value,
+  });
+  const topology = topo.ok ? topo.config : { enabled: false, allow: [] as string[] };
+  const agents = rows.value
+    .map((r) => ({
+      id: r.id.trim(),
+      name: r.name.trim(),
+      workspace: r.workspace.trim() || "default",
+      model: r.model.trim(),
+    }))
+    .filter((r) => r.id.length > 0);
+  return buildCompanyRosterSkillMarkdown({
+    agents,
+    topologyTemplate: topoTemplate.value,
+    topology,
+    companyWorkspaceRoot: rosterWorkspaceRoot.value,
+    charter: rosterCharter.value,
+  });
+});
 
 /** 星型/主↔子依赖 agents.list 中的 main，与 allow 白名单一致 */
 const showTopologyMainMissingWarning = computed(() => {
@@ -599,6 +641,79 @@ async function collectSubagentAuthSyncLines(): Promise<string[]> {
   }
 }
 
+async function syncCompanyRosterSkill(): Promise<void> {
+  rosterError.value = null;
+  const api = getDidClawDesktopApi();
+  if (!api?.writeOpenclawCompanyRosterSkill) {
+    rosterError.value = t("company.rosterNeedsDesktop");
+    return;
+  }
+  const agents = rows.value
+    .map((r) => ({ id: r.id.trim() }))
+    .filter((r) => r.id.length > 0);
+  if (agents.length === 0) {
+    rosterError.value = t("company.needOneAgentId");
+    return;
+  }
+  const md = rosterSkillPreview.value;
+  rosterBusy.value = true;
+  try {
+    const w = await api.writeOpenclawCompanyRosterSkill({ skillMd: md });
+    if (!w.ok) {
+      rosterError.value = w.error ?? t("company.rosterWriteFailed");
+      return;
+    }
+    const parts: string[] = [
+      t("company.afterWriteRosterSkillDisk", {
+        path: "path" in w && typeof w.path === "string" ? w.path : COMPANY_ROSTER_SKILL_SLUG,
+        slug: COMPANY_ROSTER_SKILL_SLUG,
+      }),
+    ];
+    if ("backupPath" in w && typeof w.backupPath === "string" && w.backupPath.length > 0) {
+      parts.push(t("company.afterWriteRosterSkillBackup", { path: w.backupPath }));
+    }
+    const gc = gateway.client;
+    if (gc?.connected) {
+      try {
+        await patchSkillsEntryEnabledViaGateway(gc, COMPANY_ROSTER_SKILL_SLUG, true, {
+          sessionKey: sessionStore.activeSessionKey,
+        });
+        parts.push(t("company.afterWriteRosterSkillGateway"));
+      } catch (e) {
+        try {
+          await writeOpenClawSkillEnabled(COMPANY_ROSTER_SKILL_SLUG, true);
+          parts.push(
+            t("company.afterWriteRosterSkillLocalFallback", {
+              message: formatGatewaySaveError(e),
+            }),
+          );
+        } catch (e2) {
+          rosterError.value =
+            t("company.rosterSkillFileOkConfigFailed", {
+              message: e2 instanceof Error ? e2.message : String(e2),
+            }) + `\n${formatGatewaySaveError(e)}`;
+          return;
+        }
+      }
+    } else {
+      try {
+        await writeOpenClawSkillEnabled(COMPANY_ROSTER_SKILL_SLUG, true);
+        parts.push(t("company.afterWriteRosterSkillOpenclawJson"));
+      } catch (e) {
+        rosterError.value = e instanceof Error ? e.message : String(e);
+        return;
+      }
+    }
+    chat.flashOpenClawConfigHint(
+      [...parts, getOpenClawAfterWriteHint()].filter(Boolean).join("\n\n"),
+    );
+  } catch (e) {
+    rosterError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    rosterBusy.value = false;
+  }
+}
+
 function authSyncLinesFromMergeRes(res: {
   authProfilesSynced?: unknown;
   authProfilesSyncErrors?: unknown;
@@ -769,6 +884,45 @@ function authSyncLinesFromMergeRes(res: {
               </button>
             </div>
             <p v-if="topoError" class="err">{{ topoError }}</p>
+          </section>
+
+          <section class="hub-section">
+            <h3>{{ t("company.rosterSection") }}</h3>
+            <p class="hint">{{ t("company.rosterHint") }}</p>
+            <p class="hint">
+              <code class="roster-slug">{{ COMPANY_ROSTER_SKILL_SLUG }}</code>
+              ·
+              <span>{{ t("company.rosterManagedDirHint") }}</span>
+            </p>
+            <label class="roster-charter-label">{{ t("company.rosterWorkspaceLabel") }}</label>
+            <input
+              v-model="rosterWorkspaceRoot"
+              type="text"
+              class="inp roster-workspace-root"
+              :placeholder="t('company.rosterWorkspacePlaceholder')"
+            >
+            <p class="hint roster-workspace-hint">{{ t("company.rosterWorkspaceHint") }}</p>
+            <label class="roster-charter-label">{{ t("company.rosterCharterLabel") }}</label>
+            <textarea
+              v-model="rosterCharter"
+              class="inp roster-charter"
+              rows="3"
+              :placeholder="t('company.rosterCharterPlaceholder')"
+            />
+            <p class="hint roster-preview-label">{{ t("company.rosterPreviewLabel") }}</p>
+            <pre class="json-preview roster-md-preview">{{ rosterSkillPreview }}</pre>
+            <div class="row-actions">
+              <button
+                type="button"
+                class="lc-btn lc-btn-primary lc-btn-sm"
+                :disabled="rosterBusy || !canSyncCompanyRosterSkill"
+                @click="syncCompanyRosterSkill"
+              >
+                {{ t("company.rosterSync") }}
+              </button>
+            </div>
+            <p v-if="!canSyncCompanyRosterSkill" class="hint">{{ t("company.rosterNeedsDesktop") }}</p>
+            <p v-if="rosterError" class="err">{{ rosterError }}</p>
           </section>
 
           <section class="hub-section">
@@ -962,5 +1116,40 @@ function authSyncLinesFromMergeRes(res: {
 }
 .topology-main-missing {
   color: var(--lc-warning, #b45309);
+}
+.roster-slug {
+  font-size: 11px;
+}
+.roster-charter-label {
+  display: block;
+  font-size: 12px;
+  color: var(--lc-text-muted);
+  margin-bottom: 6px;
+}
+.roster-workspace-root {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+.roster-workspace-hint {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.roster-charter {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 64px;
+}
+.roster-preview-label {
+  margin-top: 4px;
+}
+.roster-md-preview {
+  max-height: 200px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
 }
 </style>

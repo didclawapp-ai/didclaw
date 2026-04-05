@@ -670,6 +670,13 @@ pub fn write_open_claw_skill_enabled(skill_key: String, enabled: bool) -> Result
 }
 
 #[tauri::command]
+pub fn write_openclaw_company_roster_skill(skill_md: String) -> Result<Value, String> {
+    Ok(crate::openclaw_company_roster_skill::write_openclaw_company_roster_skill(
+        &skill_md,
+    ))
+}
+
+#[tauri::command]
 pub fn restore_open_claw_config_to_latest_backup() -> Result<Value, String> {
     Ok(crate::openclaw_model_config::restore_open_claw_config_to_latest_backup())
 }

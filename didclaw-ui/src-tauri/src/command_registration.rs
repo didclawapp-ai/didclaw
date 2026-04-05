@@ -60,6 +60,7 @@ macro_rules! didclaw_invoke_handlers {
             crate::commands::read_open_claw_tools_profile,
             crate::commands::write_open_claw_tools_profile,
             crate::commands::write_open_claw_skill_enabled,
+            crate::commands::write_openclaw_company_roster_skill,
             crate::commands::restore_open_claw_config_to_latest_backup,
             crate::commands::read_open_claw_providers,
             crate::commands::read_open_claw_ai_snapshot,

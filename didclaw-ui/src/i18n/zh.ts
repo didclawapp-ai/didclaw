@@ -323,6 +323,28 @@ export default {
       mainNotInAgentsList:
         "星型/主↔子要求 agents.list 中包含 id「main」。请在上方表格添加 main 一行，先「合并到 openclaw.json」，再保存协作拓扑。",
     },
+
+    rosterSection: "公司技能（共享 roster）",
+    rosterHint:
+      "将当前职务表与协作拓扑摘要生成为 OpenClaw 共享技能 SKILL.md，写入本机 ~/.openclaw/skills（与 ZIP 技能安装目录 workspace/skills 不同），并合并 skills.entries 启用项。可用 `openclaw skills list --json` 核对 managedSkillsDir。",
+    rosterManagedDirHint: "固定 slug，与 openclaw.json → skills.entries 键一致",
+    rosterWorkspaceLabel: "公司共享工作区根路径（可选）",
+    rosterWorkspacePlaceholder: "例如 F:/MyCompany/workspace 或 F:/LCLAW/projects/connector",
+    rosterWorkspaceHint:
+      "建议填本机绝对路径：作为「办公区」根目录写入技能，并应在上方职务表中将各 agent 的 workspace 设为该路径或其子目录；勿长期把交付物只放在全局 npm 下的 openclaw/default。",
+    rosterCharterLabel: "公司章程（可选，写入技能正文）",
+    rosterCharterPlaceholder: "例如：语气偏好、保密要求、对外口径…",
+    rosterPreviewLabel: "将写入的 SKILL.md 预览",
+    rosterSync: "生成 / 更新公司技能",
+    rosterNeedsDesktop: "写入共享技能目录需要 DidClaw 桌面版（Tauri）。",
+    rosterWriteFailed: "写入 SKILL.md 失败。",
+    afterWriteRosterSkillDisk: "已写入共享技能：{path}（slug：`{slug}`）。",
+    afterWriteRosterSkillBackup: "已备份既有文件：{path}",
+    afterWriteRosterSkillGateway: "已通过网关合并 skills.entries，启用该公司技能。",
+    afterWriteRosterSkillLocalFallback:
+      "网关未能写入 skills.entries，已改为合并本机 openclaw.json：{message}",
+    afterWriteRosterSkillOpenclawJson: "已合并本机 openclaw.json → skills.entries，启用该公司技能。",
+    rosterSkillFileOkConfigFailed: "SKILL.md 已写入，但启用项写入失败：{message}",
   },
 
   composer: {

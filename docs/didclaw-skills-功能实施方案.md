@@ -50,6 +50,8 @@
 
 两者不是同一个列表，弹窗内应始终明确提示“共享目录”不等同于 workspace 技能。
 
+**与「公司制多 Agent — 第五步」的关系**：共享 roster 技能的目标目录以 OpenClaw 官方 **全员可见**路径为准（通常为 **`~/.openclaw/skills`**，见 [Skills](https://docs.openclaw.ai/tools/skills) / [FAQ](https://docs.openclaw.ai/help/faq)），与上表 **DidClaw 默认安装根 `~/.openclaw/workspace/skills`** 可能 **不一致**。实施方案、FAQ 与路径核对步骤见 **[`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md) §5.5**；本实施方案仍以 **技能管理器现有行为** 为主，不在此重复 §5.5 全文。
+
 ---
 
 ## 3. 前端与公共库
@@ -128,4 +130,4 @@
 
 ---
 
-*文档版本：与当前仓库讨论一致；实现时以代码与 OpenClaw/ClawHub 最新文档为准。*
+*文档版本：与当前仓库讨论一致；实现时以代码与 OpenClaw/ClawHub 最新文档为准。2026-04-05：§2.3 增与 [`didclaw-multi-agent-company-spec.md`](./didclaw-multi-agent-company-spec.md) §5.5 的交叉引用。*

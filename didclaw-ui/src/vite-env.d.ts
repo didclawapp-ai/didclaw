@@ -270,6 +270,14 @@ interface DidClawElectronApi {
     enabled: boolean;
     allow: string[];
   }): Promise<{ ok: true; backupPath?: string } | { ok: false; error: string; backupPath?: string }>;
+  /** 写入 `~/.openclaw/skills/didclaw-company-roster/SKILL.md`（第五步公司技能） */
+  writeOpenclawCompanyRosterSkill?(payload: { skillMd: string }): Promise<{
+    ok: boolean;
+    path?: string;
+    slug?: string;
+    backupPath?: string | null;
+    error?: string;
+  }>;
   /** 读取 workspace/IDENTITY.md 和 USER.md 中的 AI 名称与用户名称 */
   readWorkspaceIdentity?(): Promise<
     { ok: true; aiName?: string | null; userName?: string | null }
