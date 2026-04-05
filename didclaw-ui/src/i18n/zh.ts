@@ -286,6 +286,8 @@ export default {
       "官方配置字段仅为 enabled 与 allow（agent id 列表）。星型/主↔子要求上方职务表中**必须有一行 id 为 main**（总经理会话），否则会与 allow 中的 main 不一致；全连接风险高，保存前会二次确认。",
     topologyMainMissingWarning:
       "当前选择了「星型」或「主↔子」，但职务表里没有 id「main」。请添加一行：id 填 main，并合并保存 agents.list，再保存协作拓扑；否则主会话无法与其它职务对齐官方多 Agent 配置。",
+    topologyRuntimeHint:
+      "保存协作拓扑且**启用**时，DidClaw 会同时写入 tools.sessions.visibility = \"all\"（跨 agent 使用 sessions_* 的前提）。保存后若未热加载请重启网关。「互相联系」仍依赖模型实际调用官方工具（如 sessions_send），不是纯自然语言自动投递。若 main 在 agents.list 里配置了严格的 tools.allow 白名单，须包含 sessions_list、sessions_send、sessions_history 等。可在主会话打开「显示诊断/配置」或工具时间线查看调用与拦截。",
     topologyDocMultiAgent: "Multi-Agent 文档",
     topologyDocSecurity: "安全说明",
     topologyTemplate: "预设",
@@ -300,14 +302,14 @@ export default {
     topologyTo: "到",
     topologyPickAgent: "选择 id",
     topologyAddEdge: "添加一条边",
-    topologyCurrentJson: "当前 tools.agentToAgent（只读）",
+    topologyCurrentJson: "当前 agentToAgent + sessions.visibility（只读）",
     topologySave: "保存协作拓扑",
     topologyFullMeshConfirm:
       "全连接会使任意列出的职务之间均可使用跨 agent 工具，暴露面显著扩大。确定要继续吗？",
     afterWriteTopologyViaGateway:
-      "已通过网关写入 tools.agentToAgent。若未热加载，请重启本机网关后验证主会话→子职务会话是否出现工具链产生的记录。",
+      "已通过网关写入 tools.agentToAgent；若已启用协作，已同时合并 tools.sessions.visibility = \"all\"。若未热加载，请重启本机网关后在主会话用明确指令让模型调用会话类工具验证投递。",
     afterWriteTopologyLocalFallbackLead:
-      "网关未能应用此次协作拓扑修改，已改为写入本机 openclaw.json（已按规则备份）。",
+      "网关未能应用此次协作拓扑修改，已改为写入本机 openclaw.json（已按规则备份）；若本次为启用协作，已同时写入 sessions.visibility = \"all\"。",
     topologyErr: {
       needAtLeastOneAgentId: "请先在职务表中至少填写一个 agent id。",
       invalidAgentId: "存在不合法的 agent id（须以字母开头，仅含字母、数字、._-）。",

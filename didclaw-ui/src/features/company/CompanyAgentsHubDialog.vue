@@ -17,6 +17,7 @@ import {
   patchToolsAgentToAgentViaGateway,
   extractAgentsListFromConfigGet,
   extractToolsAgentToAgentFromConfigGet,
+  extractToolsSessionsVisibilityFromConfigGet,
   retryAfterSecondsFromGatewayDetails,
 } from "@/lib/openclaw-gateway-config";
 import { useChatStore } from "@/stores/chat";
@@ -236,7 +237,24 @@ async function refreshList(): Promise<void> {
   }
 }
 
-function applyTopologyFromOfficial(ata: { enabled: boolean; allow: string[] }): void {
+function buildTopologyReadbackJson(
+  ata: { enabled: boolean; allow: string[] },
+  sessionsVisibility: string | null,
+): string {
+  return JSON.stringify(
+    {
+      agentToAgent: { enabled: ata.enabled, allow: ata.allow },
+      sessions: { visibility: sessionsVisibility },
+    },
+    null,
+    2,
+  );
+}
+
+function applyTopologyFromOfficial(
+  ata: { enabled: boolean; allow: string[] },
+  sessionsVisibility: string | null,
+): void {
   const ids = agentIdsFromRows.value;
   const inferred = inferTopologyTemplate(ata, ids);
   topoTemplate.value = inferred;
@@ -252,7 +270,7 @@ function applyTopologyFromOfficial(ata: { enabled: boolean; allow: string[] }): 
   } else if (inferred !== "custom") {
     topoCustomEdges.value = [];
   }
-  topoAllowReadback.value = JSON.stringify({ enabled: ata.enabled, allow: ata.allow }, null, 2);
+  topoAllowReadback.value = buildTopologyReadbackJson(ata, sessionsVisibility);
 }
 
 async function refreshTopologyState(): Promise<void> {
@@ -261,7 +279,10 @@ async function refreshTopologyState(): Promise<void> {
   if (gc?.connected) {
     try {
       const payload = await gc.request<unknown>("config.get", {});
-      applyTopologyFromOfficial(extractToolsAgentToAgentFromConfigGet(payload));
+      applyTopologyFromOfficial(
+        extractToolsAgentToAgentFromConfigGet(payload),
+        extractToolsSessionsVisibilityFromConfigGet(payload),
+      );
       return;
     } catch (e) {
       topoError.value = formatGatewaySaveError(e);
@@ -276,7 +297,11 @@ async function refreshTopologyState(): Promise<void> {
     const r = await api.readOpenClawToolsAgentToAgent();
     if (r.ok) {
       const allow = Array.isArray(r.allow) ? r.allow.filter((x): x is string => typeof x === "string") : [];
-      applyTopologyFromOfficial({ enabled: r.enabled === true, allow });
+      const sv =
+        typeof r.sessionsVisibility === "string" && r.sessionsVisibility.length > 0
+          ? r.sessionsVisibility
+          : null;
+      applyTopologyFromOfficial({ enabled: r.enabled === true, allow }, sv);
     }
   } catch {
     topoAllowReadback.value = "";
@@ -667,6 +692,7 @@ function authSyncLinesFromMergeRes(res: {
             <p v-if="showTopologyMainMissingWarning" class="hint topology-main-missing">
               {{ t("company.topologyMainMissingWarning") }}
             </p>
+            <p class="hint">{{ t("company.topologyRuntimeHint") }}</p>
             <p class="hint">
               <a
                 class="topology-doc-link"

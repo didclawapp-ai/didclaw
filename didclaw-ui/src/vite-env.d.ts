@@ -263,7 +263,7 @@ interface DidClawElectronApi {
     note?: string;
   }>;
   readOpenClawToolsAgentToAgent?(): Promise<
-    | { ok: true; enabled: boolean; allow: string[] }
+    | { ok: true; enabled: boolean; allow: string[]; sessionsVisibility?: string | null }
     | { ok: false; error: string }
   >;
   writeOpenClawToolsAgentToAgentMerge?(payload: {

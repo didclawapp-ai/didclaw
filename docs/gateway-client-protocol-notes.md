@@ -52,8 +52,8 @@
 | `read_open_claw_agents_list` | 返回 `{ ok, list }`，`list` 为 `agents.list` 数组（缺文件时 `ok: true, list: []`） |
 | `write_open_claw_agents_list_merge` | `payload: { agents: [...] }`，每项须含 `id`；按 `id` **字段级合并**已有项并保留 OpenClaw 其它键；写前备份 `openclaw.json`；成功后对 **per-agent auth** 执行与官方 [Multi-Agent](https://docs.openclaw.ai/concepts/multi-agent) 一致的 **main → 子 agent 复制 `auth-profiles.json`**（仅当子 agent `profiles` 为空或文件缺失，写前备份） |
 | `sync_openclaw_subagent_auth_profiles_from_main` | 仅同步凭据：按当前 `openclaw.json` 的 `agents.list`，将 **`agents/main/agent/auth-profiles.json`** 复制到需补全的子 agent（同上条件）；供 **仅 `config.patch` 写入列表** 后前端再调一次 |
-| `read_open_claw_tools_agent_to_agent` | 返回 `{ ok, enabled, allow }`，对应 `openclaw.json` → `tools.agentToAgent`（缺省 `enabled: false`、`allow: []`） |
-| `write_open_claw_tools_agent_to_agent_merge` | `payload: { enabled, allow: string[] }`；合并写入 `tools.agentToAgent`，保留同对象内其它键（如 `maxPingPongTurns`）；写前备份 `openclaw.json` |
+| `read_open_claw_tools_agent_to_agent` | 返回 `{ ok, enabled, allow, sessionsVisibility }`（后者为 `tools.sessions.visibility`，可无） |
+| `write_open_claw_tools_agent_to_agent_merge` | `payload: { enabled, allow: string[] }`；合并 `tools.agentToAgent`；**当 `enabled: true` 时同时合并 `tools.sessions.visibility = "all"`**（跨 agent 的 `sessions_*` 前提）；关闭协作时不改 `sessions`；写前备份 |
 
 实现：`didclaw-ui/src-tauri/src/openclaw_agents_config.rs`（agents）、`openclaw_tools_agent_to_agent.rs`（协作拓扑）。前端：`CompanyAgentsHubDialog` + `lib/openclaw-gateway-config.ts`（含 `patchToolsAgentToAgentViaGateway`）+ `lib/agent-to-agent-topology.ts`。
 

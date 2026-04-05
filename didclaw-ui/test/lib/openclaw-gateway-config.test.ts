@@ -3,6 +3,7 @@ import {
   extractAgentsListFromConfigGet,
   extractConfigSnapshotHash,
   extractToolsAgentToAgentFromConfigGet,
+  extractToolsSessionsVisibilityFromConfigGet,
   isGatewayConfigHashStaleError,
   isGatewayConfigPatchRejectedError,
   retryAfterSecondsFromGatewayDetails,
@@ -38,6 +39,15 @@ describe("openclaw-gateway-config", () => {
       enabled: false,
       allow: [],
     });
+  });
+
+  it("extractToolsSessionsVisibilityFromConfigGet", () => {
+    expect(
+      extractToolsSessionsVisibilityFromConfigGet({
+        config: { tools: { sessions: { visibility: "all" } } },
+      }),
+    ).toBe("all");
+    expect(extractToolsSessionsVisibilityFromConfigGet({ config: {} })).toBeNull();
   });
 
   it("retryAfterSecondsFromGatewayDetails", () => {

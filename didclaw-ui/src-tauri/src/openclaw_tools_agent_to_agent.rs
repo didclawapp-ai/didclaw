@@ -1,4 +1,5 @@
 //! 读取 / 合并写入 `openclaw.json` 的 `tools.agentToAgent`（官方 multi-agent，与 Phase 2 拓扑对齐）。
+//! 启用协作（`enabled: true`）时同时合并 `tools.sessions.visibility = "all"`，否则跨 agent 的 `sessions_send` 等默认仅 `tree` 不可见其它 agent 会话。
 
 use crate::openclaw_common::{is_enoent, openclaw_config_path};
 use regex::Regex;
@@ -55,7 +56,7 @@ fn normalize_allow_list(arr: &[Value]) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-/// 返回 `{ ok, enabled, allow }`；缺省为 `enabled: false`, `allow: []`。
+/// 返回 `{ ok, enabled, allow, sessionsVisibility }`；缺省 `enabled: false`, `allow: []`, `sessionsVisibility: null`。
 pub fn read_open_claw_tools_agent_to_agent() -> Value {
     let config_path = match openclaw_config_path() {
         Ok(p) => p,
@@ -64,7 +65,7 @@ pub fn read_open_claw_tools_agent_to_agent() -> Value {
     let raw = match fs::read_to_string(&config_path) {
         Ok(s) => s,
         Err(e) if is_enoent(&e) => {
-            return json!({"ok": true, "enabled": false, "allow": Value::Array(vec![])});
+            return json!({"ok": true, "enabled": false, "allow": Value::Array(vec![]), "sessionsVisibility": Value::Null});
         }
         Err(e) => return json!({"ok": false, "error": e.to_string()}),
     };
@@ -74,11 +75,20 @@ pub fn read_open_claw_tools_agent_to_agent() -> Value {
             return json!({"ok": false, "error": "openclaw.json 不是合法 JSON，请用编辑器修正后再试"});
         }
     };
+    let sessions_visibility_early = root
+        .get("tools")
+        .and_then(|t| t.get("sessions"))
+        .and_then(|s| s.as_object())
+        .and_then(|o| o.get("visibility"))
+        .and_then(|v| v.as_str())
+        .map(|s| json!(s))
+        .unwrap_or(Value::Null);
+
     let ata = root
         .get("tools")
         .and_then(|t| t.get("agentToAgent"));
     let Some(obj) = ata.and_then(|v| v.as_object()) else {
-        return json!({"ok": true, "enabled": false, "allow": Value::Array(vec![])});
+        return json!({"ok": true, "enabled": false, "allow": Value::Array(vec![]), "sessionsVisibility": sessions_visibility_early});
     };
     let enabled = obj
         .get("enabled")
@@ -105,6 +115,7 @@ pub fn read_open_claw_tools_agent_to_agent() -> Value {
         "ok": true,
         "enabled": enabled,
         "allow": allow_json,
+        "sessionsVisibility": sessions_visibility_early,
     })
 }
 
@@ -182,6 +193,17 @@ pub fn write_open_claw_tools_agent_to_agent_merge(payload: Value) -> Value {
     }
 
     tools_obj.insert("agentToAgent".into(), Value::Object(ata_obj));
+
+    if enabled {
+        let mut sessions_obj: Map<String, Value> = tools_obj
+            .get("sessions")
+            .and_then(|v| v.as_object())
+            .cloned()
+            .unwrap_or_default();
+        sessions_obj.insert("visibility".into(), json!("all"));
+        tools_obj.insert("sessions".into(), Value::Object(sessions_obj));
+    }
+
     root_map.insert("tools".into(), Value::Object(tools_obj));
 
     let out = format!(

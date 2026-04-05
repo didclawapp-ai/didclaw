@@ -67,12 +67,34 @@ export function extractToolsAgentToAgentFromConfigGet(payload: unknown): {
   return { enabled, allow: dedup };
 }
 
+/** `config.get` → `tools.sessions.visibility`（缺省或非法时返回 null）。 */
+export function extractToolsSessionsVisibilityFromConfigGet(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const config = (payload as { config?: unknown }).config;
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return null;
+  }
+  const tools = (config as { tools?: unknown }).tools;
+  if (!tools || typeof tools !== "object" || Array.isArray(tools)) {
+    return null;
+  }
+  const sessions = (tools as { sessions?: unknown }).sessions;
+  if (!sessions || typeof sessions !== "object" || Array.isArray(sessions)) {
+    return null;
+  }
+  const v = (sessions as { visibility?: unknown }).visibility;
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
 export type PatchToolsAgentToAgentOptions = {
   sessionKey?: string | null;
 };
 
 /**
  * 通过 `config.get` → `config.patch` 合并 `tools.agentToAgent`（与 agents.list 相同 raw 补丁模式）。
+ * 当 `enabled === true` 时同时写入 `tools.sessions.visibility: "all"`，满足官方跨 agent 会话工具前提。
  */
 export async function patchToolsAgentToAgentViaGateway(
   client: GatewayClient,
@@ -84,14 +106,16 @@ export async function patchToolsAgentToAgentViaGateway(
   if (!baseHash) {
     throw new Error("config.get: missing hash in response");
   }
-  const raw = JSON.stringify({
-    tools: {
-      agentToAgent: {
-        enabled: agentToAgent.enabled,
-        allow: [...agentToAgent.allow].sort(),
-      },
+  const toolsPatch: Record<string, unknown> = {
+    agentToAgent: {
+      enabled: agentToAgent.enabled,
+      allow: [...agentToAgent.allow].sort(),
     },
-  });
+  };
+  if (agentToAgent.enabled) {
+    toolsPatch.sessions = { visibility: "all" };
+  }
+  const raw = JSON.stringify({ tools: toolsPatch });
   const params: Record<string, unknown> = { raw, baseHash };
   const sk = opts?.sessionKey?.trim();
   if (sk) {

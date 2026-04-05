@@ -290,6 +290,8 @@ export default {
       "On disk: only `enabled` and `allow`. Star / main↔subs require a **table row with id `main`** so agents.list matches the hub id in allow. Full mesh asks for confirmation.",
     topologyMainMissingWarning:
       "Star or main↔subs is selected but there is no `main` id in the roles table. Add a row with id `main`, merge agents.list, then save topology — otherwise the primary session won’t align with OpenClaw multi-agent config.",
+    topologyRuntimeHint:
+      "When collaboration topology is saved **enabled**, DidClaw also sets tools.sessions.visibility to \"all\" (required for cross-agent session tools). Restart the gateway if config didn’t hot-reload. Delivery still needs the model to call tools (e.g. sessions_send). If main uses a strict tools.allow list, include sessions_list / sessions_send / sessions_history. Check diagnostics / tool timeline for blocks.",
     topologyDocMultiAgent: "Multi-Agent docs",
     topologyDocSecurity: "Security",
     topologyTemplate: "Preset",
@@ -304,14 +306,14 @@ export default {
     topologyTo: "To",
     topologyPickAgent: "Pick id",
     topologyAddEdge: "Add edge",
-    topologyCurrentJson: "Current tools.agentToAgent (read-only)",
+    topologyCurrentJson: "Current agentToAgent + sessions.visibility (read-only)",
     topologySave: "Save collaboration topology",
     topologyFullMeshConfirm:
       "Full mesh allows cross-agent tools between every listed role and greatly increases exposure. Continue?",
     afterWriteTopologyViaGateway:
-      "Updated tools.agentToAgent via the gateway. If not hot-reloaded, restart the gateway and verify main → role sessions show tool-driven activity.",
+      "Updated tools.agentToAgent via the gateway; when enabled, tools.sessions.visibility was merged to \"all\". Restart if needed, then verify with an explicit tool-using prompt from main.",
     afterWriteTopologyLocalFallbackLead:
-      "The gateway did not apply this topology change; wrote local openclaw.json instead (backup rules applied).",
+      "The gateway did not apply this change; wrote local openclaw.json (backup applied). If collaboration was enabled, sessions.visibility was set to \"all\".",
     topologyErr: {
       needAtLeastOneAgentId: "Enter at least one agent id in the roles table.",
       invalidAgentId: "An agent id is invalid (letter-first; letters, digits, . _ - only).",
