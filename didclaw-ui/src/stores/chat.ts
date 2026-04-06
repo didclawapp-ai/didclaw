@@ -13,6 +13,11 @@ import {
   type UiChatMessage,
   isOptimisticUserMessage,
 } from "@/lib/chat-messages";
+import {
+  buildCompanyAgentBootstrapUserMessage,
+  historyHasCompanyBootstrapMessage,
+} from "@/lib/company-bootstrap-message";
+import type { CompanyRosterAgentRow } from "@/lib/company-roster-skill";
 import { CHAT_HISTORY_LIMIT } from "@/lib/chat-history-config";
 import { sortHistoryMessagesOldestFirst } from "@/lib/chat-history-sort";
 import { messageToChatLine } from "@/lib/chat-line";
@@ -675,6 +680,106 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   /**
+   * Send a fixed user `message` on `sessionKey` (no composer draft). Used for company bootstrap lines.
+   * Triggers a normal agent run like any user message (`deliver: false` matches main composer).
+   */
+  async function sendPresetUserMessageForSession(
+    sessionKey: string,
+    message: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const gw = useGatewayStore();
+    const c = gw.client;
+    const key = sessionKey.trim();
+    const text = message.trim();
+    if (!c?.connected || !key || !text) {
+      return {
+        ok: false,
+        error: !c?.connected ? i18n.global.t("composer.sendOffline") : "empty message",
+      };
+    }
+    const surf = ensureSurface(key);
+    if (surf.sending || surf.runId != null) {
+      return { ok: false, error: i18n.global.t("company.seedBootstrapSessionBusy") };
+    }
+    surf.sending = true;
+    surf.lastError = null;
+    const idem = generateUUID();
+    try {
+      await c.request("chat.send", {
+        sessionKey: key,
+        message: text,
+        deliver: false,
+        idempotencyKey: idem,
+      });
+      flushPendingSilentHistorySync("sendPresetUserMessageForSession", key);
+      await loadHistory({ silent: true, sessionKey: key });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: describeGatewayError(e) };
+    } finally {
+      surf.sending = false;
+    }
+  }
+
+  /** After company save: seed each agent's Web main session with a short roster pointer (dedup by marker). */
+  async function seedCompanyAgentBootstrapUserMessages(input: {
+    agents: CompanyRosterAgentRow[];
+  }): Promise<{
+    seeded: string[];
+    skipped: string[];
+    failed: Array<{ agentId: string; error: string }>;
+  }> {
+    const seeded: string[] = [];
+    const skipped: string[] = [];
+    const failed: Array<{ agentId: string; error: string }> = [];
+    const gw = useGatewayStore();
+    const c = gw.client;
+    if (!c?.connected) {
+      return { seeded, skipped, failed };
+    }
+    const agents = input.agents
+      .map((r) => ({
+        id: r.id.trim(),
+        name: r.name.trim(),
+        workspace: r.workspace.trim() || "default",
+        model: r.model.trim(),
+      }))
+      .filter((r) => r.id.length > 0);
+    if (agents.length === 0) {
+      return { seeded, skipped, failed };
+    }
+    for (const row of agents) {
+      const sessionKey = `agent:${row.id}:main`;
+      try {
+        const res = await c.request<unknown>("chat.history", {
+          sessionKey,
+          limit: 120,
+        });
+        const parsed = chatHistoryResponseSchema.safeParse(res);
+        const raw = (parsed.success && Array.isArray(parsed.data.messages)
+          ? parsed.data.messages
+          : []) as GatewayChatMessage[];
+        const incoming = sortHistoryMessagesOldestFirst(raw);
+        if (historyHasCompanyBootstrapMessage(incoming)) {
+          skipped.push(row.id);
+          continue;
+        }
+        const msg = buildCompanyAgentBootstrapUserMessage(row, agents);
+        const out = await sendPresetUserMessageForSession(sessionKey, msg);
+        if (out.ok) {
+          seeded.push(row.id);
+        } else {
+          failed.push({ agentId: row.id, error: out.error });
+        }
+      } catch (e) {
+        failed.push({ agentId: row.id, error: describeGatewayError(e) });
+      }
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return { seeded, skipped, failed };
+  }
+
+  /**
    * 实测部分网关版本在定时任务 / 后台 run 时大量推送 `cron` 与 `agent`，却**不一定**下发 `chat`。
    * 仅靠 `handleGatewayEvent(chat)` 时主时间线不会实时更新；在**本机未在发送且未有 runId** 时节流拉
    * `chat.history` 与 transcript 对齐（与重连后行为一致）。
@@ -1162,6 +1267,7 @@ export const useChatStore = defineStore("chat", () => {
     setOpenClawPrimaryModel,
     openClawConfigHint,
     flashOpenClawConfigHint,
+    seedCompanyAgentBootstrapUserMessages,
     sessionListNotice,
     flashSessionListNotice,
     backgroundAgentLastSeenMs,

@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>成立公司 — UI 演示（DidClaw）</title>
+    <style>
+      :root {
+        --bg: #f4f5f7;
+        --surface: #fff;
+        --text: #1a1d24;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --accent: #2563eb;
+        --accent-soft: #eff6ff;
+        --radius: 12px;
+        --shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.45;
+      }
+
+      .shell {
+        max-width: 520px;
+        margin: 0 auto;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 20px 16px 100px;
+      }
+
+      .top {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .top h1 {
+        margin: 0 0 6px;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .top p.sub {
+        margin: 0;
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+
+      /* Step dots */
+      .steps {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+
+      .steps button {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: none;
+        padding: 0;
+        background: var(--border);
+        cursor: pointer;
+        transition: transform 0.15s, background 0.15s;
+      }
+
+      .steps button[aria-current="step"] {
+        background: var(--accent);
+        transform: scale(1.15);
+      }
+
+      .steps button.done {
+        background: #93c5fd;
+      }
+
+      .card {
+        background: var(--surface);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 22px 20px;
+        flex: 1;
+      }
+
+      .step-panel {
+        display: none;
+      }
+
+      .step-panel.active {
+        display: block;
+        animation: fade 0.2s ease;
+      }
+
+      @keyframes fade {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .field {
+        margin-bottom: 18px;
+      }
+
+      .field:last-child {
+        margin-bottom: 0;
+      }
+
+      label {
+        display: block;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        margin-bottom: 6px;
+        color: var(--text);
+      }
+
+      input[type="text"],
+      textarea {
+        width: 100%;
+        padding: 11px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 1rem;
+        font-family: inherit;
+      }
+
+      input:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+
+      textarea {
+        min-height: 72px;
+        resize: vertical;
+      }
+
+      /* Template cards */
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .pick {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .pick-card {
+        display: block;
+        border: 2px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 12px;
+        cursor: pointer;
+        text-align: center;
+        transition: border-color 0.15s, background 0.15s;
+      }
+
+      .pick-card:hover {
+        border-color: #cbd5e1;
+        background: #fafafa;
+      }
+
+      .pick:focus + .pick-card,
+      .pick:checked + .pick-card {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .pick-card strong {
+        display: block;
+        font-size: 0.9375rem;
+        margin-bottom: 4px;
+      }
+
+      .pick-card span {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      /* Role rows */
+      .role-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 8px;
+        align-items: end;
+        margin-bottom: 10px;
+      }
+
+      .role-row input {
+        margin: 0;
+      }
+
+      .icon-btn {
+        width: 42px;
+        height: 42px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        cursor: pointer;
+        font-size: 1.25rem;
+        line-height: 1;
+        color: var(--muted);
+      }
+
+      .icon-btn:hover {
+        background: #f9fafb;
+        color: var(--text);
+      }
+
+      .linkish {
+        margin-top: 12px;
+        font-size: 0.875rem;
+        color: var(--accent);
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        font-weight: 500;
+      }
+
+      /* Topology presets */
+      .preset-row {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .preset-row .pick-card {
+        text-align: left;
+        padding: 14px 14px;
+      }
+
+      /* Done */
+      .check-big {
+        width: 56px;
+        height: 56px;
+        margin: 8px auto 16px;
+        border-radius: 50%;
+        background: #dcfce7;
+        color: #166534;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+      }
+
+      .summary {
+        font-size: 0.875rem;
+        color: var(--muted);
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      /* Footer bar */
+      .bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
+        max-width: 520px;
+        margin: 0 auto;
+      }
+
+      .btn {
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--muted);
+      }
+
+      .btn-ghost:hover {
+        color: var(--text);
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+        flex: 1;
+        max-width: 220px;
+      }
+
+      .btn-primary:hover {
+        filter: brightness(1.05);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        filter: none;
+      }
+
+      .hint-banner {
+        font-size: 0.75rem;
+        color: var(--muted);
+        text-align: center;
+        padding: 8px 12px 0;
+        max-width: 520px;
+        margin: 0 auto;
+      }
+
+      @media (min-width: 540px) {
+        .shell {
+          padding-top: 32px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="top">
+        <h1 id="stepTitle">公司叫什么？</h1>
+        <p class="sub" id="stepSub"></p>
+      </header>
+
+      <nav class="steps" aria-label="步骤">
+        <button type="button" data-go="0" aria-current="step" title="1"></button>
+        <button type="button" data-go="1" title="2"></button>
+        <button type="button" data-go="2" title="3"></button>
+        <button type="button" data-go="3" title="4"></button>
+        <button type="button" data-go="4" title="5"></button>
+      </nav>
+
+      <main class="card" aria-live="polite">
+        <!-- Step 1 -->
+        <section class="step-panel active" data-step="0">
+          <div class="field">
+            <label for="coName">公司名称</label>
+            <input id="coName" type="text" placeholder="例如：晨曦工作室" autocomplete="organization" />
+          </div>
+          <div class="field">
+            <label for="coNote">一句话（选填）</label>
+            <textarea id="coNote" placeholder="做什么的，一句话就够"></textarea>
+          </div>
+        </section>
+
+        <!-- Step 2 -->
+        <section class="step-panel" data-step="1">
+          <div class="grid-2">
+            <div>
+              <input class="pick" type="radio" name="structure" id="s-flat" value="flat" checked />
+              <label class="pick-card" for="s-flat">
+                <strong>扁平</strong>
+                <span>大家一起上</span>
+              </label>
+            </div>
+            <div>
+              <input class="pick" type="radio" name="structure" id="s-pyramid" value="pyramid" />
+              <label class="pick-card" for="s-pyramid">
+                <strong>金字塔</strong>
+                <span>总经办 + 职务</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Step 3 -->
+        <section class="step-panel" data-step="2">
+          <div id="roleList"></div>
+          <button type="button" class="linkish" id="addRole">+ 加一个职务</button>
+        </section>
+
+        <!-- Step 4 -->
+        <section class="step-panel" data-step="3">
+          <div class="preset-row">
+            <div>
+              <input class="pick" type="radio" name="topo" id="t-off" value="off" checked />
+              <label class="pick-card" for="t-off">
+                <strong>暂不互联</strong>
+                <span>各职务自己聊，最简单</span>
+              </label>
+            </div>
+            <div>
+              <input class="pick" type="radio" name="topo" id="t-star" value="star" />
+              <label class="pick-card" for="t-star">
+                <strong>总经办 → 各职务</strong>
+                <span>适合派活、通知</span>
+              </label>
+            </div>
+            <div>
+              <input class="pick" type="radio" name="topo" id="t-bi" value="bi" />
+              <label class="pick-card" for="t-bi">
+                <strong>总经办 ↔ 职务</strong>
+                <span>能来回对话</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Step 5 -->
+        <section class="step-panel" data-step="4">
+          <div class="check-big" aria-hidden="true">✓</div>
+          <p class="summary" id="finishSummary">配置已就绪。</p>
+          <div class="field">
+            <button type="button" class="btn btn-primary" style="width: 100%; max-width: none" id="btnSave">
+              保存并启用
+            </button>
+          </div>
+          <button type="button" class="linkish" style="width: 100%; text-align: center; margin-top: 8px" id="btnSkill">
+            同步「公司说明」到技能（选填）
+          </button>
+        </section>
+      </main>
+    </div>
+
+    <p class="hint-banner">本页为静态演示，按钮不会真保存。</p>
+
+    <footer class="bar">
+      <button type="button" class="btn btn-ghost" id="btnBack">上一步</button>
+      <button type="button" class="btn btn-primary" id="btnNext">下一步</button>
+    </footer>
+
+    <template id="roleRowTpl">
+      <div class="role-row">
+        <div class="field" style="margin: 0">
+          <label>职务 ID</label>
+          <input type="text" class="role-id" placeholder="sales" spellcheck="false" />
+        </div>
+        <div class="field" style="margin: 0">
+          <label>显示名</label>
+          <input type="text" class="role-name" placeholder="销售" />
+        </div>
+        <button type="button" class="icon-btn rm" title="删除" aria-label="删除">×</button>
+      </div>
+    </template>
+
+    <script>
+      (function () {
+        const titles = [
+          "公司叫什么？",
+          "架构怎么搭？",
+          "有哪些职务？",
+          "职务之间怎么协作？",
+          "完成",
+        ];
+        const subs = [
+          "",
+          "选一种就好，之后还能改。",
+          "至少保留一个职务。主会话一般用 main。",
+          "不确定就选第一项，最安全。",
+          "",
+        ];
+
+        let step = 0;
+        const panels = document.querySelectorAll(".step-panel");
+        const dots = document.querySelectorAll(".steps button");
+        const titleEl = document.getElementById("stepTitle");
+        const subEl = document.getElementById("stepSub");
+        const btnBack = document.getElementById("btnBack");
+        const btnNext = document.getElementById("btnNext");
+        const roleList = document.getElementById("roleList");
+        const tpl = document.getElementById("roleRowTpl");
+        const coName = document.getElementById("coName");
+        const finishSummary = document.getElementById("finishSummary");
+
+        function addRoleRow(id, name) {
+          const node = tpl.content.cloneNode(true);
+          const row = node.querySelector(".role-row");
+          if (id) node.querySelector(".role-id").value = id;
+          if (name) node.querySelector(".role-name").value = name;
+          node.querySelector(".rm").addEventListener("click", () => {
+            if (roleList.querySelectorAll(".role-row").length <= 1) return;
+            row.remove();
+          });
+          roleList.appendChild(node);
+        }
+
+        addRoleRow("main", "总经办");
+        addRoleRow("sales", "销售");
+
+        function render() {
+          panels.forEach((p) => p.classList.toggle("active", Number(p.dataset.step) === step));
+          titleEl.textContent = titles[step];
+          subEl.textContent = subs[step];
+          dots.forEach((d, i) => {
+            d.setAttribute("aria-current", i === step ? "step" : "false");
+            d.classList.toggle("done", i < step);
+          });
+          btnBack.style.visibility = step === 0 ? "hidden" : "visible";
+          btnNext.textContent = step === 4 ? "关闭演示" : "下一步";
+          if (step === 4) updateSummary();
+        }
+
+        function updateSummary() {
+          const name = coName.value.trim() || "未命名公司";
+          const roles = [...roleList.querySelectorAll(".role-row")]
+            .map((r) => {
+              const id = r.querySelector(".role-id").value.trim();
+              const n = r.querySelector(".role-name").value.trim();
+              return id ? (n ? `${n} (${id})` : id) : null;
+            })
+            .filter(Boolean);
+          const topo = document.querySelector('input[name="topo"]:checked')?.value || "off";
+          const topoLabel = { off: "暂不互联", star: "总经办→各职务", bi: "总经办↔职务" }[topo];
+          finishSummary.textContent = `「${name}」· ${roles.length} 个职务 · ${topoLabel}`;
+        }
+
+        function validateStep() {
+          if (step === 0) {
+            if (!coName.value.trim()) {
+              coName.focus();
+              return false;
+            }
+          }
+          if (step === 2) {
+            const rows = roleList.querySelectorAll(".role-row");
+            let ok = false;
+            rows.forEach((r) => {
+              if (r.querySelector(".role-id").value.trim()) ok = true;
+            });
+            if (!ok) {
+              roleList.querySelector(".role-id")?.focus();
+              return false;
+            }
+          }
+          return true;
+        }
+
+        btnNext.addEventListener("click", () => {
+          if (step < 4) {
+            if (!validateStep()) return;
+            step += 1;
+            render();
+          } else {
+            alert("演示结束：真实产品里这里会关闭向导并刷新主界面。");
+          }
+        });
+
+        btnBack.addEventListener("click", () => {
+          if (step > 0) {
+            step -= 1;
+            render();
+          }
+        });
+
+        document.getElementById("addRole").addEventListener("click", () => addRoleRow("", ""));
+
+        document.querySelectorAll(".steps button").forEach((b) => {
+          b.addEventListener("click", () => {
+            const t = Number(b.dataset.go);
+            if (t <= step || t === step + 1) {
+              if (t > step && !validateStep()) return;
+              step = t;
+              render();
+            }
+          });
+        });
+
+        document.getElementById("btnSave").addEventListener("click", () => {
+          alert("演示：此处写入 agents 与拓扑。");
+        });
+        document.getElementById("btnSkill").addEventListener("click", () => {
+          alert("演示：此处生成公司 roster 技能。");
+        });
+
+        render();
+      })();
+    </script>
+  </body>
+</html>

@@ -10,6 +10,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Added
 
+- **Windows maintenance script**: `scripts/uninstall-openclaw-global.bat` runs `npm uninstall -g openclaw`, `npm cache clean --force`, and removes common npm shim leftovers under `%APPDATA%\npm` (does not delete `%USERPROFILE%\.openclaw`).
+
+- **Company hub — five-step wizard**: The desktop company / agents dialog is now a guided flow (company name → flat vs pyramid structure → `agents.list` table → `tools.agentToAgent` topology → finish with roster skill, optional bootstrap messages, “save all”, and a collapsible technical section). Step dots allow jumping back to earlier steps.
+
+- **Company hub — per-agent bootstrap chat**: After merging `agents.list` or syncing the company roster skill, an optional checkbox (default **on**) sends one **user** message per role to `agent:<id>:main` via `chat.send` when the Gateway is connected. Messages include a stable `[DidClaw company setup]` marker (sessions that already contain it are skipped), the role’s display name and workspace, pointers to the shared **`didclaw-company-roster`** skill, and a short peer directory; outcomes are appended to the existing post-save hint. Each send starts a normal model run like any user message.
+
 - **Multi-agent (company / roles) MVP**: Desktop header opens a hub to merge `agents.list` into `openclaw.json` (with backup) via `read_open_claw_agents_list` / `write_open_claw_agents_list_merge`, open side **role chat** columns (default `agent:<id>:main`), share one Gateway WebSocket with per-`sessionKey` chat state in the chat store, a **bottom-right floating “Roles” panel**, and **per-column session binding** via a dropdown fed from `sessions.list` (`agent:<roleId>:*` keys only). When the Gateway WebSocket is connected, the hub **prefers** official **`config.get` / `config.patch`** for read/merge of `agents.list`, falling back to the Tauri file merge on failure or when offline.
 - **Workspace memory in History dialog**: Desktop app lists OpenClaw `~/.openclaw/workspace/memory/*.md` (permanent / archived memory from OpenClaw 4.x) on a **Workspace memory** tab next to **Gateway sessions**, with preview via the existing local file pipeline (`list_openclaw_workspace_memory` IPC).
 
@@ -29,6 +35,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 - **Multi-agent hub**: On desktop, the **Model** column uses a **dropdown** populated from `readOpenClawAiSnapshot` / `buildModelPickerRows` (same refs as the session bar), with an explicit “use global default” option, manual entry fallback when the list cannot load, and a hint when a row has an id but no model.
 
 ### Changed
+
+- **Company hub / agents table**: Column headers and placeholders use company-oriented wording (role key, daily display name, files folder, model) while keeping `id` / `workspace` / `model` hints for OpenClaw alignment.
+- **Company hub title**: Dialog and header tooltips use “公司与职务” / “Company & roles” instead of “多 Agent” for end-user clarity.
+
+- **Company wizard — roles step**: Removed the openclaw.json-oriented blurb; added 3–7 headcount presets (with suggested role ids) plus RAM guidance (about four roles ≈ 64GB in testing).
+
+- **Company wizard — final step**: Reduced to charter/workspace fields and a single **Save** button (same pipeline as before: roles → topology → roster skill); removed per-step actions, SKILL.md preview, checkboxes, and technical JSON panel from this step.
+
+- **Company wizard — collaboration step**: Hid the read-only `agentToAgent` / `sessions.visibility` JSON block; users only pick the collaboration preset (and custom edges when applicable).
+
+- **Company hub wizard draft**: Closing the dialog saves the in-progress wizard (step, company fields, roles table, topology choices, roster options) to `sessionStorage` and restores it on reopen so navigating back or closing mid-flow does not lose unsaved edits; cleared after a successful “save all”. Cancelling the full-mesh confirmation sets a visible error so “save all” does not treat it as success.
+
+- **Company hub / collaboration topology**: Preset dropdown and related hints use plain “HQ ↔ roles” style copy instead of graph/allow-list jargon; section title and `main`-missing errors aligned with the new labels.
 
 - **Multi-agent hub (Gateway config)**: Saving `agents.list` now surfaces **hash-mismatch** and **patch validation** errors with actionable copy (refresh before retry / read gateway message), and shows **different success hints** when the write went through the gateway versus local `openclaw.json` merge (including after gateway failure + desktop fallback).
 

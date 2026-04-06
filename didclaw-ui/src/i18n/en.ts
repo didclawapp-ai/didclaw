@@ -76,7 +76,7 @@ export default {
     groupFeatures: "Features",
     groupSystem: "System",
     quitApp: "Quit DidClaw",
-    companyAgents: "Multi-agent (company / roles)",
+    companyAgents: "Company & roles",
     checkUpdate: "Check for Updates",
     checkingUpdate: "Checking…",
     upToDate: "Up to Date",
@@ -221,17 +221,17 @@ export default {
   },
 
   company: {
-    hubTitle: "Multi-agent (roles)",
+    hubTitle: "Company & roles",
     closeDialog: "Close",
     wizardSection: "Merge into agents.list",
     wizardHint:
       "Fields follow the official OpenClaw schema. openclaw.json is backed up before write. On desktop, pick a model from the Model column; leave empty to use the global default. Restart the gateway if config hot reload does not apply.",
-    colId: "id",
-    colName: "name",
-    colWorkspace: "workspace",
-    colModel: "model",
-    phId: "e.g. sales",
-    phName: "display name",
+    colId: "Role key (id)",
+    colName: "What to call them (optional)",
+    colWorkspace: "Files folder (workspace)",
+    colModel: "Model to use",
+    phId: "e.g. main, sales",
+    phName: "e.g. GM, Sales lead",
     phModel: "Type a model ref",
     modelUseDefault: "(Use global default model)",
     modelPickerLoadFailed: "Could not load model list: {message}. You can type a model ref in the Model column.",
@@ -283,25 +283,25 @@ export default {
     sessionSelectTitle: "Pick sessionKey for this role from Gateway sessions.list",
     sessionDefaultMain: "Main (…:main)",
 
-    topologySection: "Collaboration topology (tools.agentToAgent)",
+    topologySection: "How roles collaborate",
     topologyHint:
-      "Unlike side-by-side role chats, this writes the official OpenClaw cross-agent tool allowlist. When disabled, a model saying it “notified a role” may not leave verifiable traces in that role’s session.",
+      "Unlike opening several role chat columns, this controls whether official tools may reach other roles. When off, a model saying it “notified a role” may not leave a verifiable trace there.",
     topologyVsColumnsHint:
-      "On disk: only `enabled` and `allow`. Star / main↔subs require a **table row with id `main`** so agents.list matches the hub id in allow. Full mesh asks for confirmation.",
+      "“HQ → roles” and “HQ ↔ roles” **save the same config** and both need a **main** row (GM). “Everyone ↔ everyone” is high risk and asks for confirmation.",
     topologyMainMissingWarning:
-      "Star or main↔subs is selected but there is no `main` id in the roles table. Add a row with id `main`, merge agents.list, then save topology — otherwise the primary session won’t align with OpenClaw multi-agent config.",
+      "This mode needs a GM row with id **main**, but the table has none. Add a `main` row, save roles, then save collaboration.",
     topologyRuntimeHint:
       "When collaboration topology is saved **enabled**, DidClaw also sets tools.sessions.visibility to \"all\" (required for cross-agent session tools). Restart the gateway if config didn’t hot-reload. Delivery still needs the model to call tools (e.g. sessions_send). If main uses a strict tools.allow list, include sessions_list / sessions_send / sessions_history. Check diagnostics / tool timeline for blocks.",
     topologyDocMultiAgent: "Multi-Agent docs",
     topologyDocSecurity: "Security",
-    topologyTemplate: "Preset",
-    topologyTplOff: "Off (no cross-agent tools)",
-    topologyTplStar: "Star: main + every non-main id in allow",
-    topologyTplBidirectional: "Main ↔ subs (same on disk as star; clearer label)",
-    topologyTplFull: "Full mesh (all listed ids in allow — dangerous)",
-    topologyTplCustom: "Custom directed edges → allow = union of endpoints (cycles blocked)",
+    topologyTemplate: "Mode",
+    topologyTplOff: "Off: roles don’t cross-reach",
+    topologyTplStar: "HQ → each role (tasks/notes; needs `main` row)",
+    topologyTplBidirectional: "HQ ↔ each role (friendlier wording; same save as above)",
+    topologyTplFull: "Everyone ↔ everyone (any pair; high risk)",
+    topologyTplCustom: "Custom: pick who may reach whom (advanced)",
     topologyCustomHint:
-      "Each edge marks agents that should participate; saving merges endpoints into the official allow list. Fill role ids in the table above first.",
+      "Fill role keys in the table, then add from→to pairs; saving merges them into the gateway allow list. No cycles.",
     topologyFrom: "From",
     topologyTo: "To",
     topologyPickAgent: "Pick id",
@@ -310,6 +310,7 @@ export default {
     topologySave: "Save collaboration topology",
     topologyFullMeshConfirm:
       "Full mesh allows cross-agent tools between every listed role and greatly increases exposure. Continue?",
+    topologyFullMeshSaveCancelled: "Save cancelled; collaboration settings were not changed.",
     afterWriteTopologyViaGateway:
       "Updated tools.agentToAgent via the gateway; when enabled, tools.sessions.visibility was merged to \"all\". Restart if needed, then verify with an explicit tool-using prompt from main.",
     afterWriteTopologyLocalFallbackLead:
@@ -325,7 +326,7 @@ export default {
       customNeedsEdge: "Custom mode needs at least one valid edge.",
       unknownTemplate: "Unknown topology template.",
       mainNotInAgentsList:
-        "Star / main↔subs requires `main` in agents.list. Add a `main` row above, merge into openclaw.json, then save collaboration topology.",
+        "“HQ → roles” / “HQ ↔ roles” needs `main` in agents.list. Add a `main` row, save roles, then save collaboration.",
     },
 
     rosterSection: "Company skill (shared roster)",
@@ -349,6 +350,63 @@ export default {
       "Gateway could not patch skills.entries; merged local openclaw.json instead: {message}",
     afterWriteRosterSkillOpenclawJson: "Merged local openclaw.json → skills.entries; skill enabled.",
     rosterSkillFileOkConfigFailed: "SKILL.md was written, but enabling in config failed: {message}",
+    seedBootstrapAfterSave:
+      "After save, send a bootstrap user message to each role's Web main session (gateway required)",
+    seedBootstrapHint:
+      "Sends one user message per agent at agent:<id>:main and starts a normal model run; sessions that already contain the same bootstrap marker are skipped.",
+    seedBootstrapNeedGateway: "Gateway not connected: bootstrap messages were not sent.",
+    seedBootstrapSeeded: "Bootstrap user messages sent for: {ids}",
+    seedBootstrapSkippedDup: "Skipped (bootstrap already present): {ids}",
+    seedBootstrapFailed: "Bootstrap failed for some roles: {detail}",
+    seedBootstrapSessionBusy: "That session is sending or streaming; bootstrap was skipped.",
+
+    wizardStepperAria: "Company setup wizard steps",
+    wizardStepLabel0: "1/5 Company",
+    wizardStepLabel1: "2/5 Structure",
+    wizardStepLabel2: "3/5 Roles",
+    wizardStepLabel3: "4/5 Collaboration",
+    wizardStepLabel4: "5/5 Finish",
+    wizardStep0Title: "Company name",
+    wizardStep0Hint:
+      "Used in this wizard and optional charter text only; no extra keys are written to openclaw.json.",
+    wizardCompanyNameLabel: "Company name",
+    wizardCompanyTaglineLabel: "One-liner (optional)",
+    wizardCompanyTaglinePh: "e.g. a small team shipping connector work",
+    wizardStep1Title: "How is it structured?",
+    wizardStep1Hint: 'Pick one. "Pyramid" keeps a main (GM) row when the table is empty or missing main.',
+    wizardStructureFlatTitle: "Flat",
+    wizardStructureFlatDesc: "More peer-like roles; empty rows for you to fill agent ids.",
+    wizardStructurePyramidTitle: "Pyramid",
+    wizardStructurePyramidDesc: "GM + roles; prefills main and sales when the table is empty.",
+    wizardStep2Title: "Roles (agents)",
+    wizardStep2MemoryHint:
+      "Each role runs its own model workload; more roles use more RAM. In our testing, about four roles needed at least 64GB system RAM—pick a team size that fits your machine. Presets go up to seven roles.",
+    wizardRosterPresetLabel: "Team size",
+    wizardRosterPresetGroupAria: "Preset role table by headcount",
+    wizardRosterPresetN: "{n} roles",
+    wizardRosterPresetBtnTitle: "Set the table to {n} roles (replaces current rows)",
+    wizardRosterPresetFoot: "Choosing a preset replaces the rows below; you can still edit ids and other fields.",
+    wizardStep3Title: "How should roles collaborate?",
+    wizardStep3Hint:
+      "This is whether official tools may reach other roles—not the same as opening more chat columns. “HQ → / ↔ roles” both need a `main` row.",
+    wizardStep4Title: "Company charter",
+    wizardStep4FinishHint:
+      "Save applies roles and collaboration from this wizard, then generates/updates the shared company skill from the text below when the desktop app can write files. Bootstrap messages to each role stay on by default.",
+    wizardFinishSave: "Save",
+    wizardBack: "Back",
+    wizardNext: "Next",
+    wizardNeedCompanyName: "Enter a company name.",
+    wizardNeedStructure: "Choose flat or pyramid.",
+    wizardNeedOneRole: "Enter at least one agent id.",
+    wizardSummaryUnnamed: "Unnamed company",
+    wizardSummaryLine: "“{name}” · {count} role(s) · collaboration: {topo}",
+    wizardApplyAll: "Save all (roles → topology → roster skill)",
+    wizardApplyAllHint:
+      "Runs in order: merge agents.list, save collaboration topology, then generate/update the shared roster skill when desktop IPC is available (uncheck below to skip the skill step).",
+    wizardSyncRosterOnFinish: "Include roster skill in “save all”",
+    wizardOrSeparateSaves: "Or save step by step:",
+    wizardAdvancedShow: "Technical details (JSON / refresh / open role columns)",
+    wizardAdvancedHide: "Hide technical details",
   },
 
   composer: {
