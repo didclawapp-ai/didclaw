@@ -23,6 +23,9 @@ describe("buildCompanyRosterSkillMarkdown", () => {
     expect(md).toContain("sessions_send");
     expect(md).toContain("Company workspace");
     expect(md).toContain("node_modules/openclaw/default");
+    expect(md).toContain("Autonomous company operations (playbook)");
+    expect(md).toContain("HEARTBEAT.md");
+    expect(md).toContain("silence is normal");
   });
 
   it("embeds canonical workspace root when provided", () => {

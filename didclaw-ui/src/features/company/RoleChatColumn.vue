@@ -15,6 +15,7 @@ import {
   useCompanyRolePanelsStore,
 } from "@/stores/companyRolePanels";
 import { useChatStore } from "@/stores/chat";
+import { useFilePreviewStore } from "@/stores/filePreview";
 import { useGatewayStore } from "@/stores/gateway";
 import { usePreviewStore } from "@/stores/preview";
 import { useSessionStore } from "@/stores/session";
@@ -34,9 +35,10 @@ const { t } = useI18n();
 const chat = useChatStore();
 const gw = useGatewayStore();
 const preview = usePreviewStore();
+const filePreview = useFilePreviewStore();
 const sessionStore = useSessionStore();
 const companyPanels = useCompanyRolePanelsStore();
-const { showDiagnosticMessages } = storeToRefs(preview);
+const { followLatest, showDiagnosticMessages, rolePanelMessageSelection } = storeToRefs(preview);
 const { allSessions } = storeToRefs(sessionStore);
 const { status: gatewayStatus } = storeToRefs(gw);
 
@@ -126,6 +128,42 @@ const displayLines = computed((): ChatLine[] => {
 
 const historyLoading = computed(() => chat.surfaces[sk.value]?.historyLoading ?? false);
 
+const messageListSelectedIndex = computed((): number | null => {
+  const sel = rolePanelMessageSelection.value;
+  if (!sel || sel.panelId !== props.panel.id) {
+    return null;
+  }
+  return sel.index;
+});
+
+function onRoleMessageSelect(index: number): void {
+  preview.selectRolePanelMessage(props.panel.id, index, displayLines.value.length);
+  const line = displayLines.value[index];
+  if (!line) {
+    filePreview.clearChatMessagePreview();
+    return;
+  }
+  if (filePreview.tryOpenEmbeddedDataImageFromText(line.text)) {
+    return;
+  }
+  filePreview.forgetEmbeddedChatImageIfAny();
+  filePreview.showChatMessageFullText({
+    role: line.role,
+    text: line.text,
+    listText: line.listText ?? line.text,
+  });
+}
+
+watch(
+  () => props.panel.sessionKey,
+  () => {
+    const sel = rolePanelMessageSelection.value;
+    if (sel?.panelId === props.panel.id) {
+      preview.clearRolePanelMessageSelection();
+    }
+  },
+);
+
 onMounted(() => {
   chat.ensureSurface(sk.value);
   void chat.loadHistory({ sessionKey: sk.value });
@@ -177,9 +215,9 @@ watch(gatewayStatus, (s, prev) => {
     <div class="role-col-messages">
       <ChatMessageList
         :lines="displayLines"
-        :selected-index="null"
-        :follow-latest="true"
-        @select="() => {}"
+        :selected-index="messageListSelectedIndex"
+        :follow-latest="followLatest"
+        @select="onRoleMessageSelect"
       />
     </div>
     <RolePanelComposer :session-key="sk" />

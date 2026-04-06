@@ -10,6 +10,9 @@ export const usePreviewStore = defineStore("preview", () => {
   /** 关闭时隐藏冗长 system / 工具型 assistant / 部分自动 user 输出，减轻历史刷屏 */
   const showDiagnosticMessages = ref(false);
 
+  /** 职务列消息选中（与主栏 `explicitIndex` 分离，避免 `getSelectedIndex` 行数不一致） */
+  const rolePanelMessageSelection = ref<{ panelId: string; index: number } | null>(null);
+
   function getSelectedIndex(lineCount: number): number | null {
     if (lineCount <= 0) {
       return null;
@@ -28,6 +31,21 @@ export const usePreviewStore = defineStore("preview", () => {
     explicitIndex.value = Math.min(Math.max(0, index), Math.max(0, lineCount - 1));
   }
 
+  function selectRolePanelMessage(panelId: string, index: number, lineCount: number): void {
+    const id = panelId.trim();
+    const n = Math.max(0, lineCount);
+    if (!id || n === 0) {
+      rolePanelMessageSelection.value = null;
+      return;
+    }
+    const i = Math.min(Math.max(0, index), n - 1);
+    rolePanelMessageSelection.value = { panelId: id, index: i };
+  }
+
+  function clearRolePanelMessageSelection(): void {
+    rolePanelMessageSelection.value = null;
+  }
+
   function setFollowLatest(value: boolean): void {
     followLatest.value = value;
     if (value) {
@@ -39,6 +57,7 @@ export const usePreviewStore = defineStore("preview", () => {
   function resetForNewSession(): void {
     followLatest.value = true;
     explicitIndex.value = null;
+    rolePanelMessageSelection.value = null;
     useFilePreviewStore().clear();
   }
 
@@ -50,8 +69,11 @@ export const usePreviewStore = defineStore("preview", () => {
     followLatest,
     explicitIndex,
     showDiagnosticMessages,
+    rolePanelMessageSelection,
     getSelectedIndex,
     selectLine,
+    selectRolePanelMessage,
+    clearRolePanelMessageSelection,
     setFollowLatest,
     setShowDiagnosticMessages,
     resetForNewSession,

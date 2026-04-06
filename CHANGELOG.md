@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+### Added
+
+- **Docs samples**: Illustrative multi-agent desktop exercise outputs under `docs/` (`didclaw_commercial_operation_report.md`, `financial_forecast.md`, `sales_market_analysis.md`, `tech_product_roadmap.md`, `test_quality_ops_plan.md`)—not a committed product roadmap; numbers and timelines are unchecked drafts.
+
+### Changed
+
+- **DidClaw UI (1.0.0 follow-up)**: Land source matching the 1.0.0 notes—`preview.rolePanelMessageSelection` + `filePreview` for role-column clicks, `ChatMessageList` stream tail when `selectedIndex` is null, static streaming row styling (no infinite pulse), expanded `buildCompanyRosterSkillMarkdown` playbook, tests.
+
 ## [1.0.0] - 2026-04-06
 
 ### Release

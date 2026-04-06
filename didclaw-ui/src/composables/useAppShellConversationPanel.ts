@@ -55,6 +55,7 @@ export function useAppShellConversationPanel() {
   );
 
   function onSelectMessage(index: number): void {
+    preview.clearRolePanelMessageSelection();
     preview.selectLine(index, displayLines.value.length);
     const line = displayLines.value[index];
     if (!line) {

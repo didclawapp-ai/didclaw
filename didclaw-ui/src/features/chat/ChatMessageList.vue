@@ -47,6 +47,10 @@ function atListEnd(): boolean {
   if (n === 0) {
     return false;
   }
+  if (props.selectedIndex === null) {
+    // 职务栏等不绑定预览选中项：selectedIndex 恒为 null，跟随模式下仍应视为钉在末尾以便流式贴底
+    return props.followLatest === true;
+  }
   return props.selectedIndex === n - 1;
 }
 
@@ -270,16 +274,8 @@ onMounted(() => {
 .row.stream {
   border-style: dashed;
   border-color: rgba(6, 182, 212, 0.45);
-  animation: lc-stream-pulse 2s ease-in-out infinite;
-}
-@keyframes lc-stream-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.06);
-  }
-  50% {
-    box-shadow: 0 0 16px 2px rgba(6, 182, 212, 0.08);
-  }
+  /* 无无限循环动画：多列流式时 box-shadow keyframes 会持续触发合成，Task Manager 里 WebView2 GPU 可飙很高 */
+  box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.12);
 }
 .row.role-assistant .tag {
   color: var(--lc-accent);
