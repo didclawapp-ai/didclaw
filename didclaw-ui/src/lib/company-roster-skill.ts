@@ -19,7 +19,13 @@ function escTableCell(s: string): string {
 
 function topologyNarration(template: TopologyTemplate, cfg: AgentToAgentOfficial): string {
   if (!cfg.enabled) {
-    return "Cross-agent tools are **off** (`tools.agentToAgent.enabled: false`). The allow list is empty or ignored.";
+    return [
+      "Cross-agent **tool delegation** (one agent invoking another’s tools via OpenClaw’s peer policy) is **off** in this export: `tools.agentToAgent.enabled: false`. The `allow` list is empty or ignored for that feature.",
+      "",
+      "**Session messaging is separate:** `sessions_list`, `sessions_history`, and `sessions_send` are **not** the same subsystem as `tools.agentToAgent`. When you act as the **operator** in the Web UI, you may still be able to post to other roles using their `agent:<id>:main` session keys—use `sessions_list` to discover keys and try `sessions_send` per gateway rules. **Do not** refuse to greet peer roles solely because this section shows `agentToAgent` disabled.",
+      "",
+      "If collaboration should be on but this file says off, re-run DidClaw **Company & roles → Save** or verify live `tools.agentToAgent` in `openclaw.json`.",
+    ].join("\n");
   }
   const allow = [...cfg.allow].sort().join(", ");
   switch (template) {
@@ -84,6 +90,11 @@ export function buildCompanyRosterSkillMarkdown(input: {
   /** 公司共享工作区根路径（绝对路径），写入技能供各职务对齐 */
   companyWorkspaceRoot?: string;
   charter?: string;
+  /**
+   * When `compileAgentToAgentTopology` failed for this export, pass its `error` code so readers
+   * know the disabled shape below may not match live `openclaw.json`.
+   */
+  topologyCompileErrorCode?: string;
 }): string {
   const agents = input.agents
     .map((r) => ({
@@ -108,6 +119,10 @@ export function buildCompanyRosterSkillMarkdown(input: {
 
   const topoText = topologyNarration(input.topologyTemplate, input.topology);
   const workspaceBlock = buildCompanyWorkspaceSection(input.companyWorkspaceRoot);
+  const compileCaveat =
+    input.topologyCompileErrorCode ?
+      `> **DidClaw export caveat:** This snapshot did not compile to a valid OpenClaw \`tools.agentToAgent\` shape (reason: \`${escTableCell(input.topologyCompileErrorCode)}\`). The collaboration summary below uses \`enabled: false\` as a placeholder. **Live gateway config may differ**—inspect \`openclaw.json\` or gateway diagnostics before telling the user collaboration is impossible.\n\n`
+    : "";
 
   return `---
 name: ${COMPANY_ROSTER_SKILL_SLUG}
@@ -128,7 +143,7 @@ ${rows || "| — | — | — | — | — |"}
 ${workspaceBlock}
 ## Collaboration (\`tools.agentToAgent\`)
 
-${topoText}
+${compileCaveat}${topoText}
 
 Official field shape: \`{ enabled: boolean, allow: string[] }\`. **Allow** is an undirected peer set for who may use cross-agent tools — it is **not** a directed org chart.
 

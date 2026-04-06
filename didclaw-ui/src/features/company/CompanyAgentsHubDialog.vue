@@ -26,7 +26,11 @@ import {
   extractToolsSessionsVisibilityFromConfigGet,
   retryAfterSecondsFromGatewayDetails,
 } from "@/lib/openclaw-gateway-config";
-import { writeOpenClawSkillEnabled } from "@/lib/skills-invoke";
+import {
+  writeOpenClawSkillEnabled,
+  writeOpenclawCompanyRosterSkill as writeCompanyRosterSkillViaInvoke,
+} from "@/lib/skills-invoke";
+import { isTauri } from "@tauri-apps/api/core";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { useSessionStore } from "@/stores/session";
@@ -83,6 +87,18 @@ const syncRosterOnFinish = ref(true);
 const wizardApplyAllBusy = ref(false);
 /** 一键保存成功后跳过下一次关闭时的草稿写入，避免把已提交状态又写回 sessionStorage */
 const skipWizardDraftOnNextClose = ref(false);
+
+/** 保存成功后展示总览（非新步骤索引，单独视图） */
+type CompanyHubOverviewSnapshot = {
+  companyName: string;
+  tagline: string;
+  roleRows: Array<{ id: string; name: string }>;
+  topologyTemplate: TopologyTemplate;
+};
+const postSaveOverview = ref(false);
+const overviewSnapshot = ref<CompanyHubOverviewSnapshot | null>(null);
+const postSaveInitBusy = ref(false);
+const postSaveInitResult = ref("");
 
 /** 关闭 hub 时持久化向导草稿，避免再次打开被重置或 `refreshList` 覆盖未保存的表格 */
 const WIZARD_DRAFT_KEY = "didclaw-company-hub-wizard-draft-v1";
@@ -212,7 +228,7 @@ function saveWizardDraft(): void {
       rosterCharter: rosterCharter.value,
       rosterWorkspaceRoot: rosterWorkspaceRoot.value,
       seedIntroAfterSave: seedIntroAfterSave.value,
-      syncRosterOnFinish: syncRosterOnFinish.value,
+      syncRosterOnFinish: true,
     };
     sessionStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(d));
   } catch {
@@ -239,10 +255,15 @@ function applyWizardDraft(d: WizardDraftV1): void {
   rosterCharter.value = d.rosterCharter;
   rosterWorkspaceRoot.value = d.rosterWorkspaceRoot;
   seedIntroAfterSave.value = d.seedIntroAfterSave;
-  syncRosterOnFinish.value = d.syncRosterOnFinish;
+  /** 已移除「跳过技能」勾选；旧草稿里 false 会导致误跳过写入 */
+  syncRosterOnFinish.value = true;
 }
 
 async function bootstrapCompanyHubWhenOpen(): Promise<void> {
+  postSaveOverview.value = false;
+  overviewSnapshot.value = null;
+  postSaveInitResult.value = "";
+  postSaveInitBusy.value = false;
   wizardBlockReason.value = "";
   const draft = loadWizardDraft();
   await loadModelPickerOptions();
@@ -353,8 +374,9 @@ const canTopologyDesktopWrite = computed(
 );
 const canSaveTopology = computed(() => canSaveViaGateway.value || canTopologyDesktopWrite.value);
 
+/** 公司技能须写本机 ~/.openclaw/skills：Tauri 可用 invoke；纯浏览器连网关时不可用 */
 const canSyncCompanyRosterSkill = computed(
-  () => isDidClawElectron() && !!getDidClawDesktopApi()?.writeOpenclawCompanyRosterSkill,
+  () => isTauri() || !!getDidClawDesktopApi()?.writeOpenclawCompanyRosterSkill,
 );
 
 function rosterAgentsFromRows(): CompanyRosterAgentRow[] {
@@ -368,11 +390,75 @@ function rosterAgentsFromRows(): CompanyRosterAgentRow[] {
     .filter((r) => r.id.length > 0);
 }
 
-async function appendSeedBootstrapLines(lines: string[]): Promise<void> {
+/** 一键保存开始时快照，避免 `refreshHubData` 把表格同步空后 roster 与总览数据丢失 */
+type CompanyWizardApplySnapshot = {
+  rows: Array<{ id: string; name: string; workspace: string; model: string }>;
+  rosterCharter: string;
+  rosterWorkspaceRoot: string;
+  topoTemplate: TopologyTemplate;
+  topoCustomEdges: AgentTopologyEdge[];
+  wizardCompanyName: string;
+  wizardCompanyTagline: string;
+};
+
+function captureCompanyWizardApplySnapshot(): CompanyWizardApplySnapshot {
+  return {
+    rows: rows.value.map((r) => ({ ...r })),
+    rosterCharter: rosterCharter.value,
+    rosterWorkspaceRoot: rosterWorkspaceRoot.value,
+    topoTemplate: topoTemplate.value,
+    topoCustomEdges: topoCustomEdges.value.map((e) => ({ ...e })),
+    wizardCompanyName: wizardCompanyName.value.trim(),
+    wizardCompanyTagline: wizardCompanyTagline.value.trim(),
+  };
+}
+
+function restoreRowsIfWipedAfterAgentSave(snap: CompanyWizardApplySnapshot): void {
+  const hadAgents = snap.rows.some((r) => r.id.trim().length > 0);
+  if (!hadAgents || rosterAgentsFromRows().length > 0) {
+    return;
+  }
+  rows.value = snap.rows.map((r) => ({ ...r }));
+}
+
+function rosterAgentsFromApplySnapshot(snap: CompanyWizardApplySnapshot): CompanyRosterAgentRow[] {
+  return snap.rows
+    .map((r) => ({
+      id: r.id.trim(),
+      name: r.name.trim(),
+      workspace: r.workspace.trim() || "default",
+      model: r.model.trim(),
+    }))
+    .filter((r) => r.id.length > 0);
+}
+
+function buildCompanyRosterSkillMarkdownFromSnapshot(snap: CompanyWizardApplySnapshot): string {
+  const agents = rosterAgentsFromApplySnapshot(snap);
+  const ids = agents.map((a) => a.id);
+  const topo = compileAgentToAgentTopology({
+    template: snap.topoTemplate,
+    agentIds: ids,
+    customEdges: snap.topoCustomEdges,
+  });
+  const topology = topo.ok ? topo.config : { enabled: false, allow: [] as string[] };
+  return buildCompanyRosterSkillMarkdown({
+    agents,
+    topologyTemplate: snap.topoTemplate,
+    topology,
+    companyWorkspaceRoot: snap.rosterWorkspaceRoot,
+    charter: snap.rosterCharter,
+    topologyCompileErrorCode: topo.ok ? undefined : topo.error,
+  });
+}
+
+async function appendSeedBootstrapLines(
+  lines: string[],
+  agentsOverride?: CompanyRosterAgentRow[],
+): Promise<void> {
   if (!seedIntroAfterSave.value) {
     return;
   }
-  const agents = rosterAgentsFromRows();
+  const agents = agentsOverride?.length ? agentsOverride : rosterAgentsFromRows();
   if (agents.length === 0) {
     return;
   }
@@ -408,6 +494,7 @@ const rosterSkillPreview = computed(() => {
     topology,
     companyWorkspaceRoot: rosterWorkspaceRoot.value,
     charter: rosterCharter.value,
+    topologyCompileErrorCode: topo.ok ? undefined : topo.error,
   });
 });
 
@@ -441,6 +528,83 @@ function formatGatewaySaveError(err: unknown): string {
 }
 
 const wizardStepLabel = computed(() => t(`company.wizardStepLabel${wizardStep.value}`));
+
+function topologyTplI18nSuffix(tpl: TopologyTemplate): string {
+  switch (tpl) {
+    case "off":
+      return "Off";
+    case "star":
+      return "Star";
+    case "bidirectional":
+      return "Bidirectional";
+    case "full":
+      return "Full";
+    case "custom":
+      return "Custom";
+    default:
+      return "Off";
+  }
+}
+
+const hubHeaderEyebrow = computed(() =>
+  postSaveOverview.value ? t("company.wizardOverviewEyebrow") : wizardStepLabel.value,
+);
+
+const overviewTopoHuman = computed(() => {
+  const s = overviewSnapshot.value;
+  if (!s) {
+    return "";
+  }
+  return t(`company.topologyTpl${topologyTplI18nSuffix(s.topologyTemplate)}`);
+});
+
+const overviewCompanyTitle = computed(() => {
+  const n = overviewSnapshot.value?.companyName?.trim();
+  return n && n.length > 0 ? n : t("company.wizardSummaryUnnamed");
+});
+
+async function runWizardNotifyAllRoles(): Promise<void> {
+  postSaveInitBusy.value = true;
+  postSaveInitResult.value = "";
+  try {
+    let agents = rosterAgentsFromRows();
+    if (agents.length === 0 && (overviewSnapshot.value?.roleRows?.length ?? 0) > 0) {
+      agents = overviewSnapshot.value!.roleRows.map((rr) => ({
+        id: rr.id.trim(),
+        name: rr.name.trim(),
+        workspace: "default",
+        model: "",
+      }));
+    }
+    if (agents.length === 0) {
+      postSaveInitResult.value = t("company.wizardInitNoAgents");
+      return;
+    }
+    if (!gateway.client?.connected) {
+      postSaveInitResult.value = t("company.seedBootstrapNeedGateway");
+      return;
+    }
+    const r = await chat.seedCompanyAgentBootstrapUserMessages({ agents });
+    const parts: string[] = [];
+    if (r.seeded.length > 0) {
+      parts.push(t("company.seedBootstrapSeeded", { ids: r.seeded.join(", ") }));
+    }
+    if (r.skipped.length > 0) {
+      parts.push(t("company.seedBootstrapSkippedDup", { ids: r.skipped.join(", ") }));
+    }
+    if (r.failed.length > 0) {
+      const detail = r.failed.map((f) => `${f.agentId}: ${f.error}`).join("; ");
+      parts.push(t("company.seedBootstrapFailed", { detail }));
+    }
+    postSaveInitResult.value =
+      parts.length > 0 ? parts.join("\n") : t("company.wizardInitNothingSent");
+    if (parts.length > 0) {
+      chat.flashOpenClawConfigHint(parts.join("\n\n"));
+    }
+  } finally {
+    postSaveInitBusy.value = false;
+  }
+}
 
 async function refreshList(): Promise<void> {
   error.value = null;
@@ -531,10 +695,12 @@ async function refreshTopologyState(): Promise<void> {
   }
 }
 
-async function refreshHubData(): Promise<void> {
+async function refreshHubData(opts?: { skipTopology?: boolean }): Promise<void> {
   await refreshList();
   await loadModelPickerOptions();
-  await refreshTopologyState();
+  if (!opts?.skipTopology) {
+    await refreshTopologyState();
+  }
 }
 
 watch(topoTemplate, (next, prev) => {
@@ -720,6 +886,9 @@ function wizardNext(): void {
       return;
     }
     applyStructureTemplate(structureChoice.value);
+    if (topoTemplate.value === "off") {
+      topoTemplate.value = structureChoice.value === "flat" ? "full" : "star";
+    }
   } else if (wizardStep.value === 2) {
     if (rosterAgentsFromRows().length === 0) {
       wizardBlockReason.value = t("company.wizardNeedOneRole");
@@ -750,21 +919,38 @@ async function wizardApplyAll(): Promise<void> {
   error.value = null;
   topoError.value = null;
   rosterError.value = null;
+  const snap = captureCompanyWizardApplySnapshot();
+  const seedAgents = rosterAgentsFromApplySnapshot(snap);
   try {
-    await saveAgents();
+    await saveAgents({ skipTopologyRefresh: true });
     if (error.value) {
       return;
     }
+    restoreRowsIfWipedAfterAgentSave(snap);
+
     await saveTopology();
     if (topoError.value) {
       return;
     }
-    if (canSyncCompanyRosterSkill.value && syncRosterOnFinish.value) {
-      await syncCompanyRosterSkill();
-      if (rosterError.value) {
-        return;
-      }
+
+    overviewSnapshot.value = {
+      companyName: snap.wizardCompanyName,
+      tagline: snap.wizardCompanyTagline,
+      roleRows: seedAgents.map((a) => ({ id: a.id, name: a.name })),
+      topologyTemplate: snap.topoTemplate,
+    };
+    postSaveOverview.value = true;
+    postSaveInitResult.value = "";
+
+    if (syncRosterOnFinish.value && canSyncCompanyRosterSkill.value) {
+      const md = buildCompanyRosterSkillMarkdownFromSnapshot(snap);
+      await syncCompanyRosterSkill({ markdown: md, seedAgents });
+    } else if (syncRosterOnFinish.value) {
+      chat.flashOpenClawConfigHint(
+        [t("company.wizardSaveRolesTopoOkNoRoster"), t("company.rosterNeedsDesktop")].join("\n\n"),
+      );
     }
+
     clearWizardDraft();
     skipWizardDraftOnNextClose.value = true;
   } finally {
@@ -788,7 +974,7 @@ function removeRow(i: number): void {
   rows.value = rows.value.filter((_, j) => j !== i);
 }
 
-async function saveAgents(): Promise<void> {
+async function saveAgents(opts?: { skipTopologyRefresh?: boolean }): Promise<void> {
   error.value = null;
   const api = getDidClawDesktopApi();
   let primaryModelFallback = "";
@@ -844,7 +1030,7 @@ async function saveAgents(): Promise<void> {
         const gwLines = [t("company.afterWriteAgentsViaGateway"), ...gwExtra].filter(Boolean);
         await appendSeedBootstrapLines(gwLines);
         chat.flashOpenClawConfigHint(gwLines.join("\n\n"));
-        await refreshHubData();
+        await refreshHubData({ skipTopology: opts?.skipTopologyRefresh });
         return;
       } catch (e) {
         if (!api?.writeOpenClawAgentsListMerge) {
@@ -872,7 +1058,7 @@ async function saveAgents(): Promise<void> {
     ].filter(Boolean);
     await appendSeedBootstrapLines(mergeLines);
     chat.flashOpenClawConfigHint(mergeLines.join("\n\n"));
-    await refreshHubData();
+    await refreshHubData({ skipTopology: opts?.skipTopologyRefresh });
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -917,24 +1103,48 @@ async function collectSubagentAuthSyncLines(): Promise<string[]> {
   }
 }
 
-async function syncCompanyRosterSkill(): Promise<void> {
+async function syncCompanyRosterSkill(opts?: {
+  markdown?: string;
+  seedAgents?: CompanyRosterAgentRow[];
+}): Promise<void> {
   rosterError.value = null;
+  const md = (opts?.markdown ?? rosterSkillPreview.value).trim();
+  if (!md) {
+    rosterError.value = t("company.rosterWriteFailed");
+    return;
+  }
+  if (!opts?.markdown) {
+    const agents = rows.value
+      .map((r) => ({ id: r.id.trim() }))
+      .filter((r) => r.id.length > 0);
+    if (agents.length === 0) {
+      rosterError.value = t("company.needOneAgentId");
+      return;
+    }
+  }
   const api = getDidClawDesktopApi();
-  if (!api?.writeOpenclawCompanyRosterSkill) {
-    rosterError.value = t("company.rosterNeedsDesktop");
-    return;
-  }
-  const agents = rows.value
-    .map((r) => ({ id: r.id.trim() }))
-    .filter((r) => r.id.length > 0);
-  if (agents.length === 0) {
-    rosterError.value = t("company.needOneAgentId");
-    return;
-  }
-  const md = rosterSkillPreview.value;
   rosterBusy.value = true;
   try {
-    const w = await api.writeOpenclawCompanyRosterSkill({ skillMd: md });
+    let w: {
+      ok: boolean;
+      path?: string;
+      slug?: string;
+      backupPath?: string | null;
+      error?: string;
+    };
+    if (api?.writeOpenclawCompanyRosterSkill) {
+      w = await api.writeOpenclawCompanyRosterSkill({ skillMd: md });
+    } else if (isTauri()) {
+      try {
+        w = await writeCompanyRosterSkillViaInvoke(md);
+      } catch (e) {
+        rosterError.value = e instanceof Error ? e.message : String(e);
+        return;
+      }
+    } else {
+      rosterError.value = t("company.rosterNeedsDesktop");
+      return;
+    }
     if (!w.ok) {
       rosterError.value = w.error ?? t("company.rosterWriteFailed");
       return;
@@ -980,7 +1190,7 @@ async function syncCompanyRosterSkill(): Promise<void> {
         return;
       }
     }
-    await appendSeedBootstrapLines(parts);
+    await appendSeedBootstrapLines(parts, opts?.seedAgents);
     chat.flashOpenClawConfigHint(
       [...parts, getOpenClawAfterWriteHint()].filter(Boolean).join("\n\n"),
     );
@@ -1024,12 +1234,17 @@ function authSyncLinesFromMergeRes(res: {
         <header class="hub-head">
           <div class="hub-head-text">
             <h2 class="hub-title">{{ t("company.hubTitle") }}</h2>
-            <p class="hub-wizard-step-eyebrow">{{ wizardStepLabel }}</p>
+            <p class="hub-wizard-step-eyebrow">{{ hubHeaderEyebrow }}</p>
           </div>
           <button type="button" class="hub-x" :aria-label="t('company.closeDialog')" @click="emit('close')">×</button>
         </header>
 
-        <div class="hub-wizard-stepper" role="tablist" :aria-label="t('company.wizardStepperAria')">
+        <div
+          v-if="!postSaveOverview"
+          class="hub-wizard-stepper"
+          role="tablist"
+          :aria-label="t('company.wizardStepperAria')"
+        >
           <button
             v-for="si in 5"
             :key="si - 1"
@@ -1044,8 +1259,49 @@ function authSyncLinesFromMergeRes(res: {
         </div>
 
         <div class="hub-body">
-          <p v-if="!canMergeAgents" class="err">{{ t("company.saveNeedsDesktopOrGateway") }}</p>
+          <p v-if="!canMergeAgents && !postSaveOverview" class="err">{{ t("company.saveNeedsDesktopOrGateway") }}</p>
 
+          <template v-if="postSaveOverview">
+            <section class="hub-section hub-wizard-panel hub-company-overview">
+              <div class="hub-overview-check" aria-hidden="true">✓</div>
+              <h3>{{ t("company.wizardOverviewTitle") }}</h3>
+              <p class="hint">{{ t("company.wizardOverviewHint") }}</p>
+              <dl class="hub-overview-dl">
+                <dt>{{ t("company.wizardOverviewCompany") }}</dt>
+                <dd>{{ overviewCompanyTitle }}</dd>
+                <template v-if="overviewSnapshot?.tagline">
+                  <dt>{{ t("company.wizardOverviewTagline") }}</dt>
+                  <dd>{{ overviewSnapshot.tagline }}</dd>
+                </template>
+                <dt>{{ t("company.wizardOverviewTopo") }}</dt>
+                <dd>{{ overviewTopoHuman }}</dd>
+                <dt>{{ t("company.wizardOverviewRoles") }}</dt>
+                <dd>
+                  <ul class="hub-overview-roles">
+                    <li v-for="rr in overviewSnapshot?.roleRows ?? []" :key="rr.id">
+                      <code>{{ rr.id }}</code>
+                      <template v-if="rr.name"> · {{ rr.name }}</template>
+                    </li>
+                  </ul>
+                </dd>
+              </dl>
+              <p v-if="rosterError" class="err hub-overview-roster-err">{{ rosterError }}</p>
+              <p class="hint hub-overview-init-hint">{{ t("company.wizardInitNotifyHint") }}</p>
+              <div class="row-actions hub-overview-actions">
+                <button
+                  type="button"
+                  class="lc-btn lc-btn-primary"
+                  :disabled="postSaveInitBusy || !gateway.client?.connected"
+                  @click="runWizardNotifyAllRoles"
+                >
+                  {{ t("company.wizardInitNotifyButton") }}
+                </button>
+              </div>
+              <p v-if="!gateway.client?.connected" class="hint">{{ t("company.seedBootstrapNeedGateway") }}</p>
+              <p v-if="postSaveInitResult" class="hint hub-overview-init-result">{{ postSaveInitResult }}</p>
+            </section>
+          </template>
+          <template v-else>
           <section v-show="wizardStep === 0" class="hub-section hub-wizard-panel">
             <h3>{{ t("company.wizardStep0Title") }}</h3>
             <p class="hint">{{ t("company.wizardStep0Hint") }}</p>
@@ -1209,6 +1465,9 @@ function authSyncLinesFromMergeRes(res: {
           <section v-show="wizardStep === 4" class="hub-section hub-wizard-panel hub-wizard-finish">
             <h3>{{ t("company.wizardStep4Title") }}</h3>
             <p class="hint wizard-finish-hint">{{ t("company.wizardStep4FinishHint") }}</p>
+            <p v-if="!canSyncCompanyRosterSkill" class="hint wizard-roster-desktop-banner">
+              {{ t("company.wizardRosterDesktopOnlyBanner") }}
+            </p>
             <label class="roster-charter-label">{{ t("company.rosterWorkspaceLabel") }}</label>
             <input
               v-model="rosterWorkspaceRoot"
@@ -1240,9 +1499,10 @@ function authSyncLinesFromMergeRes(res: {
           <p v-if="wizardBlockReason" class="err">{{ wizardBlockReason }}</p>
           <p v-if="error" class="err">{{ error }}</p>
           <p v-if="topoError && wizardStep >= 3" class="err">{{ topoError }}</p>
+          </template>
         </div>
 
-        <footer class="hub-wizard-footer">
+        <footer v-if="!postSaveOverview" class="hub-wizard-footer">
           <button
             type="button"
             class="lc-btn lc-btn-ghost lc-btn-sm"
@@ -1258,6 +1518,11 @@ function authSyncLinesFromMergeRes(res: {
             @click="wizardNext"
           >
             {{ t("company.wizardNext") }}
+          </button>
+        </footer>
+        <footer v-else class="hub-wizard-footer hub-overview-footer">
+          <button type="button" class="lc-btn lc-btn-primary lc-btn-sm" @click="emit('close')">
+            {{ t("company.wizardOverviewDone") }}
           </button>
         </footer>
       </div>
@@ -1336,6 +1601,58 @@ function authSyncLinesFromMergeRes(res: {
   border-top: 1px solid var(--lc-border);
   flex-shrink: 0;
   background: var(--lc-surface-panel);
+}
+.hub-overview-footer {
+  justify-content: flex-end;
+}
+.hub-company-overview {
+  text-align: left;
+}
+.hub-overview-check {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--lc-accent, #3b82f6) 18%, transparent);
+  color: var(--lc-accent, #3b82f6);
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.hub-overview-dl {
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+.hub-overview-dl dt {
+  margin: 10px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lc-text-muted);
+}
+.hub-overview-dl dd {
+  margin: 0;
+  color: var(--lc-text);
+}
+.hub-overview-roles {
+  margin: 0;
+  padding-left: 18px;
+}
+.hub-overview-roles li {
+  margin: 4px 0;
+}
+.hub-overview-init-hint {
+  margin-top: 16px;
+}
+.hub-overview-actions {
+  margin-top: 8px;
+}
+.hub-overview-init-result {
+  white-space: pre-wrap;
+  margin-top: 10px;
 }
 .hub-wizard-panel h3 {
   text-transform: none;
@@ -1561,6 +1878,13 @@ function authSyncLinesFromMergeRes(res: {
 }
 .topology-main-missing {
   color: var(--lc-warning, #b45309);
+}
+.wizard-roster-desktop-banner {
+  color: var(--lc-warning, #b45309);
+  border: 1px solid color-mix(in srgb, var(--lc-warning, #b45309) 35%, var(--lc-border));
+  border-radius: var(--lc-radius-sm);
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--lc-warning, #b45309) 8%, transparent);
 }
 .roster-charter-label {
   display: block;

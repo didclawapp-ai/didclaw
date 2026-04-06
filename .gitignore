@@ -1,5 +1,6 @@
 # OpenClaw 上游克隆体积大且可独立更新；若需纳入仓库，删除本行
 /openclaw-src/
+/openclaw-main/
 
 # 官网（已纳入主仓库，随产品一起发版）
 

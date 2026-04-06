@@ -8,7 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+### Changed
+
+- **Gateway connect (OpenClaw 4.x)**: After `ensure_open_claw_gateway`, wait longer before opening the WebSocket when the TCP port is already listening (new 2.2s pause in Tauri) and when DidClaw just spawned the gateway (4.5s pause + 2.8s UI buffer, was 2s + 400ms). Reduces `handshake timeout` / 1006 when the gateway process accepts the port before WS/`connect.challenge` is ready. Slightly increased `connect.challenge` fallback wait and 1012 service-restart reconnect base delay.
+
+- **Spawned OpenClaw gateway**: When **`OPENCLAW_HANDSHAKE_TIMEOUT_MS`** is not already set in DidClaw’s environment, the child process gets **`30000`** so the gateway’s pre-auth WebSocket timer tolerates slow cold starts; OpenClaw’s default is 10s (`handshake-timeouts.ts` / `ws-connection.ts`). Applies to all Windows and Unix spawn paths.
+
 ### Added
+
+- **Vendor OpenClaw tree**: `.gitignore` includes `/openclaw-main/` (alongside `/openclaw-src/`) so a local OpenClaw source drop is not committed by mistake. `scripts/openclaw-main-detach.ps1` removes `git remote origin` and optionally deletes `.git` for a full non-Git copy.
 
 - **Windows maintenance script**: `scripts/uninstall-openclaw-global.bat` runs `npm uninstall -g openclaw`, `npm cache clean --force`, and removes common npm shim leftovers under `%APPDATA%\npm` (does not delete `%USERPROFILE%\.openclaw`).
 
@@ -25,6 +33,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ### Fixed
 
+- **Company hub — topology vs `openclaw.json`**: After saving `agents.list` through the gateway, the hub refreshed collaboration state from the live config before `tools.agentToAgent` was updated, which reset the wizard’s topology choice (often back to **off**). The next step then wrote the wrong collaboration preset. **Finish & save** now skips that intermediate topology refresh when saving agents, then applies topology from the user’s selection. Leaving the structure step with topology still **off** also presets **flat → full mesh** and **pyramid → star (main-centric)** so the choice matches the org shape unless the user changes it.
+
+- **Company roster skill (`didclaw-company-roster`)**: The Collaboration section could make models refuse `sessions_send` whenever `tools.agentToAgent.enabled` was false. The generated `SKILL.md` now states that **session tools are a separate subsystem** from `agentToAgent`, and tells the model to use `sessions_list` / `sessions_send` toward `agent:<id>:main` when appropriate. When the wizard snapshot fails to compile to `tools.agentToAgent`, the skill also adds an **export caveat** with the compile error code so readers know live `openclaw.json` may still enable collaboration.
+
+- **Company wizard — save all**: After saving `agents.list`, `refreshHubData` could resync the editable table to an empty row so `syncCompanyRosterSkill` failed with “need one agent id” and `wizardApplyAll` returned before setting the post-save overview. The flow now snapshots wizard state at save start, restores rows when the table is wiped, switches to the overview immediately after roles + topology succeed, writes the roster skill from that snapshot (with optional seed agents), shows roster errors on the overview, and uses explicit `v-if` blocks for the overview vs wizard body.
+
 - **Xiaomi MiMo (小米套餐) 401**: DidClaw’s catalog used the legacy **`/anthropic` + `anthropic-messages`** shape; OpenClaw’s [official Xiaomi provider](https://docs.openclaw.ai/providers/xiaomi) expects **`https://api.xiaomimimo.com/v1`** with **`openai-completions`**. The catalog, default model (`mimo-v2-flash`), and models list (`mimo-v2-omni` added) are aligned. Credentials stay in **`models.json` + `auth-profiles.json`** (like other providers); **no automatic `env.vars` entry**—unlike **Zhipu / GLM**, where DidClaw still syncs **`ZHIPU_API_KEY`** for image-gen and tooling that read that env name. **Existing installs**: open **AI 服务商** for Xiaomi and **应用** again, or hand-edit `~/.openclaw/agents/main/agent/models.json`.
 
 - **First-run wizard / OpenClaw preflight**: `getOpenClawSetupStatus` no longer treats **only** `~/.openclaw` existing as “OpenClaw installed” (bundled workspace skills create that directory). New flag **`openclawSetupIndicated`** is true when **`openclaw.json` exists** or the **`openclaw` CLI** is resolved; **FirstRunWizard** and **channel auto-install** prechecks use it. **Deferred gateway auto-connect** and the **onboarding resume banner** still require **`openclaw.json`** (`openclawConfigState !== "missing"`), not merely the directory.
@@ -40,6 +54,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 - **Company hub title**: Dialog and header tooltips use “公司与职务” / “Company & roles” instead of “多 Agent” for end-user clarity.
 
 - **Company wizard — roles step**: Removed the openclaw.json-oriented blurb; added 3–7 headcount presets (with suggested role ids) plus RAM guidance (about four roles ≈ 64GB in testing).
+
+- **Company wizard — after save**: Successful “Save” switches to a short **company overview** (name, collaboration, role list) plus an **initialize / notify all roles** button that reuses `seedCompanyAgentBootstrapUserMessages` (same pipeline as post-save hints). `chat.history` failures for non-main `agent:<id>:main` sessions no longer block `chat.send`, so bootstrap can reach every role when those sessions did not exist yet.
+
+- **Company wizard — roster skill**: Roster sync now treats Tauri via `isTauri()` (invoke fallback if the desktop API object lacks the writer); session draft always keeps “sync roster on finish” on; when local skill write is unavailable, the final step shows a banner and Save flashes a hint so roles/topology saves are not mistaken for skill creation.
 
 - **Company wizard — final step**: Reduced to charter/workspace fields and a single **Save** button (same pipeline as before: roles → topology → roster skill); removed per-step actions, SKILL.md preview, checkboxes, and technical JSON panel from this step.
 

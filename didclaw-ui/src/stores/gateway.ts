@@ -33,7 +33,8 @@ let connectRequestId = 0;
 
 /** 网关 WS 1012（Service Restart）自动重连：指数退避 + 上限，避免无限静默重试 */
 const MAX_SERVICE_RESTART_ATTEMPTS = 15;
-const SERVICE_RESTART_BASE_DELAY_MS = 3000;
+/** OpenClaw 4.x 配置热重载后 SIGUSR1 重启常需十余秒再接受 WS */
+const SERVICE_RESTART_BASE_DELAY_MS = 4500;
 const SERVICE_RESTART_MAX_DELAY_MS = 60_000;
 let serviceRestartReconnectAttempt = 0;
 /** 下一次 `connect()` 是否视为「承接 1012 重连」（不重置尝试计数） */

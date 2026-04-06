@@ -750,6 +750,7 @@ export const useChatStore = defineStore("chat", () => {
     }
     for (const row of agents) {
       const sessionKey = `agent:${row.id}:main`;
+      let incoming: GatewayChatMessage[] = [];
       try {
         const res = await c.request<unknown>("chat.history", {
           sessionKey,
@@ -759,20 +760,21 @@ export const useChatStore = defineStore("chat", () => {
         const raw = (parsed.success && Array.isArray(parsed.data.messages)
           ? parsed.data.messages
           : []) as GatewayChatMessage[];
-        const incoming = sortHistoryMessagesOldestFirst(raw);
-        if (historyHasCompanyBootstrapMessage(incoming)) {
-          skipped.push(row.id);
-          continue;
-        }
-        const msg = buildCompanyAgentBootstrapUserMessage(row, agents);
-        const out = await sendPresetUserMessageForSession(sessionKey, msg);
-        if (out.ok) {
-          seeded.push(row.id);
-        } else {
-          failed.push({ agentId: row.id, error: out.error });
-        }
-      } catch (e) {
-        failed.push({ agentId: row.id, error: describeGatewayError(e) });
+        incoming = sortHistoryMessagesOldestFirst(raw);
+      } catch {
+        /* 子职务 Web 主会话可能尚未存在，history 会报错；按空历史继续尝试首条 chat.send */
+        incoming = [];
+      }
+      if (historyHasCompanyBootstrapMessage(incoming)) {
+        skipped.push(row.id);
+        continue;
+      }
+      const msg = buildCompanyAgentBootstrapUserMessage(row, agents);
+      const out = await sendPresetUserMessageForSession(sessionKey, msg);
+      if (out.ok) {
+        seeded.push(row.id);
+      } else {
+        failed.push({ agentId: row.id, error: out.error });
       }
       await new Promise((r) => setTimeout(r, 120));
     }

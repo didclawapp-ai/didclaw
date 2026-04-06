@@ -901,6 +901,20 @@ pub fn pick_plugin_package_file() -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
+/// Pre-auth WebSocket handshake budget on the **gateway** (OpenClaw reads `OPENCLAW_HANDSHAKE_TIMEOUT_MS`).
+/// Default upstream is 10s (`openclaw-main/src/gateway/handshake-timeouts.ts`); cold start + many plugins on
+/// Windows can delay processing `connect` after `connect.challenge`, causing spurious handshake timeouts (#48736).
+const SPAWN_OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS: &str = "30000";
+
+fn apply_spawn_openclaw_gateway_handshake_timeout_if_unset(cmd: &mut Command) {
+    if std::env::var("OPENCLAW_HANDSHAKE_TIMEOUT_MS").is_err() {
+        cmd.env(
+            "OPENCLAW_HANDSHAKE_TIMEOUT_MS",
+            SPAWN_OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS,
+        );
+    }
+}
+
 fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
     #[cfg(windows)]
     {
@@ -918,15 +932,15 @@ fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
 
         // 真实 .exe：直接子进程 + CREATE_NO_WINDOW，无 cmd 中转。
         if lower.ends_with(".exe") && Path::new(exe).is_file() {
-            return Command::new(exe)
-                .arg("gateway")
+            let mut cmd = Command::new(exe);
+            cmd.arg("gateway")
                 .env("PATH", &path_env)
                 .stdin(Stdio::null())
                 .stdout(stdout)
                 .stderr(stderr)
-                .creation_flags(CREATE_NO_WINDOW)
-                .spawn()
-                .map_err(|e| e.to_string());
+                .creation_flags(CREATE_NO_WINDOW);
+            apply_spawn_openclaw_gateway_handshake_timeout_if_unset(&mut cmd);
+            return cmd.spawn().map_err(|e| e.to_string());
         }
 
         // npm 垫片：`cmd /c *.cmd` 时 CREATE_NO_WINDOW 盖不住内层 node 的新控制台；改为 node openclaw.mjs gateway。
@@ -936,42 +950,42 @@ fn spawn_openclaw_gateway(exe: &str) -> Result<Child, String> {
                     .parent()
                     .map(Path::to_path_buf)
                     .unwrap_or_else(|| mjs.clone());
-                return Command::new(node)
-                    .arg(&mjs)
+                let mut cmd = Command::new(node);
+                cmd.arg(&mjs)
                     .arg("gateway")
                     .env("PATH", &path_env)
                     .stdin(Stdio::null())
                     .stdout(stdout)
                     .stderr(stderr)
                     .current_dir(pkg_root)
-                    .creation_flags(CREATE_NO_WINDOW)
-                    .spawn()
-                    .map_err(|e| e.to_string());
+                    .creation_flags(CREATE_NO_WINDOW);
+                apply_spawn_openclaw_gateway_handshake_timeout_if_unset(&mut cmd);
+                return cmd.spawn().map_err(|e| e.to_string());
             }
         }
 
         // 兜底：仍走 cmd（pnpm 等非标准布局时可能只有垫片可用）。
-        Command::new("cmd")
-            .arg("/C")
+        let mut cmd = Command::new("cmd");
+        cmd.arg("/C")
             .arg(exe)
             .arg("gateway")
             .env("PATH", &path_env)
             .stdin(Stdio::null())
             .stdout(stdout)
             .stderr(stderr)
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| e.to_string())
+            .creation_flags(CREATE_NO_WINDOW);
+        apply_spawn_openclaw_gateway_handshake_timeout_if_unset(&mut cmd);
+        cmd.spawn().map_err(|e| e.to_string())
     }
     #[cfg(not(windows))]
     {
-        Command::new(exe)
-            .arg("gateway")
+        let mut cmd = Command::new(exe);
+        cmd.arg("gateway")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| e.to_string())
+            .stderr(Stdio::piped());
+        apply_spawn_openclaw_gateway_handshake_timeout_if_unset(&mut cmd);
+        cmd.spawn().map_err(|e| e.to_string())
     }
 }
 
@@ -1943,6 +1957,9 @@ pub async fn ensure_open_claw_gateway_running(
 
     if wait_for_tcp_port_open(&host, port, Duration::from_millis(500), Duration::from_millis(350)).await
     {
+        // OpenClaw 4.x：端口 listen 后 WS 升级与内场初始化（插件/acpx）仍可能滞后数秒至数十秒；
+        // 立即建连易被网关判为 handshake timeout（见 didclaw-gateway.err.log）。给环回一点缓冲。
+        tokio::time::sleep(Duration::from_millis(2200)).await;
         return Ok(json!({"ok": true, "started": false}));
     }
 
@@ -2033,8 +2050,9 @@ pub async fn ensure_open_claw_gateway_running(
         }));
     }
 
-    // 端口刚 listen 时，进程内 WS 升级与 connect.challenge 仍可能滞后（冷启加载扩展更明显）；650ms 常不够，表现为首连很久或失败、断开后重连却秒好。
-    tokio::time::sleep(Duration::from_millis(2000)).await;
+    // 端口刚 listen 时，进程内 WS 升级与 connect.challenge 仍可能滞后（4.x 冷启常见 20s+ ready）；
+    // 过短则首连 handshake timeout / 1006，断开后重连却秒好。
+    tokio::time::sleep(Duration::from_millis(4500)).await;
 
     Ok(json!({"ok": true, "started": true}))
 }

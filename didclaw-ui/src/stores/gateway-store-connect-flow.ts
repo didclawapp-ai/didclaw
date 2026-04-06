@@ -6,7 +6,7 @@ export type EnsureDesktopGatewayResult =
   | { kind: "stale" };
 
 /**
- * 桌面壳在建立 WebSocket 前确保 OpenClaw Gateway 进程已就绪（含可选 400ms 防抖）。
+ * 桌面壳在建立 WebSocket 前确保 OpenClaw Gateway 进程已就绪（Rust 侧已 sleep；此处再留缓冲给 4.x 慢启）。
  * Web / 无 `ensureOpenClawGateway` 时直接视为已就绪。
  */
 export async function ensureDesktopOpenClawGatewayForConnect(params: {
@@ -26,7 +26,7 @@ export async function ensureDesktopOpenClawGatewayForConnect(params: {
     return { kind: "error", message: ensured.error };
   }
   if (ensured.started) {
-    await params.delayMs(400);
+    await params.delayMs(2800);
     if (params.isStale()) {
       return { kind: "stale" };
     }

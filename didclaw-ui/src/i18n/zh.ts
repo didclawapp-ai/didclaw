@@ -338,6 +338,10 @@ export default {
     rosterPreviewLabel: "将写入的 SKILL.md 预览",
     rosterSync: "生成 / 更新公司技能",
     rosterNeedsDesktop: "写入共享技能目录需要 DidClaw 桌面版（Tauri）。",
+    wizardSaveRolesTopoOkNoRoster:
+      "职务表与协作拓扑已保存。公司技能（~/.openclaw/skills 下的 SKILL.md）只能在 DidClaw 桌面应用内创建；当前环境无法写本机技能文件。",
+    wizardRosterDesktopOnlyBanner:
+      "提示：仅在浏览器中连接网关时，保存不会生成本地「公司技能」；请使用 DidClaw 桌面版完成保存，或在本机桌面版中重开此向导。",
     rosterWriteFailed: "写入 SKILL.md 失败。",
     afterWriteRosterSkillDisk: "已写入共享技能：{path}（slug：`{slug}`）。",
     afterWriteRosterSkillBackup: "已备份既有文件：{path}",
@@ -387,6 +391,19 @@ export default {
     wizardStep4FinishHint:
       "点击下方「保存」将依次写入职务表、协作方式；在本机桌面版可用时，会根据正文生成/更新共享公司技能。向各职务发送开场说明默认开启。",
     wizardFinishSave: "保存",
+    wizardOverviewEyebrow: "已完成",
+    wizardOverviewTitle: "公司已就绪",
+    wizardOverviewHint: "职务表、协作方式与公司技能（若适用）已保存。可在下方向各职务 Web 主会话发送初始化说明。",
+    wizardOverviewCompany: "公司名称",
+    wizardOverviewTagline: "一句话介绍",
+    wizardOverviewTopo: "协作方式",
+    wizardOverviewRoles: "职务列表",
+    wizardInitNotifyHint:
+      "向每个职务的 `agent:<id>:main` 各发送一条带标记的说明消息（已发过相同样式的会话会自动跳过）。需已连接网关。",
+    wizardInitNotifyButton: "初始化通知（发到所有职务）",
+    wizardOverviewDone: "完成",
+    wizardInitNoAgents: "当前没有可通知的职务，请检查职务表。",
+    wizardInitNothingSent: "未发送新消息（可能均已存在初始化说明）。",
     wizardBack: "上一步",
     wizardNext: "下一步",
     wizardNeedCompanyName: "请填写公司名称。",

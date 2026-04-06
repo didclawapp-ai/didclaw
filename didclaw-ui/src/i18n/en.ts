@@ -342,6 +342,10 @@ export default {
     rosterPreviewLabel: "Preview of SKILL.md to be written",
     rosterSync: "Generate / update company skill",
     rosterNeedsDesktop: "Writing the shared skills folder requires the DidClaw desktop app (Tauri).",
+    wizardSaveRolesTopoOkNoRoster:
+      "Roles and collaboration topology are saved. The company skill (SKILL.md under ~/.openclaw/skills) can only be created from the DidClaw desktop app; this environment cannot write local skill files.",
+    wizardRosterDesktopOnlyBanner:
+      "Note: If you only use the browser with the gateway, Save will not create the local company skill. Use the DidClaw desktop app to finish, or reopen this wizard there.",
     rosterWriteFailed: "Failed to write SKILL.md.",
     afterWriteRosterSkillDisk: "Wrote shared skill: {path} (slug: `{slug}`).",
     afterWriteRosterSkillBackup: "Backed up previous file: {path}",
@@ -393,6 +397,20 @@ export default {
     wizardStep4FinishHint:
       "Save applies roles and collaboration from this wizard, then generates/updates the shared company skill from the text below when the desktop app can write files. Bootstrap messages to each role stay on by default.",
     wizardFinishSave: "Save",
+    wizardOverviewEyebrow: "Done",
+    wizardOverviewTitle: "Company is ready",
+    wizardOverviewHint:
+      "Roles, collaboration, and the company skill (when applicable) are saved. You can send the bootstrap notice to every role below.",
+    wizardOverviewCompany: "Company name",
+    wizardOverviewTagline: "Tagline",
+    wizardOverviewTopo: "Collaboration",
+    wizardOverviewRoles: "Roles",
+    wizardInitNotifyHint:
+      "Sends one marked user message per role to `agent:<id>:main` (sessions that already contain it are skipped). Gateway must be connected.",
+    wizardInitNotifyButton: "Send init notice to all roles",
+    wizardOverviewDone: "Close",
+    wizardInitNoAgents: "No roles to notify; check the roles table.",
+    wizardInitNothingSent: "No new messages sent (bootstrap may already exist for all roles).",
     wizardBack: "Back",
     wizardNext: "Next",
     wizardNeedCompanyName: "Enter a company name.",

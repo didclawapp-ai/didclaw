@@ -34,5 +34,18 @@ describe("buildCompanyRosterSkillMarkdown", () => {
     });
     expect(md).toContain("F:/CompanyOffice");
     expect(md).toContain("docs/");
+    expect(md).toContain("Session messaging is separate");
+    expect(md).toContain("sessions_send");
+  });
+
+  it("embeds compile caveat when topology snapshot failed to compile", () => {
+    const md = buildCompanyRosterSkillMarkdown({
+      agents: [{ id: "main", name: "Lead", workspace: "default", model: "" }],
+      topologyTemplate: "star",
+      topology: { enabled: false, allow: [] },
+      topologyCompileErrorCode: "mainNotInAgentsList",
+    });
+    expect(md).toContain("DidClaw export caveat");
+    expect(md).toContain("mainNotInAgentsList");
   });
 });
