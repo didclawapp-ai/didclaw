@@ -7,6 +7,7 @@ import { useThemeStore } from "@/stores/theme";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { storeToRefs } from "pinia";
+import { companyFeaturesUnlocked } from "@/composables/companyFeaturesDev";
 import { isDidClawElectron } from "@/lib/electron-bridge";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -177,7 +178,7 @@ defineExpose({ showInlineError });
         </button>
         <div class="header-quick-tools">
           <button
-            v-if="isDidClawElectron()"
+            v-if="isDidClawElectron() && companyFeaturesUnlocked"
             type="button"
             class="header-icon-btn header-icon-btn--company"
             :title="t('header.companyAgents')"

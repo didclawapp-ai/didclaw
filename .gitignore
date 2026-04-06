@@ -22,6 +22,10 @@ didclaw-ui/.env.production
 # 仓库根目录本地环境（含密钥；勿提交）
 .env.test
 
+# Multi-agent company design drafts (keep locally; do not publish with the repo)
+docs/didclaw-multi-agent-company-spec.md
+docs/didclaw-multi-agent-company-new-chat-briefing.md
+
 # docs 目录：排除 AI 会话记忆文件与开发期 UI 原型
 docs/SESSION-CONTEXT.md
 docs/packaging-didclaw.md

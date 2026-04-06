@@ -9,6 +9,7 @@ import {
   isSlashDraftReadyToSend,
   type SlashCommand,
 } from "@/features/chat/slash-commands";
+import { isDidClawElectron } from "@/lib/electron-bridge";
 import { useChatStore } from "@/stores/chat";
 import { useGatewayStore } from "@/stores/gateway";
 import { storeToRefs } from "pinia";
@@ -328,6 +329,7 @@ function onDrop(ev: DragEvent): void {
               <li>{{ t('composer.shortcutLineSidebar') }}</li>
               <li>{{ t('composer.shortcutLinePreview') }}</li>
               <li>{{ t('composer.shortcutLineSession') }}</li>
+              <li v-if="isDidClawElectron()">{{ t('composer.shortcutLineCompanyDev') }}</li>
             </ul>
           </div>
         </div>

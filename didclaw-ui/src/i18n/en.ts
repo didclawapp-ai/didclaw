@@ -364,6 +364,8 @@ export default {
     shortcutLineSidebar: "Ctrl+Alt+L — Toggle quick actions sidebar",
     shortcutLinePreview: "Ctrl+Alt+P — Close file preview, or open local file (desktop)",
     shortcutLineSession: "Ctrl+Tab — Next session · Ctrl+Shift+Tab — Previous",
+    shortcutLineCompanyDev:
+      "Ctrl+Shift+Alt+M — Toggle multi-agent (company / roles) UI (desktop, persisted)",
     attachTitle: "Select file (image, PDF, Office…)",
     pendingFiles: "Attachments ({n})",
     docThumb: "Doc",

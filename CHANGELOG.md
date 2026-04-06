@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-04-05
+
+### Changed
+
+- **Multi-agent (company / roles) UI is off by default** on desktop: the header hub control, floating org panel, and role chat columns only appear after **Ctrl+Shift+Alt+M** (toggle, persisted in local storage). Turning it off closes the hub and clears open role columns. The composer shortcuts popover lists this chord on desktop builds.
+
 ### Added
 
 - **Multi-agent (company / roles) MVP**: Desktop header opens a hub to merge `agents.list` into `openclaw.json` (with backup) via `read_open_claw_agents_list` / `write_open_claw_agents_list_merge`, open side **role chat** columns (default `agent:<id>:main`), share one Gateway WebSocket with per-`sessionKey` chat state in the chat store, a **bottom-right floating “Roles” panel**, and **per-column session binding** via a dropdown fed from `sessions.list` (`agent:<roleId>:*` keys only). When the Gateway WebSocket is connected, the hub **prefers** official **`config.get` / `config.patch`** for read/merge of `agents.list`, falling back to the Tauri file merge on failure or when offline.

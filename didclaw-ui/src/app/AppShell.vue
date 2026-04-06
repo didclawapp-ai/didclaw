@@ -18,6 +18,7 @@ import { getDidClawDesktopApi, isDidClawElectron } from "@/lib/electron-bridge";
 import { absolutePathToFileUrl } from "@/lib/openclaw-workspace-memory";
 import { useAppShellConversationPanel } from "@/composables/useAppShellConversationPanel";
 import { useAppShellExternalDocumentClick } from "@/composables/useAppShellExternalDocumentClick";
+import { companyFeaturesUnlocked } from "@/composables/companyFeaturesDev";
 import { useAppShellGlobalShortcuts } from "@/composables/useAppShellGlobalShortcuts";
 import { useAppShellLifecycle } from "@/composables/useAppShellLifecycle";
 import { useAppShellOnboardingBanners } from "@/composables/useAppShellOnboardingBanners";
@@ -104,6 +105,9 @@ const companyRolePanelsStore = useCompanyRolePanelsStore();
 const { panels: companyPanels } = storeToRefs(companyRolePanelsStore);
 const companyHubOpen = ref(false);
 function onOpenCompanyHub(): void {
+  if (!companyFeaturesUnlocked.value) {
+    return;
+  }
   companyHubOpen.value = true;
 }
 function closeCompanyHub(): void {
@@ -146,6 +150,13 @@ const { displayLines, selectedIndex, onSelectMessage, historyLoading } = useAppS
 
 watch(activeSessionKey, () => {
   liveEditStore.onActiveSessionChanged();
+});
+
+watch(companyFeaturesUnlocked, (on) => {
+  if (!on) {
+    closeCompanyHub();
+    companyRolePanelsStore.closeAll();
+  }
 });
 
 function onSessionSelectChange(key: string): void {
@@ -233,7 +244,11 @@ onUnmounted(() => {
     <OpenClawUpdatePrompt v-if="isDidClawElectron()" />
     <DidClawUpdatePrompt />
     <ExecApprovalDialog />
-    <CompanyAgentsHubDialog v-if="isDidClawElectron()" :open="companyHubOpen" @close="closeCompanyHub" />
+    <CompanyAgentsHubDialog
+      v-if="isDidClawElectron() && companyFeaturesUnlocked"
+      :open="companyHubOpen"
+      @close="closeCompanyHub"
+    />
     <AppHeader />
     <AppShellTopBanners
       :show-onboarding-resume-banner="showOnboardingResumeBanner"
@@ -286,7 +301,7 @@ onUnmounted(() => {
           />
         </aside>
 
-        <template v-if="isDidClawElectron()">
+        <template v-if="isDidClawElectron() && companyFeaturesUnlocked">
           <RoleChatColumn
             v-for="p in companyPanels"
             :key="p.id"
@@ -325,7 +340,7 @@ onUnmounted(() => {
       @select="openHistorySession"
       @preview-memory="previewWorkspaceMemoryFile"
     />
-    <CompanyOrgFloatingPanel v-if="isDidClawElectron()" />
+    <CompanyOrgFloatingPanel v-if="isDidClawElectron() && companyFeaturesUnlocked" />
   </div>
 </template>
 

@@ -360,6 +360,8 @@ export default {
     shortcutLineSidebar: "Ctrl+Alt+L — 开关左侧快捷功能栏",
     shortcutLinePreview: "Ctrl+Alt+P — 关闭右侧文件预览，或打开本地文件（桌面端）",
     shortcutLineSession: "Ctrl+Tab — 下一会话 · Ctrl+Shift+Tab — 上一会话",
+    shortcutLineCompanyDev:
+      "Ctrl+Shift+Alt+M — 开关多 Agent（公司 / 职务）界面（桌面端，会记住）",
     attachTitle: "选择文件（图片、PDF、Office…）",
     pendingFiles: "待发附件（{n}）",
     docThumb: "文",
