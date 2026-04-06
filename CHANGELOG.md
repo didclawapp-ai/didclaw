@@ -8,6 +8,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). For ver
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-04-06
+
+### Release
+
+- **Stable 1.0.0** (SemVer): first stable packaging line; future incompatible changes will bump MAJOR per `didclaw-project.mdc`. This release rolls up the integration work since 0.8.5 (virtual company / multi-agent hub, roster skill, gateway handshake tuning, role column UX, OpenClaw 4.x alignment).
+
+### Changed
+
+- **Company roster skill (`didclaw-company-roster`)**: Expanded generated `SKILL.md` with an **Autonomous company operations** playbook—file-first deliverables, predictable Markdown names, role-shaped work, heartbeat/`HEARTBEAT.md` discipline (incl. avoid unsolicited `openclaw doctor` on empty heartbeat), short `sessions_send` handoffs, and explicit note that **agents do not self-run** without user, heartbeat, or cron. Frontmatter `description` updated.
+
+### Fixed
+
+- **Company role columns / message preview**: Role panels used `selected-index=null` and ignored `@select`, so truncated list lines could not open the right-hand chat preview. Selection is now tracked in `preview.rolePanelMessageSelection` (per panel id); clicks call the same `filePreview` path as the main column; main-column clicks clear role selection.
+
+- **Chat GPU (multi-column streaming)**: Removed the infinite `lc-stream-pulse` animation on streaming assistant rows in `ChatMessageList`; dashed border + static ring remain. Continuous box-shadow animation across several virtualized columns drove very high WebView2 **GPU 1 - 3D** usage in Task Manager.
+
+- **Company role columns / streaming scroll**: `ChatMessageList` treated `selectedIndex === null` as “not at end”, so role panels never ran the stream tail scroll even with `followLatest`. Null + follow now counts as pinned to the tail; role columns bind the same `preview.followLatest` as the main message column.
+
 ### Changed
 
 - **Gateway connect (OpenClaw 4.x)**: After `ensure_open_claw_gateway`, wait longer before opening the WebSocket when the TCP port is already listening (new 2.2s pause in Tauri) and when DidClaw just spawned the gateway (4.5s pause + 2.8s UI buffer, was 2s + 400ms). Reduces `handshake timeout` / 1006 when the gateway process accepts the port before WS/`connect.challenge` is ready. Slightly increased `connect.challenge` fallback wait and 1012 service-restart reconnect base delay.
